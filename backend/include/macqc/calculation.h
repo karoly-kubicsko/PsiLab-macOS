@@ -44,9 +44,9 @@ struct Input {
     bool estimateOnly = false;          // only molecule, basis, size and time estimate, warnings
 
     // ΨLab 5.0 job types (general molecules).
-    std::string job = "energy";         // energy | opt | freq | opt+freq | opt+freq+sp | scan
-    std::string spMethod;               // opt+freq+sp: method of the single point ("": method)
-    std::string spBasis;                // opt+freq+sp: basis set of the single point ("": basis)
+    std::string job = "energy";         // energy | opt | freq | opt+freq | opt+freq+sp | scan | ts | ts+freq | ts+freq+sp
+    std::string spMethod;               // opt+freq+sp, ts+freq+sp: method of the single point ("": method)
+    std::string spBasis;                // opt+freq+sp, ts+freq+sp: basis set of the single point ("": basis)
     double temperature = 298.15;        // K (frequency jobs)
     double pressure = 101325.0;         // Pa (frequency jobs)
     std::string optConvergence = "normal";  // normal | tight
@@ -57,6 +57,9 @@ struct Input {
     // dihedral), e.g. "1 2 S 10 0.05" or "A 2 1 3 S 8 10.0"; nsteps + 1 points
     std::string scan;
     std::optional<double> scanStart;    // value of the first point (angstrom or degrees); default: the input geometry
+    // ΨLab 7.0 transition states (jobs "ts", "ts+freq")
+    std::string tsHessian = "calcfc";   // calcfc (Hessian at the first point) | calcall (at every point)
+    bool eigenTest = true;              // exactly one negative Hessian eigenvalue (Gaussian: EigenTest)
     std::string echo;                   // input text for the output file ("": generated from the keys)
 };
 

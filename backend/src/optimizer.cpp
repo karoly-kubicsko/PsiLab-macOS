@@ -8,6 +8,7 @@
 #include <stdexcept>
 
 #include "macqc/gto_derivatives.h"
+#include "macqc/hessian.h"
 #include "macqc/job.h"
 #include "macqc/rhf_derivatives.h"
 
@@ -241,6 +242,28 @@ struct Projectors {
     int rank = 0;
 };
 
+// H_q = G^- B (H_x - K) B' G^-, K = sum_i g_q,i d2q_i/dx2 (exact also away from a stationary point).
+Matrix internal_hessian(const InternalCoordinates& ic, const Molecule& x, const Matrix& Hx, const Matrix& B,
+                        const Matrix& Gi, const std::vector<double>& gq0) {
+    const std::size_t nq = ic.size(), n3 = 3 * x.atoms.size();
+    Matrix Hc = Hx;
+    const Matrix K = ic.b_derivative_contracted(x, gq0);
+    for (std::size_t a = 0; a < n3; ++a)
+        for (std::size_t b = 0; b < n3; ++b) Hc(a, b) -= K(a, b);
+    const Matrix GB = mat_mul(Gi, B);
+    const Matrix T = mat_mul(GB, Hc);
+    Matrix H(nq, nq);
+    for (std::size_t i = 0; i < nq; ++i)
+        for (std::size_t j = 0; j < nq; ++j) {
+            double s = 0.0;
+            for (std::size_t k = 0; k < n3; ++k) s += T(i, k) * GB(j, k);
+            H(i, j) = s;
+        }
+    for (std::size_t i = 0; i < nq; ++i)
+        for (std::size_t j = 0; j < i; ++j) H(i, j) = H(j, i) = 0.5 * (H(i, j) + H(j, i));
+    return H;
+}
+
 Projectors projectors(const InternalCoordinates& ic, const Molecule& x) {
     Projectors p;
     const std::size_t nq = ic.size(), n3 = 3 * x.atoms.size();
@@ -317,6 +340,13 @@ OptimizationResult optimize_geometry(const Molecule& start, const BasisSet& basi
     const std::vector<PrimitiveConstraint> pcs = expand_constraints(oo.constraints);
     const std::vector<InternalCoordinate> required = required_coordinates(pcs);
     const bool constrained = !pcs.empty();
+    const bool ts = oo.transition_state;
+    if (ts && constrained) throw std::invalid_argument("a transition-state search with frozen coordinates is not available");
+    if (ts && oo.ts_hessian != "calcfc" && oo.ts_hessian != "calcall")
+        throw std::invalid_argument("ts_hessian must be calcfc or calcall");
+    res.transition_state = ts;
+    res.ts_hessian = ts ? oo.ts_hessian : "";
+    std::vector<double> followed_prev;  // the mode followed at the previous step (transition states)
     const double constraint_threshold = 0.01 * cc.max_displacement;
 
     Molecule x = start;
@@ -335,7 +365,7 @@ OptimizationResult optimize_geometry(const Molecule& start, const BasisSet& basi
 
     for (int step = 1; step <= oo.max_steps; ++step) {
         check_cancelled();
-        const auto ts = Clock::now();
+        const auto ts_start = Clock::now();
         OptimizationStep rec;
         rec.step = step;
         rec.geometry = x;
@@ -400,8 +430,32 @@ OptimizationResult optimize_geometry(const Molecule& start, const BasisSet& basi
         rec.constrained = cp.index;
         rec.constraint_deviation = cp.deviation;
 
-        // ---- Hessian: initial (carried over, analytic or model) or BFGS
-        if (need_initial || q_prev.size() != nq) {
+        // ---- Hessian: computed (transition states), initial (carried over, analytic or model) or updated
+        const bool ts_compute = ts && (need_initial || q_prev.size() != nq || oo.ts_hessian == "calcall");
+        if (ts_compute) {
+            HessianOptions ho;
+            ho.reference = &g;
+            ho.dipoles = false;
+            const std::string ctx = format("Step %d · Hessian (%s)", step, oo.ts_hessian == "calcall" ? "CalcAll" : "CalcFC");
+            report_progress_text(ctx);
+            const HessianResult hr = run_hessian(x, bx, method, eo, ho, cb, &orbitals, [&](int i, int n, const std::string& what) {
+                report_progress_text(ctx + format(": displacement %d of %d (%s)", i, n, what.c_str()));
+            });
+            H = internal_hessian(ic, x, hr.hessian, B, Gi, gq0);
+            ++res.hessian_evaluations;
+            rec.hessian_computed = true;
+            rec.hessian_description = hr.description;
+            rec.hessian_update = std::string("computed Hessian (") + (oo.ts_hessian == "calcall" ? "CalcAll" : "CalcFC") +
+                                 "): " + hr.description + ", transformed to internal coordinates";
+            if (res.initial_hessian.empty()) res.initial_hessian = std::string("computed (") +
+                                                                    (oo.ts_hessian == "calcall" ? "CalcAll, every step" : "CalcFC") +
+                                                                    "): " + hr.description;
+            if (!q_prev.empty() && q_prev.size() == nq && std::fabs(predicted_prev) > 1.0e-14) {
+                rec.ratio = rec.delta_e / predicted_prev;
+                rec.has_ratio = true;
+            }
+            need_initial = false;
+        } else if (need_initial || q_prev.size() != nq) {
             bool carried = false;
             if (first_build && oo.initial_hessian_matrix && oo.hessian_coordinates.size() == nq &&
                 oo.initial_hessian_matrix->rows() == nq) {
@@ -486,25 +540,134 @@ OptimizationResult optimize_geometry(const Molecule& start, const BasisSet& basi
                 for (std::size_t j = 0; j < nq; ++j) Hs[i] += H(i, j) * s[j];
             double sHs = 0.0;
             for (std::size_t i = 0; i < nq; ++i) sHs += s[i] * Hs[i];
-            if (sy > 1.0e-12 * norm(s) * norm(y) && sy > 0.0 && sHs > 1.0e-14) {
+            if (ts) {
+                // Bofill: phi * Murtagh-Sargent (SR1) + (1 - phi) * Powell symmetric Broyden
+                std::vector<double> xi(nq);
+                for (std::size_t i = 0; i < nq; ++i) xi[i] = y[i] - Hs[i];
+                double xs = 0.0, xx = 0.0, ss = 0.0;
+                for (std::size_t i = 0; i < nq; ++i) {
+                    xs += xi[i] * s[i];
+                    xx += xi[i] * xi[i];
+                    ss += s[i] * s[i];
+                }
+                if (ss > 1.0e-20 && xx > 1.0e-24) {
+                    const double phi = xs * xs / (xx * ss);
+                    const bool sr1 = std::fabs(xs) > 1.0e-12 * std::sqrt(xx * ss);
+                    for (std::size_t i = 0; i < nq; ++i)
+                        for (std::size_t j = 0; j < nq; ++j) {
+                            const double ms = sr1 ? xi[i] * xi[j] / xs : 0.0;
+                            const double psb = (xi[i] * s[j] + s[i] * xi[j]) / ss - xs * s[i] * s[j] / (ss * ss);
+                            H(i, j) += (sr1 ? phi : 0.0) * ms + (1.0 - (sr1 ? phi : 0.0)) * psb;
+                        }
+                    rec.hessian_update = format("Bofill update (phi = %.4f: Murtagh-Sargent weight)", sr1 ? phi : 0.0);
+                } else {
+                    rec.hessian_update = "Bofill update skipped (no change of the gradient)";
+                }
+            } else if (sy > 1.0e-12 * norm(s) * norm(y) && sy > 0.0 && sHs > 1.0e-14) {
                 for (std::size_t i = 0; i < nq; ++i)
                     for (std::size_t j = 0; j < nq; ++j) H(i, j) += y[i] * y[j] / sy - Hs[i] * Hs[j] / sHs;
                 rec.hessian_update = format("BFGS update (s.y = %.3e)", sy);
             } else {
                 rec.hessian_update = format("BFGS update skipped (curvature condition s.y = %.3e not positive)", sy);
             }
-            // trust radius from the quality of the previous step
+            // trust radius from the quality of the previous step (minimisations only; fixed for
+            // transition states, as in Gaussian)
             if (std::fabs(predicted_prev) > 1.0e-14) {
                 rec.ratio = rec.delta_e / predicted_prev;
                 rec.has_ratio = true;
-                if (rec.ratio < 0.25) trust = std::max(oo.min_trust, 0.25 * step_prev);
-                else if (rec.ratio > 0.75 && step_prev > 0.8 * trust) trust = std::min(oo.max_trust, 2.0 * trust);
+                if (!ts) {
+                    if (rec.ratio < 0.25) trust = std::max(oo.min_trust, 0.25 * step_prev);
+                    else if (rec.ratio > 0.75 && step_prev > 0.8 * trust) trust = std::min(oo.max_trust, 2.0 * trust);
+                }
             }
-            if (rec.delta_e > 1.0e-6)
+            if (rec.delta_e > 1.0e-6 && !ts)
                 rec.warnings.push_back(format("The energy rose by %.2e E_h; the trust radius is reduced.", rec.delta_e));
         }
         first_build = false;
 
+        std::vector<double> dq(nq, 0.0);
+        bool eigen_test_failed = false;
+        if (ts) {
+            // ---- partitioned RFO (Baker 1986) in the eigenvectors of the projected Hessian
+            rec.ts_step = true;
+            const Matrix PHP = mat_mul(mat_mul(P, H), P);
+            const EigenResult eh = symmetric_eigen(PHP);
+            std::vector<std::size_t> modes;  // non-redundant eigenvectors, ascending eigenvalues
+            for (std::size_t k = 0; k < nq; ++k) {
+                double proj = 0.0;
+                for (std::size_t i = 0; i < nq; ++i)
+                    for (std::size_t j = 0; j < nq; ++j) proj += eh.vectors(i, k) * P(i, j) * eh.vectors(j, k);
+                if (proj >= 0.5) modes.push_back(k);
+            }
+            int negative = 0;
+            for (std::size_t k : modes) {
+                rec.hessian_eigenvalues.push_back(eh.values[k]);
+                if (eh.values[k] < 0.0) ++negative;
+            }
+            rec.negative_eigenvalues = negative;
+            // the followed mode: the lowest, then the one most like the previous followed mode
+            std::size_t kf = modes.empty() ? 0 : modes[0];
+            double best = -1.0;
+            if (!followed_prev.empty() && followed_prev.size() == nq) {
+                for (std::size_t k : modes) {
+                    double ov = 0.0;
+                    for (std::size_t i = 0; i < nq; ++i) ov += eh.vectors(i, k) * followed_prev[i];
+                    if (std::fabs(ov) > best) {
+                        best = std::fabs(ov);
+                        kf = k;
+                    }
+                }
+            }
+            std::vector<double> vk(nq);
+            double sign = 1.0;
+            if (!followed_prev.empty() && followed_prev.size() == nq) {
+                double ov = 0.0;
+                for (std::size_t i = 0; i < nq; ++i) ov += eh.vectors(i, kf) * followed_prev[i];
+                if (ov < 0.0) sign = -1.0;
+            }
+            for (std::size_t i = 0; i < nq; ++i) vk[i] = sign * eh.vectors(i, kf);
+            rec.followed_mode = vk;
+            rec.followed_overlap = best < 0.0 ? 1.0 : best;
+            auto component = [&](std::size_t k) {
+                double f = 0.0;
+                for (std::size_t i = 0; i < nq; ++i) f += eh.vectors(i, k) * gq[i];
+                return f;
+            };
+            const double bk = eh.values[kf], Fk = component(kf);
+            const double lp = 0.5 * bk + 0.5 * std::sqrt(bk * bk + 4.0 * Fk * Fk);
+            std::vector<std::size_t> others;
+            for (std::size_t k : modes)
+                if (k != kf) others.push_back(k);
+            const std::size_t m = others.size();
+            Matrix Aug(m + 1, m + 1);
+            std::vector<double> Fo(m);
+            for (std::size_t a = 0; a < m; ++a) {
+                Fo[a] = component(others[a]);
+                Aug(a, a) = eh.values[others[a]];
+                Aug(a, m) = Aug(m, a) = Fo[a];
+            }
+            const double ln = symmetric_eigen(Aug).values[0];
+            rec.followed_eigenvalue = bk;
+            rec.followed_gradient = Fk;
+            rec.lambda_p = lp;
+            rec.lambda_n = ln;
+            rec.rfo_lambda = ln;
+            if (std::fabs(bk - lp) > 1.0e-14)
+                for (std::size_t i = 0; i < nq; ++i) dq[i] += -Fk / (bk - lp) * eh.vectors(i, kf);
+            for (std::size_t a = 0; a < m; ++a) {
+                const double den = eh.values[others[a]] - ln;
+                if (std::fabs(den) > 1.0e-14)
+                    for (std::size_t i = 0; i < nq; ++i) dq[i] += -Fo[a] / den * eh.vectors(i, others[a]);
+            }
+            followed_prev = vk;
+            if (oo.eigen_test && negative != 1) {
+                eigen_test_failed = true;
+                rec.warnings.push_back(format(
+                    "Eigenvalue test: the Hessian has %d negative eigenvalue%s; a transition state (first-order saddle point) "
+                    "needs exactly one.",
+                    negative, negative == 1 ? "" : "s"));
+            }
+        } else {
         // ---- projected Hessian and RFO step (within the constrained space)
         Matrix Ht(nq, nq);
         {
@@ -518,7 +681,6 @@ OptimizationResult optimize_geometry(const Molecule& start, const BasisSet& basi
             A(i, nq) = A(nq, i) = gt[i];
         }
         const EigenResult ea = symmetric_eigen(A);
-        std::vector<double> dq(nq, 0.0);
         const double last = ea.vectors(nq, 0);
         rec.rfo_lambda = ea.values[0];
         if (std::fabs(last) > 1.0e-8) {
@@ -549,6 +711,8 @@ OptimizationResult optimize_geometry(const Molecule& start, const BasisSet& basi
                     negative_curvature));
             }
         }
+        }  // minimisation step
+        if (ts) trust = oo.trust_radius;  // fixed for transition states
         double sn = norm(dq);
         if (sn > trust) {
             for (double& d : dq) d *= trust / sn;
@@ -596,12 +760,32 @@ OptimizationResult optimize_geometry(const Molecule& start, const BasisSet& basi
         const bool energy_ok = step == 1 || rec.convergence[4].met;
         const bool constraint_ok = !constrained || cp.deviation < constraint_threshold;
         const bool tiny_forces = mf < 0.01 * cc.max_force && rf < 0.01 * cc.rms_force;
-        rec.converged = ((four && energy_ok) || tiny_forces) && constraint_ok;
+        rec.converged = ((four && energy_ok) || tiny_forces) && constraint_ok && !eigen_test_failed;
         report_progress(JobStage::Optimization, step, rec.energy, mf);
+        if (ts) res.final_negative_eigenvalues = rec.negative_eigenvalues;
+        if (eigen_test_failed) {
+            rec.dq.assign(nq, 0.0);
+            rec.seconds = seconds_since(ts_start);
+            res.history.push_back(rec);
+            if (on_step) on_step(res.history.back());
+            res.eigen_test_failed = true;
+            res.steps = step;
+            res.final_point = std::move(g);
+            res.final_geometry = x;
+            res.final_energy = rec.energy;
+            res.final_coordinates = ic.coordinates();
+            res.final_hessian = H;
+            res.message = format(
+                "The transition-state search stopped at step %d: the eigenvalue test failed (%d negative eigenvalues of "
+                "the Hessian, one needed). Start nearer to the transition state (e.g. from the highest point of a relaxed "
+                "scan), compute the Hessian at every step (CalcAll), or switch the test off (Gaussian: NoEigenTest).",
+                step, rec.negative_eigenvalues);
+            break;
+        }
 
         if (rec.converged) {
             rec.dq.assign(nq, 0.0);
-            rec.seconds = seconds_since(ts);
+            rec.seconds = seconds_since(ts_start);
             res.history.push_back(rec);
             if (on_step) on_step(res.history.back());
             res.converged = true;
@@ -611,7 +795,9 @@ OptimizationResult optimize_geometry(const Molecule& start, const BasisSet& basi
             res.final_energy = rec.energy;
             res.final_constraint_deviation = cp.deviation;
             res.message = constrained ? format("Constrained stationary point found after %d step%s.", step, step == 1 ? "" : "s")
-                                      : format("Stationary point found after %d step%s.", step, step == 1 ? "" : "s");
+                          : ts ? format("Transition state found after %d step%s (%d negative eigenvalue of the Hessian, %.6f).",
+                                        step, step == 1 ? "" : "s", rec.negative_eigenvalues, rec.followed_eigenvalue)
+                               : format("Stationary point found after %d step%s.", step, step == 1 ? "" : "s");
             res.final_coordinates = ic.coordinates();
             res.final_hessian = H;
             break;
@@ -624,7 +810,7 @@ OptimizationResult optimize_geometry(const Molecule& start, const BasisSet& basi
             rec.warnings.push_back(format("The back-transformation to Cartesian coordinates stopped after %d iterations "
                                           "(residual %.1e).",
                                           bt.iterations, bt.residual));
-        rec.seconds = seconds_since(ts);
+        rec.seconds = seconds_since(ts_start);
         res.history.push_back(rec);
         if (on_step) on_step(res.history.back());
         q_prev = q;

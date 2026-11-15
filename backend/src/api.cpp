@@ -1,3 +1,4 @@
+#include <cctype>
 #include <cmath>
 #include <cstdlib>
 #include <cstring>
@@ -53,7 +54,9 @@ json input_json(const Input& in) {
                 {"optConvergence", in.optConvergence},
                 {"maxSteps", in.maxSteps},
                 {"scan", in.scan.empty() ? json(nullptr) : json(in.scan)},
-                {"scanStart", in.scanStart ? json(*in.scanStart) : json(nullptr)}};
+                {"scanStart", in.scanStart ? json(*in.scanStart) : json(nullptr)},
+                {"tsHessian", in.tsHessian},
+                {"eigenTest", in.eigenTest}};
     return {{"R", in.R},           {"zeta1", in.zeta1},         {"zeta2", in.zeta2},
             {"ZA", in.ZA},         {"ZB", in.ZB},               {"nGaussians", in.nGaussians},
             {"exactErf", in.exactErf}, {"maxIter", in.maxIter}, {"convergence", in.convergence},
@@ -406,6 +409,11 @@ json optimization_json(const OptimizationResult& o) {
     j["steps"] = o.steps;
     j["message"] = o.message;
     j["initialHessian"] = o.initial_hessian;
+    j["transitionState"] = o.transition_state;
+    j["tsHessian"] = o.transition_state ? json(o.ts_hessian) : json(nullptr);
+    j["hessianEvaluations"] = o.hessian_evaluations;
+    j["negativeEigenvalues"] = o.final_negative_eigenvalues >= 0 ? json(o.final_negative_eigenvalues) : json(nullptr);
+    j["eigenTestFailed"] = o.eigen_test_failed;
     j["criteria"] = {{"maxForce", o.criteria.max_force},
                      {"rmsForce", o.criteria.rms_force},
                      {"maxDisplacement", o.criteria.max_displacement},
@@ -458,6 +466,19 @@ json optimization_json(const OptimizationResult& o) {
         h["ratio"] = s.has_ratio ? json(s.ratio) : json(nullptr);
         h["warnings"] = s.warnings;
         h["seconds"] = s.seconds;
+        if (s.ts_step) {
+            h["ts"] = {{"hessianEigenvalues", s.hessian_eigenvalues},
+                       {"negativeEigenvalues", s.negative_eigenvalues},
+                       {"followedEigenvalue", s.followed_eigenvalue},
+                       {"followedGradient", s.followed_gradient},
+                       {"followedOverlap", s.followed_overlap},
+                       {"followedMode", s.followed_mode},
+                       {"lambdaP", s.lambda_p},
+                       {"lambdaN", s.lambda_n},
+                       {"hessianComputed", s.hessian_computed}};
+        } else {
+            h["ts"] = nullptr;
+        }
         hist.push_back(h);
     }
     j["history"] = hist;
@@ -700,6 +721,9 @@ Input parse_input_json(const std::string& text) {
     in.optConvergence = get_string(j, "optConvergence", in.optConvergence);
     in.maxSteps = get_int(j, "maxSteps", in.maxSteps);
     in.scan = get_string(j, "scan", in.scan);
+    in.tsHessian = get_string(j, "tsHessian", in.tsHessian);
+    for (char& c : in.tsHessian) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+    in.eigenTest = get_bool(j, "eigenTest", in.eigenTest);
     if (auto it = j.find("scanStart"); it != j.end() && !it->is_null()) in.scanStart = get_number(j, "scanStart", 0.0);
     return in;
 }

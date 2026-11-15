@@ -175,6 +175,8 @@ Settings parse_input_text(const std::string& text) {
         if (k == "scan") return "scan";
         if (k == "scanstep") return "scan_step";
         if (k == "scanstart") return "scan_start";
+        if (k == "tshessian" || k == "tsfc") return "ts_hessian";
+        if (k == "eigentest") return "eigen_test";
         if (k == "threads") return "threads";
         if (k == "memory" || k == "memorymb") return "memory";
         if (k == "fcimemory" || k == "fcimemorymb") return "fci_memory";
@@ -207,7 +209,7 @@ Settings parse_input_text(const std::string& text) {
         if (k.empty())
             fail(line, "unknown key '" + key +
                            "' (known: molecule, basis, R, angle, R_OO, dihedral, method, job, sp_method, sp_basis, temperature, "
-                           "pressure, opt_convergence, max_steps, scan, scan_start, zeta_He, zeta_H, exact_erf, "
+                           "pressure, opt_convergence, max_steps, scan, scan_start, ts_hessian, eigen_test, zeta_He, zeta_H, exact_erf, "
                            "scan_step, threads, memory, fci_memory, basis_dir)");
         if (entries.count(k)) fail(line, "'" + key + "' is given twice");
         entries[k] = Entry{key, value, line};
@@ -242,7 +244,8 @@ Settings parse_input_text(const std::string& text) {
     only("memory", !heh, general);
     only("fci_memory", !heh, general);
     only("basis_dir", !heh, general);
-    for (const char* k : {"job", "sp_method", "sp_basis", "temperature", "pressure", "opt_convergence", "max_steps"})
+    for (const char* k : {"job", "sp_method", "sp_basis", "temperature", "pressure", "opt_convergence", "max_steps",
+                          "ts_hessian", "eigen_test"})
         only(k, !heh, general);
 
     std::vector<std::pair<std::string, Entry>> ordered(entries.begin(), entries.end());
@@ -343,7 +346,14 @@ Settings parse_input_text(const std::string& text) {
         } else if (k == "job") {
             s.input.job = macqc::canonical_job_type(value);
             if (s.input.job.empty())
-                fail(ln, "job must be energy, opt, freq, opt+freq, opt+freq+sp or scan, got '" + value + "'");
+                fail(ln, "job must be energy, opt, freq, opt+freq, opt+freq+sp, scan, ts, ts+freq or ts+freq+sp, got '" + value +
+                             "'");
+        } else if (k == "ts_hessian") {
+            const std::string h = lower(value);
+            if (h != "calcfc" && h != "calcall") fail(ln, "ts_hessian must be calcfc or calcall, got '" + value + "'");
+            s.input.tsHessian = h;
+        } else if (k == "eigen_test") {
+            s.input.eigenTest = parse_bool(value, ln, e.key);
         } else if (k == "sp_method") {
             std::string m;
             for (char c : lower(value))
@@ -396,12 +406,14 @@ Settings parse_input_text(const std::string& text) {
             if (it != entries.end() && !allowed)
                 fail(it->second.line, "'" + it->second.key + "' applies to job = " + jobs + " only (job = " + job + ")");
         };
-        job_only("sp_method", macqc::job_has_single_point(job), "opt+freq+sp");
-        job_only("sp_basis", macqc::job_has_single_point(job), "opt+freq+sp");
-        job_only("temperature", macqc::job_has_frequencies(job), "freq, opt+freq and opt+freq+sp");
-        job_only("pressure", macqc::job_has_frequencies(job), "freq, opt+freq and opt+freq+sp");
-        job_only("opt_convergence", macqc::job_uses_optimizer(job), "opt, opt+freq, opt+freq+sp and scan");
-        job_only("max_steps", macqc::job_uses_optimizer(job), "opt, opt+freq, opt+freq+sp and scan");
+        job_only("sp_method", macqc::job_has_single_point(job), "opt+freq+sp and ts+freq+sp");
+        job_only("sp_basis", macqc::job_has_single_point(job), "opt+freq+sp and ts+freq+sp");
+        job_only("temperature", macqc::job_has_frequencies(job), "freq, opt+freq, opt+freq+sp, ts+freq and ts+freq+sp");
+        job_only("pressure", macqc::job_has_frequencies(job), "freq, opt+freq, opt+freq+sp, ts+freq and ts+freq+sp");
+        job_only("opt_convergence", macqc::job_uses_optimizer(job), "opt, opt+freq, opt+freq+sp, scan, ts, ts+freq and ts+freq+sp");
+        job_only("max_steps", macqc::job_uses_optimizer(job), "opt, opt+freq, opt+freq+sp, scan, ts, ts+freq and ts+freq+sp");
+        job_only("ts_hessian", macqc::job_has_ts(job), "ts, ts+freq and ts+freq+sp");
+        job_only("eigen_test", macqc::job_has_ts(job), "ts, ts+freq and ts+freq+sp");
         job_only("scan", macqc::job_has_scan(job), "scan");
         job_only("scan_start", macqc::job_has_scan(job), "scan");
         if (macqc::job_has_scan(job) && s.input.scan.empty())

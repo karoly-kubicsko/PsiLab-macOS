@@ -181,6 +181,15 @@ target_compile_definitions(macqc_molecule_tests PRIVATE
 add_test(NAME macqc_molecule_tests COMMAND macqc_molecule_tests)
 set_tests_properties(macqc_molecule_tests PROPERTIES
   ENVIRONMENT "PSILAB_BASIS_DIR=${CMAKE_CURRENT_SOURCE_DIR}/basis" TIMEOUT 7200)
+# ΨLab 7.0: transition-state optimisation (P-RFO, Bofill, CalcFC, CalcAll, eigenvalue test).
+add_executable(macqc_ts_tests backend/tests/test_ts.cpp)
+target_link_libraries(macqc_ts_tests PRIVATE macqc)
+target_include_directories(macqc_ts_tests PRIVATE third_party)
+target_compile_definitions(macqc_ts_tests PRIVATE
+  MACQC_TEST_DATA_DIR="${CMAKE_CURRENT_SOURCE_DIR}/backend/tests/data")
+add_test(NAME macqc_ts_tests COMMAND macqc_ts_tests)
+set_tests_properties(macqc_ts_tests PROPERTIES
+  ENVIRONMENT "PSILAB_BASIS_DIR=${CMAKE_CURRENT_SOURCE_DIR}/basis" TIMEOUT 7200)
 # ΨLab 5.0: harmonic frequencies, IR intensities, thermochemistry.
 add_executable(macqc_frequency_tests backend/tests/test_frequencies.cpp)
 target_link_libraries(macqc_frequency_tests PRIVATE macqc)

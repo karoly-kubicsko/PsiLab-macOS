@@ -16,6 +16,21 @@
 // and RMS internal displacement of the next step (bohr, rad), plus the energy change since
 // the previous step; converged when all are met, or when the forces are 100 times below
 // their thresholds.
+//
+// Transition states (7.0, Gaussian Opt=TS): the Hessian is computed at the first point
+// (CalcFC: analytic RHF, or central differences of analytic gradients or of energies, see
+// hessian.h) or at every point (CalcAll) and transformed to internal coordinates; the step is
+// the partitioned RFO step of Baker (J. Comput. Chem. 7, 385 (1986)): in the eigenvectors v_i
+// (eigenvalues b_i, gradient components F_i) of the projected Hessian, the followed mode k (the
+// lowest at the first step, later the one with the largest overlap with the previous followed
+// mode) gets -F_k / (b_k - lambda_p) with lambda_p = b_k/2 + sqrt(b_k^2/4 + F_k^2) (a maximisation)
+// and every other mode -F_i / (b_i - lambda_n) with lambda_n the lowest eigenvalue of their
+// augmented Hessian (a minimisation); the step is scaled down to the trust radius, which stays
+// fixed (0.3 bohr/rad, as in Gaussian for transition states). Between computed Hessians the
+// Hessian is updated by Bofill's formula (Int. J. Quantum Chem. 52, 1257 (1994)): the
+// Murtagh-Sargent (SR1) and Powell (PSB) updates mixed with phi = (xi.s)^2 / ((xi.xi)(s.s)),
+// xi = y - H s. The eigenvalue test (on by default, Gaussian's EigenTest) stops the search when
+// the Hessian does not have exactly one negative eigenvalue.
 #pragma once
 
 #include <functional>
@@ -64,6 +79,10 @@ struct OptimizationOptions {
     const Matrix* initial_hessian_matrix = nullptr;
     std::vector<InternalCoordinate> hessian_coordinates;
     std::string initial_hessian_label = "Hessian of the previous scan point";
+    // 7.0 transition-state search (see above)
+    bool transition_state = false;
+    std::string ts_hessian = "calcfc";   // calcfc (computed at the first point) | calcall (every point)
+    bool eigen_test = true;              // stop unless the Hessian has exactly one negative eigenvalue
 };
 
 struct ConvergenceItem {
@@ -95,6 +114,17 @@ struct OptimizationStep {
     // 7.0: frozen coordinates (index into names, deviation from the target at this geometry)
     std::vector<int> constrained;
     double constraint_deviation = 0.0;
+    // 7.0 transition-state step: Hessian eigenvalues (non-redundant space, ascending), the number
+    // of negative ones, the followed mode (its eigenvalue, gradient component, overlap with the
+    // previously followed mode, components in the internal coordinates), lambda_p and lambda_n
+    bool ts_step = false;
+    std::vector<double> hessian_eigenvalues;
+    int negative_eigenvalues = 0;
+    double followed_eigenvalue = 0.0, followed_gradient = 0.0, followed_overlap = 1.0;
+    std::vector<double> followed_mode;
+    double lambda_p = 0.0, lambda_n = 0.0;
+    bool hessian_computed = false;       // CalcFC first step or CalcAll
+    std::string hessian_description;     // how the computed Hessian was obtained
 };
 
 struct GeometricParameter {
@@ -124,6 +154,12 @@ struct OptimizationResult {
     std::vector<InternalCoordinate> final_coordinates;
     Matrix final_hessian;
     double final_constraint_deviation = 0.0;
+    // 7.0 transition states
+    bool transition_state = false;
+    std::string ts_hessian;
+    int hessian_evaluations = 0;         // computed Hessians
+    int final_negative_eigenvalues = -1; // of the last Hessian (computed or updated)
+    bool eigen_test_failed = false;
 };
 
 using OptimizationCallback = std::function<void(const OptimizationStep&)>;

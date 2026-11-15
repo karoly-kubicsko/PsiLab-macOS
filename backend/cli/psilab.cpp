@@ -44,16 +44,18 @@ void usage(const char* prog) {
                  "  memory = <MB> (two-electron integrals kept in memory up to this size)\n"
                  "  fci_memory = <MB> (memory limit of Full CI and coupled cluster, default 4096)\n"
                  "  basis_dir = <folder with the .gbs files> (or environment variable PSILAB_BASIS_DIR)\n"
-                 "  job = energy | opt | freq | opt+freq | opt+freq+sp | scan   (default energy)\n"
+                 "  job = energy | opt | freq | opt+freq | opt+freq+sp | scan | ts | ts+freq | ts+freq+sp\n"
+                 "        (default energy)\n"
                  "        opt: geometry optimisation (redundant internal coordinates, RFO, BFGS)\n"
                  "        freq: harmonic frequencies, IR intensities and thermochemistry\n"
-                 "        opt+freq+sp: then a single-point energy with sp_method / sp_basis\n"
-                 "  sp_method = <method>   sp_basis = <basis>    (opt+freq+sp; default: method, basis)\n"
+                 "        opt+freq+sp, ts+freq+sp: then a single-point energy with sp_method / sp_basis\n"
+                 "  sp_method = <method>   sp_basis = <basis>    (opt+freq+sp, ts+freq+sp; default: method, basis)\n"
                  "  temperature = <K> (298.15)   pressure = <number> [Pa | kPa | bar | atm] (101325 Pa)\n"
                  "  opt_convergence = normal | tight   max_steps = <n> (50, per point of a scan)\n"
                  "  scan = N1 N2 [N3 [N4]] S <steps> <step>   relaxed scan (job = scan), Gaussian ModRedundant line:\n"
                  "        2 atoms: bond (step in angstrom), 3: angle, 4: dihedral (degrees); nsteps + 1 points\n"
-                 "  scan_start = <angstrom | degrees>     first point (default: the input geometry)\n\n"
+                 "  scan_start = <angstrom | degrees>     first point (default: the input geometry)\n"
+                 "  ts_hessian = calcfc | calcall   eigen_test = yes | no   (ts, ts+freq: Gaussian Opt=TS, CalcFC, CalcAll)\n\n"
                  "The output file is written while the job runs (tail -f OUTPUT follows it).\n",
                  prog, prog, prog, prog, prog);
 }
@@ -194,7 +196,8 @@ int main(int argc, char** argv) {
     if (o.job && o.input.job != "energy") {
         const auto& j = *o.job;
         if (j.optimization)
-            std::printf("  optimisation: %s in %d steps, E = %.10f E_h\n",
+            std::printf("  %s: %s in %d steps, E = %.10f E_h\n",
+                        j.optimization->transition_state ? "transition-state optimisation" : "optimisation",
                         j.optimization->converged ? "converged" : "NOT converged", j.optimization->steps,
                         j.optimization->final_energy);
         if (j.scan) {

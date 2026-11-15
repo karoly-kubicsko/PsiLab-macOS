@@ -260,9 +260,27 @@ std::string optimization_step_block(const OptimizationStep& st, const Convergenc
     if (!st.constrained.empty())
         s += "    (frozen: the force shown is the projected force, which excludes the frozen coordinate)\n";
     s += "    " + st.hessian_update + "\n";
+    if (st.ts_step) {
+        s += "    Hessian eigenvalues (non-redundant space):";
+        for (std::size_t k = 0; k < st.hessian_eigenvalues.size(); ++k) s += strprintf(" %.5f", st.hessian_eigenvalues[k]);
+        s += strprintf("\n    %d negative eigenvalue%s\n", st.negative_eigenvalues, st.negative_eigenvalues == 1 ? "" : "s");
+        s += strprintf("    followed mode: eigenvalue %.6f, gradient component %.3e, overlap with the previous followed mode "
+                       "%.4f\n",
+                       st.followed_eigenvalue, st.followed_gradient, st.followed_overlap);
+        std::string comp;
+        for (std::size_t i = 0; i < st.followed_mode.size(); ++i)
+            if (std::fabs(st.followed_mode[i]) > 0.1)
+                comp += strprintf("  %s %+.3f", (st.names[i] + std::to_string(i + 1)).c_str(), st.followed_mode[i]);
+        s += "    followed mode, largest components:" + comp + "\n";
+    }
     if (st.has_ratio)
         s += strprintf("    previous step: energy change / predicted = %.3f\n", st.ratio);
-    if (!st.converged)
+    if (!st.converged && st.ts_step)
+        s += strprintf("    P-RFO step: lambda_p = %.6e (followed mode), lambda_n = %.6e (others), |step| = %.6f%s, trust "
+                       "radius %.4f, predicted energy change %.3e E_h\n",
+                       st.lambda_p, st.lambda_n, st.step_norm, st.step_scaled ? " (scaled to the trust radius)" : "",
+                       st.trust_radius, st.predicted_change);
+    else if (!st.converged)
         s += strprintf("    RFO step: lambda = %.6e, |step| = %.6f%s, trust radius %.4f, predicted energy change %.3e "
                        "E_h\n",
                        st.rfo_lambda, st.step_norm, st.step_scaled ? " (scaled to the trust radius)" : "", st.trust_radius,
@@ -282,7 +300,11 @@ std::string optimization_step_block(const OptimizationStep& st, const Convergenc
 
 std::string optimization_result_block(const OptimizationResult& r) {
     std::string s;
-    if (r.converged) {
+    if (r.converged && r.transition_state) {
+        s += "\n    *** Transition state found after " + std::to_string(r.steps) + " step" + (r.steps == 1 ? "" : "s") +
+             strprintf(" (one negative eigenvalue of the Hessian; %d computed Hessian%s) ***\n", r.hessian_evaluations,
+                       r.hessian_evaluations == 1 ? "" : "s");
+    } else if (r.converged) {
         s += "\n    *** Stationary point found after " + std::to_string(r.steps) + " step" + (r.steps == 1 ? "" : "s") +
              " ***\n";
     } else {
@@ -294,7 +316,7 @@ std::string optimization_result_block(const OptimizationResult& r) {
                        st.step == 1 ? "--" : strprintf("%.3e", st.delta_e).c_str(), st.convergence[0].value,
                        st.convergence[1].value, st.convergence[2].value);
     s += strprintf("\n    %s geometry, energy %.10f E_h (%s%.10f E_h relative to the start)\n",
-                   r.converged ? "Optimised" : "Last", r.final_energy, r.final_energy - r.initial_energy >= 0 ? "+" : "",
+                   r.converged ? (r.transition_state ? "Transition-state" : "Optimised") : "Last", r.final_energy, r.final_energy - r.initial_energy >= 0 ? "+" : "",
                    r.final_energy - r.initial_energy);
     s += geometry_table(r.final_geometry);
     s += "\n    Optimised parameters (start in parentheses)\n";
