@@ -35,6 +35,7 @@ add_library(macqc STATIC
   backend/src/constants.cpp
   backend/src/frequencies.cpp
   backend/src/symmetry.cpp
+  backend/src/orbitals.cpp
   backend/src/hessian.cpp
   backend/src/output.cpp
   backend/src/jobs.cpp
@@ -190,6 +191,15 @@ target_compile_definitions(macqc_ts_tests PRIVATE
 add_test(NAME macqc_ts_tests COMMAND macqc_ts_tests)
 set_tests_properties(macqc_ts_tests PROPERTIES
   ENVIRONMENT "PSILAB_BASIS_DIR=${CMAKE_CURRENT_SOURCE_DIR}/basis" TIMEOUT 7200)
+# ΨLab 7.0: molecular orbitals (values against PySCF, natural orbitals, isosurfaces, C API).
+add_executable(macqc_orbital_tests backend/tests/test_orbitals.cpp)
+target_link_libraries(macqc_orbital_tests PRIVATE macqc)
+target_include_directories(macqc_orbital_tests PRIVATE third_party)
+target_compile_definitions(macqc_orbital_tests PRIVATE
+  MACQC_TEST_DATA_DIR="${CMAKE_CURRENT_SOURCE_DIR}/backend/tests/data")
+add_test(NAME macqc_orbital_tests COMMAND macqc_orbital_tests)
+set_tests_properties(macqc_orbital_tests PROPERTIES
+  ENVIRONMENT "PSILAB_BASIS_DIR=${CMAKE_CURRENT_SOURCE_DIR}/basis" TIMEOUT 3600)
 # ΨLab 5.0: harmonic frequencies, IR intensities, thermochemistry.
 add_executable(macqc_frequency_tests backend/tests/test_frequencies.cpp)
 target_link_libraries(macqc_frequency_tests PRIVATE macqc)

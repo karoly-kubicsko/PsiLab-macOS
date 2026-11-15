@@ -3,6 +3,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <exception>
+#include <new>
 #include <stdexcept>
 #include <string>
 
@@ -10,6 +11,7 @@
 #include "macqc/job.h"
 #include "macqc/jobs.h"
 #include "macqc/macqc_api.h"
+#include "macqc/orbitals.h"
 #include "nlohmann/json.hpp"
 
 namespace macqc {
@@ -673,7 +675,102 @@ bool get_bool(const json& j, const char* key, bool fallback) {
     return it->get<bool>();
 }
 
+// ΨLab 7.0: the "orbitals" object: atoms, basis shells (normalised contraction coefficients,
+// spherical functions m = -l .. l from "first" on) and the orbital sets with their AO
+// coefficients. The app passes it back to macqc_orbital_surface and macqc_orbital_plane.
+json orbitals_json(const OrbitalData& d) {
+    json j;
+    j["basis"] = d.basis_name;
+    j["functions"] = d.n_basis;
+    json atoms = json::array();
+    for (const Atom& a : d.atoms)
+        atoms.push_back({{"symbol", a.symbol}, {"Z", a.Z}, {"position", {a.position[0], a.position[1], a.position[2]}}});
+    j["atoms"] = atoms;
+    json shells = json::array();
+    for (const Shell& s : d.shells)
+        shells.push_back({{"l", s.l},
+                          {"atom", s.atom},
+                          {"center", {s.center[0], s.center[1], s.center[2]}},
+                          {"exponents", s.exponents},
+                          {"coefficients", s.coefficients},
+                          {"first", s.first_function}});
+    j["shells"] = shells;
+    json sets = json::array();
+    for (const OrbitalSet& set : d.sets) {
+        json orbitals = json::array();
+        for (const OrbitalInfo& o : set.orbitals)
+            orbitals.push_back({{"number", o.number},
+                                {"energy", o.has_energy ? json(o.energy) : json(nullptr)},
+                                {"occupation", o.occupation},
+                                {"label", o.label}});
+        sets.push_back({{"kind", set.kind}, {"title", set.title}, {"orbitals", orbitals}, {"coefficients", set.coefficients}});
+    }
+    j["sets"] = sets;
+    return j;
+}
+
+OrbitalData parse_orbitals_json(const std::string& text) {
+    const json j = json::parse(text);
+    OrbitalData d;
+    d.basis_name = j.value("basis", std::string());
+    d.n_basis = j.at("functions").get<int>();
+    for (const auto& a : j.at("atoms")) {
+        Atom atom;
+        atom.symbol = a.at("symbol").get<std::string>();
+        atom.Z = a.at("Z").get<int>();
+        for (int k = 0; k < 3; ++k) atom.position[k] = a.at("position").at(k).get<double>();
+        d.atoms.push_back(atom);
+    }
+    for (const auto& s : j.at("shells")) {
+        Shell shell;
+        shell.l = s.at("l").get<int>();
+        if (shell.l < 0 || shell.l > kMaxAngularMomentum) throw std::runtime_error("orbitals: angular momentum out of range");
+        shell.atom = s.value("atom", 0);
+        for (int k = 0; k < 3; ++k) shell.center[k] = s.at("center").at(k).get<double>();
+        shell.exponents = s.at("exponents").get<std::vector<double>>();
+        shell.coefficients = s.at("coefficients").get<std::vector<double>>();
+        shell.first_function = s.at("first").get<int>();
+        if (shell.exponents.size() != shell.coefficients.size() || shell.first_function < 0 ||
+            shell.first_function + shell.size() > d.n_basis)
+            throw std::runtime_error("orbitals: inconsistent shell");
+        d.shells.push_back(shell);
+    }
+    for (const auto& s : j.at("sets")) {
+        OrbitalSet set;
+        set.kind = s.value("kind", std::string());
+        set.title = s.value("title", std::string());
+        for (const auto& o : s.at("orbitals")) {
+            OrbitalInfo info;
+            info.number = o.value("number", 0);
+            info.has_energy = o.contains("energy") && o.at("energy").is_number();
+            info.energy = info.has_energy ? o.at("energy").get<double>() : 0.0;
+            info.occupation = o.value("occupation", 0.0);
+            info.label = o.value("label", std::string());
+            set.orbitals.push_back(info);
+        }
+        set.coefficients = s.at("coefficients").get<std::vector<std::vector<double>>>();
+        for (const auto& c : set.coefficients)
+            if (c.size() != static_cast<std::size_t>(d.n_basis))
+                throw std::runtime_error("orbitals: the coefficients do not match the basis");
+        d.sets.push_back(set);
+    }
+    return d;
+}
+
+// The orbital chosen by set and orbital index, or an exception with a message.
+const std::vector<double>& chosen_orbital(const OrbitalData& d, int set, int orbital) {
+    if (set < 0 || set >= static_cast<int>(d.sets.size())) throw std::runtime_error("orbitals: no such orbital set");
+    const OrbitalSet& s = d.sets[static_cast<std::size_t>(set)];
+    if (orbital < 0 || orbital >= static_cast<int>(s.coefficients.size()))
+        throw std::runtime_error("orbitals: no such orbital");
+    return s.coefficients[static_cast<std::size_t>(orbital)];
+}
+
 }  // namespace
+
+std::string orbitals_to_json(const OrbitalData& d) { return orbitals_json(d).dump(); }
+
+OrbitalData orbitals_from_json(const std::string& text) { return parse_orbitals_json(text); }
 
 Input parse_input_json(const std::string& text) {
     json j;
@@ -766,6 +863,16 @@ std::string output_to_json(const Output& out, int indent) {
             j["coupledCluster"] = nullptr;
         }
         add_job_json(j, out);
+        j["orbitals"] = nullptr;
+        if (out.molecular && out.molecular->rhf && out.molecular->rhf->C.rows() > 0) {
+            try {
+                const MolecularResult& m = *out.molecular;
+                const OrbitalData d = make_orbital_data(m.molecule, m.basis, *m.rhf, m.fci ? &*m.fci : nullptr);
+                j["orbitals"] = orbitals_json(d);
+            } catch (const std::exception&) {
+                j["orbitals"] = nullptr;
+            }
+        }
         j["hf"] = nullptr;
         j["fci"] = nullptr;
         j["report"] = out.report;
@@ -801,8 +908,18 @@ std::string output_to_json(const Output& out, int indent) {
                             {"deltaP", s.delta_p}});
         hf["scfHistory"] = hist;
         j["hf"] = hf;
+        // 7.0: the two orbitals, He (atom A) at the origin and H (atom B) at z = R
+        try {
+            const Input& in = out.input;
+            const std::vector<double> C = {h.C(0, 0), h.C(0, 1), h.C(1, 0), h.C(1, 1)};
+            j["orbitals"] = orbitals_json(
+                make_sto_orbital_data(in.nGaussians, in.R, in.zeta1, in.zeta2, in.ZA, in.ZB, C, h.orbital_energies));
+        } catch (const std::exception&) {
+            j["orbitals"] = nullptr;
+        }
     } else {
         j["hf"] = nullptr;
+        j["orbitals"] = nullptr;
     }
 
     if (out.fci) {
@@ -922,5 +1039,96 @@ char* macqc_run_job(const char* input_json, macqc_job* job) {
 }
 
 void macqc_free(char* p) { std::free(p); }
+
+}  // extern "C"
+
+namespace {
+
+template <class T>
+T* copy_array(const std::vector<T>& v) {
+    if (v.empty()) return nullptr;
+    T* p = static_cast<T*>(std::malloc(v.size() * sizeof(T)));
+    if (p) std::memcpy(p, v.data(), v.size() * sizeof(T));
+    return p;
+}
+
+void clear_mesh(macqc_mesh* m) {
+    if (!m) return;
+    m->vertex_count = 0;
+    m->triangle_count = 0;
+    m->positions = nullptr;
+    m->normals = nullptr;
+    m->indices = nullptr;
+}
+
+void fill_mesh(const macqc::Mesh& src, macqc_mesh* m) {
+    clear_mesh(m);
+    if (!m || src.vertex_count() == 0 || src.triangle_count() == 0) return;
+    m->positions = copy_array(src.positions);
+    m->normals = copy_array(src.normals);
+    m->indices = copy_array(src.indices);
+    if (!m->positions || !m->normals || !m->indices) {
+        macqc_mesh_free(m);
+        throw std::bad_alloc();
+    }
+    m->vertex_count = static_cast<int>(src.vertex_count());
+    m->triangle_count = static_cast<int>(src.triangle_count());
+}
+
+}  // namespace
+
+extern "C" {
+
+char* macqc_orbital_surface(const char* orbitals_json, int set, int orbital, double isovalue, int max_points,
+                            macqc_mesh* positive, macqc_mesh* negative) {
+    clear_mesh(positive);
+    clear_mesh(negative);
+    try {
+        if (!orbitals_json) throw std::runtime_error("orbitals: no input");
+        const macqc::OrbitalData d = macqc::orbitals_from_json(orbitals_json);
+        const std::vector<double>& c = macqc::chosen_orbital(d, set, orbital);
+        const macqc::OrbitalSurfaces s =
+            macqc::orbital_surfaces(d, c, isovalue, max_points > 0 ? max_points : 400000, 0);
+        fill_mesh(s.positive, positive);
+        fill_mesh(s.negative, negative);
+        return nullptr;
+    } catch (const std::exception& e) {
+        macqc_mesh_free(positive);
+        macqc_mesh_free(negative);
+        return copy_string(e.what());
+    }
+}
+
+char* macqc_orbital_plane(const char* orbitals_json, int set, int orbital, const double* origin, const double* u,
+                          const double* v, int nu, int nv, float* values) {
+    try {
+        if (!orbitals_json || !origin || !u || !v || !values) throw std::runtime_error("orbitals: missing argument");
+        if (nu < 1 || nv < 1 || static_cast<long long>(nu) * nv > 16000000LL)
+            throw std::runtime_error("orbitals: the plane must have 1 to 16 million points");
+        const macqc::OrbitalData d = macqc::orbitals_from_json(orbitals_json);
+        const std::vector<double>& c = macqc::chosen_orbital(d, set, orbital);
+        macqc::GridSpec g;
+        for (int k = 0; k < 3; ++k) {
+            g.origin[k] = origin[k];
+            g.axes[0][k] = u[k];
+            g.axes[1][k] = v[k];
+            g.axes[2][k] = 0.0;
+        }
+        g.n = {nu, nv, 1};
+        const std::vector<double> w = macqc::orbital_grid(d, c, g, 0);
+        for (std::size_t k = 0; k < w.size(); ++k) values[k] = static_cast<float>(w[k]);
+        return nullptr;
+    } catch (const std::exception& e) {
+        return copy_string(e.what());
+    }
+}
+
+void macqc_mesh_free(macqc_mesh* mesh) {
+    if (!mesh) return;
+    std::free(mesh->positions);
+    std::free(mesh->normals);
+    std::free(mesh->indices);
+    clear_mesh(mesh);
+}
 
 }  // extern "C"

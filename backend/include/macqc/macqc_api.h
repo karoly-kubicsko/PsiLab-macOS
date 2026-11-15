@@ -33,6 +33,20 @@
  * "pressure" (Pa, 101325), "optConvergence" (normal | tight), "maxSteps" (50). The result adds
  * "job", "optimization", "frequencies", "thermochemistry", "singlePoint" and "output" (the
  * complete output file); see README.
+ *
+ * Molecular orbitals (ΨLab 7.0). The result has "orbitals": the atoms, the basis shells and the
+ * orbital sets ("sets": RHF canonical orbitals, all occupied and up to 10 virtual ones; Full CI
+ * natural orbitals; for HeH+ in STO-nG the two Szabo-Ostlund orbitals) with their AO
+ * coefficients. Pass that object back as text:
+ *   macqc_orbital_surface(orbitals, set, orbital, isovalue, max_points, &positive, &negative)
+ *                               the isosurfaces psi = +isovalue and psi = -isovalue (bohr;
+ *                               normals point out of the lobes, triangles counter-clockwise
+ *                               seen from outside) on a grid of at most max_points points
+ *                               (0: 400000); release the meshes with macqc_mesh_free;
+ *   macqc_orbital_plane(orbitals, set, orbital, origin, u, v, nu, nv, values)
+ *                               the orbital at origin + i u + j v (bohr), i < nu fastest, j < nv,
+ *                               into values (nu * nv floats).
+ * Both return NULL on success, else an error message (free with macqc_free).
  */
 #ifndef MACQC_API_H
 #define MACQC_API_H
@@ -52,6 +66,20 @@ void macqc_job_progress(const macqc_job* job, int* stage, int* iteration, double
 char* macqc_job_output(const macqc_job* job, long long offset, long long* total);
 char* macqc_job_progress_text(const macqc_job* job);
 void macqc_job_free(macqc_job* job);
+
+typedef struct macqc_mesh {
+    int vertex_count;
+    float* positions;   /* 3 per vertex (bohr) */
+    float* normals;     /* 3 per vertex, unit */
+    int triangle_count;
+    int* indices;       /* 3 per triangle */
+} macqc_mesh;
+
+char* macqc_orbital_surface(const char* orbitals_json, int set, int orbital, double isovalue, int max_points,
+                            macqc_mesh* positive, macqc_mesh* negative);
+char* macqc_orbital_plane(const char* orbitals_json, int set, int orbital, const double* origin, const double* u,
+                          const double* v, int nu, int nv, float* values);
+void macqc_mesh_free(macqc_mesh* mesh);
 
 #ifdef __cplusplus
 }

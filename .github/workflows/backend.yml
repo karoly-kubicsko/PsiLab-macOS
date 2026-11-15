@@ -182,6 +182,9 @@ jobs:
       - name: Transition states (geomeTRIC, transition=True)
         run: python3 reference/pyscf_ts_reference.py --check
 
+      - name: Molecular orbitals (basis functions up to h, RHF orbitals, Full CI natural orbitals)
+        run: python3 reference/pyscf_orbitals_reference.py --check
+
   # On request only: every RHF reference case, including H2O/aug-cc-pCV5Z (341 functions), and
   # every Full CI case, including LiH/aug-cc-pCVTZ (11 million determinants).
   rhf-full:

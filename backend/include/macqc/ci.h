@@ -97,6 +97,7 @@ struct FCIResultGeneral {
     std::size_t alpha_strings = 0, beta_strings = 0, determinants = 0;
     std::vector<FCIDeterminant> leading;          // largest |C| first
     std::vector<double> natural_occupations;      // descending, sum = number of electrons
+    Matrix natural_orbitals;                      // MO x natural orbital (columns, same order)
     std::vector<FCIIteration> history;
     double transform_seconds = 0.0, ci_seconds = 0.0;
     std::vector<double> vector;   // normalised CI vector C(I_alpha, I_beta), if FCIOptions::keep_vector

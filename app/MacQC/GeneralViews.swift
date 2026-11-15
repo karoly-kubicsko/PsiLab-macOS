@@ -268,9 +268,20 @@ struct GeneralHartreeFockView: View {
                     }
                 }
             }
-            Text("\(rhf.occupiedOrbitals) doubly occupied orbitals, \(rhf.orbitalEnergies.count - rhf.occupiedOrbitals) virtual orbitals.")
-                .font(.caption)
-                .foregroundStyle(.secondary)
+            HStack {
+                Text("\(rhf.occupiedOrbitals) doubly occupied orbitals, \(rhf.orbitalEnergies.count - rhf.occupiedOrbitals) virtual orbitals.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                Spacer()
+                if out.orbitals != nil {
+                    Button {
+                        model.show(.methods, methods: .orbitals)
+                    } label: {
+                        Label("Draw the orbitals", systemImage: "circle.hexagongrid")
+                    }
+                    .secondaryActionStyle()
+                }
+            }
         }
         .dataPanel()
     }

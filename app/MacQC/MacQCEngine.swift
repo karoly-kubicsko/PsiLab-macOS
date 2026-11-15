@@ -704,6 +704,58 @@ nonisolated struct MacQCScan: Codable, Sendable, Equatable {
     var unitSymbol: String { isAngular ? "°" : "Å" }
 }
 
+// MARK: - Molecular orbitals (ΨLab 7.0)
+
+/// A contracted shell of real solid-harmonic Gaussians (coefficients include all normalisation).
+nonisolated struct MacQCShell: Codable, Sendable, Equatable {
+    var l: Int
+    var atom: Int
+    var center: [Double]             // bohr
+    var exponents: [Double]
+    var coefficients: [Double]
+    var first: Int                   // first basis function (m = -l … l)
+}
+
+nonisolated struct MacQCOrbitalInfo: Codable, Sendable, Equatable, Identifiable {
+    var number: Int                  // 1-based, in energy order (canonical) or occupation order (natural)
+    var energy: Double?              // E_h (canonical orbitals)
+    var occupation: Double           // 2 or 0 (RHF), natural occupation (Full CI)
+    var label: String                // "HOMO", "HOMO-1", "LUMO", "LUMO+2" or ""
+
+    var id: Int { number }
+}
+
+nonisolated struct MacQCOrbitalSet: Codable, Sendable, Equatable {
+    var kind: String                 // "canonical" or "natural"
+    var title: String
+    var orbitals: [MacQCOrbitalInfo]
+    var coefficients: [[Double]]     // per orbital, the AO coefficients
+
+    var isNatural: Bool { kind == "natural" }
+}
+
+/// The "orbitals" object of the output: atoms, basis and orbital sets (RHF canonical orbitals,
+/// all occupied and up to ten virtual ones; Full CI natural orbitals; for HeH⁺ in STO-nG the
+/// two Szabo–Ostlund orbitals). Passed back to the backend to draw an orbital.
+nonisolated struct MacQCOrbitals: Codable, Sendable, Equatable {
+    var basis: String
+    var functions: Int
+    var atoms: [MacQCAtom]
+    var shells: [MacQCShell]
+    var sets: [MacQCOrbitalSet]
+}
+
+/// An isosurface: positions (bohr) and unit normals, three floats per vertex; three indices per
+/// triangle, counter-clockwise seen from outside.
+nonisolated struct OrbitalMesh: Sendable, Equatable {
+    var positions: [Float] = []
+    var normals: [Float] = []
+    var indices: [Int32] = []
+
+    var vertexCount: Int { positions.count / 3 }
+    var triangleCount: Int { indices.count / 3 }
+}
+
 /// Output JSON of `macqc_run`. HeH+: `hf` / `fci` (null when the backend reports an error
 /// before producing them). H2, LiH, H2O: `molecule`, `basis`, `estimate`, `notes`,
 /// `warnings`, `refusal`, `rhf`, `fullCI`, `coupledCluster`.
@@ -730,6 +782,7 @@ nonisolated struct MacQCOutput: Codable, Sendable, Equatable {
     var thermochemistry: MacQCThermochemistry?
     var singlePoint: MacQCSinglePoint?
     var scan: MacQCScan?             // ΨLab 7.0: job "scan"
+    var orbitals: MacQCOrbitals?     // ΨLab 7.0: molecular orbitals of the final calculation
     var output: String?
 
     /// Energy of the correlated method of this result (Full CI or coupled cluster).
@@ -845,6 +898,7 @@ nonisolated enum MacQCEngineError: LocalizedError {
     case encodingFailed
     case backendReturnedNull
     case decodingFailed(String)
+    case orbital(String)
 
     var errorDescription: String? {
         switch self {
@@ -854,6 +908,8 @@ nonisolated enum MacQCEngineError: LocalizedError {
             return "The backend returned no result (out of memory?)."
         case .decodingFailed(let detail):
             return "The backend output could not be decoded: \(detail)"
+        case .orbital(let message):
+            return "The orbital could not be drawn: \(message)"
         }
     }
 }
@@ -889,5 +945,52 @@ nonisolated enum MacQCEngine {
             try MacQCEngine.runSync(input, job: job)
         }
         return try await task.value
+    }
+
+    // MARK: Orbitals (ΨLab 7.0)
+
+    /// The orbitals object as the JSON text the backend reads.
+    static func orbitalsJSON(_ orbitals: MacQCOrbitals) throws -> String {
+        let data = try JSONEncoder().encode(orbitals)
+        guard let text = String(data: data, encoding: .utf8) else { throw MacQCEngineError.encodingFailed }
+        return text
+    }
+
+    private static func copyMesh(_ m: macqc_mesh) -> OrbitalMesh {
+        var mesh = OrbitalMesh()
+        let nv = Int(m.vertex_count) * 3, ni = Int(m.triangle_count) * 3
+        if let p = m.positions, nv > 0 { mesh.positions = Array(UnsafeBufferPointer<Float>(start: p, count: nv)) }
+        if let n = m.normals, nv > 0 { mesh.normals = Array(UnsafeBufferPointer<Float>(start: n, count: nv)) }
+        if let i = m.indices, ni > 0 { mesh.indices = Array(UnsafeBufferPointer<Int32>(start: i, count: ni)) }
+        return mesh
+    }
+
+    /// The isosurfaces psi = +isovalue and psi = -isovalue of an orbital (blocks: call it off
+    /// the main thread).
+    static func orbitalSurfaces(_ json: String, set setIndex: Int, orbital: Int, isovalue: Double,
+                                maxPoints: Int = 400_000) throws -> (positive: OrbitalMesh, negative: OrbitalMesh) {
+        var positive = macqc_mesh()
+        var negative = macqc_mesh()
+        if let error = macqc_orbital_surface(json, Int32(setIndex), Int32(orbital), isovalue, Int32(maxPoints),
+                                             &positive, &negative) {
+            defer { macqc_free(error) }
+            throw MacQCEngineError.orbital(String(cString: error))
+        }
+        defer {
+            macqc_mesh_free(&positive)
+            macqc_mesh_free(&negative)
+        }
+        return (copyMesh(positive), copyMesh(negative))
+    }
+
+    /// The orbital at origin + i u + j v (bohr), i < nu fastest, j < nv.
+    static func orbitalPlane(_ json: String, set setIndex: Int, orbital: Int, origin: [Double], u: [Double], v: [Double],
+                             nu: Int, nv: Int) throws -> [Float] {
+        var values = [Float](repeating: 0, count: nu * nv)
+        if let error = macqc_orbital_plane(json, Int32(setIndex), Int32(orbital), origin, u, v, Int32(nu), Int32(nv), &values) {
+            defer { macqc_free(error) }
+            throw MacQCEngineError.orbital(String(cString: error))
+        }
+        return values
     }
 }

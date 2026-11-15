@@ -12,7 +12,8 @@
 # differ, and a few screenshots are printed into the log as small JPEGs), and ΨLab 7.0 (HeH+ with
 # Full CI/aug-cc-pVTZ opt+freq, the relaxed torsion scan of H2O2 with its points played, the
 # inversion transition state of NH3 and the trans transition state of H2O2 with CalcAll, the
-# scan settings in the sidebar, the refused TS search of LiH). The screen of the
+# scan settings in the sidebar, the refused TS search of LiH; the orbitals: isosurfaces, a contour
+# plot, Full CI natural orbitals, the Szabo-Ostlund orbitals). The screen of the
 # runner is 1024 pt wide: the screenshots show that the six tabs fit at the minimum window width.
 # Never fails the job: it only gathers evidence (screenshots + text) for review.
 #
@@ -553,6 +554,26 @@ sleep 60
 view_tab "60-h2o2-ts-calcall-optimisation" "Optimisation"
 view_tab "61-h2o2-ts-frequencies" "Frequencies"
 print_shot "61-h2o2-ts-frequencies"
+
+echo "== orbitals: H2O RHF/aug-cc-pVDZ HOMO and LUMO isosurfaces, NH3 contour plot, HeH+ Full CI natural orbitals, Szabo-Ostlund HeH+"
+relaunch -appearanceChoice light -psilabMolecule H2O -psilabBasis aug-cc-pVDZ -psilabMethod RHF -psilabTab orbitals
+sleep 8
+dump_tab "64-h2o-orbitals-homo" ""
+print_shot "64-h2o-orbitals-homo"
+relaunch -appearanceChoice dark -psilabMolecule H2O -psilabBasis aug-cc-pVDZ -psilabMethod RHF -psilabTab orbitals -psilabOrbital LUMO -psilabIsovalue 0.02
+sleep 8
+shot "65-h2o-orbitals-lumo-dark"
+relaunch -appearanceChoice light -psilabMolecule NH3 -psilabBasis aug-cc-pVDZ -psilabMethod RHF -psilabTab orbitals -psilabOrbitalView contour
+sleep 8
+dump_tab "66-nh3-orbital-contour" ""
+print_shot "66-nh3-orbital-contour"
+relaunch -appearanceChoice light -psilabMolecule HeH+ -psilabBasis aug-cc-pVDZ -psilabMethod FCI -psilabTab orbitals -psilabOrbitalSet natural
+sleep 8
+dump_tab "67-heh-fci-natural-orbitals" ""
+relaunch -appearanceChoice light -psilabTab orbitals
+sleep 5
+dump_tab "68-heh-sto3g-orbitals" ""
+view_tab "69-orbitals-view-menu" "Orbitals"
 
 echo "== NH3 scan settings in the sidebar (umbrella) and the refused TS search of a diatomic"
 relaunch -appearanceChoice light -psilabMolecule NH3 -psilabBasis aug-cc-pVDZ -psilabMethod RHF -psilabJob scan
