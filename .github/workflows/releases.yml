@@ -2,9 +2,11 @@ name: releases
 
 # Makes the GitHub Releases of the versions below hold their own app builds (CI artifacts, deleted
 # after 90 days; the releases stay). For each line: a release that does not exist is created from
-# the build; a release whose tag points at another commit is repaired: its tag is moved back to the
-# version's commit, its asset replaced by the build and its notes rewritten. Releases already at
-# their commit are left alone. Runs when this file changes on main (once, after it is merged) or by
+# the build at the version's commit; a release whose tag points at another commit is deleted with
+# its tag and created again in the same way. Releases already at their commit are left alone.
+# (Moving an existing tag is refused to the workflow token when the commits' workflow files
+# differ - by the REST API and by git push alike; creating a release with a new tag at an older
+# commit is allowed, as for v1.0 ... v4.0.) Runs when this file changes on main (once, after it is merged) or by
 # hand. The app workflow publishes each new version (a new MARKETING_VERSION) once and does not
 # change existing releases.
 #
@@ -30,13 +32,6 @@ jobs:
   releases:
     runs-on: ubuntu-latest
     steps:
-      # The whole history (all branches and tags), so that every commit of the table exists
-      # locally: tags are moved with git push, as the app workflow did (the REST API refuses to
-      # update a tag ref with the workflow token: "Resource not accessible by integration").
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
       - name: Create or repair the releases of these versions
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -61,16 +56,18 @@ jobs:
             DIR="download-$VERSION"
             gh run download "$RUN" --name "ΨLab-app" --dir "$DIR"
             mv "$DIR/ΨLab.app.zip" "$ASSET"
-            if [ -z "$CURRENT" ] && ! gh release view "$TAG" > /dev/null 2>&1; then
-              gh release create "$TAG" "$ASSET" --target "$SHA" --title "ΨLab $VERSION" --notes "$NOTES" --latest=false
-              echo "created $TAG at $SHA"
-            else
-              git tag -f "$TAG" "$SHA"
-              git push -f origin "refs/tags/$TAG"
-              gh release upload "$TAG" "$ASSET" --clobber
-              gh release edit "$TAG" --title "ΨLab $VERSION" --notes "$NOTES" --latest=false
-              echo "repaired $TAG: tag moved from ${CURRENT:-?} to $SHA, asset from run $RUN"
+            if gh release view "$TAG" > /dev/null 2>&1; then
+              # at another commit: delete the release and its tag, then create both again
+              gh release delete "$TAG" --cleanup-tag --yes
+              # gh release create would reuse a tag that is still there, at the wrong commit
+              if gh api "repos/$GH_REPO/git/ref/tags/$TAG" > /dev/null 2>&1; then
+                echo "::error::the tag $TAG could not be deleted; the release was deleted"
+                exit 1
+              fi
+              echo "deleted $TAG (was at ${CURRENT:-?})"
             fi
+            gh release create "$TAG" "$ASSET" --target "$SHA" --title "ΨLab $VERSION" --notes "$NOTES" --latest=false
+            echo "created $TAG at $SHA from run $RUN"
           done <<'TABLE'
           1.0|43035989222|72c550877db4f52fad57b14ab5731a5e5c3c22ca|HeH+ in STO-1G/2G/3G: restricted Hartree-Fock (Szabo-Ostlund) and Full CI, potential curves.
           2.0|43236328696|ed3f0d69367334fa1355b5bdc6973fd56dea4efb|terminal version psilab, bond lengths in angstrom and bohr, Export Results as Text, app icon and the name ΨLab.
