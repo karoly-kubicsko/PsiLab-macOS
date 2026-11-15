@@ -9,7 +9,15 @@ namespace macqc {
 
 namespace {
 
-const char* const kSymbols[] = {"H", "He", "Li", "Be", "B", "C", "N", "O", "F", "Ne"};
+const char* const kSymbols[] = {
+    "H", "He", "Li", "Be", "B", "C", "N", "O", "F", "Ne", "Na", "Mg", "Al", "Si", "P", "S", "Cl",
+    "Ar", "K", "Ca", "Sc", "Ti", "V", "Cr", "Mn", "Fe", "Co", "Ni", "Cu", "Zn", "Ga", "Ge", "As",
+    "Se", "Br", "Kr", "Rb", "Sr", "Y", "Zr", "Nb", "Mo", "Tc", "Ru", "Rh", "Pd", "Ag", "Cd", "In",
+    "Sn", "Sb", "Te", "I", "Xe", "Cs", "Ba", "La", "Ce", "Pr", "Nd", "Pm", "Sm", "Eu", "Gd", "Tb",
+    "Dy", "Ho", "Er", "Tm", "Yb", "Lu", "Hf", "Ta", "W", "Re", "Os", "Ir", "Pt", "Au", "Hg", "Tl",
+    "Pb", "Bi", "Po", "At", "Rn", "Fr", "Ra", "Ac", "Th", "Pa", "U", "Np", "Pu", "Am", "Cm", "Bk",
+    "Cf", "Es", "Fm", "Md", "No", "Lr", "Rf", "Db", "Sg", "Bh", "Hs", "Mt", "Ds", "Rg", "Cn", "Nh",
+    "Fl", "Mc", "Lv", "Ts", "Og"};
 
 std::string compact_lower(const std::string& s) {
     std::string out;
@@ -22,13 +30,17 @@ std::string compact_lower(const std::string& s) {
 }  // namespace
 
 std::string element_symbol(int Z) {
-    if (Z < 1 || Z > 10) throw std::invalid_argument("element Z = " + std::to_string(Z) + " not supported");
+    if (Z < 1 || Z > kMaxAtomicNumber) throw std::invalid_argument("element Z = " + std::to_string(Z) + " not supported");
     return kSymbols[Z - 1];
 }
 
 int atomic_number(const std::string& symbol) {
     const std::string s = compact_lower(symbol);
-    for (int z = 1; z <= 10; ++z)
+    if (!s.empty() && std::all_of(s.begin(), s.end(), [](char c) { return std::isdigit(static_cast<unsigned char>(c)); })) {
+        const long z = s.size() <= 3 ? std::stol(s) : 0;
+        return z >= 1 && z <= kMaxAtomicNumber ? static_cast<int>(z) : 0;
+    }
+    for (int z = 1; z <= kMaxAtomicNumber; ++z)
         if (s == compact_lower(kSymbols[z - 1])) return z;
     return 0;
 }
@@ -41,6 +53,7 @@ std::string canonical_molecule_name(const std::string& name) {
     if (s == "h2o2" || s == "hooh" || s == "hydrogenperoxide" || s == "peroxide") return "H2O2";
     if (s == "nh3" || s == "ammonia" || s == "h3n") return "NH3";
     if (s == "heh+" || s == "heh") return "HeH+";
+    if (s == "custom" || s == "custommolecule" || s == "xyz" || s == "cartesian") return "custom";
     return "";
 }
 
@@ -80,6 +93,57 @@ double Molecule::nuclear_repulsion() const {
             e += atoms[i].Z * atoms[j].Z / std::sqrt(dx * dx + dy * dy + dz * dz);
         }
     return e;
+}
+
+std::string Molecule::formula() const {
+    // Hill order: C, then H, then the others alphabetically; without carbon all alphabetically
+    std::vector<std::pair<std::string, int>> counts;
+    for (const Atom& a : atoms) {
+        const std::string s = a.symbol.empty() ? element_symbol(a.Z) : a.symbol;
+        auto it = std::find_if(counts.begin(), counts.end(), [&](const auto& c) { return c.first == s; });
+        if (it == counts.end()) counts.emplace_back(s, 1);
+        else ++it->second;
+    }
+    const bool carbon = std::any_of(counts.begin(), counts.end(), [](const auto& c) { return c.first == "C"; });
+    auto rank = [&](const std::string& s) { return carbon ? (s == "C" ? 0 : (s == "H" ? 1 : 2)) : 2; };
+    std::sort(counts.begin(), counts.end(), [&](const auto& a, const auto& b) {
+        if (rank(a.first) != rank(b.first)) return rank(a.first) < rank(b.first);
+        return a.first < b.first;
+    });
+    std::string f;
+    for (const auto& c : counts) f += c.first + (c.second > 1 ? std::to_string(c.second) : "");
+    if (charge == 1) f += "+";
+    else if (charge == -1) f += "-";
+    else if (charge != 0) f += " " + std::to_string(std::abs(charge)) + (charge > 0 ? "+" : "-");
+    return f;
+}
+
+std::string Molecule::display_name() const { return custom ? formula() : name; }
+
+Molecule make_custom_molecule(const std::vector<Atom>& in, int charge, const std::string& title) {
+    if (in.empty()) throw std::invalid_argument("the molecule has no atoms");
+    Molecule mol;
+    mol.name = "custom";
+    mol.custom = true;
+    mol.title = title;
+    mol.charge = charge;
+    for (std::size_t i = 0; i < in.size(); ++i) {
+        Atom a = in[i];
+        if (a.Z < 1 || a.Z > kMaxAtomicNumber)
+            throw std::invalid_argument("atom " + std::to_string(i + 1) + ": unknown element (Z = 1 to 118)");
+        a.symbol = element_symbol(a.Z);
+        for (double x : a.position)
+            if (!std::isfinite(x)) throw std::invalid_argument("atom " + std::to_string(i + 1) + ": the coordinates must be finite numbers");
+        for (std::size_t j = 0; j < mol.atoms.size(); ++j) {
+            double d2 = 0.0;
+            for (std::size_t k = 0; k < 3; ++k) d2 += (a.position[k] - mol.atoms[j].position[k]) * (a.position[k] - mol.atoms[j].position[k]);
+            if (std::sqrt(d2) < 0.3)
+                throw std::invalid_argument("atoms " + std::to_string(j + 1) + " and " + std::to_string(i + 1) +
+                                            " are closer than 0.3 bohr (0.16 \xC3\x85)");
+        }
+        mol.atoms.push_back(a);
+    }
+    return mol;
 }
 
 Molecule make_molecule(const std::string& name, double R, double angle_degrees, double r_oo, double dihedral) {

@@ -36,6 +36,21 @@ With `elements=[1, 3, 8]` this reproduces the eight earlier files byte for byte,
 differ from them only by the inserted He and N blocks. The core-valence sets are not defined for
 He (its 1s shell is the valence shell); like H, He then takes the aug-cc-pVXZ functions.
 
+**ΨLab 9.0: more elements.** For custom molecules the eight files were extended with the same
+offline copy of the BSE data (version 0.12):
+
+```
+basis_set_exchange.get_basis(<name>, elements=<Z, ...>, fmt="gaussian94", header=True)
+```
+
+with every element the BSE defines among H-Ar and Sc-Kr: aug-cc-pVDZ, TZ and QZ for H-Ar and
+Sc-Kr, aug-cc-pV5Z for H-Ar and Ga-Kr (the 5Z sets of Sc-Zn contain i functions, l = 6, beyond
+ΨLab's integrals), aug-cc-pCVDZ, TZ and QZ for Li-Ar, aug-cc-pCV5Z for B-Ar. The BSE has no
+aug-cc-pVXZ sets for K and Ca; elements beyond Kr need effective core potentials (aug-cc-pVXZ-PP),
+which ΨLab does not implement. The blocks of H, He, Li, N and O are unchanged byte for byte (checked
+when the files were written). Molecules with other elements can be read and shown, and are refused
+with this explanation when a calculation is asked for.
+
 **Element coverage.**
 
 - The core-valence sets aug-cc-pCVXZ are not defined for hydrogen, which has no core electrons.
@@ -73,3 +88,7 @@ Please cite the BSE and the original publications when you use these basis sets:
   4572 (1995), doi:10.1063/1.470645.
 - Li (aug-cc-pCVXZ, X = D, T, Q): from the original BSE (Feller 1996; Schuchardt et al. 2007),
   diffuse functions from Prascher et al. (2011).
+- 9.0, further elements: the references listed in the header and on the BSE page of each basis
+  set (e.g. Al-Ar: D. E. Woon, T. H. Dunning, Jr., J. Chem. Phys. 98, 1358 (1993); Sc-Zn:
+  N. B. Balabanov, K. A. Peterson, J. Chem. Phys. 123, 064107 (2005); Ga-Kr: A. K. Wilson,
+  D. E. Woon, K. A. Peterson, T. H. Dunning, Jr., J. Chem. Phys. 110, 7667 (1999)).

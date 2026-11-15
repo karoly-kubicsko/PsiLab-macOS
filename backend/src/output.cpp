@@ -329,7 +329,7 @@ std::string optimization_result_block(const OptimizationResult& r) {
             s += strprintf("    %-14s = %12.8f Å   %.8f bohr   (%.6f Å)\n", p.name.c_str(), p.value * kBohrInAngstrom,
                            p.value, start * kBohrInAngstrom);
     }
-    if (r.final_geometry.atoms.size() == 3) {
+    if (r.final_geometry.atoms.size() == 3 && !r.final_geometry.custom) {
         if (r.symmetric_start)
             s += strprintf("    C2v symmetry %s: |R(O1-H2) - R(O1-H3)| = %.2e bohr\n",
                            r.symmetric_end ? "kept" : "NOT kept", r.symmetry_deviation);

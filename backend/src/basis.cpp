@@ -277,8 +277,18 @@ BasisSet build_basis(const Molecule& mol, const std::string& basis_name,
             } else {
                 std::string msg = name + " is not available for " + atom.symbol +
                                   ": the Basis Set Exchange does not define it for this element.";
+                if (name.find("pCV") != std::string::npos && atom.Z > 18)
+                    msg += " (The core-valence sets are defined for Li-Ar; use the aug-cc-pVXZ set.)";
+                else if (atom.Z == 19 || atom.Z == 20)
+                    msg += " (The Basis Set Exchange has no aug-cc-pVXZ sets for K and Ca.)";
+                else if (atom.Z >= 21 && atom.Z <= 30 && name == "aug-cc-pV5Z")
+                    msg += " (aug-cc-pV5Z of Sc-Zn contains i functions, l = 6; ΨLab's integrals go up to h functions. "
+                           "Use aug-cc-pVQZ or a smaller set.)";
+                else if (atom.Z > 36)
+                    msg += " (Elements beyond Kr need effective core potentials, the aug-cc-pVXZ-PP sets, which ΨLab "
+                           "does not implement; ΨLab computes molecules of H-Ar and Sc-Kr, except K and Ca.)";
                 if (name == "aug-cc-pCV5Z" && atom.Z == 3)
-                    msg += " (The BSE has aug-cc-pCV5Z only for B-Ar.) For " + mol.name +
+                    msg += " (The BSE has aug-cc-pCV5Z only for B-Ar.) For " + mol.display_name() +
                            " choose aug-cc-pCVQZ or aug-cc-pV5Z.";
                 throw std::runtime_error(msg);
             }

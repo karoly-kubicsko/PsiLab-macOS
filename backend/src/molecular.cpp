@@ -16,6 +16,12 @@ namespace macqc {
 
 namespace {
 
+double distance_bohr(const Atom& a, const Atom& b) {
+    double s = 0.0;
+    for (std::size_t k = 0; k < 3; ++k) s += (a.position[k] - b.position[k]) * (a.position[k] - b.position[k]);
+    return std::sqrt(s);
+}
+
 std::string format(const char* fmt, ...) {
     char buf[1024];
     va_list args;
@@ -210,7 +216,26 @@ bool coupled_cluster_method(const std::string& canonical, CCMethod* method) {
 
 std::string validate_molecular(const MolecularInput& in) {
     const std::string m = canonical_molecule_name(in.molecule);
-    if (m.empty()) return "molecule must be HeH+, H2, LiH, H2O, H2O2 or NH3";
+    if (m.empty()) return "molecule must be HeH+, H2, LiH, H2O, H2O2, NH3 or custom";
+    if (m == "custom") {
+        if (in.atoms.empty()) return "a custom molecule needs atoms (read from an .xyz or .gjf file)";
+        if (in.atoms.size() > 200) return "a custom molecule may have at most 200 atoms";
+        if (in.charge < -20 || in.charge > 20) return "the charge must be between -20 and +20";
+        int nel = -in.charge;
+        for (const Atom& a : in.atoms) {
+            if (a.Z < 1 || a.Z > kMaxAtomicNumber) return "unknown element in the custom molecule (Z = 1 to 118)";
+            nel += a.Z;
+        }
+        if (nel < 2) return format("the molecule has %d electrons with charge %+d; it needs at least two", nel, in.charge);
+        if (in.multiplicity != 1)
+            return format("spin multiplicity %d: ΨLab computes closed-shell singlets only (restricted Hartree-Fock "
+                          "and the methods built on it); use multiplicity 1",
+                          in.multiplicity);
+        if (nel % 2 != 0)
+            return format("the molecule has %d electrons (charge %+d), an odd number: restricted Hartree-Fock needs a "
+                          "closed-shell singlet. Change the charge by one (e.g. to %+d)",
+                          nel, in.charge, in.charge + 1);
+    }
     if (canonical_basis_name(in.basis).empty()) {
         std::string list;
         for (const auto& b : supported_basis_sets()) list += (list.empty() ? "" : ", ") + b;
@@ -248,6 +273,7 @@ int expected_scf_iterations(const std::string& molecule) {
     if (molecule == "H2" || molecule == "HeH+") return 8;
     if (molecule == "LiH") return 11;
     if (molecule == "H2O2") return 16;
+    if (molecule == "custom") return 18;
     return 14;
 }
 
@@ -296,9 +322,19 @@ MolecularResult prepare_molecular(const MolecularInput& input) {
     r.input.molecule = canonical_molecule_name(input.molecule);
     r.input.basis = canonical_basis_name(input.basis);
     r.input.method = canonical_method_name(input.method);
-    if (!(r.input.R > 0.0)) r.input.R = default_bond_length(r.input.molecule);
-    if (r.input.molecule == "H2O2" && !(r.input.r_oo > 0.0)) r.input.r_oo = default_oo_bond_length();
-    r.molecule = make_molecule(r.input.molecule, r.input.R, r.input.angle, r.input.r_oo, r.input.dihedral);
+    if (r.input.molecule == "custom") {
+        try {
+            r.molecule = make_custom_molecule(r.input.atoms, r.input.charge, r.input.title);
+        } catch (const std::invalid_argument& e) {
+            throw std::runtime_error(e.what());
+        }
+        r.input.atoms = r.molecule.atoms;
+        r.input.R = r.molecule.atoms.size() >= 2 ? distance_bohr(r.molecule.atoms[0], r.molecule.atoms[1]) : 0.0;
+    } else {
+        if (!(r.input.R > 0.0)) r.input.R = default_bond_length(r.input.molecule);
+        if (r.input.molecule == "H2O2" && !(r.input.r_oo > 0.0)) r.input.r_oo = default_oo_bond_length();
+        r.molecule = make_molecule(r.input.molecule, r.input.R, r.input.angle, r.input.r_oo, r.input.dihedral);
+    }
     r.basis = build_basis(r.molecule, r.input.basis, r.input.basis_directory);
     for (const auto& a : r.basis.atoms)
         if (!a.note.empty() && std::find(r.notes.begin(), r.notes.end(), a.note) == r.notes.end())
@@ -323,7 +359,9 @@ MolecularResult prepare_molecular(const MolecularInput& input) {
         e.total_seconds += e.fci->seconds;
         if (!e.fci->feasible) {
             r.refusal = e.fci->reason;
-            if (r.molecule.name == "H2O" || r.molecule.name == "H2O2" || r.molecule.name == "NH3")
+            if (r.molecule.custom)
+                r.refusal += " Full CI is feasible only for very few electrons in small basis sets; use coupled cluster.";
+            else if (r.molecule.name == "H2O" || r.molecule.name == "H2O2" || r.molecule.name == "NH3")
                 r.refusal += " Full CI for " + r.molecule.name + " is impossible in every basis set offered; use RHF.";
             else if (r.molecule.name == "LiH")
                 r.refusal += " For LiH, Full CI is possible up to aug-cc-pCVTZ (11 million determinants).";
@@ -451,9 +489,12 @@ std::string molecular_report(const MolecularResult& r) {
     s += std::string("\xCE\xA8Lab \xE2\x80\x93 restricted Hartree-Fock") +
          (r.input.method == "FCI" ? " and Full CI" : (r.input.method == "RHF" ? "" : " and " + r.input.method)) + "\n" +
          rule + "\n";
-    s += format("Molecule        %s, %d electrons, closed shell (charge %d, singlet)\n", mol.name.c_str(),
+    s += format("Molecule        %s, %d electrons, closed shell (charge %d, singlet)\n", mol.display_name().c_str(),
                 mol.electrons(), mol.charge);
-    if (mol.name == "H2O2")
+    if (mol.custom)
+        s += "Title           " + (mol.title.empty() ? std::string("(none)") : mol.title) + "\n" +
+             format("Geometry        %zu atoms from Cartesian coordinates\n", mol.atoms.size());
+    else if (mol.name == "H2O2")
         s += "Geometry        R(O-O) = " + angstrom_bohr(r.input.r_oo) + ", R(O-H) = " + angstrom_bohr(r.input.R) +
              format(", angle O-O-H = %.4f deg, dihedral H-O-O-H = %.4f deg\n", r.input.angle, r.input.dihedral);
     else if (mol.name == "NH3")

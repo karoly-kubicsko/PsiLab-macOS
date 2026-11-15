@@ -211,6 +211,14 @@ Molecule align_to(const Molecule& ref, const Molecule& mv) {
 
 NumericalHessianCost numerical_hessian_cost(const Molecule& mol, bool analytic_gradients, bool dipoles) {
     NumericalHessianCost c;
+    if (uses_cartesian_displacements(mol)) {
+        // 9.0: custom molecules, Cartesian directions orthogonal to the translations and rotations
+        const std::size_t m = vibrational_directions(mol).size();
+        if (analytic_gradients) c.gradients = static_cast<int>(2 * m);
+        else c.energies = static_cast<int>(2 * m * m);  // not available (counted for the refusal message)
+        (void)dipoles;
+        return c;
+    }
     const SimpleInternals si = simple_internals(mol);
     const auto dirs = directions(mol, si);
     for (const auto& d : dirs) c.coordinates.push_back(d.name);
@@ -274,10 +282,78 @@ HessianResult run_hessian(const Molecule& mol, const BasisSet& basis, const std:
     else
         r.numerical_reason = "no analytic Hessian for " + method + " in this version";
 
-    const SimpleInternals si = simple_internals(mol);
-    const bool linear3 = si.values.size() == 3 && std::fabs(std::sin(si.values[2])) < 1.0e-6;
     const double h = ho.step;
     ElectronicOptions eod = eo;
+
+    // ---- 9.0, custom molecules: Cartesian directions orthogonal to the translations and rotations
+    if (uses_cartesian_displacements(mol)) {
+        if (!ref.analytic || ho.from_energies)
+            throw std::runtime_error("a numerical Hessian from " + method + " energies is not available for a custom "
+                                     "molecule of three or more atoms; use a method with analytic gradients (HF, CCSD, "
+                                     "CCSD(T), Full CI)");
+        bool linear = false;
+        const std::vector<std::vector<double>> dirs = vibrational_directions(mol, &linear);
+        const std::size_t m = dirs.size();
+        std::vector<std::vector<double>> dg(m);
+        std::vector<std::array<double, 3>> dmu(m, {0.0, 0.0, 0.0});
+        int idx = 0;
+        const int total = static_cast<int>(2 * m);
+        for (std::size_t k = 0; k < m; ++k) {
+            std::vector<double> gs[2];
+            std::array<double, 3> mu[2];
+            for (int s = 0; s < 2; ++s) {
+                Molecule mm = mol;
+                for (std::size_t x = 0; x < n3; ++x) mm.atoms[x / 3].position[x % 3] += (s == 0 ? h : -h) * dirs[k][x];
+                ++idx;
+                if (progress) progress(idx, total, format("Cartesian direction %zu of %zu %s", k + 1, m, s == 0 ? "+" : "-"));
+                report_progress(JobStage::NumericalHessian, idx, ref.point.energy, total);
+                const GradientResult g = run_gradient(mm, basis_at_geometry(basis, mm), method, eod, &C0);
+                if (!g.point.converged) throw std::runtime_error("a displaced calculation of the numerical Hessian did not converge");
+                ++r.gradient_evaluations;
+                gs[s] = g.gradient;
+                mu[s] = g.dipole;
+            }
+            dg[k].assign(n3, 0.0);
+            for (std::size_t x = 0; x < n3; ++x) dg[k][x] = (gs[0][x] - gs[1][x]) / (2.0 * h);
+            for (std::size_t c = 0; c < 3; ++c) dmu[k][c] = (mu[0][c] - mu[1][c]) / (2.0 * h);
+        }
+        // H u for a complete orthonormal basis u: the measured columns H d_k, and for the
+        // translations and rotations the columns fixed by invariance (zero; n x g from the
+        // gradient at the reference, exact also away from a stationary point); H = sum_u (H u) u',
+        // symmetrised
+        const RigidMotion rm = rigid_motions(mol, ref.dipole, &ref.gradient);
+        r.hessian = Matrix(n3, n3);
+        auto add_outer = [&](const std::vector<double>& hu, const std::vector<double>& u) {
+            for (std::size_t x = 0; x < n3; ++x)
+                for (std::size_t y = 0; y < n3; ++y) r.hessian(x, y) += hu[x] * u[y];
+        };
+        for (std::size_t k = 0; k < m; ++k) add_outer(dg[k], dirs[k]);
+        for (std::size_t k = 0; k < rm.directions.size(); ++k) add_outer(rm.hessian_times[k], rm.directions[k]);
+        for (std::size_t x = 0; x < n3; ++x)
+            for (std::size_t y = 0; y < x; ++y) r.hessian(x, y) = r.hessian(y, x) = 0.5 * (r.hessian(x, y) + r.hessian(y, x));
+        r.has_dipole_derivatives = ref.has_dipole && ho.dipoles;
+        if (r.has_dipole_derivatives) {
+            // complete the atomic polar tensor with the translations and rotations
+            r.dipole_derivatives.assign(n3, {0.0, 0.0, 0.0});
+            for (std::size_t x = 0; x < n3; ++x)
+                for (std::size_t c = 0; c < 3; ++c) {
+                    double s = 0.0;
+                    for (std::size_t k = 0; k < m; ++k) s += dirs[k][x] * dmu[k][c];
+                    for (std::size_t k = 0; k < rm.directions.size(); ++k) s += rm.directions[k][x] * rm.dipole_derivatives[k][c];
+                    r.dipole_derivatives[x][c] = s;
+                }
+            r.dipole_description = method == "RHF" ? "central differences of the SCF dipole moments of the gradients"
+                                                   : "central differences of the relaxed dipole moments of the gradients";
+        }
+        r.description = format("numerical (central differences of analytic gradients along %zu Cartesian directions "
+                               "orthogonal to the translations and rotations%s, %d gradients, step %.4f bohr)",
+                               m, linear ? " (linear molecule)" : "", r.gradient_evaluations, h);
+        r.seconds = seconds_since(t0);
+        return r;
+    }
+
+    const SimpleInternals si = simple_internals(mol);
+    const bool linear3 = si.values.size() == 3 && std::fabs(std::sin(si.values[2])) < 1.0e-6;
 
     // ---- finite differences of analytic gradients
     if (ref.analytic && !ho.from_energies) {

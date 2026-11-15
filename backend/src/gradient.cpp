@@ -229,6 +229,110 @@ SimpleInternals simple_internals(const Molecule& mol) {
     return s;
 }
 
+bool uses_cartesian_displacements(const Molecule& mol) { return mol.custom && mol.atoms.size() >= 3; }
+
+RigidMotion rigid_motions(const Molecule& mol, const std::array<double, 3>& mu, const std::vector<double>* grad) {
+    RigidMotion rm;
+    const std::size_t n = mol.atoms.size(), n3 = 3 * n;
+    double c[3] = {0.0, 0.0, 0.0};
+    for (const Atom& a : mol.atoms)
+        for (std::size_t k = 0; k < 3; ++k) c[k] += a.position[k] / static_cast<double>(n);
+    const double Q = static_cast<double>(mol.charge);
+    // translations: (1/sqrt N) e_k on every atom; d mu / ds = Q / sqrt N e_k
+    for (std::size_t k = 0; k < 3; ++k) {
+        std::vector<double> t(n3, 0.0);
+        for (std::size_t a = 0; a < n; ++a) t[3 * a + k] = 1.0 / std::sqrt(static_cast<double>(n));
+        std::array<double, 3> d{0.0, 0.0, 0.0};
+        d[k] = Q / std::sqrt(static_cast<double>(n));
+        rm.directions.push_back(t);
+        rm.dipole_derivatives.push_back(d);
+        if (grad) rm.hessian_times.push_back(std::vector<double>(n3, 0.0));
+    }
+    // rotations about the centroid (orthogonal to the translations), Gram-Schmidt; the dipole
+    // derivatives follow the same linear combinations
+    double largest = 0.0;
+    std::vector<std::vector<double>> raw, raw_h;
+    std::vector<std::array<double, 3>> raw_mu;
+    for (std::size_t k = 0; k < 3; ++k) {
+        double e[3] = {0.0, 0.0, 0.0};
+        e[k] = 1.0;
+        std::vector<double> r(n3, 0.0);
+        for (std::size_t a = 0; a < n; ++a) {
+            double p[3];
+            for (std::size_t i = 0; i < 3; ++i) p[i] = mol.atoms[a].position[i] - c[i];
+            r[3 * a + 0] = e[1] * p[2] - e[2] * p[1];
+            r[3 * a + 1] = e[2] * p[0] - e[0] * p[2];
+            r[3 * a + 2] = e[0] * p[1] - e[1] * p[0];
+        }
+        const double m[3] = {mu[0] - Q * c[0], mu[1] - Q * c[1], mu[2] - Q * c[2]};
+        raw.push_back(r);
+        raw_mu.push_back({e[1] * m[2] - e[2] * m[1], e[2] * m[0] - e[0] * m[2], e[0] * m[1] - e[1] * m[0]});
+        std::vector<double> hr(n3, 0.0);
+        if (grad)
+            for (std::size_t a = 0; a < n; ++a) {
+                const double* g = &(*grad)[3 * a];
+                hr[3 * a + 0] = e[1] * g[2] - e[2] * g[1];
+                hr[3 * a + 1] = e[2] * g[0] - e[0] * g[2];
+                hr[3 * a + 2] = e[0] * g[1] - e[1] * g[0];
+            }
+        raw_h.push_back(hr);
+        double s = 0.0;
+        for (double v : r) s += v * v;
+        largest = std::max(largest, std::sqrt(s));
+    }
+    std::vector<std::vector<double>> rot;
+    for (std::size_t k = 0; k < 3; ++k) {
+        std::vector<double> r = raw[k], hr = raw_h[k];
+        std::array<double, 3> d = raw_mu[k];
+        for (std::size_t p = 0; p < rot.size(); ++p) {
+            double s = 0.0;
+            for (std::size_t i = 0; i < n3; ++i) s += rot[p][i] * r[i];
+            for (std::size_t i = 0; i < n3; ++i) r[i] -= s * rot[p][i];
+            for (std::size_t i = 0; i < 3; ++i) d[i] -= s * rm.dipole_derivatives[3 + p][i];
+            if (grad)
+                for (std::size_t i = 0; i < n3; ++i) hr[i] -= s * rm.hessian_times[3 + p][i];
+        }
+        double s = 0.0;
+        for (double v : r) s += v * v;
+        s = std::sqrt(s);
+        if (s < 1.0e-6 * std::max(1.0, largest)) continue;  // linear molecule: rotation about the axis
+        for (double& v : r) v /= s;
+        for (double& v : d) v /= s;
+        for (double& v : hr) v /= s;
+        rot.push_back(r);
+        rm.directions.push_back(r);
+        rm.dipole_derivatives.push_back(d);
+        if (grad) rm.hessian_times.push_back(hr);
+    }
+    return rm;
+}
+
+std::vector<std::vector<double>> vibrational_directions(const Molecule& mol, bool* linear) {
+    const std::size_t n3 = 3 * mol.atoms.size();
+    const RigidMotion rm = rigid_motions(mol, {0.0, 0.0, 0.0});
+    if (linear) *linear = rm.directions.size() == 5;
+    std::vector<std::vector<double>> basis = rm.directions, out;
+    const std::size_t want = n3 > rm.directions.size() ? n3 - rm.directions.size() : 0;
+    for (std::size_t x = 0; x < n3 && out.size() < want; ++x) {
+        std::vector<double> v(n3, 0.0);
+        v[x] = 1.0;
+        for (int pass = 0; pass < 2; ++pass)  // twice for numerical orthogonality
+            for (const auto& b : basis) {
+                double s = 0.0;
+                for (std::size_t i = 0; i < n3; ++i) s += b[i] * v[i];
+                for (std::size_t i = 0; i < n3; ++i) v[i] -= s * b[i];
+            }
+        double s = 0.0;
+        for (double w : v) s += w * w;
+        s = std::sqrt(s);
+        if (s < 1.0e-3) continue;
+        for (double& w : v) w /= s;
+        basis.push_back(v);
+        out.push_back(v);
+    }
+    return out;
+}
+
 Molecule geometry_from_internals(const Molecule& ref, const std::vector<double>& q) {
     Molecule m = ref;
     const std::size_t n = ref.atoms.size();
@@ -405,15 +509,39 @@ GradientResult run_gradient(const Molecule& mol, const BasisSet& basis, const st
         g.seconds = seconds_since(t0);
         return g;
     }
-    const SimpleInternals si = simple_internals(mol);
     const double h = o.numerical_step;
-    const bool linear = mol.atoms.size() == 3 && std::fabs(std::sin(si.values[2])) < 1.0e-6;
+    SimpleInternals si;
+    bool linear = false;
+    if (!uses_cartesian_displacements(mol)) {
+        si = simple_internals(mol);
+        linear = mol.atoms.size() == 3 && std::fabs(std::sin(si.values[2])) < 1.0e-6;
+    }
     auto energy_at = [&](const Molecule& m) {
         const SinglePoint p = run_single_point(m, basis_at_geometry(basis, m), method, o, &sp.rhf.C, ElectronicCallbacks());
         ++g.energy_evaluations;
         if (!p.converged) throw std::runtime_error("a displaced calculation of the numerical gradient did not converge");
         return p.energy;
     };
+    if (uses_cartesian_displacements(mol)) {
+        // 9.0, custom molecules: central differences along the vibrational Cartesian directions
+        const std::vector<std::vector<double>> dirs = vibrational_directions(mol);
+        for (std::size_t k = 0; k < dirs.size(); ++k) {
+            Molecule mp = mol, mm = mol;
+            for (std::size_t x = 0; x < n3; ++x) {
+                mp.atoms[x / 3].position[x % 3] += h * dirs[k][x];
+                mm.atoms[x / 3].position[x % 3] -= h * dirs[k][x];
+            }
+            const double ep = energy_at(mp), em = energy_at(mm);
+            const double dEds = (ep - em) / (2.0 * h);
+            for (std::size_t x = 0; x < n3; ++x) g.gradient[x] += dEds * dirs[k][x];
+            if (cb.note) cb.note(format("  numerical gradient: direction %zu of %zu, dE/ds = %+.8f", k + 1, dirs.size(), dEds));
+        }
+        g.description = format("numerical (central differences of %s energies along %zu Cartesian directions orthogonal "
+                               "to the translations and rotations, %d energies, step %.4f bohr)",
+                               method.c_str(), dirs.size(), g.energy_evaluations, h);
+        g.seconds = seconds_since(t0);
+        return g;
+    }
     if (linear) {
         // Cartesian central differences (the bend of a linear triatomic is degenerate).
         for (std::size_t x = 0; x < n3; ++x) {

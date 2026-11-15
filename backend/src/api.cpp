@@ -12,6 +12,7 @@
 #include "macqc/jobs.h"
 #include "macqc/macqc_api.h"
 #include "macqc/orbitals.h"
+#include "macqc/structure_file.h"
 #include "nlohmann/json.hpp"
 
 namespace macqc {
@@ -30,8 +31,39 @@ json matrix_json(const Matrix& m) {
     return rows;
 }
 
+json input_json_general(const Input& in);
+
+// 9.0: atoms of a custom molecule as in the input, {"symbol", "Z", "x", "y", "z"} in angstrom.
+json custom_atoms_json(const std::vector<Atom>& atoms) {
+    json a = json::array();
+    for (const Atom& at : atoms)
+        a.push_back({{"symbol", at.symbol.empty() ? element_symbol(at.Z) : at.symbol},
+                     {"Z", at.Z},
+                     {"x", at.position[0] * kBohrInAngstrom},
+                     {"y", at.position[1] * kBohrInAngstrom},
+                     {"z", at.position[2] * kBohrInAngstrom}});
+    return a;
+}
+
 json input_json(const Input& in) {
-    if (!is_heh_input(in) && !canonical_molecule_name(in.molecule).empty())
+    if (!is_heh_input(in) && !canonical_molecule_name(in.molecule).empty()) {
+        json j = input_json_general(in);
+        if (canonical_molecule_name(in.molecule) == "custom") {
+            j["atoms"] = custom_atoms_json(in.atoms);
+            j["charge"] = in.charge;
+            j["multiplicity"] = in.multiplicity;
+            j["title"] = in.title;
+        }
+        return j;
+    }
+    return {{"R", in.R},           {"zeta1", in.zeta1},         {"zeta2", in.zeta2},
+            {"ZA", in.ZA},         {"ZB", in.ZB},               {"nGaussians", in.nGaussians},
+            {"exactErf", in.exactErf}, {"maxIter", in.maxIter}, {"convergence", in.convergence},
+            {"printLevel", in.printLevel}};
+}
+
+json input_json_general(const Input& in) {
+    {
         return {{"molecule", in.molecule},
                 {"basis", in.basis},
                 {"R", in.R},
@@ -59,10 +91,7 @@ json input_json(const Input& in) {
                 {"scanStart", in.scanStart ? json(*in.scanStart) : json(nullptr)},
                 {"tsHessian", in.tsHessian},
                 {"eigenTest", in.eigenTest}};
-    return {{"R", in.R},           {"zeta1", in.zeta1},         {"zeta2", in.zeta2},
-            {"ZA", in.ZA},         {"ZB", in.ZB},               {"nGaussians", in.nGaussians},
-            {"exactErf", in.exactErf}, {"maxIter", in.maxIter}, {"convergence", in.convergence},
-            {"printLevel", in.printLevel}};
+    }
 }
 
 double get_number(const json& j, const char* key, double fallback) {
@@ -92,6 +121,9 @@ std::string get_string(const json& j, const char* key, const std::string& fallba
 json molecular_json(const MolecularResult& m) {
     json mol;
     mol["name"] = m.molecule.name;
+    mol["formula"] = m.molecule.formula();
+    mol["custom"] = m.molecule.custom;
+    mol["title"] = m.molecule.custom ? json(m.molecule.title) : json(nullptr);
     mol["electrons"] = m.molecule.electrons();
     mol["charge"] = m.molecule.charge;
     mol["R"] = m.input.R;
@@ -304,6 +336,12 @@ double distance(const Atom& a, const Atom& b) {
 json geometry_parameters_json(const Molecule& m) {
     json g;
     g["atoms"] = atoms_json(m);
+    if (m.custom && m.atoms.size() != 2) {
+        // 9.0: a custom molecule is described by its Cartesian coordinates only
+        g["R"] = nullptr;
+        g["angle"] = nullptr;
+        return g;
+    }
     if (m.atoms.size() == 2) {
         g["R"] = distance(m.atoms[0], m.atoms[1]);
         g["angle"] = nullptr;
@@ -800,7 +838,50 @@ Input parse_input_json(const std::string& text) {
             else throw std::runtime_error("\"basis\" for HeH+ must be STO-1G, STO-2G, STO-3G or a correlation-consistent set");
         }
     }
-    if (canonical != "HeH+") in.angle = default_angle(canonical);
+    if (canonical != "HeH+" && canonical != "custom") in.angle = default_angle(canonical);
+    if (canonical == "custom") {
+        // 9.0: "atoms": [{"symbol": "C", "x": 0, "y": 0, "z": 1.16}, ...] in angstrom (or with
+        // "position": [x, y, z]; "Z" instead of "symbol"), "charge", "multiplicity", "title"
+        auto it = j.find("atoms");
+        if (it == j.end() || !it->is_array() || it->empty())
+            throw std::runtime_error("a custom molecule needs \"atoms\": [{\"symbol\", \"x\", \"y\", \"z\"}, ...] in angstrom");
+        int k = 0;
+        for (const json& a : *it) {
+            ++k;
+            const std::string where = "atom " + std::to_string(k) + ": ";
+            if (!a.is_object()) throw std::runtime_error(where + "must be an object");
+            Atom at;
+            const std::string sym = get_string(a, "symbol", "");
+            at.Z = sym.empty() ? get_int(a, "Z", 0) : atomic_number(sym);
+            if (at.Z < 1 || at.Z > kMaxAtomicNumber)
+                throw std::runtime_error(where + "unknown element" + (sym.empty() ? std::string() : " '" + sym + "'") +
+                                         " (Z = 1 to 118)");
+            at.symbol = element_symbol(at.Z);
+            std::array<double, 3> x{};
+            if (auto p = a.find("position"); p != a.end() && !p->is_null()) {
+                if (!p->is_array() || p->size() != 3) throw std::runtime_error(where + "\"position\" must be [x, y, z]");
+                for (std::size_t c = 0; c < 3; ++c) {
+                    if (!(*p)[c].is_number()) throw std::runtime_error(where + "the coordinates must be numbers");
+                    x[c] = (*p)[c].get<double>();
+                }
+            } else {
+                const char* keys[3] = {"x", "y", "z"};
+                for (std::size_t c = 0; c < 3; ++c) {
+                    if (a.find(keys[c]) == a.end()) throw std::runtime_error(where + "\"x\", \"y\" and \"z\" are needed (angstrom)");
+                    x[c] = get_number(a, keys[c], 0.0);
+                }
+            }
+            for (std::size_t c = 0; c < 3; ++c) {
+                if (!std::isfinite(x[c])) throw std::runtime_error(where + "the coordinates must be finite numbers");
+                at.position[c] = x[c] / kBohrInAngstrom;
+            }
+            in.atoms.push_back(at);
+        }
+        in.charge = get_int(j, "charge", 0);
+        in.multiplicity = get_int(j, "multiplicity", 1);
+        in.title = get_string(j, "title", "");
+        in.R = 0.0;
+    }
     in.R = get_number(j, "R", in.R);
     in.zeta1 = get_number(j, "zeta1", in.zeta1);
     in.zeta2 = get_number(j, "zeta2", in.zeta2);
@@ -1129,6 +1210,31 @@ void macqc_mesh_free(macqc_mesh* mesh) {
     std::free(mesh->normals);
     std::free(mesh->indices);
     clear_mesh(mesh);
+}
+
+char* macqc_parse_structure(const char* text, const char* hint) {
+    using nlohmann::json;
+    json j;
+    try {
+        const macqc::StructureFile f = macqc::parse_structure_file(text ? text : "", hint ? hint : "");
+        j["error"] = nullptr;
+        j["format"] = f.format;
+        j["title"] = f.title;
+        j["charge"] = f.charge;
+        j["multiplicity"] = f.multiplicity;
+        j["hasCharge"] = f.has_charge;
+        j["warnings"] = f.warnings;
+        j["atoms"] = macqc::custom_atoms_json(f.atoms);
+    } catch (const std::exception& e) {
+        j = {{"error", e.what()}, {"atoms", json::array()}, {"warnings", json::array()}};
+    } catch (...) {
+        j = {{"error", "internal error"}, {"atoms", json::array()}, {"warnings", json::array()}};
+    }
+    const std::string s = j.dump(-1, ' ', false, json::error_handler_t::replace);
+    char* buf = static_cast<char*>(std::malloc(s.size() + 1));
+    if (!buf) return nullptr;
+    std::memcpy(buf, s.c_str(), s.size() + 1);
+    return buf;
 }
 
 }  // extern "C"

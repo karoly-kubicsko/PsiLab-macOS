@@ -3,6 +3,7 @@
 
 #include <optional>
 #include <string>
+#include <vector>
 
 #include "macqc/fci.h"
 #include "macqc/jobs.h"
@@ -35,6 +36,13 @@ struct Input {
     double angle = kDefaultWaterAngle;  // degrees: H-O-H (H2O), O-O-H (H2O2), H-N-H (NH3)
     double ROO = 0.0;                   // H2O2: R(O-O) in bohr (<= 0: the default 1.4556 Å)
     double dihedral = kDefaultPeroxideDihedral;  // H2O2: H-O-O-H dihedral angle (degrees)
+    // 9.0, molecule "custom": the atoms (positions in bohr; the JSON key "atoms" gives them in
+    // angstrom), the charge, the spin multiplicity (1) and the title from the structure file
+    std::vector<Atom> atoms;
+    int charge = 0;
+    int multiplicity = 1;
+    std::string title;
+    std::string geometryFile;           // terminal version: the structure file the atoms were read from
     std::string method = "RHF";         // "RHF" (HF), "CCSD", "CCSD(T)", "CCSDT", "CCSDTQ" or "FCI"
     std::string basisDirectory;         // "" -> default_basis_directory()
     int threads = 0;                    // 0 -> all hardware threads

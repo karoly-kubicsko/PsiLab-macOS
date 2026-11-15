@@ -1,7 +1,10 @@
 // ΨLab terminal version: plain-text input file -> plain-text output file.
 //
 // Input: one "key = value" per line, '#' starts a comment. Keys (case-insensitive):
-//   molecule   HeH+ (default) | H2 | LiH | H2O | H2O2 | NH3
+//   molecule   HeH+ (default) | H2 | LiH | H2O | H2O2 | NH3 | custom (9.0)
+//   geometry   molecule = custom: the structure file, .xyz (angstrom) or Gaussian .gjf/.com (relative to
+//              the input file); charge, multiplicity (1; closed-shell singlets only) and title override
+//              the file's (an XYZ file has charge 0; its comment line is the title)
 //   basis      aug-cc-pVXZ, aug-cc-pCVXZ (X = D, T, Q, 5); HeH+ also STO-1G | STO-2G | STO-3G, the
 //              Szabo-Ostlund calculation (HeH+ with a correlation-consistent set: all methods and jobs)
 //   R          bond length (H2O, H2O2: O-H; NH3: N-H), a number optionally followed by a unit: bohr (default)
@@ -39,7 +42,7 @@
 namespace psilab {
 
 // ΨLab version (same as the macOS app).
-constexpr const char* kVersion = "8.0";
+constexpr const char* kVersion = "9.0";
 
 // 1 bohr in angstrom (CODATA 2022).
 constexpr double kBohrToAngstrom = 0.529177210544;
@@ -53,6 +56,7 @@ struct Settings {
     double scanStep = 0.1;  // bohr
     bool rGiven = false;    // R was in the input (else the molecule's default)
     std::string sourceText; // the input file (echoed in the output file)
+    std::vector<std::string> structureWarnings;  // custom: notes on the structure file (e.g. several frames)
 };
 
 // The "Input" section of the output file: the keys as understood, then the file as given.
@@ -60,7 +64,8 @@ std::string input_echo_text(const Settings& settings);
 
 // Parses the text input. Throws std::runtime_error("line N: ...") on any problem,
 // including values the calculation would reject.
-Settings parse_input_text(const std::string& text);
+// `base_directory`: the folder of the input file (relative structure-file paths of molecule = custom).
+Settings parse_input_text(const std::string& text, const std::string& base_directory = "");
 
 // A commented example input file (the Szabo-Ostlund default case).
 std::string example_input();

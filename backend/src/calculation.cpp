@@ -19,6 +19,10 @@ MolecularInput molecular_input(const Input& in) {
     m.angle = in.angle;
     m.r_oo = in.ROO;
     m.dihedral = in.dihedral;
+    m.atoms = in.atoms;
+    m.charge = in.charge;
+    m.multiplicity = in.multiplicity;
+    m.title = in.title;
     m.basis = in.basis;
     m.method = in.method;
     m.basis_directory = in.basisDirectory;
@@ -35,6 +39,7 @@ MolecularInput molecular_input(const Input& in) {
 // Atoms of a general molecule (the atom numbers of a scan line refer to them).
 int atom_count(const Input& in) {
     const std::string m = canonical_molecule_name(in.molecule);
+    if (m == "custom") return static_cast<int>(in.atoms.size());
     return (m == "H2O2" || m == "NH3") ? 4 : (m == "H2O" ? 3 : 2);
 }
 
@@ -169,8 +174,21 @@ std::string input_echo(const Input& in) {
     kv("method", in.method == "RHF" ? "HF" : in.method);
     kv("basis", in.basis);
     const std::string mol = canonical_molecule_name(in.molecule);
+    if (mol == "custom") {
+        if (!in.geometryFile.empty()) kv("geometry", in.geometryFile);
+        kv("title", in.title.empty() ? "(none)" : in.title);
+        kv("charge", strprintf("%d", in.charge));
+        kv("multiplicity", strprintf("%d", in.multiplicity));
+        s += strprintf("    %-16s   %zu atoms, Cartesian coordinates (angstrom):\n", "", in.atoms.size());
+        for (std::size_t i = 0; i < in.atoms.size(); ++i) {
+            const Atom& a = in.atoms[i];
+            s += strprintf("    %-16s   %-2s %16.10f %16.10f %16.10f\n", "",
+                           (a.symbol.empty() ? element_symbol(a.Z) : a.symbol).c_str(), a.position[0] * kBohrInAngstrom,
+                           a.position[1] * kBohrInAngstrom, a.position[2] * kBohrInAngstrom);
+        }
+    }
     if (mol == "H2O2") kv("R_OO", strprintf("%.10f bohr (%.8f angstrom)", in.ROO, in.ROO * kBohrInAngstrom));
-    kv("R", strprintf("%.10f bohr (%.8f angstrom)", in.R, in.R * kBohrInAngstrom));
+    if (mol != "custom") kv("R", strprintf("%.10f bohr (%.8f angstrom)", in.R, in.R * kBohrInAngstrom));
     if (mol == "H2O" || mol == "H2O2" || mol == "NH3") kv("angle", strprintf("%.6f degrees", in.angle));
     if (mol == "H2O2") kv("dihedral", strprintf("%.6f degrees", in.dihedral));
     if (job_has_single_point(canonical_job_type(in.job))) {
@@ -212,7 +230,7 @@ std::string input_echo(const Input& in) {
 
 std::string validate(const Input& in) {
     if (canonical_molecule_name(in.molecule).empty())
-        return "molecule must be HeH+, H2, LiH, H2O, H2O2 or NH3";
+        return "molecule must be HeH+, H2, LiH, H2O, H2O2, NH3 or custom";
     if (!is_heh_input(in)) {
         const std::string e = validate_molecular(molecular_input(in));
         return e.empty() ? job_input_error(in) : e;

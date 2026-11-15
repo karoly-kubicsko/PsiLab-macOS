@@ -15,11 +15,17 @@
 namespace macqc {
 
 struct MolecularInput {
-    std::string molecule = "H2O";
+    std::string molecule = "H2O";  // ... or (9.0) "custom": the atoms below
     double R = 0.0;              // bond length in bohr (H2O, H2O2: O-H; NH3: N-H); <= 0 means the default
     double angle = kDefaultWaterAngle;  // degrees: H-O-H (H2O), O-O-H (H2O2), H-N-H (NH3)
     double r_oo = 0.0;           // H2O2: O-O bond length in bohr; <= 0 means the default
     double dihedral = kDefaultPeroxideDihedral;  // H2O2: H-O-O-H dihedral angle in degrees
+    // 9.0, molecule "custom": the atoms (Z, positions in bohr), the charge, the spin multiplicity
+    // (RHF: 1) and the title (name of the molecule; may contain LaTeX, e.g. "CO$_2$")
+    std::vector<Atom> atoms;
+    int charge = 0;
+    int multiplicity = 1;
+    std::string title;
     std::string basis = "aug-cc-pVDZ";
     // "RHF" (shown as HF), "CCSD", "CCSD(T)", "CCSDT", "CCSDTQ" or "FCI"; the correlated
     // methods follow RHF and correlate all electrons.

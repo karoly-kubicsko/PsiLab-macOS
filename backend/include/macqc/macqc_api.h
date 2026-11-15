@@ -47,6 +47,17 @@
  *                               the orbital at origin + i u + j v (bohr), i < nu fastest, j < nv,
  *                               into values (nu * nv floats).
  * Both return NULL on success, else an error message (free with macqc_free).
+ *
+ * Custom molecules (ΨLab 9.0). Input "molecule": "custom" with "atoms" (an array of
+ * {"symbol", "x", "y", "z"} in angstrom), "charge" (0), "multiplicity" (1; RHF needs a singlet)
+ * and "title" (the name of the molecule; may contain LaTeX such as "CO$_2$"). Structure files:
+ *   macqc_parse_structure(text, hint)
+ *                               reads an XYZ file or a Gaussian input (.gjf/.com) given as text;
+ *                               `hint` is "xyz", "gaussian", the file name (its extension decides)
+ *                               or NULL/"" (recognised from the text). Returns JSON (free with
+ *                               macqc_free): {"error": null or a message, "format", "title",
+ *                               "charge", "multiplicity", "hasCharge", "warnings": [...],
+ *                               "atoms": [{"symbol", "Z", "x", "y", "z"}] (angstrom)}.
  */
 #ifndef MACQC_API_H
 #define MACQC_API_H
@@ -80,6 +91,8 @@ char* macqc_orbital_surface(const char* orbitals_json, int set, int orbital, dou
 char* macqc_orbital_plane(const char* orbitals_json, int set, int orbital, const double* origin, const double* u,
                           const double* v, int nu, int nv, float* values);
 void macqc_mesh_free(macqc_mesh* mesh);
+
+char* macqc_parse_structure(const char* text, const char* hint);
 
 #ifdef __cplusplus
 }
