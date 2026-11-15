@@ -1,21 +1,28 @@
 name: releases
 
 # Makes the GitHub Releases of the versions below hold their own app builds (CI artifacts, deleted
-# after 90 days; the releases stay). For each line: a release that does not exist is created from
-# the build at the version's commit; a release whose tag points at another commit is deleted with
-# its tag and created again in the same way. Releases already at their commit are left alone.
-# (Moving an existing tag is refused to the workflow token when the commits' workflow files
-# differ - by the REST API and by git push alike; creating a release with a new tag at an older
-# commit is allowed, as for v1.0 ... v4.0.) Runs when this file changes on main (once, after it is merged) or by
-# hand. The app workflow publishes each new version (a new MARKETING_VERSION) once and does not
-# change existing releases.
+# after 90 days; the releases stay). Runs when this file changes on main (once, after it is
+# merged) or by hand. The app workflow publishes each new version (a new MARKETING_VERSION) once
+# and does not change existing releases.
+#
+# The job never creates, moves or deletes a tag. The workflow token is refused (HTTP 403) when a
+# tag would point at one of these older commits - by the REST API, by git push and when a release
+# creates its tag (v6.0, run 43775442184; v1.0 ... v4.0 were still created that way). A tag that
+# is missing or at another commit is reported; a person sets it (README, "Releases"), and the job
+# goes on with the other versions and fails at the end. For a tag at its commit:
+# - no release: the release is created on the tag, with the build and the notes;
+# - a release without this build (other notes, other or no assets): its assets are replaced by
+#   the build, and its title and notes are set;
+# - a release with this build is left alone.
+# At the end the highest version is marked as the latest release.
 #
 # v6.0 and v7.0: until 8.0, the app workflow replaced a release with every later build of the same
 # version, and the stages of a new version keep the previous version's number until their last
 # stage. So the builds of the 7.0 stages replaced v6.0, and the build of the orbital viewer (8.0,
 # merged while still numbered 7.0) became v7.0. v6.0 is the build of 9904c29 (merge of #28); v7.0
 # is ΨLab 6.0 with the changes of stages 7.1-7.4 (the merge of #32, b54ac0e) and the version 7.0
-# (commit c11b1d7), without the orbital viewer.
+# (commit c11b1d7, the tip of the branch claude/fervent-thompson-voh6gk), without the orbital
+# viewer.
 
 on:
   push:
@@ -32,42 +39,65 @@ jobs:
   releases:
     runs-on: ubuntu-latest
     steps:
-      - name: Create or repair the releases of these versions
+      - name: Attach the builds of these versions to their releases
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GH_REPO: ${{ github.repository }}
         run: |
           set -euo pipefail
+          PROBLEMS=0
           # version | app-workflow run with the build | commit | what was new
           while IFS='|' read -r VERSION RUN SHA SUMMARY; do
             VERSION=$(echo "$VERSION" | xargs)
             [ -n "$VERSION" ] || continue
             TAG="v$VERSION"
             ASSET="PsiLab-$VERSION.app.zip"
-            NOTES="ΨLab $VERSION: $SUMMARY Built by run $RUN from $SHA (macOS 14 and later, Apple Silicon and Intel). Unzip $ASSET; the app is not notarized: right-click ΨLab.app ▸ Open the first time, or run xattr -dr com.apple.quarantine ΨLab.app."
-            CURRENT=""
+            BUILT="Built by run $RUN from $SHA"
+            NOTES="ΨLab $VERSION: $SUMMARY $BUILT (macOS 14 and later, Apple Silicon and Intel). Unzip $ASSET; the app is not notarized: right-click ΨLab.app ▸ Open the first time, or run xattr -dr com.apple.quarantine ΨLab.app."
+            # the commit of the tag (lightweight or annotated)
+            if ! OBJECT=$(gh api "repos/$GH_REPO/git/ref/tags/$TAG" --jq '.object.type + " " + .object.sha' 2> /dev/null); then
+              echo "::error::$TAG: the tag does not exist; create it at $SHA (README, Releases)"
+              PROBLEMS=$((PROBLEMS + 1))
+              continue
+            fi
+            AT=${OBJECT#* }
+            if [ "${OBJECT%% *}" = "tag" ]; then
+              AT=$(gh api "repos/$GH_REPO/git/tags/$AT" --jq .object.sha)
+            fi
+            if [ "$AT" != "$SHA" ]; then
+              echo "::error::$TAG: the tag is at $AT, not at $SHA; set it there (README, Releases)"
+              PROBLEMS=$((PROBLEMS + 1))
+              continue
+            fi
+            NAMES=""
             if gh release view "$TAG" > /dev/null 2>&1; then
-              CURRENT=$(gh api "repos/$GH_REPO/git/ref/tags/$TAG" --jq .object.sha 2> /dev/null || true)
-              if [ "$CURRENT" = "$SHA" ]; then
-                echo "$TAG is at $SHA: unchanged"
+              BODY=$(gh release view "$TAG" --json body --jq .body)
+              NAMES=$(gh release view "$TAG" --json assets --jq '.assets[].name')
+              if [ "$NAMES" = "$ASSET" ] && [[ "$BODY" == *"$BUILT"* ]]; then
+                echo "$TAG: at $SHA with the build of run $RUN, unchanged"
                 continue
               fi
+              EXISTS=yes
+            else
+              EXISTS=no
             fi
             DIR="download-$VERSION"
             gh run download "$RUN" --name "ΨLab-app" --dir "$DIR"
             mv "$DIR/ΨLab.app.zip" "$ASSET"
-            if gh release view "$TAG" > /dev/null 2>&1; then
-              # at another commit: delete the release and its tag, then create both again
-              gh release delete "$TAG" --cleanup-tag --yes
-              # gh release create would reuse a tag that is still there, at the wrong commit
-              if gh api "repos/$GH_REPO/git/ref/tags/$TAG" > /dev/null 2>&1; then
-                echo "::error::the tag $TAG could not be deleted; the release was deleted"
-                exit 1
-              fi
-              echo "deleted $TAG (was at ${CURRENT:-?})"
+            if [ "$EXISTS" = yes ]; then
+              gh release upload "$TAG" "$ASSET" --clobber
+              while IFS= read -r NAME; do
+                if [ -n "$NAME" ] && [ "$NAME" != "$ASSET" ]; then
+                  gh release delete-asset "$TAG" "$NAME" --yes
+                fi
+              done <<< "$NAMES"
+              gh release edit "$TAG" --title "ΨLab $VERSION" --notes "$NOTES"
+              echo "$TAG: the build of run $RUN attached, title and notes set"
+            else
+              # --verify-tag: never create the tag (it exists at $SHA, checked above)
+              gh release create "$TAG" "$ASSET" --verify-tag --title "ΨLab $VERSION" --notes "$NOTES" --latest=false
+              echo "$TAG: release created on the tag, with the build of run $RUN"
             fi
-            gh release create "$TAG" "$ASSET" --target "$SHA" --title "ΨLab $VERSION" --notes "$NOTES" --latest=false
-            echo "created $TAG at $SHA from run $RUN"
           done <<'TABLE'
           1.0|43035989222|72c550877db4f52fad57b14ab5731a5e5c3c22ca|HeH+ in STO-1G/2G/3G: restricted Hartree-Fock (Szabo-Ostlund) and Full CI, potential curves.
           2.0|43236328696|ed3f0d69367334fa1355b5bdc6973fd56dea4efb|terminal version psilab, bond lengths in angstrom and bohr, Export Results as Text, app icon and the name ΨLab.
@@ -76,4 +106,14 @@ jobs:
           6.0|43596832549|9904c29c1c1f32c5d6db52008401eb5525b2b438|the molecule of each optimisation step, drawn and played step by step; every normal mode animated.
           7.0|43755295792|c11b1d70689308d51448d420e3517be18a4c3790|relaxed potential-energy scans (Opt=ModRedundant), transition-state searches (Opt=TS with CalcFC or CalcAll; ts, ts+freq, ts+freq+sp), H2O2 and NH3 with point groups up to D3h, HeH+ in the correlation-consistent basis sets with every method and job type, and the Scan tab in the app.
           TABLE
+          # the highest version is the latest release (a release made by hand may have taken it)
+          LATEST=$(gh release list --limit 100 --exclude-drafts --exclude-pre-releases --json tagName --jq '.[].tagName' | sort -V | tail -n 1)
+          if [ -n "$LATEST" ]; then
+            gh release edit "$LATEST" --latest
+            echo "latest release: $LATEST"
+          fi
           gh release list --limit 20
+          if [ "$PROBLEMS" -gt 0 ]; then
+            echo "::error::$PROBLEMS tag(s) missing or at another commit: set them by hand (README, Releases), then run this workflow again"
+            exit 1
+          fi
