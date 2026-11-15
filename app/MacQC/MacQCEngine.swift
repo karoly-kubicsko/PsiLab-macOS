@@ -14,12 +14,14 @@ import Foundation
 
 // MARK: - Input
 
-/// Input JSON of `macqc_run`. `molecule` "HeH+" selects the Szabo–Ostlund STO-nG calculation
-/// (keys R … printLevel); "H2", "LiH", "H2O" the general molecules (R, basis, angle, method, …).
-/// The backend echoes only the keys of the selected path, so every key is optional when decoding.
+/// Input JSON of `macqc_run`. HeH⁺ with `basis` "STO-1G", "STO-2G" or "STO-3G" selects the
+/// Szabo–Ostlund calculation (keys R … printLevel); H₂, LiH, H₂O, H₂O₂, NH₃ and HeH⁺ with a
+/// correlation-consistent basis set the general path (R, basis, angle, method, job, …). The
+/// backend echoes only the keys of the selected path (the Szabo–Ostlund echo has no "molecule"),
+/// so every key is optional when decoding.
 nonisolated struct MacQCInput: Codable, Sendable, Equatable {
     var molecule: String = "HeH+"
-    var R: Double = 1.4632          // bohr (H2O: O–H)
+    var R: Double = 1.4632          // bohr (H2O, H2O2: O–H; NH3: N–H)
     var zeta1: Double = 2.0925
     var zeta2: Double = 1.24
     var ZA: Double = 2
@@ -31,7 +33,7 @@ nonisolated struct MacQCInput: Codable, Sendable, Equatable {
     var printLevel: Int = 2
     // General molecules
     var basis: String = "aug-cc-pVDZ"
-    var angle: Double = 104.52      // degrees, H2O
+    var angle: Double = 104.52      // degrees: H–O–H (H2O), O–O–H (H2O2), H–N–H (NH3)
     var method: String = "RHF"      // "RHF", "CCSD", "CCSD(T)", "CCSDT", "CCSDTQ" or "FCI"
     var basisDirectory: String = ""
     var threads: Int = 0
@@ -46,6 +48,13 @@ nonisolated struct MacQCInput: Codable, Sendable, Equatable {
     var pressure: Double = 101325
     var optConvergence: String = "normal"
     var maxSteps: Int = 50
+    // ΨLab 7.0: H2O2, the relaxed scan and the transition-state search
+    var ROO: Double? = nil          // bohr, O–O of H2O2 (nil: the default)
+    var dihedral: Double? = nil     // degrees, H–O–O–H of H2O2 (nil: the default)
+    var scan: String = ""           // job "scan": ModRedundant line, e.g. "D 3 1 2 4 S 18 10.0"
+    var scanStart: Double? = nil    // Å or degrees (nil: the value at the input geometry)
+    var tsHessian: String = "calcfc" // "calcfc" (first step) or "calcall" (every step)
+    var eigenTest: Bool = true      // the TS search needs exactly one negative eigenvalue
 
     init() {}
 
@@ -53,6 +62,7 @@ nonisolated struct MacQCInput: Codable, Sendable, Equatable {
         case molecule, R, zeta1, zeta2, ZA, ZB, nGaussians, exactErf, maxIter, convergence, printLevel
         case basis, angle, method, basisDirectory, threads, memoryMB, fciMemoryMB, estimateOnly
         case job, spMethod, spBasis, temperature, pressure, optConvergence, maxSteps
+        case ROO, dihedral, scan, scanStart, tsHessian, eigenTest
     }
 
     init(from decoder: Decoder) throws {
@@ -84,10 +94,21 @@ nonisolated struct MacQCInput: Codable, Sendable, Equatable {
         pressure = try c.decodeIfPresent(Double.self, forKey: .pressure) ?? d.pressure
         optConvergence = try c.decodeIfPresent(String.self, forKey: .optConvergence) ?? d.optConvergence
         maxSteps = try c.decodeIfPresent(Int.self, forKey: .maxSteps) ?? d.maxSteps
+        ROO = try c.decodeIfPresent(Double.self, forKey: .ROO)
+        dihedral = try c.decodeIfPresent(Double.self, forKey: .dihedral)
+        scan = try c.decodeIfPresent(String.self, forKey: .scan) ?? d.scan
+        scanStart = try c.decodeIfPresent(Double.self, forKey: .scanStart)
+        tsHessian = try c.decodeIfPresent(String.self, forKey: .tsHessian) ?? d.tsHessian
+        eigenTest = try c.decodeIfPresent(Bool.self, forKey: .eigenTest) ?? d.eigenTest
+        // The echo of the Szabo–Ostlund calculation has no "molecule" and no "basis".
+        if !c.contains(.molecule) {
+            basis = "STO-\(nGaussians)G"
+        }
     }
 
-    /// True for H2, LiH and H2O (the general Gaussian-basis path).
-    var isGeneral: Bool { molecule != "HeH+" }
+    /// True for the general Gaussian-basis path: H₂, LiH, H₂O, H₂O₂, NH₃, and HeH⁺ in a
+    /// correlation-consistent basis set (false: HeH⁺ in STO-nG, Szabo–Ostlund).
+    var isGeneral: Bool { molecule != "HeH+" || !basis.uppercased().hasPrefix("STO") }
 }
 
 // MARK: - Output
@@ -185,7 +206,9 @@ nonisolated struct MacQCMoleculeInfo: Codable, Sendable, Equatable {
     var electrons: Int
     var charge: Int
     var R: Double            // bohr
-    var angle: Double?       // degrees (H2O)
+    var angle: Double?       // degrees (H2O, H2O2, NH3)
+    var ROO: Double?         // bohr (H2O2)
+    var dihedral: Double?    // degrees (H2O2)
     var nuclearRepulsion: Double
     var atoms: [MacQCAtom]
 }
@@ -367,13 +390,22 @@ nonisolated struct MacQCCoupledCluster: Codable, Sendable, Equatable {
 // MARK: - Jobs of ΨLab 5.0 (optimisation, frequencies, thermochemistry)
 
 /// A geometry: atoms (bohr) and the parameters of the inputs (R in bohr; H₂O: both O–H
-/// distances, their mean and the H–O–H angle in degrees).
+/// distances, their mean and the H–O–H angle in degrees; H₂O₂: also R(O–O), both O–O–H angles
+/// and the dihedral angle; NH₃: the three N–H distances and H–N–H angles, their means and the
+/// pyramidality 360° − ΣH–N–H).
 nonisolated struct MacQCGeometry: Codable, Sendable, Equatable {
     var atoms: [MacQCAtom]
     var R: Double?
     var R1: Double?
     var R2: Double?
+    var R3: Double?
+    var ROO: Double?
     var angle: Double?
+    var angle1: Double?
+    var angle2: Double?
+    var angle3: Double?
+    var dihedral: Double?
+    var pyramidal: Double?
 }
 
 nonisolated struct MacQCJobStep: Codable, Sendable, Equatable, Identifiable {
@@ -445,6 +477,20 @@ nonisolated struct MacQCConvergenceItem: Codable, Sendable, Equatable, Identifia
     var id: String { name }
 }
 
+/// A step of the transition-state search (ΨLab 7.0): the Hessian's eigenvalues (internal
+/// coordinates), the followed mode and the shifts of the partitioned RFO step.
+nonisolated struct MacQCTSStep: Codable, Sendable, Equatable {
+    var hessianEigenvalues: [Double]
+    var negativeEigenvalues: Int
+    var followedEigenvalue: Double?
+    var followedGradient: Double?
+    var followedOverlap: Double?
+    var followedMode: [Double]?
+    var lambdaP: Double?
+    var lambdaN: Double?
+    var hessianComputed: Bool
+}
+
 nonisolated struct MacQCOptimizationStep: Codable, Sendable, Equatable, Identifiable {
     var step: Int
     var energy: Double
@@ -461,6 +507,7 @@ nonisolated struct MacQCOptimizationStep: Codable, Sendable, Equatable, Identifi
     var ratio: Double?
     var warnings: [String]
     var seconds: Double
+    var ts: MacQCTSStep?             // transition-state search only
 
     var id: Int { step }
 
@@ -496,6 +543,14 @@ nonisolated struct MacQCOptimization: Codable, Sendable, Equatable {
     var symmetryDeviation: Double
     var history: [MacQCOptimizationStep]
     var seconds: Double
+    // ΨLab 7.0: transition-state search
+    var transitionState: Bool?
+    var tsHessian: String?           // "calcfc" or "calcall"
+    var hessianEvaluations: Int?
+    var negativeEigenvalues: Int?    // of the last Hessian
+    var eigenTestFailed: Bool?
+
+    var isTransitionState: Bool { transitionState ?? false }
 }
 
 nonisolated struct MacQCNormalMode: Codable, Sendable, Equatable {
@@ -519,6 +574,7 @@ nonisolated struct MacQCFrequencies: Codable, Sendable, Equatable {
     var intensityDescription: String
     var dipole: [Double]?
     var linear: Bool
+    var pointGroup: String?          // "C2v", "C2h", "D3h", … (four atoms; nil when not determined)
     var vibrations: Int
     var masses: [Double]
     var isotopes: [String]
@@ -584,6 +640,70 @@ nonisolated struct MacQCSinglePoint: Codable, Sendable, Equatable {
     var seconds: Double
 }
 
+// MARK: - Relaxed scan (ΨLab 7.0)
+
+nonisolated struct MacQCScanCoordinate: Codable, Sendable, Equatable {
+    var type: String                 // "bond", "angle", "dihedral"
+    var letter: String               // "B", "A", "D"
+    var atoms: [Int]                 // atom numbers from 1
+    var definition: String           // "D(H3-O1-O2-H4)"
+    var unit: String                 // "angstrom" or "degrees"
+}
+
+nonisolated struct MacQCScanOptimizationStep: Codable, Sendable, Equatable {
+    var step: Int
+    var energy: Double
+    var maxForce: Double?
+}
+
+nonisolated struct MacQCScanPoint: Codable, Sendable, Equatable, Identifiable {
+    var index: Int
+    var value: Double                // target, Å or degrees
+    var measured: Double             // at the optimised geometry
+    var energy: Double
+    var relativeEnergy: Double       // E_h above the lowest point
+    var converged: Bool
+    var steps: Int
+    var maxForce: Double?
+    var geometry: MacQCGeometry
+    var parameters: [MacQCParameter]
+    var optimizationSteps: [MacQCScanOptimizationStep]
+    var warnings: [String]
+    var seconds: Double
+
+    var id: Int { index }
+}
+
+nonisolated struct MacQCScanExtremum: Codable, Sendable, Equatable, Identifiable {
+    var kind: String                 // "minimum" or "maximum"
+    var index: Int                   // scan point next to it
+    var value: Double                // parabola through the point and its neighbours (Å or degrees)
+    var energy: Double
+
+    var id: String { "\(kind)\(index)" }
+}
+
+/// A relaxed potential-energy scan (Gaussian Opt=ModRedundant with S): one constrained
+/// optimisation per value of the scanned coordinate.
+nonisolated struct MacQCScan: Codable, Sendable, Equatable {
+    var coordinate: MacQCScanCoordinate
+    var start: Double
+    var stepSize: Double
+    var steps: Int
+    var inputValue: Double
+    var relaxed: Bool                // false for a diatomic (single points)
+    var converged: Bool
+    var message: String
+    var lowest: Int
+    var highest: Int
+    var points: [MacQCScanPoint]
+    var extrema: [MacQCScanExtremum]
+    var seconds: Double
+
+    var isAngular: Bool { coordinate.unit == "degrees" }
+    var unitSymbol: String { isAngular ? "°" : "Å" }
+}
+
 /// Output JSON of `macqc_run`. HeH+: `hf` / `fci` (null when the backend reports an error
 /// before producing them). H2, LiH, H2O: `molecule`, `basis`, `estimate`, `notes`,
 /// `warnings`, `refusal`, `rhf`, `fullCI`, `coupledCluster`.
@@ -609,6 +729,7 @@ nonisolated struct MacQCOutput: Codable, Sendable, Equatable {
     var frequencies: MacQCFrequencies?
     var thermochemistry: MacQCThermochemistry?
     var singlePoint: MacQCSinglePoint?
+    var scan: MacQCScan?             // ΨLab 7.0: job "scan"
     var output: String?
 
     /// Energy of the correlated method of this result (Full CI or coupled cluster).
@@ -617,7 +738,7 @@ nonisolated struct MacQCOutput: Codable, Sendable, Equatable {
     /// Title of the method of this result: "HF", "CCSD(T)", "Full CI", …
     var methodTitle: String { MethodChoice.title(of: input.method) }
 
-    /// True for H2, LiH and H2O.
+    /// True for the general path (all molecules except HeH⁺ in STO-nG).
     var isGeneral: Bool { input.isGeneral }
 }
 
@@ -628,7 +749,8 @@ nonisolated struct MacQCProgress: Sendable, Equatable {
     var stage: Int = 0        // 0 idle, 1 integrals, 2 SCF, 3 transformation, 4 Full CI, 5 done,
                               // 6 coupled cluster, 7 (T) correction (iteration = percent);
                               // 5.0: 8 gradient, 9 Hessian, 10 CPHF, 11 Lambda, 12 optimisation,
-                              // 13 numerical Hessian
+                              // 13 numerical Hessian; 7.0: 14 scan point (iteration = point,
+                              // residual = number of points)
     var iteration: Int = 0
     var energy: Double = 0
     var residual: Double = 0
@@ -665,6 +787,8 @@ nonisolated struct MacQCProgress: Sendable, Equatable {
             return String(format: "Optimisation step %ld", iteration)
         case 13:
             return String(format: "Numerical Hessian · displacement %ld", iteration)
+        case 14:
+            return String(format: "Scan point %ld of %ld", iteration, Int(residual))
         default:
             return "Starting…"
         }

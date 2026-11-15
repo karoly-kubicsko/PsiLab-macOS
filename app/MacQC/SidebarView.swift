@@ -2,10 +2,12 @@
 //  SidebarView.swift
 //  MacQC
 //
-//  Input sidebar: molecule, job (ΨLab 5.0), geometry (the start of an optimisation, with the
-//  optimised values and a button that copies them), method and basis set, the single point of
-//  job 5, thermochemistry and optimisation settings, the size of the calculation (each step of
-//  the job, analytic or numerical, with warnings and refusals), appearance, and the Run bar.
+//  Input sidebar: molecule, job (ΨLab 5.0; 7.0: relaxed scan and transition-state jobs),
+//  geometry (the start of an optimisation, with the optimised values and a button that copies
+//  them), method and basis set (HeH⁺: STO-nG or correlation-consistent), the scanned coordinate,
+//  the transition-state options, the single point of jobs 5 and 9, thermochemistry and
+//  optimisation settings, the size of the calculation (each step of the job, analytic or
+//  numerical, with warnings and refusals), appearance, and the Run bar.
 //
 
 import SwiftUI
@@ -82,11 +84,10 @@ struct SidebarView: View {
         }
 
         Section("Basis") {
-            Picker("Basis set", selection: $model.nGaussians) {
-                Text("STO-1G").tag(1)
-                Text("STO-2G").tag(2)
-                Text("STO-3G").tag(3)
-            }
+            basisPicker
+            Text("STO-nG: the Slater functions of Szabo and Ostlund, Hartree–Fock and Full CI. A correlation-consistent set gives HeH⁺ every method and job type.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
             LabeledContent("ζ (He)") {
                 numberField("zeta He", value: $model.zeta1)
             }
@@ -111,7 +112,18 @@ struct SidebarView: View {
         }
     }
 
-    // MARK: H2, LiH, H2O
+    /// Basis-set menu of the selected molecule (HeH⁺: STO-1G, STO-2G, STO-3G and the
+    /// correlation-consistent sets).
+    private var basisPicker: some View {
+        Picker("Basis set", selection: $model.currentBasis) {
+            ForEach(BasisSets.choices(for: model.molecule), id: \.self) { name in
+                Text(name).tag(name)
+            }
+        }
+        .disabled(model.isRunning || model.isScanning)
+    }
+
+    // MARK: General path
 
     private var jobSection: some View {
         Section("Job") {
@@ -137,33 +149,72 @@ struct SidebarView: View {
         .disabled(model.isRunning || model.isScanning)
     }
 
+    /// The molecule's default geometry: experimental for H₂, LiH and H₂O.
+    private var resetTitle: String {
+        switch model.molecule {
+        case .h2, .lih, .h2o: return "Experimental geometry"
+        case .heh: return "Szabo–Ostlund R = 1.4632 bohr"
+        case .h2o2, .nh3: return "Default geometry"
+        }
+    }
+
+    /// Symmetry of the geometry inputs.
+    private var symmetryNote: String? {
+        switch model.molecule {
+        case .h2o:
+            return "C₂ᵥ: both O–H bonds equal."
+        case .h2o2:
+            return "C₂: both O–H bonds and both O–O–H angles equal; dihedral 0° is cis (C₂ᵥ), 180° trans (C₂ₕ)."
+        case .nh3:
+            return "C₃ᵥ: three equal N–H bonds and H–N–H angles; 120° is planar (D₃ₕ, the transition state of the inversion)."
+        default:
+            return nil
+        }
+    }
+
     @ViewBuilder
     private var generalSections: some View {
-        Section(model.job.hasOptimization ? "Starting geometry" : "Geometry") {
+        Section(model.job.usesOptimizer ? "Starting geometry" : "Geometry") {
             LabeledContent("\(model.molecule.bondLabel) (Å)") {
                 numberField("bond length angstrom", value: $model.bondLengthAngstrom)
             }
             LabeledContent("\(model.molecule.bondLabel) (bohr)") {
                 numberField("bond length bohr", value: $model.bondLength)
             }
-            if model.molecule == .h2o {
-                LabeledContent("Angle H–O–H (°)") {
-                    numberField("angle", value: $model.waterAngle)
+            if model.molecule == .h2o2 {
+                LabeledContent("R(O–O) (Å)") {
+                    numberField("O-O bond length angstrom", value: $model.ooBondLengthAngstrom)
                 }
             }
-            Button("Experimental geometry") {
+            if let label = model.molecule.angleLabel {
+                LabeledContent("\(label) (°)") {
+                    numberField("angle", value: $model.angle)
+                }
+            }
+            if model.molecule == .h2o2 {
+                LabeledContent("Dihedral H–O–O–H (°)") {
+                    numberField("dihedral", value: $model.dihedral)
+                }
+            }
+            if let note = symmetryNote {
+                Text(note)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            Button(resetTitle) {
                 model.resetGeometry()
             }
             .secondaryActionStyle()
-            .accessibilityLabel("Experimental geometry")
+            .accessibilityLabel(resetTitle)
             .frame(maxWidth: .infinity)
             .disabled(model.isRunning)
             if let g = model.optimizedGeometry {
+                let ts = model.result?.optimization?.isTransitionState == true
                 VStack(alignment: .leading, spacing: 6) {
-                    Text("Optimised: " + optimizedText(g))
+                    Text((ts ? "Transition state: " : "Optimised: ") + optimizedText(g))
                         .font(.caption.monospacedDigit())
                         .textSelection(.enabled)
-                    Button("Use optimised geometry") {
+                    Button(ts ? "Use transition-state geometry" : "Use optimised geometry") {
                         model.useOptimizedGeometry()
                     }
                     .secondaryActionStyle()
@@ -172,6 +223,13 @@ struct SidebarView: View {
                     .disabled(!model.canUseOptimizedGeometry || model.isRunning)
                 }
             }
+        }
+
+        if model.job.hasScan {
+            scanSection
+        }
+        if model.job.hasTransitionState {
+            transitionStateSection
         }
 
         Section("Method and basis set") {
@@ -184,12 +242,10 @@ struct SidebarView: View {
             Text(model.method.explanation + (model.method == .hf ? "" : " All electrons are correlated."))
                 .font(.caption)
                 .foregroundStyle(.secondary)
-            Picker("Basis set", selection: $model.basis) {
-                ForEach(BasisSets.all, id: \.self) { name in
-                    Text(name).tag(name)
-                }
-            }
-            Text("Spherical Gaussian functions from basissetexchange.org; the core-valence sets (CV) add tight functions for the 1s core.")
+            basisPicker
+            Text(model.molecule == .heh
+                 ? "Spherical Gaussian functions from basissetexchange.org (He has no core-valence sets: they fall back to aug-cc-pVXZ). STO-nG returns to the Szabo–Ostlund calculation."
+                 : "Spherical Gaussian functions from basissetexchange.org; the core-valence sets (CV) add tight functions for the 1s core.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }
@@ -205,13 +261,14 @@ struct SidebarView: View {
                 }
                 .pickerStyle(.menu)
                 Picker("SP basis set", selection: $model.spBasis) {
-                    Text("Same (\(model.basis))").tag(String?.none)
+                    Text("Same (\(model.currentBasis))").tag(String?.none)
                     ForEach(BasisSets.all, id: \.self) { name in
                         Text(name).tag(String?.some(name))
                     }
                 }
                 .pickerStyle(.menu)
-                Text("Energy at the optimised geometry; E + ZPE, U, H and G add the thermal corrections of the frequency step.")
+                Text((model.job.hasTransitionState ? "Energy at the transition state" : "Energy at the optimised geometry")
+                     + "; E + ZPE, U, H and G add the thermal corrections of the frequency step.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -239,8 +296,8 @@ struct SidebarView: View {
             .disabled(model.isRunning || model.isScanning)
         }
 
-        if model.job.hasOptimization {
-            Section("Optimisation") {
+        if model.job.usesOptimizer {
+            Section(model.job.hasScan ? "Optimisation at each point" : "Optimisation") {
                 Picker("Convergence", selection: $model.tightConvergence) {
                     Text("Normal").tag(false)
                     Text("Tight").tag(true)
@@ -263,13 +320,129 @@ struct SidebarView: View {
         }
     }
 
-    private func optimizedText(_ g: (R: Double, angle: Double?, symmetric: Bool)) -> String {
+    // MARK: Relaxed scan and transition-state search (7.0)
+
+    private var scanSection: some View {
+        let s = model.scan
+        let positions = model.estimate?.molecule.map { atomCoordinates($0.atoms) }
+        let value = positions.flatMap { internalCoordinateValue($0, kind: s.kind, atoms: s.atoms) }
+        let labels = model.molecule.atomLabels
+        let names: [String] = s.usedAtoms.map { n in n >= 1 && n <= labels.count ? labels[n - 1] : "?\(n)" }
+        let definition = "\(s.kind.rawValue)(\(names.joined(separator: "–")))"
+        let unit = s.kind.unit
+        let start: Double? = s.fromInput ? value : s.start
+        var current = definition
+        if let v = value {
+            current += " = \(valueText(v, unit: unit)) at the input geometry"
+        }
+        var range = ""
+        if let a = start {
+            let end = a + Double(s.steps) * s.step
+            range = "From \(valueText(a, unit: unit)) to \(valueText(end, unit: unit)). Gaussian input: \(s.line)"
+        }
+        return Section("Scanned coordinate") {
+            Menu("Suggested scans") {
+                ForEach(model.molecule.scanSuggestions) { suggestion in
+                    Button(suggestion.title) {
+                        model.scan = ScanSettings(suggestion)
+                    }
+                }
+            }
+            .accessibilityLabel("Suggested scans")
+            Picker("Type", selection: $model.scan.kind) {
+                ForEach(ScanKind.allCases) { kind in
+                    Text(kind.title).tag(kind)
+                }
+            }
+            .pickerStyle(.segmented)
+            LabeledContent("Atoms") {
+                HStack(spacing: 4) {
+                    ForEach(0..<s.kind.atomCount, id: \.self) { k in
+                        Picker("Atom \(k + 1)", selection: $model.scan.atoms[k]) {
+                            ForEach(1...max(model.molecule.atomCount, 1), id: \.self) { n in
+                                Text(labels[n - 1]).tag(n)
+                            }
+                        }
+                        .labelsHidden()
+                        .fixedSize()
+                    }
+                }
+            }
+            Text(current)
+                .font(.caption.monospacedDigit())
+                .foregroundStyle(.secondary)
+            Toggle("Start at the input geometry", isOn: $model.scan.fromInput)
+            if !s.fromInput {
+                LabeledContent("Start (\(unit))") {
+                    numberField("scan start", value: $model.scan.start)
+                }
+            }
+            Stepper(value: $model.scan.steps, in: 1...360) {
+                LabeledContent("Steps", value: "\(s.steps) (\(s.steps + 1) points)")
+            }
+            LabeledContent("Step size (\(unit))") {
+                numberField("scan step", value: $model.scan.step)
+            }
+            if !range.isEmpty {
+                Text(range)
+                    .font(.caption.monospacedDigit())
+                    .foregroundStyle(.secondary)
+                    .textSelection(.enabled)
+            }
+            if let problem = model.scanProblem {
+                Label(problem, systemImage: "xmark.octagon.fill")
+                    .font(.caption)
+                    .foregroundStyle(.red)
+            } else {
+                Text(model.molecule.atomCount == 2
+                     ? "A diatomic has nothing else to relax: the scan computes single points."
+                     : "At each point the coordinate is frozen and all others are optimised, starting from the previous point.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .disabled(model.isRunning || model.isScanning)
+    }
+
+    private func valueText(_ v: Double, unit: String) -> String {
+        unit == "Å" ? String(format: "%.4f Å", v) : String(format: "%.2f°", v)
+    }
+
+    private var transitionStateSection: some View {
+        Section("Transition-state search") {
+            Picker("Hessian", selection: $model.tsCalcAll) {
+                Text("CalcFC").tag(false)
+                Text("CalcAll").tag(true)
+            }
+            .pickerStyle(.segmented)
+            Text(model.tsCalcAll
+                 ? "CalcAll: the Hessian is computed at every step (exact, more expensive)."
+                 : "CalcFC: the Hessian is computed at the first step, then updated (Bofill).")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            Toggle("Eigenvalue test", isOn: $model.eigenTest)
+            Text(model.eigenTest
+                 ? "The search stops unless the Hessian has exactly one negative eigenvalue (Gaussian's default)."
+                 : "No eigenvalue test (Gaussian's NoEigenTest): the search goes on with any number of negative eigenvalues.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+        .disabled(model.isRunning || model.isScanning)
+    }
+
+    private func optimizedText(_ g: GeometryInputs) -> String {
         var text = String(format: "%@ = %.6f Å", model.molecule.bondLabel, g.R * Units.bohrToAngstrom)
-        if let a = g.angle {
+        if let roo = g.ROO {
+            text += String(format: ", R(O–O) = %.6f Å", roo * Units.bohrToAngstrom)
+        }
+        if let a = g.angle, model.molecule.angleLabel != nil {
             text += String(format: ", angle %.4f°", a)
         }
+        if let d = g.dihedral {
+            text += String(format: ", dihedral %.3f°", d)
+        }
         if !g.symmetric {
-            text += " (not C₂ᵥ: mean of both O–H)"
+            text += " (not symmetric: means)"
         }
         return text
     }
@@ -307,7 +480,7 @@ struct SidebarView: View {
                     .accessibilityLabel("Run")
                     .controlSize(.large)
                     .keyboardShortcut("r", modifiers: [.command])
-                    .disabled(model.isRunning || model.isScanning || model.refusal != nil)
+                    .disabled(model.isRunning || model.isScanning || model.refusal != nil || model.scanProblem != nil)
 
                     if model.isRunning {
                         Button("Cancel") {
@@ -368,7 +541,7 @@ struct EstimatePanel: View {
                 if let b = out.basis {
                     InfoRow("Basis functions", "\(b.functions)")
                     ForEach(Fmt.uniqueAtoms(b.atoms), id: \.symbol) { atom in
-                        InfoRow("  \(atom.symbol)", (atom.basis == model.basis ? "" : atom.basis + " ") + atom.contraction)
+                        InfoRow("  \(atom.symbol)", (atom.basis == model.currentBasis ? "" : atom.basis + " ") + atom.contraction)
                     }
                 }
                 if let e = out.estimate {
