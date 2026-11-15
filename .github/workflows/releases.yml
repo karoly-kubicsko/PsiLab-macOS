@@ -1,9 +1,19 @@
 name: releases
 
-# Turns the app builds of the earlier versions (CI artifacts, deleted after 90 days) into
-# permanent GitHub Releases v1.0 ... v4.0. Runs when this file changes on main (once, after it
-# is merged) or by hand; releases that exist already are left alone. Newer versions are
-# published by the app workflow on every build of main.
+# Makes the GitHub Releases of the versions below hold their own app builds (CI artifacts, deleted
+# after 90 days; the releases stay). For each line: a release that does not exist is created from
+# the build; a release whose tag points at another commit is repaired: its tag is moved back to the
+# version's commit, its asset replaced by the build and its notes rewritten. Releases already at
+# their commit are left alone. Runs when this file changes on main (once, after it is merged) or by
+# hand. The app workflow publishes each new version (a new MARKETING_VERSION) once and does not
+# change existing releases.
+#
+# v6.0 and v7.0: until 8.0, the app workflow replaced a release with every later build of the same
+# version, and the stages of a new version keep the previous version's number until their last
+# stage. So the builds of the 7.0 stages replaced v6.0, and the build of the orbital viewer (8.0,
+# merged while still numbered 7.0) became v7.0. v6.0 is the build of 9904c29 (merge of #28); v7.0
+# is ΨLab 6.0 with the changes of stages 7.1-7.4 (the merge of #32, b54ac0e) and the version 7.0
+# (commit c11b1d7), without the orbital viewer.
 
 on:
   push:
@@ -17,31 +27,48 @@ permissions:
   actions: read
 
 jobs:
-  backfill:
+  releases:
     runs-on: ubuntu-latest
     steps:
-      - name: Create the releases of the earlier versions
+      - name: Create or repair the releases of these versions
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GH_REPO: ${{ github.repository }}
         run: |
-          # version | app-workflow run with the last build of it | commit on main | what was new
+          set -euo pipefail
+          # version | app-workflow run with the build | commit | what was new
           while IFS='|' read -r VERSION RUN SHA SUMMARY; do
+            VERSION=$(echo "$VERSION" | xargs)
+            [ -n "$VERSION" ] || continue
             TAG="v$VERSION"
+            ASSET="PsiLab-$VERSION.app.zip"
+            NOTES="ΨLab $VERSION: $SUMMARY Built by run $RUN from $SHA (macOS 14 and later, Apple Silicon and Intel). Unzip $ASSET; the app is not notarized: right-click ΨLab.app ▸ Open the first time, or run xattr -dr com.apple.quarantine ΨLab.app."
+            CURRENT=""
             if gh release view "$TAG" > /dev/null 2>&1; then
-              echo "$TAG exists"
-              continue
+              CURRENT=$(gh api "repos/$GH_REPO/git/ref/tags/$TAG" --jq .object.sha 2> /dev/null || true)
+              if [ "$CURRENT" = "$SHA" ]; then
+                echo "$TAG is at $SHA: unchanged"
+                continue
+              fi
             fi
             DIR="download-$VERSION"
             gh run download "$RUN" --name "ΨLab-app" --dir "$DIR"
-            ASSET="PsiLab-$VERSION.app.zip"
             mv "$DIR/ΨLab.app.zip" "$ASSET"
-            NOTES="ΨLab $VERSION: $SUMMARY Built by run $RUN from $SHA (macOS 14 and later, Apple Silicon and Intel). Unzip $ASSET; the app is not notarized: right-click ΨLab.app ▸ Open the first time, or run xattr -dr com.apple.quarantine ΨLab.app."
-            gh release create "$TAG" "$ASSET" --target "$SHA" --title "ΨLab $VERSION" --notes "$NOTES" --latest=false
-            echo "created $TAG"
+            if [ -z "$CURRENT" ] && ! gh release view "$TAG" > /dev/null 2>&1; then
+              gh release create "$TAG" "$ASSET" --target "$SHA" --title "ΨLab $VERSION" --notes "$NOTES" --latest=false
+              echo "created $TAG at $SHA"
+            else
+              gh api -X PATCH "repos/$GH_REPO/git/refs/tags/$TAG" -f sha="$SHA" -F force=true > /dev/null
+              gh release upload "$TAG" "$ASSET" --clobber
+              gh release edit "$TAG" --title "ΨLab $VERSION" --notes "$NOTES" --latest=false
+              echo "repaired $TAG: tag moved from ${CURRENT:-?} to $SHA, asset from run $RUN"
+            fi
           done <<'TABLE'
           1.0|43035989222|72c550877db4f52fad57b14ab5731a5e5c3c22ca|HeH+ in STO-1G/2G/3G: restricted Hartree-Fock (Szabo-Ostlund) and Full CI, potential curves.
           2.0|43236328696|ed3f0d69367334fa1355b5bdc6973fd56dea4efb|terminal version psilab, bond lengths in angstrom and bohr, Export Results as Text, app icon and the name ΨLab.
           3.0|43323100734|18e28035d188b57f2db6aa68889bf7e17ad9b3b2|H2, LiH and H2O in aug-cc-pVXZ and aug-cc-pCVXZ: restricted Hartree-Fock and Full CI.
           4.0|43409354864|969db1158e590cd5a7edcce77658ce5b6b7cdc40|coupled cluster CCSD, CCSD(T), CCSDT and CCSDTQ; the method menu HF ... Full CI.
+          6.0|43596832549|9904c29c1c1f32c5d6db52008401eb5525b2b438|the molecule of each optimisation step, drawn and played step by step; every normal mode animated.
+          7.0|43755295792|c11b1d70689308d51448d420e3517be18a4c3790|relaxed potential-energy scans (Opt=ModRedundant), transition-state searches (Opt=TS with CalcFC or CalcAll; ts, ts+freq, ts+freq+sp), H2O2 and NH3 with point groups up to D3h, HeH+ in the correlation-consistent basis sets with every method and job type, and the Scan tab in the app.
           TABLE
+          gh release list --limit 20

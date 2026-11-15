@@ -1,4 +1,4 @@
-// Tests of the molecular orbitals of ΨLab 7.0, stage 7.5 (CTest):
+// Tests of the molecular orbitals of ΨLab 8.0 (CTest):
 //  - basis functions against PySCF (backend/tests/data/orbitals_reference.json from
 //    reference/pyscf_orbitals_reference.py): for every contracted shell of O and Li (aug-cc-pV5Z),
 //    N (aug-cc-pCV5Z), He and H (aug-cc-pV5Z), l = 0 ... 5, the kernel sum_m phi_lm(r) phi_lm(r'),

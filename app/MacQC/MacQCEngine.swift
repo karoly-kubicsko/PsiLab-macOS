@@ -704,7 +704,7 @@ nonisolated struct MacQCScan: Codable, Sendable, Equatable {
     var unitSymbol: String { isAngular ? "°" : "Å" }
 }
 
-// MARK: - Molecular orbitals (ΨLab 7.0)
+// MARK: - Molecular orbitals (ΨLab 8.0)
 
 /// A contracted shell of real solid-harmonic Gaussians (coefficients include all normalisation).
 nonisolated struct MacQCShell: Codable, Sendable, Equatable {
@@ -782,7 +782,7 @@ nonisolated struct MacQCOutput: Codable, Sendable, Equatable {
     var thermochemistry: MacQCThermochemistry?
     var singlePoint: MacQCSinglePoint?
     var scan: MacQCScan?             // ΨLab 7.0: job "scan"
-    var orbitals: MacQCOrbitals?     // ΨLab 7.0: molecular orbitals of the final calculation
+    var orbitals: MacQCOrbitals?     // ΨLab 8.0: molecular orbitals of the final calculation
     var output: String?
 
     /// Energy of the correlated method of this result (Full CI or coupled cluster).
@@ -947,7 +947,7 @@ nonisolated enum MacQCEngine {
         return try await task.value
     }
 
-    // MARK: Orbitals (ΨLab 7.0)
+    // MARK: Orbitals (ΨLab 8.0)
 
     /// The orbitals object as the JSON text the backend reads.
     static func orbitalsJSON(_ orbitals: MacQCOrbitals) throws -> String {

@@ -1,4 +1,4 @@
-// Molecular orbitals for display (ΨLab 7.0): orbital sets, values on grids, isosurfaces.
+// Molecular orbitals for display (ΨLab 8.0): orbital sets, values on grids, isosurfaces.
 #include "macqc/orbitals.h"
 
 #include <algorithm>

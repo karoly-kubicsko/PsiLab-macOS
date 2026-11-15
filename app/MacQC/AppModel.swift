@@ -17,7 +17,7 @@ enum DetailTab: Hashable {
     case summary, methods, optimization, frequencies, potentialCurve, output
 }
 
-/// Pages of the Methods tab (7.0: the molecular orbitals).
+/// Pages of the Methods tab (8.0: the molecular orbitals).
 enum MethodsPage: String, CaseIterable, Identifiable {
     case hartreeFock = "Hartree–Fock"
     case coupledCluster = "Coupled cluster"

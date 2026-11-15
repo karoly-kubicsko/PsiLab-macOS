@@ -34,7 +34,7 @@
  * "job", "optimization", "frequencies", "thermochemistry", "singlePoint" and "output" (the
  * complete output file); see README.
  *
- * Molecular orbitals (ΨLab 7.0). The result has "orbitals": the atoms, the basis shells and the
+ * Molecular orbitals (ΨLab 8.0). The result has "orbitals": the atoms, the basis shells and the
  * orbital sets ("sets": RHF canonical orbitals, all occupied and up to 10 virtual ones; Full CI
  * natural orbitals; for HeH+ in STO-nG the two Szabo-Ostlund orbitals) with their AO
  * coefficients. Pass that object back as text:
