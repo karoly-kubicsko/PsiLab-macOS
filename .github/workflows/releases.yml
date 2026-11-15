@@ -30,6 +30,13 @@ jobs:
   releases:
     runs-on: ubuntu-latest
     steps:
+      # The whole history (all branches and tags), so that every commit of the table exists
+      # locally: tags are moved with git push, as the app workflow did (the REST API refuses to
+      # update a tag ref with the workflow token: "Resource not accessible by integration").
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
       - name: Create or repair the releases of these versions
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -58,7 +65,8 @@ jobs:
               gh release create "$TAG" "$ASSET" --target "$SHA" --title "ΨLab $VERSION" --notes "$NOTES" --latest=false
               echo "created $TAG at $SHA"
             else
-              gh api -X PATCH "repos/$GH_REPO/git/refs/tags/$TAG" -f sha="$SHA" -F force=true > /dev/null
+              git tag -f "$TAG" "$SHA"
+              git push -f origin "refs/tags/$TAG"
               gh release upload "$TAG" "$ASSET" --clobber
               gh release edit "$TAG" --title "ΨLab $VERSION" --notes "$NOTES" --latest=false
               echo "repaired $TAG: tag moved from ${CURRENT:-?} to $SHA, asset from run $RUN"
