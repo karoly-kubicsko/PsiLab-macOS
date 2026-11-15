@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Reference values for the molecular orbitals of ΨLab 7.0, computed with PySCF.
+"""Reference values for the molecular orbitals of ΨLab 8.0, computed with PySCF.
 
 Three checks that do not depend on how a program orders or signs its real spherical
 harmonics, or on the arbitrary sign of an orbital:

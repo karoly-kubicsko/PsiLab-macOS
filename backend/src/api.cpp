@@ -675,7 +675,7 @@ bool get_bool(const json& j, const char* key, bool fallback) {
     return it->get<bool>();
 }
 
-// ΨLab 7.0: the "orbitals" object: atoms, basis shells (normalised contraction coefficients,
+// ΨLab 8.0: the "orbitals" object: atoms, basis shells (normalised contraction coefficients,
 // spherical functions m = -l .. l from "first" on) and the orbital sets with their AO
 // coefficients. The app passes it back to macqc_orbital_surface and macqc_orbital_plane.
 json orbitals_json(const OrbitalData& d) {
@@ -908,7 +908,7 @@ std::string output_to_json(const Output& out, int indent) {
                             {"deltaP", s.delta_p}});
         hf["scfHistory"] = hist;
         j["hf"] = hf;
-        // 7.0: the two orbitals, He (atom A) at the origin and H (atom B) at z = R
+        // 8.0: the two orbitals, He (atom A) at the origin and H (atom B) at z = R
         try {
             const Input& in = out.input;
             const std::vector<double> C = {h.C(0, 0), h.C(0, 1), h.C(1, 0), h.C(1, 1)};

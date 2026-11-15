@@ -101,11 +101,13 @@ jobs:
           name: ΨLab-app
           path: ΨLab.app.zip
 
-      # Every build of main is published as a GitHub Release, one release per app version
-      # (tag v<MARKETING_VERSION>, asset PsiLab-<version>.app.zip): artifacts are deleted after
-      # 90 days, releases stay. A later build of the same version replaces the asset and moves
-      # the tag to its commit.
-      - name: Publish the app as a GitHub Release (main only)
+      # The first build of main with a new app version is published as a GitHub Release (tag
+      # v<MARKETING_VERSION>, asset PsiLab-<version>.app.zip): artifacts are deleted after 90 days,
+      # releases stay. A release, once published, is not changed by later builds: a version
+      # developed in several stages keeps the previous version's number until its last stage, and
+      # those builds must not replace the previous release. To publish, raise MARKETING_VERSION;
+      # to repair a release, list its build in releases.yml.
+      - name: Publish the app as a GitHub Release (main only, new versions only)
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -113,17 +115,14 @@ jobs:
           VERSION=$(sed -n 's/^ *MARKETING_VERSION: "\(.*\)"/\1/p' xcode/project.yml)
           test -n "$VERSION"
           TAG="v$VERSION"
+          if gh release view "$TAG" > /dev/null 2>&1; then
+            echo "Release $TAG exists and is left unchanged (this build: run $GITHUB_RUN_ID, artifact ΨLab-app)."
+            exit 0
+          fi
           ASSET="PsiLab-$VERSION.app.zip"
           cp "ΨLab.app.zip" "$ASSET"
           NOTES="ΨLab $VERSION for macOS 14 and later (Apple Silicon and Intel), built from $GITHUB_SHA by run $GITHUB_RUN_ID. Unzip $ASSET; the app is not notarized: right-click ΨLab.app ▸ Open the first time, or run xattr -dr com.apple.quarantine ΨLab.app. What is new: README, section Versions."
-          if gh release view "$TAG" > /dev/null 2>&1; then
-            git tag -f "$TAG" "$GITHUB_SHA"
-            git push -f origin "refs/tags/$TAG"
-            gh release upload "$TAG" "$ASSET" --clobber
-            gh release edit "$TAG" --title "ΨLab $VERSION" --notes "$NOTES" --latest
-          else
-            gh release create "$TAG" "$ASSET" --target "$GITHUB_SHA" --title "ΨLab $VERSION" --notes "$NOTES" --latest
-          fi
+          gh release create "$TAG" "$ASSET" --target "$GITHUB_SHA" --title "ΨLab $VERSION" --notes "$NOTES" --latest
           echo "Release: $(gh release view "$TAG" --json url --jq .url)"
 
       # Launch the app on the runner, screenshot each tab and dump the visible text.
@@ -131,7 +130,7 @@ jobs:
       # permissions on the runner decide how much it can see).
       - name: UI smoke test (launch, screenshots, tab text, menus)
         continue-on-error: true
-        # 7.0 adds relaxed scans, transition states and orbitals: about 50 minutes in all
+        # 7.0 adds relaxed scans and transition states, 8.0 the orbitals: about 50 minutes in all
         timeout-minutes: 80
         run: bash xcode/ci/ui_smoke.sh "build/app/ΨLab.app" ui-smoke
 

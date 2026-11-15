@@ -1,4 +1,4 @@
-// Molecular orbitals for display (ΨLab 7.0): the atoms, the basis and sets of orbitals as AO
+// Molecular orbitals for display (ΨLab 8.0): the atoms, the basis and sets of orbitals as AO
 // coefficients (RHF canonical orbitals; Full CI natural orbitals; the two orbitals of the
 // Szabo-Ostlund HeH+ calculation), their values at points, on grids and in planes, and their
 // isosurfaces psi = +c and psi = -c (marching tetrahedra).

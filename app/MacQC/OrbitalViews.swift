@@ -2,7 +2,7 @@
 //  OrbitalViews.swift
 //  MacQC
 //
-//  ΨLab 7.0: the Orbitals page of the Methods tab. The molecular orbitals of the result (RHF
+//  ΨLab 8.0: the Orbitals page of the Methods tab. The molecular orbitals of the result (RHF
 //  canonical orbitals: all occupied ones and up to ten virtual ones; Full CI natural orbitals;
 //  the two Szabo–Ostlund orbitals of HeH⁺) as an energy-level diagram and a table, and the
 //  chosen orbital either as isosurfaces ψ = ±c (blue: positive, red: negative; SceneKit, rotate
