@@ -52,7 +52,7 @@ struct CoupledClusterView: View {
 
     private var placeholderText: String {
         if !model.isGeneral {
-            return "Coupled cluster is available for H₂, LiH and H₂O. HeH⁺ runs Hartree–Fock and Full CI."
+            return "HeH⁺ in an STO-nG basis (Szabo–Ostlund) runs Hartree–Fock and Full CI. Choose a correlation-consistent basis set for coupled cluster."
         }
         if model.method.isCoupledCluster, let refusal = model.refusal {
             return refusal

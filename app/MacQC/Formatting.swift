@@ -99,6 +99,91 @@ nonisolated enum Fmt {
         angle ? String(format: "%+.4f°", d) : String(format: "%+.6f Å", d * Units.bohrToAngstrom)
     }
 
+    /// The geometry of a calculation in one line: "R(O–H) = 0.9670 Å (1.8274 bohr), R(O–O) = …,
+    /// angle O–O–H = 102.32°, dihedral H–O–O–H = 113.70°" (`plain`: "deg" instead of "°").
+    static func moleculeGeometry(_ mol: MacQCMoleculeInfo, plain: Bool = false) -> String {
+        let deg = plain ? " deg" : "°"
+        let choice = MoleculeChoice(rawValue: mol.name)
+        var text = "\(choice?.bondLabel ?? "R") = " + lengthBoth(mol.R)
+        if let roo = mol.ROO {
+            text += ", R(O–O) = " + lengthBoth(roo)
+        }
+        if let a = mol.angle, let label = choice?.angleLabel {
+            text += String(format: ", %@ = %.2f%@", label.replacingOccurrences(of: "Angle", with: "angle"), a, deg)
+        }
+        if let d = mol.dihedral {
+            text += String(format: ", dihedral H–O–O–H = %.2f%@", d, deg)
+        }
+        return text
+    }
+
+    /// The parameters of a geometry as label/value rows (the molecule panels of the Optimisation
+    /// and Scan tabs): H₂O₂ R(O–O), both R(O–H), both O–O–H angles and the dihedral angle; NH₃
+    /// the three R(N–H), the three H–N–H angles and 360° − ΣH–N–H; H₂O both R(O–H) and the angle;
+    /// diatomics R.
+    static func geometryRows(_ g: MacQCGeometry) -> [(String, String)] {
+        let a = Units.bohrToAngstrom
+        if let r1 = g.R1, let r2 = g.R2, let r3 = g.R3 {
+            var rows = [("R(N–H)", String(format: "%.4f, %.4f, %.4f Å", r1 * a, r2 * a, r3 * a))]
+            if let a1 = g.angle1, let a2 = g.angle2, let a3 = g.angle3 {
+                rows.append(("H–N–H", String(format: "%.2f°, %.2f°, %.2f°", a1, a2, a3)))
+            }
+            if let p = g.pyramidal {
+                rows.append(("360° − ΣH–N–H", String(format: "%.2f°", p)))
+            }
+            return rows
+        }
+        if let roo = g.ROO, let r1 = g.R1, let r2 = g.R2 {
+            var rows = [("R(O–O)", String(format: "%.6f Å", roo * a)),
+                        ("R(O–H)", String(format: "%.5f, %.5f Å", r1 * a, r2 * a))]
+            if let a1 = g.angle1, let a2 = g.angle2 {
+                rows.append(("O–O–H", String(format: "%.3f°, %.3f°", a1, a2)))
+            }
+            if let d = g.dihedral {
+                rows.append(("H–O–O–H", String(format: "%.3f°", d)))
+            }
+            return rows
+        }
+        if let r1 = g.R1, let r2 = g.R2, let angle = g.angle {
+            return [("R₁(O–H)", String(format: "%.6f Å", r1 * a)),
+                    ("R₂(O–H)", String(format: "%.6f Å", r2 * a)),
+                    ("Angle", String(format: "%.4f°", angle))]
+        }
+        if let r = g.R { return [("R", String(format: "%.6f Å", r * a))] }
+        return []
+    }
+
+    /// The rows of `geometryRows` in one line.
+    static func geometryLine(_ g: MacQCGeometry) -> String {
+        geometryRows(g).map { "\($0.0) = \($0.1)" }.joined(separator: "; ")
+    }
+
+    /// Point group with subscripts: "C2v" -> "C₂ᵥ", "D3h" -> "D₃ₕ", "Cs" -> "Cₛ".
+    static func pointGroup(_ name: String) -> String {
+        let subscripts: [Character: Character] = ["1": "₁", "2": "₂", "3": "₃", "4": "₄", "5": "₅", "6": "₆",
+                                                  "h": "ₕ", "v": "ᵥ", "s": "ₛ", "i": "ᵢ"]
+        var out = ""
+        for (i, c) in name.enumerated() {
+            out.append(i == 0 ? c : (subscripts[c] ?? c))
+        }
+        return out
+    }
+
+    /// The Hessian of a transition-state search: "CalcFC (1 computed), 1 negative eigenvalue".
+    static func tsHessian(_ opt: MacQCOptimization) -> String {
+        var text = opt.tsHessian == "calcall" ? "CalcAll" : "CalcFC"
+        text += " (\(opt.hessianEvaluations ?? 0) computed)"
+        if let n = opt.negativeEigenvalues {
+            text += ", \(n) negative eigenvalue" + (n == 1 ? "" : "s")
+        }
+        return text
+    }
+
+    /// A value of a scanned coordinate: "1.4556 Å" or "113.70°".
+    static func scanValue(_ v: Double, angular: Bool) -> String {
+        angular ? String(format: "%.2f°", v) : String(format: "%.4f Å", v)
+    }
+
     /// Length given in bohr, shown as "0.7743 Å (1.4632 bohr)".
     static func lengthBoth(_ bohr: Double, decimals: Int = 4) -> String {
         let digits = Int32(decimals)  // "%.*f" takes a C int
@@ -113,4 +198,6 @@ nonisolated enum Units {
     static let joulePerMolPerHartree = 2_625_499.639_479_9
     /// J per thermochemical calorie.
     static let joulePerCalorie = 4.184
+    /// kcal/mol per hartree.
+    static let kcalPerMolPerHartree = joulePerMolPerHartree / 4184
 }

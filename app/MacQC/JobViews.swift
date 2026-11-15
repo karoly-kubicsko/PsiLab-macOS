@@ -4,9 +4,11 @@
 //
 //  ΨLab 5.0 job results: the Optimisation tab (the molecule of every step, drawn and played step
 //  by step (6.0), the steps table, energy and force charts, the geometry and internal coordinates
-//  of each step, the optimised geometry with a button that copies it into the inputs), the
-//  Frequencies tab with its Frequencies and Thermochemistry pages (every normal mode animated
-//  (6.0), the table of modes, the IR spectrum), and the job panel of the Summary tab.
+//  of each step, the optimised geometry with a button that copies it into the inputs; 7.0: the
+//  transition-state search with the Hessian's eigenvalues and the followed mode of every step),
+//  the Frequencies tab with its Frequencies and Thermochemistry pages (every normal mode animated
+//  (6.0), the table of modes, the IR spectrum; 7.0: the point group and the transition-state
+//  check), and the job panel of the Summary tab.
 //
 
 import SwiftUI
@@ -51,7 +53,7 @@ struct OptimizationView: View {
             }
         } else {
             JobPlaceholder(model: model, title: "No optimisation", systemImage: "arrow.down.right.and.arrow.up.left",
-                           text: "Choose the job Geometry optimisation (or Optimisation + frequencies) in the sidebar and press Run. The geometry inputs are the starting geometry.")
+                           text: "Choose a geometry optimisation or a transition-state optimisation (with or without frequencies) in the sidebar and press Run. The geometry inputs are the starting geometry.")
         }
     }
 
@@ -94,12 +96,16 @@ struct OptimizationView: View {
         let history = opt.history
         let index = shownIndex(opt)
         let step = history[index]
-        let frame = MoleculeFrame(geometries: ([opt.initialGeometry.atoms] + history.map { $0.geometry.atoms }).map { atomCoordinates($0) },
-                                  heavyAtom: heaviestAtom(step.geometry.atoms))
+        // The start and every step, rotated onto each other (the backend's coordinates may turn).
+        let aligned = alignedSequence(([opt.initialGeometry.atoms] + history.map { $0.geometry.atoms }).map { atomCoordinates($0) },
+                                      atoms: step.geometry.atoms)
+        let frame = MoleculeFrame(geometries: aligned, heavyAtom: heaviestAtom(step.geometry.atoms))
+        let shown = atomsMoved(step.geometry.atoms, to: aligned[min(index + 1, aligned.count - 1)])
+        let start = atomsMoved(opt.initialGeometry.atoms, to: aligned[0])
         return VStack(alignment: .leading, spacing: 10) {
             HStack(alignment: .top, spacing: 16) {
-                OptimizationGeometryCanvas(atoms: step.geometry.atoms,
-                                           start: showStart && index > 0 ? opt.initialGeometry.atoms : nil,
+                OptimizationGeometryCanvas(atoms: shown,
+                                           start: showStart && index > 0 ? start : nil,
                                            frame: frame)
                     .frame(minWidth: 240, maxWidth: .infinity, minHeight: 230, maxHeight: 230)
                 VStack(alignment: .leading, spacing: 6) {
@@ -118,7 +124,14 @@ struct OptimizationView: View {
                             Text("Max force").foregroundStyle(.secondary)
                             Text(step.criterion(0).map { String(format: "%.2e E_h/bohr", $0) } ?? "–")
                         }
-                        ForEach(Array(geometryRows(step.geometry).enumerated()), id: \.offset) { _, row in
+                        if let ts = step.ts {
+                            GridRow {
+                                Text("Negative eigenvalues").foregroundStyle(.secondary)
+                                Text("\(ts.negativeEigenvalues)")
+                                    .foregroundStyle(ts.negativeEigenvalues == 1 ? Color.green : Color.orange)
+                            }
+                        }
+                        ForEach(Array(Fmt.geometryRows(step.geometry).enumerated()), id: \.offset) { _, row in
                             GridRow {
                                 Text(row.0).foregroundStyle(.secondary)
                                 Text(row.1)
@@ -181,29 +194,22 @@ struct OptimizationView: View {
                     .toggleStyle(.checkbox)
                     .help("Show the geometry of step 1 as dashed outlines")
             }
-            Text("The molecule of each optimisation step, to the same scale for all steps: bond lengths in Å and, for H₂O, the H–O–H angle; dashed: the starting geometry. Choose a step with the buttons, the slider or a step number in the table, or press Play steps.")
+            Text("The molecule of each optimisation step, to the same scale for all steps: bond lengths in Å and, for H₂O, the H–O–H angle; dashed: the starting geometry. H₂O₂ and NH₃ are drawn in a tilted view, the nearer atoms larger. Choose a step with the buttons, the slider or a step number in the table, or press Play steps.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }
         .dataPanel()
     }
 
-    /// Bond lengths (and angle) of a geometry for the molecule panel.
-    private func geometryRows(_ g: MacQCGeometry) -> [(String, String)] {
-        if let r1 = g.R1, let r2 = g.R2, let a = g.angle {
-            return [("R₁(O–H)", String(format: "%.6f Å", r1 * Units.bohrToAngstrom)),
-                    ("R₂(O–H)", String(format: "%.6f Å", r2 * Units.bohrToAngstrom)),
-                    ("Angle", String(format: "%.4f°", a))]
-        }
-        if let r = g.R { return [("R", String(format: "%.6f Å", r * Units.bohrToAngstrom))] }
-        return []
-    }
-
     private func header(_ out: MacQCOutput, _ opt: MacQCOptimization) -> some View {
         VStack(alignment: .leading, spacing: 4) {
-            Text("\(Fmt.formula(out.input.molecule)) · \(MethodChoice.title(of: out.input.method))/\(out.input.basis) · geometry optimisation")
+            Text("\(Fmt.formula(out.input.molecule)) · \(MethodChoice.title(of: out.input.method))/\(out.input.basis) · "
+                 + (opt.isTransitionState ? "transition-state optimisation" : "geometry optimisation"))
                 .font(.title2.weight(.semibold))
-            Label(opt.converged ? "Stationary point found after \(opt.steps) steps" : opt.message,
+            Label(opt.converged
+                  ? (opt.isTransitionState ? "Transition state (saddle point of order one) found after \(opt.steps) steps"
+                                           : "Stationary point found after \(opt.steps) steps")
+                  : opt.message,
                   systemImage: opt.converged ? "checkmark.seal.fill" : "exclamationmark.triangle.fill")
                 .foregroundStyle(opt.converged ? Color.green : Color.orange)
         }
@@ -215,7 +221,7 @@ struct OptimizationView: View {
                 GridRow {
                     Text("Parameter").gridColumnAlignment(.leading)
                     Text("Start")
-                    Text(opt.converged ? "Optimised" : "Last step")
+                    Text(opt.converged ? (opt.isTransitionState ? "Transition state" : "Optimised") : "Last step")
                     Text("Change")
                 }
                 .font(.subheadline.weight(.semibold))
@@ -247,6 +253,9 @@ struct OptimizationView: View {
                          ? String(format: "C₂ᵥ symmetry kept (|R₁ − R₂| = %.1e bohr); all three internal coordinates were optimised without constraints.", opt.symmetryDeviation)
                          : String(format: "The optimised geometry is not C₂ᵥ (|R₁ − R₂| = %.1e bohr).", opt.symmetryDeviation))
                 }
+                if opt.isTransitionState {
+                    Text(tsSummary(opt))
+                }
                 Text("Gradient: " + (opt.gradient ?? "–"))
                 Text("Initial Hessian: \(opt.initialHessian); " + String(format: "%.1f s", opt.seconds))
                 Text(String(format: "Criteria (%@): max force %.1e, RMS force %.1e E_h/bohr; max step %.1e, RMS step %.1e bohr; energy change %.0e E_h",
@@ -276,8 +285,26 @@ struct OptimizationView: View {
         .dataPanel()
     }
 
+    /// The Hessian, its evaluations and the eigenvalue test of a transition-state search.
+    private func tsSummary(_ opt: MacQCOptimization) -> String {
+        var parts = [opt.tsHessian == "calcall"
+                     ? "Hessian computed at every step (CalcAll)"
+                     : "Hessian computed at the first step (CalcFC), then Bofill updates"]
+        if let n = opt.hessianEvaluations {
+            parts.append("\(n) Hessian evaluation\(n == 1 ? "" : "s")")
+        }
+        if let n = opt.negativeEigenvalues {
+            parts.append("\(n) negative eigenvalue\(n == 1 ? "" : "s") at the end")
+        }
+        if opt.eigenTestFailed == true {
+            parts.append("the eigenvalue test failed (the Hessian must have exactly one negative eigenvalue)")
+        }
+        return parts.joined(separator: "; ") + "."
+    }
+
     private func stepsTable(_ opt: MacQCOptimization) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
+        let ts = opt.isTransitionState
+        return VStack(alignment: .leading, spacing: 6) {
             Grid(alignment: .trailing, horizontalSpacing: 18, verticalSpacing: 4) {
                 GridRow {
                     Text("Step").gridColumnAlignment(.leading)
@@ -287,6 +314,9 @@ struct OptimizationView: View {
                     Text("RMS force")
                     Text("Max step")
                     Text("RMS step")
+                    if ts {
+                        Text("Neg. eig.")
+                    }
                     Text("")
                 }
                 .font(.subheadline.weight(.semibold))
@@ -309,6 +339,10 @@ struct OptimizationView: View {
                         criterionText(s, 1)
                         criterionText(s, 2)
                         criterionText(s, 3)
+                        if ts {
+                            Text(s.ts.map { "\($0.negativeEigenvalues)" } ?? "–")
+                                .foregroundStyle(s.ts?.negativeEigenvalues == 1 ? Color.green : Color.orange)
+                        }
                         Image(systemName: s.converged ? "checkmark.circle.fill" : "circle")
                             .foregroundStyle(s.converged ? Color.green : Color.secondary)
                     }
@@ -317,7 +351,9 @@ struct OptimizationView: View {
             }
             .monospacedDigit()
             .textSelection(.enabled)
-            Text("Green values meet their threshold. Click a step number to show its molecule above and its geometry, internal coordinates and convergence table below.")
+            Text(ts
+                 ? "Green values meet their threshold; Neg. eig.: negative eigenvalues of the Hessian (one at a transition state). Click a step number to show its molecule above and its geometry, Hessian, followed mode and internal coordinates below."
+                 : "Green values meet their threshold. Click a step number to show its molecule above and its geometry, internal coordinates and convergence table below.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }
@@ -387,7 +423,7 @@ struct OptimizationView: View {
                     Text("Geometry of this step (Å)")
                         .font(.subheadline.weight(.semibold))
                     AtomTable(atoms: s.geometry.atoms)
-                    Text(geometryLine(s.geometry))
+                    Text(Fmt.geometryLine(s.geometry))
                         .font(.caption.monospacedDigit())
                         .foregroundStyle(.secondary)
                 }
@@ -416,6 +452,9 @@ struct OptimizationView: View {
                     .monospacedDigit()
                 }
                 .dataPanel()
+            }
+            if let ts = s.ts {
+                tsPanel(ts, step: s)
             }
             VStack(alignment: .leading, spacing: 6) {
                 Text("Internal coordinates (force = −dE/dq; step = change taken from this geometry)")
@@ -457,13 +496,47 @@ struct OptimizationView: View {
         }
     }
 
-    private func geometryLine(_ g: MacQCGeometry) -> String {
-        if let r1 = g.R1, let r2 = g.R2, let a = g.angle {
-            return String(format: "R₁ = %.6f Å, R₂ = %.6f Å, angle = %.4f°", r1 * Units.bohrToAngstrom,
-                          r2 * Units.bohrToAngstrom, a)
+    /// The Hessian of a transition-state step: its eigenvalues, the followed mode and the shifts
+    /// of the partitioned RFO step (Baker 1986).
+    private func tsPanel(_ ts: MacQCTSStep, step s: MacQCOptimizationStep) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text("Hessian and partitioned RFO step")
+                .font(.subheadline.weight(.semibold))
+            InfoRow("Hessian", ts.hessianComputed ? "computed at this step" : "Bofill update")
+            InfoRow("Eigenvalues (E_h/bohr², E_h/rad²)",
+                    ts.hessianEigenvalues.map { String(format: "%.5f", $0) }.joined(separator: "  "))
+            InfoRow("Negative eigenvalues", "\(ts.negativeEigenvalues)")
+            if let e = ts.followedEigenvalue {
+                InfoRow("Followed mode: eigenvalue", String(format: "%.6f", e))
+            }
+            if let g = ts.followedGradient {
+                InfoRow("Followed mode: gradient component", String(format: "%+.6f", g))
+            }
+            if let o = ts.followedOverlap {
+                InfoRow("Overlap with the previous followed mode", String(format: "%.4f", o))
+            }
+            if let lp = ts.lambdaP, let ln = ts.lambdaN {
+                InfoRow("Shifts λp (maximised), λn (minimised)", String(format: "%.6f, %.6f", lp, ln))
+            }
+            if let mode = ts.followedMode, !mode.isEmpty {
+                InfoRow("Largest components of the followed mode", largestComponents(mode, names: s.coordinates.map { $0.definition }))
+            }
+            Text("The step goes uphill along the followed mode (the lowest at the first step, then the one most like the previous) and downhill along all others; it is scaled to the trust radius of 0.30 bohr/rad.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
         }
-        if let r = g.R { return String(format: "R = %.6f Å (%.6f bohr)", r * Units.bohrToAngstrom, r) }
-        return ""
+        .monospacedDigit()
+        .textSelection(.enabled)
+        .dataPanel()
+    }
+
+    /// "D(H3-O1-O2-H4) 0.98, A(O2-O1-H3) −0.12, …" (at most four, by size).
+    private func largestComponents(_ mode: [Double], names: [String]) -> String {
+        let ranked = mode.enumerated().sorted { abs($0.element) > abs($1.element) }.prefix(4)
+        return ranked.map { item in
+            let name = item.offset < names.count ? names[item.offset] : "q\(item.offset + 1)"
+            return String(format: "%@ %+.3f", name, item.element)
+        }.joined(separator: ", ")
     }
 
     private func stepCaption(_ s: MacQCOptimizationStep) -> String {
@@ -525,7 +598,7 @@ struct JobPlaceholder: View {
                     .frame(maxWidth: 560)
             }
             ContentUnavailableView(title, systemImage: systemImage,
-                                   description: Text(model.isGeneral ? text : "Jobs other than the energy are available for H₂, LiH and H₂O."))
+                                   description: Text(model.isGeneral ? text : "HeH⁺ in an STO-nG basis (Szabo–Ostlund) runs single-point energies. Choose a correlation-consistent basis set for the other job types."))
         }
         .padding()
     }
@@ -563,7 +636,7 @@ struct FrequenciesView: View {
             } else {
                 JobPlaceholder(model: model, title: model.vibrationPage == .frequencies ? "No frequencies" : "No thermochemistry",
                                systemImage: "waveform.path",
-                               text: "Choose the job Frequencies, Optimisation + frequencies or Optimisation + frequencies + single-point energy in the sidebar and press Run.")
+                               text: "Choose a job with frequencies (Frequencies, Optimisation + frequencies, TS optimisation + frequencies, with or without a single-point energy) in the sidebar and press Run.")
                     .frame(maxHeight: .infinity)
             }
         }
@@ -588,8 +661,11 @@ struct FrequencyPage: View {
                 VStack(alignment: .leading, spacing: 4) {
                     Text("\(Fmt.formula(out.input.molecule)) · harmonic frequencies · \(MethodChoice.title(of: out.input.method))/\(out.input.basis)")
                         .font(.title2.weight(.semibold))
-                    Text(out.input.job == "freq" ? "At the input geometry." : "At the optimised geometry.")
+                    Text(geometryNote)
                         .foregroundStyle(.secondary)
+                }
+                if isTransitionStateJob {
+                    transitionStateCheck
                 }
                 NotesPanel(notes: [], warnings: (out.job?.warnings ?? []) + (out.thermochemistry?.warnings ?? []))
 
@@ -630,6 +706,48 @@ struct FrequencyPage: View {
             }
             .padding(20)
         }
+    }
+
+    private var isTransitionStateJob: Bool {
+        JobChoice(rawValue: out.input.job)?.hasTransitionState ?? false
+    }
+
+    /// Where the frequencies were computed, and the point group.
+    private var geometryNote: String {
+        var text: String
+        if out.input.job == "freq" {
+            text = "At the input geometry."
+        } else if isTransitionStateJob {
+            text = "At the transition state."
+        } else {
+            text = "At the optimised geometry."
+        }
+        if let g = f.pointGroup {
+            text += " Point group \(Fmt.pointGroup(g))."
+        }
+        return text
+    }
+
+    /// Exactly one imaginary frequency confirms the transition state (Gaussian's check after
+    /// Opt=TS Freq); its normal mode is the reaction coordinate.
+    private var transitionStateCheck: some View {
+        let imaginary = f.modes.enumerated().filter { $0.element.imaginary }
+        let confirmed = imaginary.count == 1
+        let text: String
+        if confirmed, let m = imaginary.first {
+            text = "One imaginary frequency, \(Fmt.wavenumber(m.element)) cm⁻¹" + (m.element.symmetry.isEmpty ? "" : " (\(m.element.symmetry))")
+                + ": mode \(m.offset + 1) is the motion over the barrier."
+        } else {
+            text = "\(imaginary.count) imaginary frequencies: this is not a transition state (one is needed)."
+        }
+        return Label(text, systemImage: confirmed ? "checkmark.seal.fill" : "exclamationmark.triangle.fill")
+            .foregroundStyle(confirmed ? Color.green : Color.orange)
+            .font(.callout)
+            .onAppear {
+                if confirmed, let m = imaginary.first {
+                    selectedMode = m.offset
+                }
+            }
     }
 
     /// Every normal mode as an animation (three at most per row), with Play/Pause, the amplitude
@@ -811,7 +929,7 @@ struct ThermochemistryPage: View {
                 SectionTitle("Rotation and vibration")
                 VStack(spacing: 8) {
                     InfoRow("Molecular mass", String(format: "%.6f u", t.mass))
-                    InfoRow("Rotor", t.linear ? "linear" : "nonlinear (asymmetric top)")
+                    InfoRow("Rotor", rotorDescription)
                     InfoRow("Moments of inertia (u bohr²)", t.moments.map { String(format: "%.6f", $0) }.joined(separator: "  "))
                     InfoRow("Rotational constants (GHz)", t.rotationalConstantsGHz.map { String(format: "%.6f", $0) }.joined(separator: "  "))
                     InfoRow("Rotational constants (cm⁻¹)", t.rotationalConstantsCm.map { String(format: "%.6f", $0) }.joined(separator: "  "))
@@ -828,6 +946,18 @@ struct ThermochemistryPage: View {
             }
             .padding(20)
         }
+    }
+
+    /// Linear, spherical, symmetric (NH₃) or asymmetric top, from the moments of inertia.
+    private var rotorDescription: String {
+        if t.linear { return "linear" }
+        let m = t.moments.sorted()
+        guard m.count == 3, let largest = m.last, largest > 0 else { return "nonlinear" }
+        let equal = { (a: Double, b: Double) in abs(a - b) <= 1e-4 * largest }
+        if equal(m[0], m[1]) && equal(m[1], m[2]) { return "nonlinear (spherical top)" }
+        if equal(m[0], m[1]) { return "nonlinear (oblate symmetric top)" }
+        if equal(m[1], m[2]) { return "nonlinear (prolate symmetric top)" }
+        return "nonlinear (asymmetric top)"
     }
 
     private var energyTable: some View {
@@ -946,14 +1076,40 @@ struct JobSummaryPanel: View {
                     InfoRow("Final energy (\(label))", Fmt.energy10(e) + " E_h")
                 }
                 if let opt = out.optimization {
-                    InfoRow("Optimisation", opt.converged ? "converged in \(opt.steps) steps" : "not converged (\(opt.steps) steps)")
+                    InfoRow(opt.isTransitionState ? "Transition-state search" : "Optimisation",
+                            opt.converged ? "converged in \(opt.steps) steps" : "not converged (\(opt.steps) steps)")
+                    if opt.isTransitionState {
+                        InfoRow("Hessian", Fmt.tsHessian(opt))
+                    }
                     ForEach(opt.finalParameters) { p in
                         InfoRow("  " + p.name, Fmt.parameterValue(p.value, angle: p.angle))
+                    }
+                }
+                if let scan = out.scan {
+                    InfoRow("Scanned coordinate", scan.coordinate.definition + " (\(scan.coordinate.type))")
+                    InfoRow("Points", "\(scan.points.count) of \(scan.steps + 1) · " + scan.message)
+                    if let low = scan.points.first(where: { $0.index == scan.lowest }) {
+                        InfoRow("Lowest point", Fmt.scanValue(low.value, angular: scan.isAngular) + " · " + Fmt.energy10(low.energy) + " E_h")
+                        if let high = scan.points.first(where: { $0.index == scan.highest }), high.index != low.index {
+                            InfoRow("Highest point", Fmt.scanValue(high.value, angular: scan.isAngular)
+                                    + String(format: " · %.4f kcal/mol above the lowest", (high.energy - low.energy) * Units.kcalPerMolPerHartree))
+                        }
+                    }
+                    ForEach(scan.extrema) { x in
+                        InfoRow("  " + x.kind.capitalized + " (parabola)",
+                                Fmt.scanValue(x.value, angular: scan.isAngular) + " · " + Fmt.energy10(x.energy) + " E_h")
                     }
                 }
                 if let f = out.frequencies {
                     InfoRow("Harmonic wavenumbers (cm⁻¹)", f.modes.map { Fmt.wavenumber($0) }.joined(separator: "  "))
                     InfoRow("Hessian", f.analytic ? "analytic" : "numerical (\(f.gradientEvaluations > 0 ? "\(f.gradientEvaluations) gradients" : "\(f.energyEvaluations) energies"))")
+                    if let g = f.pointGroup {
+                        InfoRow("Point group", Fmt.pointGroup(g))
+                    }
+                    if JobChoice(rawValue: out.input.job)?.hasTransitionState == true {
+                        let n = f.modes.filter { $0.imaginary }.count
+                        InfoRow("Transition state", n == 1 ? "confirmed: one imaginary frequency" : "not confirmed: \(n) imaginary frequencies")
+                    }
                 }
                 if let t = out.thermochemistry {
                     InfoRow(String(format: "ZPE, H, G at %.2f K", t.temperature),
@@ -965,7 +1121,8 @@ struct JobSummaryPanel: View {
                     Button {
                         model.useOptimizedGeometry()
                     } label: {
-                        Label("Use optimised geometry as input", systemImage: "arrow.uturn.backward")
+                        Label(out.optimization?.isTransitionState == true ? "Use transition-state geometry as input" : "Use optimised geometry as input",
+                              systemImage: "arrow.uturn.backward")
                     }
                     .secondaryActionStyle()
                     .disabled(!model.canUseOptimizedGeometry || model.isRunning)

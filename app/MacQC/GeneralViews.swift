@@ -2,7 +2,8 @@
 //  GeneralViews.swift
 //  MacQC
 //
-//  Detail views for H₂, LiH and H₂O: summary, Hartree–Fock and Full CI pages; the
+//  Detail views of the general path (H₂, LiH, H₂O, H₂O₂, NH₃, HeH⁺ in a correlation-consistent
+//  basis set): summary, Hartree–Fock and Full CI pages; the
 //  coupled-cluster page is in CoupledClusterView.swift, the job tabs in JobViews.swift and the
 //  output file in OutputView.swift.
 //
@@ -119,12 +120,7 @@ struct GeneralSummaryView: View {
     }
 
     private func geometryText(_ mol: MacQCMoleculeInfo) -> String {
-        let label = MoleculeChoice(rawValue: mol.name)?.bondLabel ?? "R"
-        var text = "\(label) = " + Fmt.lengthBoth(mol.R)
-        if let angle = mol.angle {
-            text += String(format: ", angle H–O–H = %.2f°", angle)
-        }
-        return text
+        Fmt.moleculeGeometry(mol) + (mol.charge != 0 ? String(format: " · charge %+ld", mol.charge) : "")
     }
 
     private func moleculePanel(_ mol: MacQCMoleculeInfo) -> some View {

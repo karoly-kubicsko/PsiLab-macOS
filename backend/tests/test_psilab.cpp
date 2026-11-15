@@ -89,7 +89,7 @@ int main() {
     CHECK(w2.input.threads == 2 && w2.input.memoryMB == 2048.0 && w2.input.basis == "aug-cc-pVDZ");
     CHECK(std::fabs(psilab::parse_input_text("molecule = LiH\n").input.R - 1.5949 / psilab::kBohrToAngstrom) < 1e-12);
     CHECK(rejects("molecule = CH4\n", "molecule must be HeH+, H2, LiH, H2O, H2O2 or NH3"));
-    CHECK(rejects("molecule = H2\nzeta_H = 1.2\n", "line 2: 'zeta_H' applies to HeH+ only"));
+    CHECK(rejects("molecule = H2\nzeta_H = 1.2\n", "line 2: 'zeta_H' applies to HeH+ in an STO-nG basis (Szabo-Ostlund) only"));
     CHECK(rejects("molecule = H2\nangle = 100\n", "applies to H2O, H2O2 and NH3 only"));
     CHECK(rejects("angle = 100\n", "applies to H2O, H2O2 and NH3 only"));
     CHECK(rejects("method = RHF\n", "HeH+ always runs Hartree-Fock and Full CI"));
@@ -159,7 +159,7 @@ int main() {
     CHECK(psilab::parse_input_text("molecule = H2\njob = freq\npressure = 1 atm\n").input.pressure == 101325.0);
     CHECK(psilab::parse_input_text("molecule = H2\njob = freq\npressure = 100 kPa\n").input.pressure == 1.0e5);
     CHECK(rejects("molecule = H2\njob = sweep\n", "job must be energy, opt, freq, opt+freq, opt+freq+sp, scan, ts, ts+freq or ts+freq+sp"));
-    CHECK(rejects("job = opt\n", "applies to H2, LiH, H2O, H2O2 and NH3 only"));
+    CHECK(rejects("job = opt\n", "applies to H2, LiH, H2O, H2O2, NH3 and HeH+ in a correlation-consistent basis set only"));
     CHECK(rejects("molecule = H2\njob = opt\nsp_method = CCSD\n", "'sp_method' applies to job = opt+freq+sp and ts+freq+sp only"));
     CHECK(rejects("molecule = H2\njob = opt\ntemperature = 300\n",
                   "applies to job = freq, opt+freq, opt+freq+sp, ts+freq and ts+freq+sp only"));
@@ -198,7 +198,7 @@ int main() {
     CHECK(rejects("molecule = H2O\njob = opt\nscan = 1 2 S 2 0.1\n", "'scan' applies to job = scan only"));
     CHECK(rejects("molecule = H2O\njob = scan\nscan = 1 2 S 2 0.1\nscan_start = 90 degrees\n", "degrees apply to angles"));
     CHECK(rejects("molecule = H2O\njob = scan\nscan = 2 1 3 S 2 10\nscan_start = 1 bohr\n", "bohr applies to a bond"));
-    CHECK(rejects("scan_start = 1\n", "applies to H2, LiH, H2O, H2O2 and NH3 only"));
+    CHECK(rejects("scan_start = 1\n", "applies to H2, LiH, H2O, H2O2, NH3 and HeH+ in a correlation-consistent basis set only"));
     const std::string sest = psilab::estimate_text(psilab::parse_input_text("molecule = H2O\njob = scan\nscan = 2 1 3 S 8 5\n"));
     CHECK(contains(sest, "Relaxed scan: analytic gradient (derivative integrals); 9 points"));
     const psilab::RunResult srun = psilab::run_to_text(
@@ -241,6 +241,20 @@ int main() {
     const std::string tsest = psilab::estimate_text(psilab::parse_input_text("molecule = NH3\njob = ts\n"));
     CHECK(contains(tsest, "Transition-state optimisation: analytic gradient"));
     CHECK(contains(tsest, "Hessian computed at the first step (CalcFC)"));
+
+    // ΨLab 7.0 stage 7.4: HeH+ with a correlation-consistent basis set is a general molecule
+    const psilab::Settings hg = psilab::parse_input_text("molecule = HeH+\nbasis = aug-cc-pVTZ\nmethod = FCI\njob = opt+freq\n");
+    CHECK(hg.input.hehGeneral && hg.input.basis == "aug-cc-pVTZ" && hg.input.method == "FCI" && hg.input.job == "opt+freq");
+    CHECK(std::fabs(hg.input.R - 1.4632) < 1e-12);  // the Szabo-Ostlund bond length (0.7743 angstrom)
+    CHECK(!psilab::parse_input_text("molecule = HeH+\nbasis = STO-2G\n").input.hehGeneral);
+    CHECK(rejects("molecule = HeH+\nbasis = aug-cc-pVDZ\nzeta_He = 2\n", "'zeta_He' applies to HeH+ in an STO-nG basis"));
+    CHECK(rejects("molecule = HeH+\nmethod = CCSD\n", "applies to H2, LiH, H2O, H2O2, NH3 and HeH+ in a correlation-consistent"));
+    CHECK(rejects("molecule = HeH+\nbasis = 6-31G\n", "or a correlation-consistent set"));
+    const psilab::RunResult hrun = psilab::run_to_text(
+        psilab::parse_input_text("molecule = HeH+\nbasis = aug-cc-pVDZ\nmethod = CCSD\njob = scan\nscan = 1 2 S 2 0.1\n"));
+    CHECK(hrun.error.empty());
+    CHECK(contains(hrun.text, "HeH+, 2 electrons, charge 1"));
+    CHECK(contains(hrun.text, "Summary of the relaxed scan: CCSD/aug-cc-pVDZ"));
 
     // Without scan: no curve section.
     psilab::Settings single = ex;

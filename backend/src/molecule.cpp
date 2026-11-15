@@ -123,6 +123,11 @@ Molecule make_molecule(const std::string& name, double R, double angle_degrees, 
         mol.atoms = {atom(8, -0.5 * r_oo, 0.0, 0.0), atom(8, 0.5 * r_oo, 0.0, 0.0),
                      atom(1, -0.5 * r_oo + R * c, R * s * std::sin(h), R * s * std::cos(h)),
                      atom(1, 0.5 * r_oo - R * c, -R * s * std::sin(h), R * s * std::cos(h))};
+    } else if (m == "HeH+") {
+        // 7.0: HeH+ through the general path (correlation-consistent basis sets): He at the origin,
+        // H at z = R, charge +1
+        mol.atoms = {atom(2, 0.0, 0.0, 0.0), atom(1, 0.0, 0.0, R)};
+        mol.charge = 1;
     } else if (m == "NH3") {
         if (!(std::isfinite(angle_degrees) && angle_degrees >= 60.0 && angle_degrees <= 120.0))
             throw std::invalid_argument("the H-N-H angle must be between 60 and 120 degrees (120: planar)");
@@ -138,7 +143,7 @@ Molecule make_molecule(const std::string& name, double R, double angle_degrees, 
             mol.atoms.push_back(atom(1, R * st * std::cos(p), R * st * std::sin(p), R * ct));
         }
     } else {
-        throw std::invalid_argument("unknown molecule '" + name + "' (H2, LiH, H2O, H2O2 or NH3)");
+        throw std::invalid_argument("unknown molecule '" + name + "' (HeH+, H2, LiH, H2O, H2O2 or NH3)");
     }
     return mol;
 }

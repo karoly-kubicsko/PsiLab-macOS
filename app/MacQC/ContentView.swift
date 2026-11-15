@@ -71,7 +71,7 @@ final class WindowFitterView: NSView {
 
 /// Six tabs (they fit next to the sidebar at the minimum window width of 1000 pt): Summary,
 /// Methods (Hartree–Fock, coupled cluster, Full CI), Optimisation, Frequencies (with the
-/// thermochemistry page), Potential curve, Output.
+/// thermochemistry page), Scan (relaxed scan and potential curve), Output.
 struct DetailView: View {
     @Bindable var model: AppModel
 
@@ -93,8 +93,8 @@ struct DetailView: View {
                 .tabItem { Label("Frequencies", systemImage: "waveform.path") }
                 .tag(DetailTab.frequencies)
 
-            PotentialCurveView(model: model)
-                .tabItem { Label("Curve", systemImage: "chart.xyaxis.line") }
+            ScanTabView(model: model)
+                .tabItem { Label("Scan", systemImage: "chart.xyaxis.line") }
                 .tag(DetailTab.potentialCurve)
 
             OutputView(model: model)
@@ -192,7 +192,7 @@ struct NoResultView: View {
                 systemImage: "atom",
                 description: Text(model.isGeneral
                                   ? "Choose the job, method and basis set in the sidebar and press Run."
-                                  : "Press Run to start a Hartree–Fock and Full CI calculation.")
+                                  : "Press Run to start a Hartree–Fock and Full CI calculation (Szabo–Ostlund).")
             )
         }
         .padding()

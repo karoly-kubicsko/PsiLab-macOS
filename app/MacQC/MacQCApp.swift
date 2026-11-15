@@ -18,7 +18,7 @@ struct MacQCApp: App {
         }
         .defaultSize(width: 1180, height: 760)
         .commands {
-            // File > Export Results as Text… (H2, LiH, H2O: the output file) / as JSON… /
+            // File > Export Results as Text… (general path: the output file) / as JSON… /
             // Potential Curve as Text… (replace the unused "New Window" item)
             CommandGroup(replacing: .newItem) {
                 Button("Export Results as Text…") {
@@ -55,7 +55,9 @@ struct MacQCApp: App {
                     .keyboardShortcut("6", modifiers: [.command])
                 Button("Thermochemistry") { model.show(.frequencies, vibration: .thermochemistry) }
                     .keyboardShortcut("7", modifiers: [.command])
-                Button("Potential Curve") { model.show(.potentialCurve) }
+                Button("Relaxed Scan") { model.show(.potentialCurve, scan: .relaxed) }
+                    .keyboardShortcut("0", modifiers: [.command])
+                Button("Potential Curve") { model.show(.potentialCurve, scan: .potentialCurve) }
                     .keyboardShortcut("8", modifiers: [.command])
                 Button("Output") { model.show(.output) }
                     .keyboardShortcut("9", modifiers: [.command])

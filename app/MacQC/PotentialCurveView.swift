@@ -2,9 +2,10 @@
 //  PotentialCurveView.swift
 //  MacQC
 //
-//  Potential-curve tab: scan the bond length (HeH⁺: 0.8 … 5.0 bohr; H₂, LiH, H₂O: their own
-//  ranges, H₂O as a symmetric stretch), plot the HF/RHF and the correlated total energies with
-//  Swift Charts and mark the minimum of each curve.
+//  Potential-curve page of the Scan tab: single-point energies along the bond length (HeH⁺: 0.8 …
+//  5.0 bohr; the other molecules their own ranges, H₂O, H₂O₂ and NH₃ with all X–H bonds stretched
+//  together at fixed angles), the HF/RHF and the correlated total energies plotted with Swift
+//  Charts and the minimum of each curve marked. The relaxed scan is in ScanViews.swift.
 //
 
 import SwiftUI
@@ -109,8 +110,8 @@ struct PotentialCurveView: View {
                                range.lowerBound, range.upperBound)
         if model.isGeneral {
             let method = model.method == .hf ? "RHF" : "RHF and \(model.method.title)"
-            let what = model.molecule == .h2o ? "symmetric stretch, \(rangeText) at the chosen angle" : rangeText
-            return "Press Run scan to compute \(method) total energies of \(model.molecule.title) (\(what)) in \(model.basis)."
+            let what = model.molecule.angleLabel != nil ? "all X–H bonds stretched together, \(rangeText), the other geometry inputs fixed" : rangeText
+            return "Press Run scan to compute \(method) single-point energies of \(model.molecule.title) (\(what)) in \(model.currentBasis). For a scan with the other coordinates optimised, use the job Relaxed scan."
         }
         return "Press Run scan to compute HF and FCI total energies for \(rangeText) with the basis and exponents from the sidebar."
     }

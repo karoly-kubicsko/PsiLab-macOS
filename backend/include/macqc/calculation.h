@@ -13,7 +13,8 @@ namespace macqc {
 
 struct Input {
     // "HeH+" (default): the Szabo-Ostlund STO-nG calculation (HF + FCI), unchanged
-    // since version 1.0, which uses the keys R .. printLevel below.
+    // since version 1.0, which uses the keys R .. printLevel below. With a correlation-consistent
+    // basis set (hehGeneral, 7.0) HeH+ is a general molecule like the others (charge +1).
     // "H2", "LiH", "H2O": general molecules (version 3.0), see the keys after printLevel;
     // "H2O2", "NH3" (7.0).
     std::string molecule = "HeH+";
@@ -28,7 +29,8 @@ struct Input {
     double convergence = 1.0e-4;
     int printLevel = 2;
 
-    // General molecules (molecule != "HeH+").
+    // General molecules (molecule != "HeH+", or HeH+ with hehGeneral).
+    bool hehGeneral = false;            // HeH+ with a correlation-consistent basis set (all methods and jobs)
     std::string basis = "aug-cc-pVDZ";
     double angle = kDefaultWaterAngle;  // degrees: H-O-H (H2O), O-O-H (H2O2), H-N-H (NH3)
     double ROO = 0.0;                   // H2O2: R(O-O) in bohr (<= 0: the default 1.4556 Å)

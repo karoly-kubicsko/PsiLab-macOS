@@ -113,7 +113,7 @@ int main() {
         json bad = run({{"molecule", "H2"}, {"job", "sweep"}});
         CHECK(contains(bad["error"].get<std::string>(), "job must be energy, opt, freq, opt+freq, opt+freq+sp, scan, ts, ts+freq or ts+freq+sp"));
         bad = run({{"molecule", "HeH+"}, {"job", "opt"}});
-        CHECK(contains(bad["error"].get<std::string>(), "HeH+ (STO-nG) supports only the energy job"));
+        CHECK(contains(bad["error"].get<std::string>(), "HeH+ in an STO-nG basis (Szabo-Ostlund) supports only the energy job"));
         bad = run({{"molecule", "H2"}, {"job", "freq"}, {"temperature", -5.0}});
         CHECK(contains(bad["error"].get<std::string>(), "temperature"));
         bad = run({{"molecule", "H2"}, {"job", "opt"}, {"optConvergence", "loose"}});

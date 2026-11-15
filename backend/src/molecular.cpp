@@ -210,7 +210,7 @@ bool coupled_cluster_method(const std::string& canonical, CCMethod* method) {
 
 std::string validate_molecular(const MolecularInput& in) {
     const std::string m = canonical_molecule_name(in.molecule);
-    if (m.empty() || m == "HeH+") return "molecule must be H2, LiH, H2O, H2O2 or NH3";
+    if (m.empty()) return "molecule must be HeH+, H2, LiH, H2O, H2O2 or NH3";
     if (canonical_basis_name(in.basis).empty()) {
         std::string list;
         for (const auto& b : supported_basis_sets()) list += (list.empty() ? "" : ", ") + b;
@@ -245,7 +245,7 @@ std::string validate_molecular(const MolecularInput& in) {
 
 int expected_scf_iterations(const std::string& molecule) {
     // Observed with the core-Hamiltonian guess and DIIS near equilibrium (7, 10, 13), plus one.
-    if (molecule == "H2") return 8;
+    if (molecule == "H2" || molecule == "HeH+") return 8;
     if (molecule == "LiH") return 11;
     if (molecule == "H2O2") return 16;
     return 14;
@@ -462,6 +462,8 @@ std::string molecular_report(const MolecularResult& r) {
         s += "Geometry        R(O-H) = " + angstrom_bohr(r.input.R) + format(", angle H-O-H = %.4f deg\n", r.input.angle);
     else if (mol.name == "LiH")
         s += "Geometry        R(Li-H) = " + angstrom_bohr(r.input.R) + "\n";
+    else if (mol.name == "HeH+")
+        s += "Geometry        R(He-H) = " + angstrom_bohr(r.input.R) + "\n";
     else
         s += "Geometry        R(H-H) = " + angstrom_bohr(r.input.R) + "\n";
     s += "Cartesian coordinates (bohr)\n";

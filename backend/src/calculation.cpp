@@ -8,7 +8,7 @@
 
 namespace macqc {
 
-bool is_heh_input(const Input& in) { return canonical_molecule_name(in.molecule) == "HeH+"; }
+bool is_heh_input(const Input& in) { return canonical_molecule_name(in.molecule) == "HeH+" && !in.hehGeneral; }
 
 namespace {
 
@@ -217,7 +217,9 @@ std::string validate(const Input& in) {
         const std::string e = validate_molecular(molecular_input(in));
         return e.empty() ? job_input_error(in) : e;
     }
-    if (canonical_job_type(in.job) != "energy") return "HeH+ (STO-nG) supports only the energy job";
+    if (canonical_job_type(in.job) != "energy")
+        return "HeH+ in an STO-nG basis (Szabo-Ostlund) supports only the energy job; choose a correlation-consistent "
+               "basis set (aug-cc-pVDZ ... aug-cc-pV5Z) for the other jobs";
     auto positive = [](double v) { return std::isfinite(v) && v > 0.0; };
     if (!positive(in.R)) return "R must be a positive, finite number (bohr)";
     if (!positive(in.zeta1)) return "zeta1 must be a positive, finite number";

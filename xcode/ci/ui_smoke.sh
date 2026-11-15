@@ -7,9 +7,12 @@
 # (open method menu, H2O CCSD(T), LiH CCSDT, refused H2O CCSDTQ), and the job types of ΨLab 5.0
 # (open job menu, H2O RHF optimisation, LiH CCSD(T) frequencies and thermochemistry, H2O
 # opt+freq+SP with a CCSD(T)/aug-cc-pVTZ single point, the Output tab while a job runs, Cancel,
-# the refused CCSDTQ frequencies of H2O), and ΨLab 6.0 (the molecule of each optimisation step,
+# the refused CCSDTQ frequencies of H2O), ΨLab 6.0 (the molecule of each optimisation step,
 # played step by step; the animated normal modes of LiH and H2O: two frames 0.3 s apart must
-# differ, and a few screenshots are printed into the log as small JPEGs). The screen of the
+# differ, and a few screenshots are printed into the log as small JPEGs), and ΨLab 7.0 (HeH+ with
+# Full CI/aug-cc-pVTZ opt+freq, the relaxed torsion scan of H2O2 with its points played, the
+# inversion transition state of NH3 and the trans transition state of H2O2 with CalcAll, the
+# scan settings in the sidebar, the refused TS search of LiH). The screen of the
 # runner is 1024 pt wide: the screenshots show that the six tabs fit at the minimum window width.
 # Never fails the job: it only gathers evidence (screenshots + text) for review.
 #
@@ -512,6 +515,50 @@ dump_tab "40-output-cancelled-dark" ""
 echo "== H2O CCSDTQ frequencies (refused)"
 relaunch -appearanceChoice light -psilabMolecule H2O -psilabBasis aug-cc-pVDZ -psilabMethod CCSDTQ -psilabJob freq
 view_tab "41-h2o-ccsdtq-freq-refused" "Summary"
+
+# --- ΨLab 7.0: HeH+ in a correlation-consistent basis set, H2O2 and NH3, relaxed scans and
+# transition-state searches -------------------------------------------------------------------
+echo "== HeH+ Full CI/aug-cc-pVTZ opt+freq (the general path)"
+relaunch -appearanceChoice light -psilabMolecule HeH+ -psilabBasis aug-cc-pVTZ -psilabMethod FCI -psilabJob opt+freq -psilabAutoRun YES
+sleep 15
+view_tab "50-heh-fci-opt-freq-summary" "Summary"
+view_tab "51-heh-fci-frequencies" "Frequencies"
+
+echo "== H2O2 RHF/aug-cc-pVDZ relaxed scan of the H-O-O-H torsion, 0 ... 180 degrees in 30-degree steps"
+relaunch -appearanceChoice light -psilabMolecule H2O2 -psilabBasis aug-cc-pVDZ -psilabMethod RHF -psilabJob scan -psilabScan "D 3 1 2 4 S 6 30" -psilabScanStart 0 -psilabAutoRun YES -psilabTab scan
+shot "52-h2o2-scan-running"
+sleep 90
+view_tab "53-h2o2-relaxed-scan" "Relaxed Scan"
+print_shot "53-h2o2-relaxed-scan"
+view_tab "54-h2o2-scan-summary" "Summary"
+view_tab "55-h2o2-scan-output" "Output"
+relaunch -appearanceChoice dark -psilabMolecule H2O2 -psilabBasis aug-cc-pVDZ -psilabMethod RHF -psilabJob scan -psilabScan "D 3 1 2 4 S 6 30" -psilabScanStart 0 -psilabAutoRun YES -psilabTab scan -psilabPlaySteps YES
+sleep 90
+view_tab "56-h2o2-scan-playing-dark" "Relaxed Scan"
+frames "56-scan-playing" 1.8
+
+echo "== NH3 RHF/aug-cc-pVDZ inversion transition state (ts+freq from H-N-H 119 degrees)"
+relaunch -appearanceChoice light -psilabMolecule NH3 -psilabBasis aug-cc-pVDZ -psilabMethod RHF -psilabJob ts+freq -psilabAngle 119 -psilabAutoRun YES
+sleep 40
+view_tab "57-nh3-ts-optimisation" "Optimisation"
+print_shot "57-nh3-ts-optimisation"
+view_tab "58-nh3-ts-frequencies" "Frequencies"
+frames "58-nh3-imaginary-mode"
+print_shot "58-nh3-ts-frequencies"
+view_tab "59-nh3-ts-summary" "Summary"
+
+echo "== H2O2 RHF/aug-cc-pVDZ trans transition state with CalcAll (from 160 degrees), sidebar of the TS job"
+relaunch -appearanceChoice light -psilabMolecule H2O2 -psilabBasis aug-cc-pVDZ -psilabMethod RHF -psilabJob ts+freq -psilabDihedral 160 -psilabTSHessian calcall -psilabAutoRun YES
+sleep 60
+view_tab "60-h2o2-ts-calcall-optimisation" "Optimisation"
+view_tab "61-h2o2-ts-frequencies" "Frequencies"
+print_shot "61-h2o2-ts-frequencies"
+
+echo "== NH3 scan settings in the sidebar (umbrella) and the refused TS search of a diatomic"
+relaunch -appearanceChoice light -psilabMolecule NH3 -psilabBasis aug-cc-pVDZ -psilabMethod RHF -psilabJob scan
+dump_tab "62-nh3-scan-sidebar" ""
+relaunch -appearanceChoice light -psilabMolecule LiH -psilabBasis aug-cc-pVDZ -psilabMethod RHF -psilabJob ts
+view_tab "63-lih-ts-refused" "Summary"
 
 pkill -x "ΨLab" || true
 

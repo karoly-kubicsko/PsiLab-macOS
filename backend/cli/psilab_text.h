@@ -2,7 +2,8 @@
 //
 // Input: one "key = value" per line, '#' starts a comment. Keys (case-insensitive):
 //   molecule   HeH+ (default) | H2 | LiH | H2O | H2O2 | NH3
-//   basis      HeH+: STO-1G | STO-2G | STO-3G; others: aug-cc-pVXZ, aug-cc-pCVXZ (X = D, T, Q, 5)
+//   basis      aug-cc-pVXZ, aug-cc-pCVXZ (X = D, T, Q, 5); HeH+ also STO-1G | STO-2G | STO-3G, the
+//              Szabo-Ostlund calculation (HeH+ with a correlation-consistent set: all methods and jobs)
 //   R          bond length (H2O, H2O2: O-H; NH3: N-H), a number optionally followed by a unit: bohr (default)
 //              or angstrom; default for H2, LiH, H2O: the experimental equilibrium value
 //   angle      degrees: H-O-H (H2O; default 104.52), O-O-H (H2O2; 102.32), H-N-H (NH3; 106.7, 120 planar)

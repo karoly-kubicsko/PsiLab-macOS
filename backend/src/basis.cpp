@@ -261,16 +261,18 @@ BasisSet build_basis(const Molecule& mol, const std::string& basis_name,
             eb = &it->second;
         } else {
             const std::string partner = valence_partner(name);
-            if (atom.Z == 1 && !partner.empty()) {
+            if (atom.Z <= 2 && !partner.empty()) {
                 auto pf = files.find(partner);
                 if (pf == files.end()) throw std::runtime_error("basis set " + partner + " was not loaded");
-                auto pit = pf->second.elements.find(1);
+                auto pit = pf->second.elements.find(atom.Z);
                 if (pit == pf->second.elements.end())
-                    throw std::runtime_error(partner + " has no functions for H");
+                    throw std::runtime_error(partner + " has no functions for " + atom.symbol);
                 eb = &pit->second;
                 info.basis = partner;
-                info.note = name + " is not defined for H (hydrogen has no core electrons); the " + partner +
-                            " functions are used for H, as is customary.";
+                info.note = atom.Z == 1 ? name + " is not defined for H (hydrogen has no core electrons); the " + partner +
+                                              " functions are used for H, as is customary."
+                                        : name + " is not defined for He (the 1s shell of helium is its valence shell); "
+                                                 "the " + partner + " functions are used for He, as for H.";
                 extra_sources.insert(partner);
             } else {
                 std::string msg = name + " is not available for " + atom.symbol +
@@ -341,7 +343,7 @@ BasisSet build_basis(const Molecule& mol, const std::string& basis_name, const s
     const std::string partner = valence_partner(name);
     bool need_partner = false;
     for (const Atom& at : mol.atoms)
-        if (at.Z == 1 && !files[name].elements.count(1)) need_partner = true;
+        if (at.Z <= 2 && !files[name].elements.count(at.Z)) need_partner = true;
     if (need_partner && !partner.empty()) load(partner);
     return build_basis(mol, name, files);
 }
