@@ -526,17 +526,15 @@ view_tab "50-heh-fci-opt-freq-summary" "Summary"
 view_tab "51-heh-fci-frequencies" "Frequencies"
 
 echo "== H2O2 RHF/aug-cc-pVDZ relaxed scan of the H-O-O-H torsion, 0 ... 180 degrees in 30-degree steps"
-relaunch -appearanceChoice light -psilabMolecule H2O2 -psilabBasis aug-cc-pVDZ -psilabMethod RHF -psilabJob scan -psilabScan "D 3 1 2 4 S 6 30" -psilabScanStart 0 -psilabAutoRun YES -psilabTab scan
+# one launch: the points are played (Play points on), so the frames differ
+relaunch -appearanceChoice light -psilabMolecule H2O2 -psilabBasis aug-cc-pVDZ -psilabMethod RHF -psilabJob scan -psilabScan "D 3 1 2 4 S 6 30" -psilabScanStart 0 -psilabAutoRun YES -psilabTab scan -psilabPlaySteps YES
 shot "52-h2o2-scan-running"
-sleep 90
+sleep 80
 view_tab "53-h2o2-relaxed-scan" "Relaxed Scan"
+frames "53-scan-playing" 1.8
 print_shot "53-h2o2-relaxed-scan"
 view_tab "54-h2o2-scan-summary" "Summary"
 view_tab "55-h2o2-scan-output" "Output"
-relaunch -appearanceChoice dark -psilabMolecule H2O2 -psilabBasis aug-cc-pVDZ -psilabMethod RHF -psilabJob scan -psilabScan "D 3 1 2 4 S 6 30" -psilabScanStart 0 -psilabAutoRun YES -psilabTab scan -psilabPlaySteps YES
-sleep 90
-view_tab "56-h2o2-scan-playing-dark" "Relaxed Scan"
-frames "56-scan-playing" 1.8
 
 echo "== NH3 RHF/aug-cc-pVDZ inversion transition state (ts+freq from H-N-H 119 degrees)"
 relaunch -appearanceChoice light -psilabMolecule NH3 -psilabBasis aug-cc-pVDZ -psilabMethod RHF -psilabJob ts+freq -psilabAngle 119 -psilabAutoRun YES
