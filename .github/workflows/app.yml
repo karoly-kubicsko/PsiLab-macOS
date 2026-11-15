@@ -131,7 +131,8 @@ jobs:
       # permissions on the runner decide how much it can see).
       - name: UI smoke test (launch, screenshots, tab text, menus)
         continue-on-error: true
-        timeout-minutes: 40
+        # 7.0 adds relaxed scans, transition states and orbitals: about 50 minutes in all
+        timeout-minutes: 80
         run: bash xcode/ci/ui_smoke.sh "build/app/ΨLab.app" ui-smoke
 
       - uses: actions/upload-artifact@v4

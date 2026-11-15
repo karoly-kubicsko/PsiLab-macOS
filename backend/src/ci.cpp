@@ -768,6 +768,9 @@ FCIResultGeneral run_fci_determinants(const MOIntegrals& mo, int na, int nb, dou
             for (std::size_t q = 0; q < n; ++q) total(p, q) = 0.5 * (gamma(p, q) + gamma(q, p)) * 2.0;
         const EigenResult ne = symmetric_eigen(total);
         r.natural_occupations.assign(ne.values.rbegin(), ne.values.rend());
+        r.natural_orbitals = Matrix(n, n);
+        for (std::size_t k = 0; k < n; ++k)
+            for (std::size_t p = 0; p < n; ++p) r.natural_orbitals(p, k) = ne.vectors(p, n - 1 - k);
     }
     if (opt.keep_vector) r.vector = x;
     r.ci_seconds = seconds_since(t0);

@@ -49,6 +49,8 @@ struct MacQCApp: App {
                     .keyboardShortcut("3", modifiers: [.command])
                 Button("Full CI") { model.show(.methods, methods: .fullCI) }
                     .keyboardShortcut("4", modifiers: [.command])
+                Button("Orbitals") { model.show(.methods, methods: .orbitals) }
+                    .keyboardShortcut("o", modifiers: [.command, .option])
                 Button("Optimisation") { model.show(.optimization) }
                     .keyboardShortcut("5", modifiers: [.command])
                 Button("Frequencies") { model.show(.frequencies, vibration: .frequencies) }

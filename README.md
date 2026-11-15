@@ -1,33 +1,37 @@
 # ΨLab — a native macOS quantum-chemistry app
 
-**Current version: 6.0** — see [Versions](#versions).
+**Current version: 7.0** — see [Versions](#versions).
 
 ΨLab computes small molecules with restricted Hartree–Fock, coupled cluster and Full CI:
 
-- **H₂, LiH and H₂O** in the correlation-consistent basis sets aug-cc-pVXZ and aug-cc-pCVXZ
-  (X = D, T, Q, 5; spherical Gaussians up to h functions, from basissetexchange.org) with the
-  methods **HF, CCSD, CCSD(T), CCSDT, CCSDTQ and Full CI** (all electrons correlated): RHF and
-  CCSD(T) for all of them, CCSDT and CCSDTQ where they fit into memory, Full CI for H₂ and LiH
-  where it is feasible. Before a calculation ΨLab shows its size (basis functions, two-electron
-  integrals, amplitudes, determinants), memory and estimated time; it warns about long
-  calculations and refuses impossible ones with an explanation (e.g. Full CI for H₂O:
+- **H₂, LiH, H₂O, H₂O₂, NH₃ and HeH⁺** in the correlation-consistent basis sets aug-cc-pVXZ and
+  aug-cc-pCVXZ (X = D, T, Q, 5; spherical Gaussians up to h functions, from basissetexchange.org)
+  with the methods **HF, CCSD, CCSD(T), CCSDT, CCSDTQ and Full CI** (all electrons correlated):
+  RHF and CCSD(T) for all of them, CCSDT and CCSDTQ where they fit into memory, Full CI where it
+  is feasible (H₂, HeH⁺, LiH). Before a calculation ΨLab shows its size (basis functions,
+  two-electron integrals, amplitudes, determinants), memory and estimated time; it warns about
+  long calculations and refuses impossible ones with an explanation (e.g. Full CI for H₂O:
   5.6·10¹¹ determinants already in aug-cc-pVDZ).
-- **HeH⁺** in a minimal STO-nG basis (n = 1, 2, 3), the Szabo–Ostlund calculation: Hartree–Fock
-  identical to the book's program, Full CI with all states and their spin.
+- **HeH⁺** also in a minimal STO-nG basis (n = 1, 2, 3), the Szabo–Ostlund calculation:
+  Hartree–Fock identical to the book's program, Full CI with all states and their spin.
 
-For H₂, LiH and H₂O it also **optimises geometries** (redundant internal coordinates, analytic
-gradients for HF, CCSD, CCSD(T) and Full CI), computes **harmonic frequencies, IR intensities and
-thermochemistry** (analytic RHF Hessian; numerical Hessians from analytic gradients or energies
-for the correlated methods) and runs the job types *energy*, *optimisation*, *frequencies*,
-*optimisation + frequencies* and *optimisation + frequencies + single-point energy*, each with a
-complete output file that is written while the job runs.
+For these molecules it **optimises geometries** (redundant internal coordinates, analytic gradients
+for HF, CCSD, CCSD(T) and Full CI), finds **transition states** (Gaussian's Opt=TS: partitioned RFO
+with a computed Hessian, CalcFC or CalcAll), runs **relaxed potential-energy scans** of a bond, an
+angle or a dihedral angle (Gaussian's Opt=ModRedundant), computes **harmonic frequencies, IR
+intensities and thermochemistry** (analytic RHF Hessian; numerical Hessians from analytic
+gradients or energies for the correlated methods; point groups up to D₃ₕ) and runs nine job types,
+from *energy* to *TS optimisation + frequencies + single-point energy*, each with a complete
+output file that is written while the job runs.
 
 It shows energies, orbital energies, SCF, coupled-cluster and Davidson iterations, the largest
-cluster amplitudes, the leading CI determinants and natural-orbital occupations, every
-optimisation step with a drawing of the molecule (played step by step), every normal mode as an
-animation, thermochemical tables and the output file, and scans
-potential-energy curves with the minima marked. SwiftUI with Liquid Glass on macOS 26; runs on macOS 14 and later, on Apple
-Silicon and Intel Macs. The same calculations run in the terminal on Linux and macOS
+cluster amplitudes, the leading CI determinants and natural-orbital occupations, the **molecular
+orbitals** (canonical RHF orbitals and Full CI natural orbitals as rotatable isosurfaces or as
+contour plots), every optimisation step with a drawing of the molecule (played step by step), the
+relaxed scan with the molecule at every point, every normal mode as an animation, thermochemical
+tables and the output file, and scans potential-energy curves with the minima marked. SwiftUI
+with Liquid Glass on macOS 26; runs on macOS 14 and later, on Apple Silicon and Intel Macs. The
+same calculations run in the terminal on Linux and macOS
 ([`psilab`](#terminal-version-linux-and-macos)).
 
 ![App icon](app/icon/AppIcon-1024.png)
@@ -39,22 +43,37 @@ Silicon and Intel Macs. The same calculations run in the terminal on Linux and m
   request is under *Actions* ▸ *app* ▸ the run ▸ *Artifacts* ▸ **ΨLab-app** (kept 90 days; it
   contains `ΨLab.app.zip`). Unzip it; the app is not notarized: right-click `ΨLab.app` ▸ *Open*
   once, or run `xattr -dr com.apple.quarantine` on it.
-- **Sidebar**: the **molecule** (HeH⁺, H₂, LiH, H₂O) and, for H₂, LiH and H₂O:
+- **Sidebar**: the **molecule** (HeH⁺, H₂, LiH, H₂O, H₂O₂, NH₃) and, for all of them except HeH⁺
+  in STO-nG:
   - the **job** (a menu, in this order): 1 *Energy*, 2 *Geometry optimisation*, 3 *Frequencies*
     (at the input geometry; a warning if it is not a stationary point), 4 *Optimisation +
     frequencies* (frequencies at the optimised geometry), 5 *Optimisation + frequencies +
     single-point energy* (the single point with its own method and basis set, by default the
-    same; the final energies add the thermal corrections). Jobs 4 and 5 stop with a message if the
-    optimisation does not converge;
-  - the geometry: bond length in Å and in bohr (both editable) and, for H₂O, the H–O–H angle —
-    the *starting* geometry of an optimisation; *Experimental geometry* restores 0.74144 Å (H₂),
-    1.5949 Å (LiH), 0.9572 Å and 104.52° (H₂O); after an optimisation the optimised values are
-    shown with **Use optimised geometry**, which copies them into the inputs;
+    same; the final energies add the thermal corrections), and (7.0) 6 *Relaxed scan*, 7 *TS
+    optimisation*, 8 *TS optimisation + frequencies* (exactly one imaginary frequency required),
+    9 *TS optimisation + frequencies + single-point energy*. Jobs 4, 5, 8 and 9 stop with a message
+    if the optimisation does not converge;
+  - the geometry — the *starting* geometry of an optimisation: the X–H bond length in Å and in
+    bohr (both editable); H₂O the H–O–H angle; H₂O₂ R(O–O), the O–O–H angle and the H–O–O–H
+    dihedral angle (C₂; 0° cis, 180° trans); NH₃ the H–N–H angle (C₃ᵥ; 120° planar). The reset
+    button restores 0.74144 Å (H₂), 1.5949 Å (LiH), 0.9572 Å and 104.52° (H₂O), 1.4556 Å, 0.9670 Å,
+    102.32° and 113.70° (H₂O₂), 1.012 Å and 106.7° (NH₃), 1.4632 bohr (HeH⁺); after an optimisation
+    the optimised values (or the transition state) are shown with **Use optimised geometry**, which
+    copies them into the inputs;
+  - job 6, the **scanned coordinate**: suggested scans of the molecule (H₂O₂ torsion 0–180°, NH₃
+    umbrella to the planar molecule, H₂O bend to 180°, bonds), or the type (bond, angle, dihedral)
+    and its atoms, the start (the input value or a given one, Å or degrees), the number of steps and
+    the step size; the sidebar shows the coordinate's value at the input geometry, the range and
+    the equivalent Gaussian input line (e.g. `D 3 1 2 4 S 18 10`);
+  - jobs 7–9, the **transition-state search**: the Hessian computed at the first step (CalcFC) or at
+    every step (CalcAll), and the eigenvalue test (exactly one negative eigenvalue; off = Gaussian's
+    NoEigenTest);
   - the **method** — HF, CCSD, CCSD(T), CCSDT, CCSDTQ or Full CI (a menu, in this order) — and
-    the **basis set** (aug-cc-pVDZ … aug-cc-pV5Z, aug-cc-pCVDZ … aug-cc-pCV5Z);
-  - job 5: the method and basis set of the single point; frequency jobs: temperature (K) and
-    pressure (Pa; buttons for 1 atm and 1 bar); optimisations: normal or tight convergence and
-    the maximum number of steps;
+    the **basis set** (aug-cc-pVDZ … aug-cc-pV5Z, aug-cc-pCVDZ … aug-cc-pCV5Z; for HeH⁺ also
+    STO-1G/2G/3G, which return to the Szabo–Ostlund calculation);
+  - jobs 5 and 9: the method and basis set of the single point; frequency jobs: temperature (K)
+    and pressure (Pa; buttons for 1 atm and 1 bar); optimisations, TS searches and the points of a
+    scan: normal or tight convergence and the maximum number of steps;
   - *Size of the calculation*, updated as you type: basis functions per atom, two-electron
     integrals (kept in memory or integral-direct), coupled-cluster amplitudes and memory, Full CI
     determinants and memory, and for jobs each step — how it is computed (analytic, or numerical
@@ -64,9 +83,10 @@ Silicon and Intel Macs. The same calculations run in the terminal on Linux and m
     red explanation when the calculation is not possible (then **Run** is disabled); the run bar and,
     before the first result, the detail area repeat the refusal or the long-calculation warning.
 
-  For HeH⁺: R in Å and bohr, Slater exponents ζ(He) and ζ(H), STO-1G/2G/3G, the exact-erf option;
-  *Reset to Szabo–Ostlund defaults* restores R = 1.4632 bohr, ζ = 2.0925 / 1.24, STO-3G. Below:
-  the appearance (System / Light / Dark).
+  For HeH⁺ in STO-nG: R in Å and bohr, the basis set (STO-1G/2G/3G or a correlation-consistent
+  set, which switches to the general calculation above), Slater exponents ζ(He) and ζ(H), the
+  exact-erf option; *Reset to Szabo–Ostlund defaults* restores R = 1.4632 bohr, ζ = 2.0925 / 1.24,
+  STO-3G. Below: the appearance (System / Light / Dark).
 - **Run** (⌘R) calculates on all processor cores. A job estimated to take longer than 30 s asks
   for confirmation first; while it runs, the sidebar shows one progress line (for example
   "Optimisation step 4 · E = -76.0418435426 E_h · max force 1.10e-04", "Hessian: displacement 3
@@ -78,10 +98,17 @@ Silicon and Intel Macs. The same calculations run in the terminal on Linux and m
   - *Methods*, with the pages *Hartree–Fock* (energy components and virial ratio, orbital
     energies, SCF iterations; for HeH⁺ also the integrals and the S/H/F/C/P matrices), *Coupled
     cluster* (energies, (T) correction, T1 diagnostic, amplitude counts and norms, largest
-    amplitudes, convergence) and *Full CI* (energies, ⟨S²⟩, leading determinants, natural-orbital
-    occupations, Davidson iterations; for HeH⁺ the CI vector, singlet weights and all states);
-  - *Optimisation*: the **molecule of each step**, drawn in its plane to the same scale for all
-    steps, with the bond lengths in Å and, for H₂O, the H–O–H angle (the starting geometry dashed),
+    amplitudes, convergence), *Full CI* (energies, ⟨S²⟩, leading determinants, natural-orbital
+    occupations, Davidson iterations; for HeH⁺ the CI vector, singlet weights and all states) and
+    (7.0) *Orbitals*: the canonical RHF orbitals (all occupied ones and up to ten virtual ones) and,
+    after Full CI, its natural orbitals, as an energy-level diagram (occupied levels ↑↓, degenerate
+    ones side by side, HOMO and LUMO marked) and a table (ε in Eₕ and eV, occupation); the chosen
+    orbital as **isosurfaces** ψ = ±c (blue positive, red negative, with the molecule; drag to
+    rotate, scroll to zoom; isovalue 0.002–0.5 a.u., default 0.05) or as a **contour plot** in the
+    molecular plane or a plane of two principal axes (contours at ±c·2ᵏ, the nodal line dotted,
+    the nuclei projected);
+  - *Optimisation*: the **molecule of each step**, drawn in its plane (H₂O₂ and NH₃ in a tilted
+    view, the nearer atoms larger) to the same scale for all steps, with the bond lengths in Å and, for H₂O, the H–O–H angle (the starting geometry dashed),
     next to the step's energy, ΔE, maximum force and geometry; the buttons and the slider go to the
     first, previous, next or last step, **Play steps** shows the steps one after the other (0.7 s
     each, the last held 1.6 s, then from the start); then the start and optimised parameters with
@@ -89,29 +116,40 @@ Silicon and Intel Macs. The same calculations run in the terminal on Linux and m
     and RMS force and step, converged; a click on a step number shows that step), the energy and
     maximum-force charts (logarithmic, with the threshold; the shown step is marked) and, for the
     shown step, its Cartesian geometry, internal coordinates (value, force, step) and convergence
-    table; **Use optimised geometry as input**;
+    table; **Use optimised geometry as input**. For a transition-state search also the number of
+    negative Hessian eigenvalues of every step, the eigenvalues, the followed mode (eigenvalue,
+    gradient component, overlap with the previous one, largest components) and the shifts λp, λn of
+    the partitioned RFO step;
   - *Frequencies*, with the pages *Frequencies* (**every normal mode as an animation**: the atoms
     vibrate about the equilibrium geometry (dashed) along the mode, at a speed proportional to its
     wavenumber, with *Play*/*Pause*, the amplitude (at 1 the largest atomic displacement is a
     quarter of the shortest bond) and arrows to the turning points; the table of modes with
     symmetry, wavenumber (imaginary in red), reduced mass, force constant and IR intensity; the IR
     stick spectrum, the selected mode in orange; how the Hessian was computed — analytic, or
-    numerical with the displaced coordinates and the number of gradients or energies —, isotopes)
+    numerical with the displaced coordinates and the number of gradients or energies —, isotopes;
+    7.0: the point group and, after a TS search, whether exactly one frequency is imaginary — its
+    mode is selected and animated)
     and
     *Thermochemistry* (ZPE and the thermal corrections to U, H, A, G in Eₕ, kcal/mol and kJ/mol;
     E + ZPE, U, H, A, G; E, C_V and S by contribution in kcal/mol, cal/(mol K) and J/(mol K);
     moments of inertia, rotational constants and temperatures, vibrational temperatures);
-  - *Curve*: the potential-curve scan (single-point energies whatever the job; a selectable step
-    in Å — H₂O as a symmetric stretch — with the RHF minimum and that of the selected correlated
-    method; long scans ask for confirmation and can be stopped);
+  - *Scan*, with the pages *Relaxed scan* (7.0: the energy along the scanned coordinate in kcal/mol
+    above the lowest point, with the parabolic minima and maxima; the optimised molecule at every
+    point, played point by point; the table of points — target and measured value, energy, steps,
+    maximum force; **Start a TS search from this point** copies its geometry into the inputs and
+    selects job 8, Gaussian's route from a scan maximum to Opt=TS) and *Potential curve* (single-point
+    energies whatever the job; a selectable step in Å — all X–H bonds stretched together at the
+    other inputs — with the RHF minimum and that of the selected correlated method; long scans ask
+    for confirmation and can be stopped);
   - *Output*: the output file, streamed while the job runs (it follows the end while *Follow
     output* is on), selectable, with a search field (Return: next match; arrows: next and
     previous); for HeH⁺ the FORTRAN-style report.
 
   *View* switches tabs and pages: Summary ⌘1, Hartree–Fock ⌘2, Coupled Cluster ⌘3, Full CI ⌘4,
-  Optimisation ⌘5, Frequencies ⌘6, Thermochemistry ⌘7, Potential Curve ⌘8, Output ⌘9.
-- **Menus**: *File ▸ Export Results as Text…* (⇧⌘E) saves, for H₂, LiH and H₂O, the output file
-  of the job — exactly the text of the *Output* tab and of `psilab` — and for HeH⁺ the summary, the
+  Orbitals ⌥⌘O, Optimisation ⌘5, Frequencies ⌘6, Thermochemistry ⌘7, Relaxed Scan ⌘0, Potential
+  Curve ⌘8, Output ⌘9.
+- **Menus**: *File ▸ Export Results as Text…* (⇧⌘E) saves, for the general calculations, the
+  output file of the job — exactly the text of the *Output* tab and of `psilab` — and for HeH⁺ the summary, the
   FORTRAN-style report and, after a scan, the potential-curve table; *File ▸ Export Results as
   JSON…* (⌥⇧⌘E) saves the results as JSON; *File ▸ Export Potential Curve as Text…* saves the scan
   table with its minima; *Edit ▸ Copy Summary as Text* (⇧⌘C) copies the short summary.
@@ -119,6 +157,23 @@ Silicon and Intel Macs. The same calculations run in the terminal on Linux and m
   `xcode/project.yml`).
 
 ## Versions
+
+### 7.0
+- **Relaxed potential-energy scans** (job 6, Gaussian's `Opt=ModRedundant` with `S`): a bond, an
+  angle or a dihedral angle is frozen at start, start + step, … and everything else is optimised;
+  the summary table gives the energies in kcal/mol and kJ/mol and the minima and maxima.
+- **Transition states** (jobs 7–9, Gaussian's `Opt=TS`): partitioned RFO (Baker 1986) in redundant
+  internal coordinates, the Hessian computed at the first step (CalcFC) or at every step
+  (CalcAll), Bofill updates, trust radius 0.30, the eigenvalue test; then frequencies with exactly
+  one imaginary mode and, in job 9, a single-point energy at the transition state.
+- **H₂O₂ and NH₃** (nitrogen in all basis sets; improper torsions for the umbrella; point groups
+  C₁ … D₃ₕ with symmetry species and symmetry numbers); **HeH⁺** in the correlation-consistent
+  basis sets with every method and job type.
+- **Molecular orbitals** in the app: canonical RHF orbitals and Full CI natural orbitals as
+  isosurfaces or contour plots, computed by the backend and checked against PySCF.
+- The app: the scan and TS settings, the *Scan* tab with the relaxed scan, the TS steps and the
+  transition-state check, drawings of non-planar molecules. See
+  [Relaxed scans, transition states, H₂O₂, NH₃ and orbitals](#relaxed-scans-transition-states-h2o2-nh3-and-orbitals-version-70).
 
 ### 6.0
 The molecule of each geometry-optimisation step is drawn in the *Optimisation* tab (bond lengths,
@@ -249,6 +304,25 @@ pressure = 101325 Pa         # and pressure (Pa, kPa, MPa, bar, atm or Torr)
 opt_convergence = normal     # normal | tight (optimisation criteria, see below)
 max_steps = 50               # optimisation steps
 ```
+
+Version 7.0 adds H₂O₂ and NH₃, HeH⁺ in the correlation-consistent basis sets, relaxed scans and
+transition-state searches:
+
+```text
+molecule = H2O2              # H2O2: O1, O2, H3 (on O1), H4 (on O2); NH3: N1, H2, H3, H4
+R        = 0.9670 angstrom   # O-H (H2O2) or N-H (NH3); default 0.9670 / 1.012 Å
+R_OO     = 1.4556 angstrom   # H2O2: O-O
+angle    = 102.32            # degrees: O-O-H (H2O2) or H-N-H (NH3, 120 = planar); default 102.32 / 106.7
+dihedral = 113.70            # H2O2: H-O-O-H in degrees (IUPAC sign; 0 cis, 180 trans)
+job      = scan              # also: ts, ts+freq, ts+freq+sp (Opt=TS; 7, 8, 9)
+scan     = D 3 1 2 4 S 18 10 # Gaussian ModRedundant: [B|A|D] N1 N2 [N3 [N4]] S nsteps stepsize (Å or degrees)
+scan_start = 0               # first value (Å, bohr or degrees); default: the value of the input geometry
+ts_hessian = calcfc          # ts jobs: calcfc (Hessian at the first step) or calcall (at every step)
+eigen_test = yes             # ts jobs: stop unless the Hessian has exactly one negative eigenvalue
+```
+
+`molecule = HeH+` with a correlation-consistent `basis` runs the general calculation (all methods
+and job types); with STO-1G, STO-2G or STO-3G it remains the Szabo–Ostlund calculation.
 
 The job keys and the output file are described under
 [Job types and the output file](#job-types-and-the-output-file-version-50). For H₂, LiH and H₂O
@@ -788,6 +862,77 @@ Verification (`backend/tests/test_jobs.cpp`, `backend/tests/test_psilab.cpp`):
   "calculation cancelled" and the output says so);
 - `psilab`: all new keys and their errors, the streamed text equals the output file.
 
+### Relaxed scans, transition states, H2O2, NH3 and orbitals (version 7.0)
+
+**Relaxed scans** (job `scan`) follow Gaussian's `Opt=ModRedundant`: the line
+`N1 N2 [N3 [N4]] S nsteps stepsize` (two atoms a bond, three an angle, four a dihedral angle; the
+letters B, A, D may precede them) gives nsteps + 1 points, the first at the input value or at
+`scan_start`. At each point the coordinate is frozen and the others are optimised, starting from
+the previous point's geometry, orbitals and BFGS-updated Hessian. Frozen coordinates use the
+projector P̃ = P − PC(CᵀPC)⁻¹CᵀP (Peng, Ayala, Schlegel and Frisch, *J. Comput. Chem.* 17, 49
+(1996)) for the RFO step and the convergence test, and a correction PC(CᵀPC)⁻¹(target − q) drives the
+coordinate to its value; an angle frozen at 180° is imposed through its two linear-bend
+components. The redundant internal coordinates now include torsions (IUPAC sign, Blondel–Karplus
+B rows, differences reduced to (−π, π]) and improper torsions at atoms with three bonds (the
+umbrella of NH₃). The summary table gives E, ΔE in kcal/mol and kJ/mol, the steps per point and the
+other parameters along the scan, and minima and maxima from parabolas through three points.
+Diatomics have nothing else to relax: their scan is a series of single points.
+
+**Transition states** (jobs `ts`, `ts+freq`, `ts+freq+sp`) follow Gaussian's `Opt=TS`: the Hessian
+is computed at the first point (CalcFC) or at every point (CalcAll) — analytic for RHF, central
+differences of analytic gradients for CCSD, CCSD(T) and Full CI — and transformed to internal
+coordinates as H_q = G⁻B(H_x − K)BᵀG⁻; between computed Hessians Bofill updates (Murtagh–Sargent and
+Powell mixed with φ = (ξ·s)²/((ξ·ξ)(s·s))). The partitioned RFO step (Baker, *J. Comput. Chem.* 7,
+385 (1986)) maximises along the followed mode (the lowest at the first step, then the one with the
+largest overlap with the previous) and minimises along all others; the trust radius stays at 0.30
+bohr/rad. The eigenvalue test stops the search unless the Hessian has exactly one negative
+eigenvalue (`eigen_test = no`: Gaussian's NoEigenTest). `ts+freq` ends with an error unless the
+frequencies give exactly one imaginary mode; `ts+freq+sp` adds a single point at the transition
+state, and its U, H, G and A are that energy plus the thermal corrections.
+
+**H₂O₂ and NH₃**: H₂O₂ (O1, O2, H3 on O1, H4 on O2; C₂ axis along z) from R(O–O), R(O–H), the
+O–O–H angle and the H–O–O–H dihedral angle (defaults 1.4556 Å, 0.9670 Å, 102.32°, 113.70°); NH₃
+(N1, H2–H4; C₃ᵥ) from R(N–H) and the H–N–H angle (1.012 Å, 106.7°; 120° gives the planar D₃ₕ
+molecule). Nitrogen is in all eight basis files (BSE 0.12, the same data as the other elements).
+Point groups C₁, Cₛ, Cᵢ, C₂, C₂ᵥ, C₂ₕ, C₃, C₃ᵥ and D₃ₕ are found from the symmetry operations (to
+2·10⁻³ bohr, tightened if needed), the species of the normal modes from the characters, and the
+symmetry number of the rotational partition function is the number of proper rotations.
+
+**HeH⁺** with a correlation-consistent basis set runs the general calculation: every method and
+job type except the TS search, which is refused for all diatomics. He has no core-valence sets;
+aug-cc-pCVXZ falls back to aug-cc-pVXZ with a note.
+
+**Molecular orbitals**: the result contains the basis and the canonical RHF orbitals (all occupied
+ones and up to ten virtual ones) and, after Full CI, the natural orbitals (eigenvectors of the Full
+CI one-particle density, in AO coefficients C_RHF·U). The backend evaluates an orbital on a grid —
+spherical shells as Σ_m M(m, c) x^a y^b z^c Σ_p c_p e^(−α_p r²), the same solid harmonics as the
+integrals — and extracts the isosurfaces ψ = ±c by marching tetrahedra (six tetrahedra around the
+main diagonal of each cube, so neighbouring cubes split their faces alike; shared vertices). A
+coarse grid (0.5 bohr) finds the region |ψ| ≥ c/2, a grid of at most 400 000 points covers it with a
+margin of 1 bohr, and every vertex is then moved onto the exact isovalue by Newton steps along its
+normal, with the normal recomputed from the gradient of the orbital.
+
+Verification (all against independent PySCF/geomeTRIC calculations, in CI):
+
+| Check | Result |
+|---|---|
+| H₂O RHF scans, R(O–H) frozen at 0.85 and 1.20 Å; angle 90° … 180° | ≤ 2.1·10⁻¹⁰ Eₕ, ≤ 9.4·10⁻⁷ Å, ≤ 5·10⁻⁵° |
+| H₂O CCSD(T) scan point, R(O–H) frozen at 1.10 Å | 9.6·10⁻¹¹ Eₕ, 9.3·10⁻⁷ Å |
+| H₂O₂ torsion scan 0–180° (RHF), NH₃ umbrella to the planar molecule | ≤ 10⁻⁹ Eₕ |
+| RHF energies and gradients of H₂O₂ and NH₃ (aug-cc-pVDZ, aug-cc-pVTZ, aug-cc-pCVDZ) | ≤ 2·10⁻¹² Eₕ, ≤ 8·10⁻¹¹ Eₕ/bohr |
+| Tight optimisations of H₂O₂ and NH₃ (RHF, CCSD(T)) vs geomeTRIC | ≤ 5·10⁻⁷ Å, 7·10⁻⁴°, 10⁻¹¹ Eₕ |
+| Transition states vs geomeTRIC `transition=True`: trans and cis H₂O₂, planar NH₃ (RHF), NH₃ CCSD(T) | ≤ 3·10⁻¹⁰ Eₕ, ≤ 2·10⁻⁵ Å |
+| Imaginary frequencies vs PySCF's analytic Hessian: 312.41i (Aᵤ, C₂ₕ), 626.74i (A₂, C₂ᵥ), 871.98i cm⁻¹ (A₂″, D₃ₕ) | ≤ 0.13 cm⁻¹ |
+| Basis functions l = 0 … 5 (O, Li, He, H aug-cc-pV5Z; N aug-cc-pCV5Z): Σ_m φ_lm(r) φ_lm(r′) | ≤ 1.1·10⁻¹⁵ (relative) |
+| RHF orbitals of H₂O, NH₃, H₂O₂ at 24 points (up to the sign; NH₃ e pairs by Σψ²); density | ≤ 1.6·10⁻⁷; ≤ 6·10⁻¹⁰ (relative) |
+| Full CI natural orbitals of LiH: occupations; density Σ n_k χ_k²; Cᵀ S C = 1 | 1.6·10⁻⁸; 7.5·10⁻⁹; 4·10⁻¹⁴ |
+| Isosurfaces: |ψ| at the vertices of the H₂O HOMO after the Newton steps; a Gaussian sphere closed, oriented, volume | 1.5·10⁻⁷ (relative); 0.15 % |
+
+The CCSD(T)/aug-cc-pVDZ inversion barrier of NH₃ (planar transition state minus pyramidal minimum)
+is 5.77 kcal/mol. The scripts are `reference/pyscf_scan_reference.py`,
+`pyscf_molecules_reference.py`, `pyscf_ts_reference.py` and `pyscf_orbitals_reference.py`; the test
+programs `macqc_scan_tests`, `macqc_molecule_tests`, `macqc_ts_tests` and `macqc_orbital_tests`.
+
 ### Layout
 
 ```
@@ -803,14 +948,17 @@ backend/src/             linalg, integrals, scf, fci, report, calculation, api (
                          every method at any geometry); internal_coordinates, optimizer
                          (redundant internal coordinates, RFO, BFGS); hessian (analytic and
                          numerical Hessians, dipole derivatives), frequencies (normal modes,
-                         thermochemistry), constants (CODATA 2018, AME 2020)
+                         thermochemistry), constants (CODATA 2018, AME 2020); jobs (job types,
+                         relaxed scans, output file), symmetry (point groups, mode species),
+                         orbitals (orbital sets, grids, isosurfaces)
 backend/tools/           cc_diagrams.py: generates and verifies the coupled-cluster diagrams
 basis/                   Gaussian94 basis-set files from basissetexchange.org (+ README)
 backend/cli/main.cpp     developer command-line tool `macqc` (flags / JSON)
 backend/cli/psilab*      terminal version `psilab` (text input file -> text output file)
 examples/                example input files for `psilab` (heh.inp, h2o.inp)
 backend/tests/           test program (CTest), expected reports in tests/data/
-reference/               the verified Python reference (HeH+); PySCF reference scripts (H2, LiH, H2O)
+reference/               the verified Python reference (HeH+); PySCF reference scripts (H2, LiH, H2O,
+                         H2O2, NH3; scans, transition states, orbitals)
 third_party/nlohmann/    json.hpp (MIT)
 CMakeLists.txt           library + CLI + tests (for testing; Xcode compiles the sources directly)
 ```
@@ -925,6 +1073,23 @@ and `basis`; `temperature` in K (0 < T ≤ 10⁵), `pressure` in Pa; `optConverg
 `"tight"`; `maxSteps` 1–1000. With `"estimateOnly":true` the result's `job.estimate` lists the
 steps of the job (how each is computed, how many energies, gradients or steps, time, memory) and
 the refusal, if any.
+
+Version 7.0 adds the molecules `"H2O2"` and `"NH3"`, HeH⁺ in the correlation-consistent basis sets,
+the scan and the transition-state jobs:
+
+```json
+{"molecule":"H2O2","R":1.82737,"ROO":2.75069,"angle":102.32,"dihedral":113.70,
+ "job":"scan","scan":"D 3 1 2 4 S 18 10","scanStart":0,"tsHessian":"calcfc","eigenTest":true}
+```
+
+`ROO` (bohr) and `dihedral` (degrees, IUPAC sign) are those of H₂O₂; for H₂O₂ and NH₃ `R` is the
+X–H bond (bohr) and `angle` the O–O–H or H–N–H angle. `job` may also be `"scan"` (6), `"ts"` (7,
+also `"Opt=TS"`), `"ts+freq"` (8) or `"ts+freq+sp"` (9). `scan` is Gaussian's ModRedundant line
+`[B|A|D] N1 N2 [N3 [N4]] S nsteps stepsize` (step in Å or degrees; without the letter the number
+of atoms gives the type), `scanStart` the first value in Å or degrees (default: the input
+geometry's). `tsHessian` is `"calcfc"` or `"calcall"`, `eigenTest` `true` or `false`. For
+`"molecule":"HeH+"`, `"basis"` selects the calculation: a correlation-consistent set the general
+one, `"STO-1G"`, `"STO-2G"` or `"STO-3G"` (or no basis) the Szabo–Ostlund one.
 
 #### Output JSON
 
@@ -1045,6 +1210,49 @@ energy calculation of the job (the optimised geometry; for `opt+freq+sp` the sin
 `thermochemistry.totals` the energy is the job's final energy (for `opt+freq+sp` the single point)
 plus the thermal corrections of the frequency step.
 
+Version 7.0 adds:
+
+```text
+  "scan": {"coordinate":{"type","letter","atoms","definition","unit"},   // "angstrom" | "degrees"
+          "start","stepSize","steps","inputValue","relaxed","converged","message","lowest",
+          "highest","points":[{"index","value","measured","energy","relativeEnergy","converged",
+          "steps","maxForce","geometry","parameters","optimizationSteps":[{"step","energy",
+          "maxForce"}],"warnings","seconds"}],"extrema":[{"kind","index","value","energy"}],
+          "seconds"},
+  "optimization": {..., "transitionState","tsHessian","hessianEvaluations",
+          "negativeEigenvalues","eigenTestFailed",
+          "history":[{..., "ts":{"hessianEigenvalues","negativeEigenvalues","followedEigenvalue",
+                      "followedGradient","followedOverlap","followedMode","lambdaP","lambdaN",
+                      "hessianComputed"} | null}]},
+  "frequencies": {..., "pointGroup"},                          // "C2", "C2v", "C2h", "C3v", "D3h", …
+  "orbitals": {"basis","functions","atoms":[{"symbol","Z","position"}],
+          "shells":[{"l","atom","center","exponents","coefficients","first"}],
+          "sets":[{"kind","title","orbitals":[{"number","energy","occupation","label"}],
+                   "coefficients":[[AO coefficients] per orbital]}]}
+```
+
+Geometries (`geometry`, `initialGeometry`, …) of H₂O₂ also give `ROO`, `R1`, `R2`, `angle1`,
+`angle2` and `dihedral`, those of NH₃ `R1`–`R3`, `angle1`–`angle3` and `pyramidal`
+(360° − ΣH–N–H). `orbitals` (also for HeH⁺ in STO-nG, then with the two Szabo–Ostlund orbitals;
+`null` for an estimate or a refused calculation) belongs to the final calculation of the job: the
+shells' `coefficients` include the normalisation of the primitives and of the contraction, the
+functions of a shell are the real solid harmonics m = −l … l from `first` on. The C API draws an
+orbital from this object:
+
+```c
+char* macqc_orbital_surface(const char* orbitals_json, int set, int orbital, double isovalue,
+                            int max_points, macqc_mesh* positive, macqc_mesh* negative);
+char* macqc_orbital_plane(const char* orbitals_json, int set, int orbital, const double* origin,
+                          const double* u, const double* v, int nu, int nv, float* values);
+void macqc_mesh_free(macqc_mesh* mesh);
+```
+
+`macqc_orbital_surface` returns the isosurfaces ψ = +isovalue and ψ = −isovalue (`macqc_mesh`:
+vertex positions in bohr, unit normals pointing out of the lobe, triangles counter-clockwise seen
+from outside) on a grid of at most `max_points` points (0: 400 000); `macqc_orbital_plane` the
+orbital at origin + i·u + j·v (i < nu fastest). Both return `NULL` or an error message (free it
+with `macqc_free`).
+
 ### Adding to Xcode
 
 How the backend is wired into the ΨLab Xcode target (the full step-by-step guide for the app is
@@ -1123,9 +1331,16 @@ XcodeGen project spec in `xcode/project.yml`. See [`app/SETUP.md`](app/SETUP.md)
   a CCSD(T)/aug-cc-pVTZ single point, the Output tab while a job runs, Cancel and the refused
   CCSDTQ frequencies of H₂O; for 6.0 the molecule of the optimisation steps, still and while
   *Play steps* runs, and the animated normal modes of LiH and H₂O (two captures 0.3 s apart must
-  differ; a few screenshots are printed into the log as small JPEGs), selected with launch arguments `-psilabMolecule`, `-psilabBasis`,
-  `-psilabMethod`, `-psilabJob`, `-psilabSPMethod`, `-psilabSPBasis`, `-psilabR` (Å),
-  `-psilabAngle`, `-psilabTab`, `-psilabAutoRun`, `-psilabPlaySteps`; screenshots on the runner's 1024-pt-wide screen,
+  differ; a few screenshots are printed into the log as small JPEGs); for 7.0 HeH⁺ Full CI/aug-cc-pVTZ
+  optimisation + frequencies, the relaxed torsion scan of H₂O₂ (also played), the transition
+  states of NH₃ and H₂O₂ (CalcAll), the scan settings of NH₃, the refused TS search of LiH, and the
+  orbitals (isosurfaces of the H₂O HOMO and LUMO, a contour plot of NH₃, the natural orbitals of
+  HeH⁺ Full CI, the Szabo–Ostlund orbitals of HeH⁺), selected with launch arguments
+  `-psilabMolecule`, `-psilabBasis`, `-psilabMethod`, `-psilabJob`, `-psilabSPMethod`,
+  `-psilabSPBasis`, `-psilabR` (Å), `-psilabAngle`, `-psilabROO` (Å), `-psilabDihedral`,
+  `-psilabScan`, `-psilabScanStart`, `-psilabTSHessian`, `-psilabEigenTest`, `-psilabTab`,
+  `-psilabOrbital`, `-psilabOrbitalSet`, `-psilabOrbitalView`, `-psilabIsovalue`,
+  `-psilabAutoRun`, `-psilabPlaySteps`; screenshots on the runner's 1024-pt-wide screen,
   where the window has its minimum width of 1000 pt) and publishes the **ΨLab-app** download.
   Every build of `main` is also published as a GitHub Release, one per app version (tag
   `v<version>`, asset `PsiLab-<version>.app.zip`; a later build of the same version replaces it).

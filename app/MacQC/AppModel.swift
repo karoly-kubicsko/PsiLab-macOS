@@ -17,11 +17,12 @@ enum DetailTab: Hashable {
     case summary, methods, optimization, frequencies, potentialCurve, output
 }
 
-/// Pages of the Methods tab.
+/// Pages of the Methods tab (7.0: the molecular orbitals).
 enum MethodsPage: String, CaseIterable, Identifiable {
     case hartreeFock = "Hartree–Fock"
     case coupledCluster = "Coupled cluster"
     case fullCI = "Full CI"
+    case orbitals = "Orbitals"
     var id: String { rawValue }
 }
 
@@ -230,7 +231,11 @@ final class AppModel {
     var scanPage: ScanPage = .potentialCurve
     var vibrationPage: VibrationPage = .frequencies
     var isRunning = false
-    var result: MacQCOutput?
+    var result: MacQCOutput? {
+        didSet { resultSerial += 1 }
+    }
+    /// Changes with every new result (the orbital page starts afresh).
+    var resultSerial = 0
     var errorMessage: String?
     var progress = MacQCProgress()
     /// The backend's description of the current step ("Optimisation step 4 · E = … · max force …").
@@ -331,6 +336,9 @@ final class AppModel {
         if let t = defaults.string(forKey: "psilabTab") {
             switch t.lowercased() {
             case "methods": selectedTab = .methods
+            case "orbitals":
+                selectedTab = .methods
+                methodsPage = .orbitals
             case "optimisation", "optimization": selectedTab = .optimization
             case "frequencies": selectedTab = .frequencies
             case "thermochemistry":
