@@ -89,6 +89,8 @@ std::vector<double> lindh_model_hessian(const Molecule& m, const InternalCoordin
     for (const auto& c : ic.coordinates()) {
         double k = 0.0;
         if (c.type == InternalType::Stretch) k = 0.45 * rho(c.atoms[0], c.atoms[1]);
+        else if (c.type == InternalType::Dihedral)
+            k = 0.005 * rho(c.atoms[0], c.atoms[1]) * rho(c.atoms[1], c.atoms[2]) * rho(c.atoms[2], c.atoms[3]);
         else k = 0.15 * rho(c.atoms[0], c.atoms[1]) * rho(c.atoms[1], c.atoms[2]);
         h.push_back(std::max(k, 0.005));
     }
@@ -105,6 +107,12 @@ std::vector<double> schlegel_model_hessian(const Molecule& m, const InternalCoor
                       rb = period_row(m.atoms[static_cast<std::size_t>(c.atoms[1])].Z);
             const double d = distance(m, c.atoms[0], c.atoms[1]) - Btab[ra][rb];
             h.push_back(std::max(0.005, 1.734 / (d * d * d)));
+        } else if (c.type == InternalType::Dihedral) {
+            // F = A - B (R - R_cov) of the central bond, A = 0.0023, B = 0.07
+            const double r = distance(m, c.atoms[1], c.atoms[2]);
+            const double rcov = covalent_radius(m.atoms[static_cast<std::size_t>(c.atoms[1])].Z) +
+                                covalent_radius(m.atoms[static_cast<std::size_t>(c.atoms[2])].Z);
+            h.push_back(std::max(0.0023, 0.0023 - 0.07 * (r - rcov)));
         } else {
             const bool hydrogen = m.atoms[static_cast<std::size_t>(c.atoms[0])].Z == 1 ||
                                   m.atoms[static_cast<std::size_t>(c.atoms[2])].Z == 1;
@@ -122,7 +130,7 @@ std::vector<GeometricParameter> geometric_parameters(const Molecule& mol) {
         const InternalCoordinate& c = ic.coordinates()[i];
         if (c.type == InternalType::Stretch) {
             out.push_back({c.definition(mol), q[i], false});
-        } else if (c.type == InternalType::Bend) {
+        } else if (c.type == InternalType::Bend || c.type == InternalType::Dihedral) {
             out.push_back({c.definition(mol), q[i] * 180.0 / kPi, true});
         } else if (c.component == 0) {
             InternalCoordinate b = c;
@@ -145,6 +153,157 @@ std::vector<GeometricParameter> geometric_parameters(const Molecule& mol) {
     return out;
 }
 
+namespace {
+
+struct PrimitiveConstraint {
+    InternalCoordinate c;
+    double target = 0.0;
+};
+
+// A bend frozen at 180 degrees becomes its two linear-bend components, both 0.
+std::vector<PrimitiveConstraint> expand_constraints(const std::vector<CoordinateConstraint>& cs) {
+    std::vector<PrimitiveConstraint> out;
+    for (const auto& c : cs) {
+        if (c.coordinate.type == InternalType::Bend && std::fabs(c.target - kPi) < 1.0e-9) {
+            for (int k = 0; k < 2; ++k) {
+                PrimitiveConstraint p;
+                p.c = c.coordinate;
+                p.c.type = InternalType::LinearBend;
+                p.c.component = k;
+                p.target = 0.0;
+                out.push_back(p);
+            }
+        } else {
+            out.push_back({c.coordinate, c.target});
+        }
+    }
+    return out;
+}
+
+std::vector<InternalCoordinate> required_coordinates(const std::vector<PrimitiveConstraint>& pcs) {
+    std::vector<InternalCoordinate> r;
+    for (const auto& p : pcs) r.push_back(p.c);
+    return r;
+}
+
+// Projector onto the space that keeps the constraints, and the change that drives them to
+// their targets: P~ = P - P C (C' P C)^- C' P, dq_c = P C (C' P C)^- (target - q_c).
+struct ConstraintProjection {
+    Matrix Pt;
+    std::vector<double> dq_c;
+    std::vector<int> index;
+    double deviation = 0.0;
+};
+
+ConstraintProjection project_constraints(const InternalCoordinates& ic, const std::vector<double>& q, const Matrix& P,
+                                         const std::vector<PrimitiveConstraint>& pcs, double scale = 1.0) {
+    ConstraintProjection r;
+    const std::size_t nq = q.size(), nc = pcs.size();
+    r.Pt = P;
+    r.dq_c.assign(nq, 0.0);
+    if (nc == 0) return r;
+    std::vector<double> delta(nc);
+    for (std::size_t k = 0; k < nc; ++k) {
+        const int i = ic.find(pcs[k].c);
+        if (i < 0) throw std::runtime_error("internal error: a constrained coordinate is missing from the coordinate set");
+        r.index.push_back(i);
+        double d = pcs[k].target - q[static_cast<std::size_t>(i)];
+        if (pcs[k].c.type == InternalType::Dihedral) d = wrap_angle(d);
+        delta[k] = d;
+        r.deviation = std::max(r.deviation, std::fabs(d));
+    }
+    Matrix M(nc, nc);
+    for (std::size_t a = 0; a < nc; ++a)
+        for (std::size_t b = 0; b < nc; ++b)
+            M(a, b) = P(static_cast<std::size_t>(r.index[a]), static_cast<std::size_t>(r.index[b]));
+    const Matrix Mi = generalized_inverse(M, 1.0e-10);
+    // PC (nq x nc) = columns of P
+    Matrix PCM(nq, nc);  // P C M^-
+    for (std::size_t i = 0; i < nq; ++i)
+        for (std::size_t b = 0; b < nc; ++b) {
+            double s = 0.0;
+            for (std::size_t a = 0; a < nc; ++a) s += P(i, static_cast<std::size_t>(r.index[a])) * Mi(a, b);
+            PCM(i, b) = s;
+        }
+    for (std::size_t i = 0; i < nq; ++i)
+        for (std::size_t j = 0; j < nq; ++j) {
+            double s = 0.0;
+            for (std::size_t b = 0; b < nc; ++b) s += PCM(i, b) * P(static_cast<std::size_t>(r.index[b]), j);
+            r.Pt(i, j) -= s;
+        }
+    for (std::size_t i = 0; i < nq; ++i)
+        for (std::size_t b = 0; b < nc; ++b) r.dq_c[i] += PCM(i, b) * scale * delta[b];
+    return r;
+}
+
+struct Projectors {
+    Matrix B, G, Gi, P;
+    int rank = 0;
+};
+
+Projectors projectors(const InternalCoordinates& ic, const Molecule& x) {
+    Projectors p;
+    const std::size_t nq = ic.size(), n3 = 3 * x.atoms.size();
+    p.B = ic.wilson_b(x);
+    p.G = Matrix(nq, nq);
+    for (std::size_t i = 0; i < nq; ++i)
+        for (std::size_t j = 0; j < nq; ++j) {
+            double s = 0.0;
+            for (std::size_t k = 0; k < n3; ++k) s += p.B(i, k) * p.B(j, k);
+            p.G(i, j) = s;
+        }
+    p.Gi = generalized_inverse(p.G, 1.0e-8, &p.rank);
+    p.P = mat_mul(p.G, p.Gi);
+    return p;
+}
+
+}  // namespace
+
+Molecule apply_constraints(const Molecule& mol, const std::vector<CoordinateConstraint>& constraints, double* residual) {
+    // A bend set to 180 degrees goes to 179 degrees as a bend first (no change of the other
+    // coordinates), then to 180 through its linear-bend components, which are redundant with the
+    // other coordinates and would otherwise move them.
+    std::vector<CoordinateConstraint> first = constraints;
+    bool two_phases = false;
+    for (auto& c : first)
+        if (c.coordinate.type == InternalType::Bend && std::fabs(c.target - kPi) < 1.0e-9 &&
+            internal_value(mol, c.coordinate) < 179.0 * kPi / 180.0) {
+            c.target = 179.0 * kPi / 180.0;
+            two_phases = true;
+        }
+    const Molecule start = two_phases ? apply_constraints(mol, first, nullptr) : mol;
+    const std::vector<PrimitiveConstraint> pcs = expand_constraints(constraints);
+    const std::vector<InternalCoordinate> required = required_coordinates(pcs);
+    Molecule x = start;
+    double dev = 0.0;
+    for (int pass = 0; pass < 400; ++pass) {
+        const InternalCoordinates ic(x, required);
+        const std::vector<double> q = ic.values(x);
+        const Projectors pr = projectors(ic, x);
+        // largest remaining change per kind -> substep scale
+        double ds = 0.0, da = 0.0;
+        dev = 0.0;
+        for (const auto& pc : pcs) {
+            const int i = ic.find(pc.c);
+            if (i < 0) throw std::runtime_error("internal error: a constrained coordinate is missing");
+            double d = pc.target - q[static_cast<std::size_t>(i)];
+            if (pc.c.type == InternalType::Dihedral) d = wrap_angle(d);
+            dev = std::max(dev, std::fabs(d));
+            if (pc.c.type == InternalType::Stretch) ds = std::max(ds, std::fabs(d));
+            else da = std::max(da, std::fabs(d));
+        }
+        if (dev < 1.0e-10) break;
+        double scale = 1.0;
+        if (ds > 0.2) scale = std::min(scale, 0.2 / ds);
+        if (da > 20.0 * kPi / 180.0) scale = std::min(scale, 20.0 * kPi / 180.0 / da);
+        const ConstraintProjection cp = project_constraints(ic, q, pr.P, pcs, scale);
+        const BackTransform bt = back_transform(ic, x, cp.dq_c);
+        x = bt.molecule;
+    }
+    if (residual) *residual = dev;
+    return x;
+}
+
 OptimizationResult optimize_geometry(const Molecule& start, const BasisSet& basis, const std::string& method,
                                      const ElectronicOptions& eo, const OptimizationOptions& oo,
                                      const ElectronicCallbacks& cb, const OptimizationCallback& on_step) {
@@ -155,19 +314,24 @@ OptimizationResult optimize_geometry(const Molecule& start, const BasisSet& basi
     res.initial_parameters = geometric_parameters(start);
     res.symmetric_start = start.atoms.size() == 3 && c2v_deviation(start) < 1.0e-8;
     const ConvergenceCriteria& cc = res.criteria;
+    const std::vector<PrimitiveConstraint> pcs = expand_constraints(oo.constraints);
+    const std::vector<InternalCoordinate> required = required_coordinates(pcs);
+    const bool constrained = !pcs.empty();
+    const double constraint_threshold = 0.01 * cc.max_displacement;
 
     Molecule x = start;
-    InternalCoordinates ic(x);
+    InternalCoordinates ic(x, required);
     Matrix H;
     bool need_initial = true;
     std::vector<double> q_prev, g_prev;
     double e_prev = 0.0, predicted_prev = 0.0, step_prev = 0.0;
     double trust = oo.trust_radius;
     Matrix orbitals;
-    const Matrix* guess = nullptr;
+    const Matrix* guess = oo.guess_orbitals;
     int removed0 = -1;
     std::vector<double> negative_direction;  // of the initial analytic Hessian, if it had a negative eigenvalue
     double negative_curvature = 0.0;
+    bool first_build = true;
 
     for (int step = 1; step <= oo.max_steps; ++step) {
         check_cancelled();
@@ -207,43 +371,54 @@ OptimizationResult optimize_geometry(const Molecule& start, const BasisSet& basi
 
         // ---- internal coordinates, gradient
         if (ic.needs_rebuild(x)) {
-            ic = InternalCoordinates(x);
+            ic = InternalCoordinates(x, required);
             need_initial = true;
             q_prev.clear();
             rec.warnings.push_back("The internal coordinates were rebuilt (a bend crossed the linear threshold).");
         }
         const std::vector<double> q = ic.values(x);
         const std::size_t nq = q.size(), n3 = 3 * x.atoms.size();
-        const Matrix B = ic.wilson_b(x);
-        Matrix G(nq, nq);
-        for (std::size_t i = 0; i < nq; ++i)
-            for (std::size_t j = 0; j < nq; ++j) {
-                double s = 0.0;
-                for (std::size_t k = 0; k < n3; ++k) s += B(i, k) * B(j, k);
-                G(i, j) = s;
-            }
-        int rank = 0;
-        const Matrix Gi = generalized_inverse(G, 1.0e-8, &rank);
-        const Matrix P = mat_mul(G, Gi);
+        const Projectors pr = projectors(ic, x);
+        const Matrix& B = pr.B;
+        const Matrix& Gi = pr.Gi;
+        const Matrix& P = pr.P;
         const std::vector<double> gq0 = internal_gradient(B, Gi, g.gradient);
-        std::vector<double> gq(nq, 0.0);
+        std::vector<double> gq(nq, 0.0);  // projected gradient of the full surface (Hessian updates)
         for (std::size_t i = 0; i < nq; ++i)
             for (std::size_t j = 0; j < nq; ++j) gq[i] += P(i, j) * gq0[j];
+        const ConstraintProjection cp = project_constraints(ic, q, P, pcs);
+        const Matrix& Pt = cp.Pt;  // = P without constraints
+        std::vector<double> gt(nq, 0.0);  // gradient within the constrained space (step, convergence)
+        for (std::size_t i = 0; i < nq; ++i)
+            for (std::size_t j = 0; j < nq; ++j) gt[i] += Pt(i, j) * gq[j];
         for (const auto& c : ic.coordinates()) {
             rec.names.push_back(c.name());
             rec.definitions.push_back(c.definition(x));
         }
         rec.q = q;
-        rec.gq = gq;
+        rec.gq = constrained ? gt : gq;
+        rec.constrained = cp.index;
+        rec.constraint_deviation = cp.deviation;
 
-        // ---- Hessian: initial or BFGS
+        // ---- Hessian: initial (carried over, analytic or model) or BFGS
         if (need_initial || q_prev.size() != nq) {
+            bool carried = false;
+            if (first_build && oo.initial_hessian_matrix && oo.hessian_coordinates.size() == nq &&
+                oo.initial_hessian_matrix->rows() == nq) {
+                carried = true;
+                for (std::size_t i = 0; i < nq; ++i)
+                    if (!oo.hessian_coordinates[i].same_as(ic.coordinates()[i])) carried = false;
+            }
             std::string kind = oo.initial_hessian;
             if (kind == "auto")
                 kind = (method == "RHF" && bx.n_functions <= oo.analytic_hessian_max_functions) ? "analytic" : "lindh";
             if (kind == "analytic" && method != "RHF") kind = "lindh";
             H = Matrix(nq, nq);
-            if (kind == "analytic") {
+            if (carried) {
+                H = *oo.initial_hessian_matrix;
+                rec.hessian_update = "initial Hessian: " + oo.initial_hessian_label;
+                res.initial_hessian = oo.initial_hessian_label;
+            } else if (kind == "analytic") {
                 const RHFHessianResult hx = rhf_hessian(x, bx, g.point.rhf, eo.threads, eo.memory_mb, 1e-8);
                 Matrix Hc = hx.hessian;
                 const Matrix K = ic.b_derivative_contracted(x, gq0);
@@ -328,18 +503,19 @@ OptimizationResult optimize_geometry(const Molecule& start, const BasisSet& basi
             if (rec.delta_e > 1.0e-6)
                 rec.warnings.push_back(format("The energy rose by %.2e E_h; the trust radius is reduced.", rec.delta_e));
         }
+        first_build = false;
 
-        // ---- projected Hessian and RFO step
+        // ---- projected Hessian and RFO step (within the constrained space)
         Matrix Ht(nq, nq);
         {
-            const Matrix PH = mat_mul(mat_mul(P, H), P);
+            const Matrix PH = mat_mul(mat_mul(Pt, H), Pt);
             for (std::size_t i = 0; i < nq; ++i)
-                for (std::size_t j = 0; j < nq; ++j) Ht(i, j) = PH(i, j) + 1000.0 * ((i == j ? 1.0 : 0.0) - P(i, j));
+                for (std::size_t j = 0; j < nq; ++j) Ht(i, j) = PH(i, j) + 1000.0 * ((i == j ? 1.0 : 0.0) - Pt(i, j));
         }
         Matrix A(nq + 1, nq + 1);
         for (std::size_t i = 0; i < nq; ++i) {
             for (std::size_t j = 0; j < nq; ++j) A(i, j) = Ht(i, j);
-            A(i, nq) = A(nq, i) = gq[i];
+            A(i, nq) = A(nq, i) = gt[i];
         }
         const EigenResult ea = symmetric_eigen(A);
         std::vector<double> dq(nq, 0.0);
@@ -348,22 +524,25 @@ OptimizationResult optimize_geometry(const Molecule& start, const BasisSet& basi
         if (std::fabs(last) > 1.0e-8) {
             for (std::size_t i = 0; i < nq; ++i) dq[i] = ea.vectors(i, 0) / last;
         } else {
-            for (std::size_t i = 0; i < nq; ++i) dq[i] = -gq[i];
+            for (std::size_t i = 0; i < nq; ++i) dq[i] = -gt[i];
             rec.warnings.push_back("The RFO step was degenerate; a steepest-descent step is used.");
         }
         {
             std::vector<double> pdq(nq, 0.0);
             for (std::size_t i = 0; i < nq; ++i)
-                for (std::size_t j = 0; j < nq; ++j) pdq[i] += P(i, j) * dq[j];
+                for (std::size_t j = 0; j < nq; ++j) pdq[i] += Pt(i, j) * dq[j];
             dq = pdq;
         }
         if (step == 1 && !negative_direction.empty()) {
+            std::vector<double> nd(nq, 0.0);
+            for (std::size_t i = 0; i < nq; ++i)
+                for (std::size_t j = 0; j < nq; ++j) nd[i] += Pt(i, j) * negative_direction[j];
             double gv = 0.0;
-            for (std::size_t i = 0; i < nq; ++i) gv += gq[i] * negative_direction[i];
-            if (std::fabs(gv) < 1.0e-5) {
+            for (std::size_t i = 0; i < nq; ++i) gv += gt[i] * nd[i];
+            if (std::fabs(gv) < 1.0e-5 && norm(nd) > 0.5) {
                 // Saddle point along the negative-curvature direction with no gradient there
                 // (e.g. a linear H2O started at 180 degrees): leave it along that direction.
-                for (std::size_t i = 0; i < nq; ++i) dq[i] += 0.1 * negative_direction[i];
+                for (std::size_t i = 0; i < nq; ++i) dq[i] += 0.1 * nd[i];
                 rec.warnings.push_back(format(
                     "The starting geometry is a saddle point along a direction with negative curvature (%.4f E_h/unit^2) "
                     "and no gradient; the first step follows that direction.",
@@ -376,12 +555,18 @@ OptimizationResult optimize_geometry(const Molecule& start, const BasisSet& basi
             rec.step_scaled = true;
             sn = trust;
         }
+        // drive the frozen coordinates to their targets
+        for (std::size_t i = 0; i < nq; ++i) dq[i] += cp.dq_c[i];
+        if (constrained) sn = norm(dq);
         rec.trust_radius = trust;
         rec.step_norm = sn;
         double pred = 0.0;
-        for (std::size_t i = 0; i < nq; ++i) {
-            pred += gq[i] * dq[i];
-            for (std::size_t j = 0; j < nq; ++j) pred += 0.5 * dq[i] * Ht(i, j) * dq[j];
+        {
+            const Matrix PHP = mat_mul(mat_mul(P, H), P);
+            for (std::size_t i = 0; i < nq; ++i) {
+                pred += gq[i] * dq[i];
+                for (std::size_t j = 0; j < nq; ++j) pred += 0.5 * dq[i] * PHP(i, j) * dq[j];
+            }
         }
         rec.predicted_change = pred;
         rec.dq = dq;
@@ -389,8 +574,8 @@ OptimizationResult optimize_geometry(const Molecule& start, const BasisSet& basi
         // ---- convergence
         double mf = 0.0, rf = 0.0, md = 0.0, rd = 0.0;
         for (std::size_t i = 0; i < nq; ++i) {
-            mf = std::max(mf, std::fabs(gq[i]));
-            rf += gq[i] * gq[i];
+            mf = std::max(mf, std::fabs(gt[i]));
+            rf += gt[i] * gt[i];
             md = std::max(md, std::fabs(dq[i]));
             rd += dq[i] * dq[i];
         }
@@ -403,11 +588,15 @@ OptimizationResult optimize_geometry(const Molecule& start, const BasisSet& basi
                            {"RMS displacement", rd, cc.rms_displacement, rd < cc.rms_displacement, true},
                            {"Energy change", std::fabs(rec.delta_e), cc.energy,
                             step > 1 && std::fabs(rec.delta_e) < cc.energy, step > 1}};
+        if (constrained)
+            rec.convergence.push_back({"Constraint deviation", cp.deviation, constraint_threshold,
+                                       cp.deviation < constraint_threshold, true});
         const bool four = rec.convergence[0].met && rec.convergence[1].met && rec.convergence[2].met &&
                           rec.convergence[3].met;
         const bool energy_ok = step == 1 || rec.convergence[4].met;
+        const bool constraint_ok = !constrained || cp.deviation < constraint_threshold;
         const bool tiny_forces = mf < 0.01 * cc.max_force && rf < 0.01 * cc.rms_force;
-        rec.converged = (four && energy_ok) || tiny_forces;
+        rec.converged = ((four && energy_ok) || tiny_forces) && constraint_ok;
         report_progress(JobStage::Optimization, step, rec.energy, mf);
 
         if (rec.converged) {
@@ -420,7 +609,11 @@ OptimizationResult optimize_geometry(const Molecule& start, const BasisSet& basi
             res.final_point = std::move(g);
             res.final_geometry = x;
             res.final_energy = rec.energy;
-            res.message = format("Stationary point found after %d step%s.", step, step == 1 ? "" : "s");
+            res.final_constraint_deviation = cp.deviation;
+            res.message = constrained ? format("Constrained stationary point found after %d step%s.", step, step == 1 ? "" : "s")
+                                      : format("Stationary point found after %d step%s.", step, step == 1 ? "" : "s");
+            res.final_coordinates = ic.coordinates();
+            res.final_hessian = H;
             break;
         }
         // ---- take the step
@@ -442,6 +635,9 @@ OptimizationResult optimize_geometry(const Molecule& start, const BasisSet& basi
         res.final_point = std::move(g);
         res.final_geometry = x;
         res.final_energy = rec.energy;
+        res.final_constraint_deviation = cp.deviation;
+        res.final_coordinates = ic.coordinates();
+        res.final_hessian = H;
         res.steps = step;
         if (step == oo.max_steps) {
             res.message = format("The optimisation did not converge within %d steps.", oo.max_steps);

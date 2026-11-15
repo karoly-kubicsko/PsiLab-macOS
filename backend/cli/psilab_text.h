@@ -7,7 +7,11 @@
 //              or angstrom; default for H2, LiH, H2O: the experimental equilibrium value
 //   angle      H-O-H angle in degrees (H2O; default 104.52)
 //   method     HF | CCSD | CCSD(T) | CCSDT | CCSDTQ | FCI (H2, LiH, H2O; refused where impossible)
-//   job        energy (default) | opt | freq | opt+freq | opt+freq+sp     (H2, LiH, H2O)
+//   job        energy (default) | opt | freq | opt+freq | opt+freq+sp | scan     (H2, LiH, H2O)
+//   scan       job = scan: the Gaussian ModRedundant line N1 N2 [N3 [N4]] S nsteps stepsize
+//              (1-based atoms, optionally preceded by B, A or D; step in angstrom for a bond,
+//              degrees for an angle), e.g. 1 2 S 10 0.05 or 2 1 3 S 8 10.0
+//   scan_start value of the first scan point (angstrom or degrees; default: the input geometry)
 //   sp_method, sp_basis   method and basis set of the single point of opt+freq+sp
 //   temperature  K (default 298.15)       pressure  Pa (default 101325; units Pa, kPa, bar, atm)
 //   opt_convergence  normal | tight       max_steps  optimisation steps (default 50)

@@ -4,6 +4,8 @@
 #include <cctype>
 #include <chrono>
 #include <cmath>
+#include <cstdlib>
+#include <sstream>
 
 #include "macqc/cc.h"
 #include "macqc/constants.h"
@@ -96,6 +98,9 @@ std::string canonical_job_type(const std::string& type) {
     if (t == "freq" || t == "frequencies" || t == "frequency" || t == "3") return "freq";
     if (t == "opt+freq" || t == "optfreq" || t == "4") return "opt+freq";
     if (t == "opt+freq+sp" || t == "optfreqsp" || t == "5") return "opt+freq+sp";
+    if (t == "scan" || t == "relaxedscan" || t == "pesscan" || t == "relaxedpesscan" || t == "modredundant" ||
+        t == "optmodredundant" || t == "6")
+        return "scan";
     return "";
 }
 
@@ -104,12 +109,162 @@ std::string job_title(const std::string& t) {
     if (t == "freq") return "Frequencies";
     if (t == "opt+freq") return "Optimisation + frequencies";
     if (t == "opt+freq+sp") return "Optimisation + frequencies + single-point energy";
+    if (t == "scan") return "Relaxed potential energy surface scan";
     return "Energy";
 }
 
 bool job_has_optimization(const std::string& t) { return t == "opt" || t == "opt+freq" || t == "opt+freq+sp"; }
 bool job_has_frequencies(const std::string& t) { return t == "freq" || t == "opt+freq" || t == "opt+freq+sp"; }
 bool job_has_single_point(const std::string& t) { return t == "opt+freq+sp"; }
+bool job_has_scan(const std::string& t) { return t == "scan"; }
+bool job_uses_optimizer(const std::string& t) { return job_has_optimization(t) || job_has_scan(t); }
+
+std::string parse_scan_coordinate(const std::string& spec, int n_atoms, ScanCoordinate* out) {
+    std::string text;
+    for (char c : spec) text += (c == ',' || c == ';' || c == '(' || c == ')') ? ' ' : c;
+    std::vector<std::string> tok;
+    {
+        std::string cur;
+        for (char c : text) {
+            if (std::isspace(static_cast<unsigned char>(c))) {
+                if (!cur.empty()) tok.push_back(cur);
+                cur.clear();
+            } else {
+                cur += c;
+            }
+        }
+        if (!cur.empty()) tok.push_back(cur);
+    }
+    if (tok.empty()) return "the scan coordinate is empty (e.g. 1 2, 2 1 3 or B 1 2)";
+    std::string kind;
+    for (char c : tok[0]) kind += static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+    if (std::isdigit(static_cast<unsigned char>(tok[0][0]))) {
+        // no type letter: the number of atoms decides, as in Gaussian
+        const std::size_t n = tok.size();
+        if (n < 2 || n > 4)
+            return strprintf("a scan coordinate has 2 (bond), 3 (angle) or 4 (dihedral) atom numbers, got %zu", n);
+        tok.insert(tok.begin(), n == 2 ? "B" : (n == 3 ? "A" : "D"));
+        kind = n == 2 ? "b" : (n == 3 ? "a" : "d");
+    }
+    ScanCoordinate sc;
+    std::size_t need = 0;
+    if (kind == "b" || kind == "r" || kind == "bond" || kind == "stretch" || kind == "distance") {
+        sc.coordinate.type = InternalType::Stretch;
+        sc.letter = "B";
+        sc.kind = "bond";
+        need = 2;
+    } else if (kind == "a" || kind == "angle" || kind == "bend") {
+        sc.coordinate.type = InternalType::Bend;
+        sc.letter = "A";
+        sc.kind = "angle";
+        need = 3;
+    } else if (kind == "d" || kind == "dihedral" || kind == "torsion") {
+        sc.coordinate.type = InternalType::Dihedral;
+        sc.letter = "D";
+        sc.kind = "dihedral";
+        need = 4;
+    } else {
+        return "unknown scan coordinate type '" + tok[0] + "' (B = bond, A = angle, D = dihedral)";
+    }
+    if (tok.size() - 1 != need)
+        return strprintf("a %s needs %zu atom numbers, got %zu (e.g. %s)", sc.kind.c_str(), need, tok.size() - 1,
+                         need == 2 ? "B 1 2" : (need == 3 ? "A 2 1 3" : "D 3 1 2 4"));
+    for (std::size_t k = 1; k < tok.size(); ++k) {
+        char* end = nullptr;
+        const long v = std::strtol(tok[k].c_str(), &end, 10);
+        if (!end || *end != '\0') return "atom numbers must be integers, got '" + tok[k] + "'";
+        if (v < 1 || v > n_atoms) return strprintf("atom %ld does not exist (the molecule has %d atoms)", v, n_atoms);
+        const int a = static_cast<int>(v - 1);
+        if (std::find(sc.coordinate.atoms.begin(), sc.coordinate.atoms.end(), a) != sc.coordinate.atoms.end())
+            return strprintf("atom %ld appears twice in the scan coordinate", v);
+        sc.coordinate.atoms.push_back(a);
+    }
+    if (out) *out = sc;
+    return "";
+}
+
+std::string parse_scan_line(const std::string& line, int n_atoms, JobSettings* settings) {
+    std::istringstream in(line);
+    std::vector<std::string> tok;
+    for (std::string t; in >> t;) tok.push_back(t);
+    std::size_t sp = tok.size();
+    for (std::size_t i = 0; i < tok.size(); ++i)
+        if (tok[i] == "S" || tok[i] == "s") sp = i;
+    if (sp == tok.size() || tok.size() != sp + 3)
+        return "expected '[B|A|D] N1 N2 [N3 [N4]] S nsteps stepsize' (Gaussian ModRedundant), e.g. '1 2 S 10 0.05' or "
+               "'3 1 2 4 S 18 10.0'";
+    std::string coord;
+    for (std::size_t i = 0; i < sp; ++i) coord += (coord.empty() ? "" : " ") + tok[i];
+    ScanCoordinate sc;
+    const std::string e = parse_scan_coordinate(coord, n_atoms, &sc);
+    if (!e.empty()) return e;
+    char* end = nullptr;
+    const double n = std::strtod(tok[sp + 1].c_str(), &end);
+    if (!end || *end != '\0' || n != std::floor(n) || n < 1 || n > 360)
+        return "the number of scan steps must be an integer from 1 to 360, got '" + tok[sp + 1] + "'";
+    const double step = std::strtod(tok[sp + 2].c_str(), &end);
+    if (!end || *end != '\0' || !std::isfinite(step) || step == 0.0)
+        return "the scan step size must be a non-zero number, got '" + tok[sp + 2] + "'";
+    if (settings) {
+        settings->scan_coordinate = coord;
+        settings->scan_steps = static_cast<int>(n);
+        settings->scan_step = sc.letter == "B" ? step / kBohrInAngstrom : step;
+    }
+    return "";
+}
+
+std::string plan_scan(const Molecule& mol, const JobSettings& s, ScanPlan* plan) {
+    ScanPlan pl;
+    const std::string e = parse_scan_coordinate(s.scan_coordinate, static_cast<int>(mol.atoms.size()), &pl.coordinate);
+    if (!e.empty()) return e;
+    pl.coordinate.definition = pl.coordinate.coordinate.definition(mol);
+    if (s.scan_steps < 1 || s.scan_steps > 360) return "the number of scan steps must be between 1 and 360";
+    if (!std::isfinite(s.scan_step) || s.scan_step == 0.0) return "the scan step must be a non-zero number";
+    const double deg = 180.0 / 3.14159265358979323846;
+    const InternalCoordinate& c = pl.coordinate.coordinate;
+    if (c.type == InternalType::Dihedral) {
+        InternalCoordinate b1, b2;
+        b1.type = b2.type = InternalType::Bend;
+        b1.atoms = {c.atoms[0], c.atoms[1], c.atoms[2]};
+        b2.atoms = {c.atoms[1], c.atoms[2], c.atoms[3]};
+        const double a1 = internal_value(mol, b1) * deg, a2 = internal_value(mol, b2) * deg;
+        if (a1 > 175.0 || a2 > 175.0 || a1 < 5.0 || a2 < 5.0)
+            return strprintf("the dihedral angle %s is not defined at this geometry (angles %.1f and %.1f degrees; both "
+                             "must be between 5 and 175)",
+                             pl.coordinate.definition.c_str(), a1, a2);
+    }
+    const double v0 = internal_value(mol, c) * (c.type == InternalType::Stretch ? 1.0 : deg);
+    pl.input_value = v0;
+    pl.start = s.scan_start ? *s.scan_start : v0;
+    pl.step = s.scan_step;
+    pl.steps = s.scan_steps;
+    if (!std::isfinite(pl.start)) return "the scan start must be a finite number";
+    if (c.type == InternalType::Stretch && std::fabs(pl.step) > 2.0) return "the scan step of a bond must be at most 2 bohr";
+    if (c.type != InternalType::Stretch && std::fabs(pl.step) > 90.0)
+        return "the scan step of an angle must be at most 90 degrees";
+    for (int k = 0; k <= pl.steps; ++k) {
+        const double v = pl.start + k * pl.step;
+        if (c.type == InternalType::Stretch) {
+            if (v < 0.3 - 1e-12 || v > 20.0 + 1e-12)
+                return strprintf("the scan reaches %s = %.4f bohr (%.4f Å); bonds must stay between 0.3 and 20 bohr",
+                                 pl.coordinate.definition.c_str(), v, v * kBohrInAngstrom);
+            pl.values.push_back(v);
+            pl.targets.push_back(v);
+        } else if (c.type == InternalType::Bend) {
+            if (v < 10.0 - 1e-9 || v > 180.0 + 1e-9)
+                return strprintf("the scan reaches %s = %.4f degrees; angles must stay between 10 and 180 degrees",
+                                 pl.coordinate.definition.c_str(), v);
+            const double vv = std::min(v, 180.0);
+            pl.values.push_back(vv);
+            pl.targets.push_back(std::fabs(vv - 180.0) < 1e-9 ? 3.14159265358979323846 : vv / deg);
+        } else {
+            pl.values.push_back(v);
+            pl.targets.push_back(wrap_angle(v / deg));
+        }
+    }
+    if (plan) *plan = pl;
+    return "";
+}
 
 JobEstimate estimate_job(const MolecularResult& p, const JobSettings& s, const MolecularResult* sp) {
     JobEstimate est;
@@ -144,6 +299,35 @@ JobEstimate estimate_job(const MolecularResult& p, const JobSettings& s, const M
         st.evaluation_kind = "steps";
         st.seconds = typical_steps * tg;
         if (m == "RHF" && nbf <= 100) st.seconds += 6.0 * tg;  // analytic initial Hessian
+        st.memory_mb = grad_mb;
+        est.steps.push_back(st);
+    }
+    if (job_has_scan(t)) {
+        JobStepEstimate st;
+        st.name = "Relaxed scan";
+        st.method = m;
+        st.basis = p.input.basis;
+        st.analytic = analytic;
+        const int points = std::max(1, s.scan_steps + 1);
+        if (p.molecule.atoms.size() == 2) {
+            st.how = strprintf("%d single-point energies (a diatomic has no other coordinate to relax)", points);
+            st.evaluations = points;
+            st.evaluation_kind = "energies";
+            st.seconds = points * e.total_seconds;
+            st.analytic = true;
+        } else {
+            // the first point from the input Hessian guess, later points start from the previous
+            // point's geometry and Hessian
+            const int first = typical_steps, later = 4;
+            const int total = first + later * (points - 1);
+            st.how = how + strprintf("; %d points, typically %d optimisation steps at the first and %d at each further "
+                                     "point (at most %d per point)",
+                                     points, first, later, s.max_steps);
+            st.evaluations = total;
+            st.evaluation_kind = "steps";
+            st.seconds = total * tg;
+            if (m == "RHF" && nbf <= 100) st.seconds += 6.0 * tg;  // analytic initial Hessian
+        }
         st.memory_mb = grad_mb;
         est.steps.push_back(st);
     }
@@ -201,13 +385,18 @@ JobEstimate estimate_job(const MolecularResult& p, const JobSettings& s, const M
     }
     for (const auto& st : est.steps) est.total_seconds += st.seconds;
     // refusals
+    if (est.refusal.empty() && job_has_scan(t)) {
+        ScanPlan plan;
+        const std::string why = plan_scan(p.molecule, s, &plan);
+        if (!why.empty()) est.refusal = "The scan is not possible: " + why + ".";
+    }
     if (est.refusal.empty() && m == "CCSDTQ" && p.molecule.name == "H2O") {
         const NumericalHessianCost c = numerical_hessian_cost(p.molecule, false, true);
         est.refusal = strprintf(
             "CCSDTQ %s for H2O is not possible: CCSDTQ has no analytic gradient, so %s would need %s CCSDTQ energies "
             "of %s each (%.1f GB of memory). Use CCSD(T) or CCSDT for the geometry and the frequencies, and CCSDTQ in "
             "the single-point step of job 5.",
-            job_has_frequencies(t) ? "frequencies" : "optimisation",
+            job_has_frequencies(t) ? "frequencies" : (job_has_scan(t) ? "scans" : "optimisation"),
             job_has_frequencies(t) ? "the Hessian" : "every optimisation step",
             job_has_frequencies(t) ? std::to_string(c.energies + c.field_energies).c_str() : "4",
             human_time(e.total_seconds).c_str(), e.cc ? e.cc->memory_bytes / 1073741824.0 : 0.0);
@@ -225,6 +414,10 @@ JobEstimate estimate_job(const MolecularResult& p, const JobSettings& s, const M
 }
 
 namespace {
+
+std::string scan_value_text(const ScanPlan& pl, double v) {
+    return pl.angular() ? strprintf("%.6f deg", v) : strprintf("%.8f Å (%.8f bohr)", v * kBohrInAngstrom, v);
+}
 
 // Text shared by both job paths.
 void write_header(OutputWriter& w, const JobSettings& s, const std::string& echo, int threads) {
@@ -392,6 +585,18 @@ std::string final_summary(const JobResult& r, const MolecularResult& final) {
     if (r.optimization)
         s += strprintf("    Optimisation: %s, %d steps\n", r.optimization->converged ? "converged" : "NOT converged",
                        r.optimization->steps);
+    if (r.scan && !r.scan->points.empty()) {
+        const ScanResult& sc = *r.scan;
+        const ScanPoint& lo = sc.points[static_cast<std::size_t>(sc.lowest)];
+        const ScanPoint& hi = sc.points[static_cast<std::size_t>(sc.highest)];
+        s += strprintf("    Relaxed scan of %s: %zu points (the final geometry is the last one); %s\n",
+                       sc.plan.coordinate.definition.c_str(), sc.points.size(), sc.message.c_str());
+        s += "      lowest point " + std::to_string(lo.index + 1) + " (" + scan_value_text(sc.plan, lo.value) +
+             strprintf("), E = %.10f E_h\n", lo.energy);
+        s += "      highest point " + std::to_string(hi.index + 1) + " (" + scan_value_text(sc.plan, hi.value) +
+             strprintf("), E = %.10f E_h, %.4f kcal/mol above the lowest\n", hi.energy,
+                       (hi.energy - lo.energy) * codata2018::kHartreeKcalPerMol);
+    }
     if (r.harmonic) {
         s += "    Harmonic wavenumbers (cm-1):";
         for (const auto& md : r.harmonic->modes)
@@ -516,6 +721,261 @@ JobResult run_energy_job(MolecularResult& p, const JobSettings& s, const OutputS
     return r;
 }
 
+namespace {
+
+// Local minima and maxima inside the scan, from the parabola through each point and its neighbours.
+std::vector<ScanExtremum> scan_extrema(const std::vector<ScanPoint>& pts) {
+    std::vector<ScanExtremum> out;
+    for (std::size_t i = 1; i + 1 < pts.size(); ++i) {
+        const double em = pts[i - 1].energy, e0 = pts[i].energy, ep = pts[i + 1].energy;
+        const bool mn = e0 < em && e0 < ep, mx = e0 > em && e0 > ep;
+        if (!mn && !mx) continue;
+        const double h = pts[i + 1].value - pts[i].value;
+        const double c = ep - 2.0 * e0 + em;
+        ScanExtremum x;
+        x.kind = mn ? "minimum" : "maximum";
+        x.index = static_cast<int>(i);
+        x.value = pts[i].value;
+        x.energy = e0;
+        if (std::fabs(c) > 1.0e-14) {
+            x.value = pts[i].value - 0.5 * h * (ep - em) / c;
+            x.energy = e0 - (ep - em) * (ep - em) / (8.0 * c);
+        }
+        out.push_back(x);
+    }
+    return out;
+}
+
+std::string scan_summary_block(const ScanResult& sr) {
+    const ScanPlan& pl = sr.plan;
+    std::string s;
+    if (sr.points.empty()) return s;
+    const double emin = sr.points[static_cast<std::size_t>(sr.lowest)].energy;
+    const std::string unit = pl.angular() ? "deg" : "Å";
+    s += strprintf("    Point  %16s  %20s  %12s  %11s  %6s  %s\n", (pl.coordinate.definition + "/" + unit).c_str(),
+                   "Energy (E_h)", "dE (kcal/mol)", "dE (kJ/mol)", "Steps", "Converged");
+    for (const auto& pt : sr.points) {
+        const double de = pt.energy - emin;
+        s += strprintf("    %5d  %16.6f  %20.10f  %12.4f  %11.4f  %6s  %s\n", pt.index + 1,
+                       pl.angular() ? pt.value : pt.value * kBohrInAngstrom, pt.energy,
+                       de * codata2018::kHartreeKcalPerMol, de * codata2018::kHartreeKJPerMol,
+                       sr.relaxed ? std::to_string(pt.steps).c_str() : "--",
+                       sr.relaxed ? (pt.converged ? "yes" : "NO") : "(single point)");
+    }
+    const auto& lo = sr.points[static_cast<std::size_t>(sr.lowest)];
+    const auto& hi = sr.points[static_cast<std::size_t>(sr.highest)];
+    s += strprintf("    dE relative to the lowest point, point %d (%s); highest point %d (%s), %.4f kcal/mol "
+                   "(%.4f kJ/mol) above it\n",
+                   lo.index + 1, scan_value_text(pl, lo.value).c_str(), hi.index + 1, scan_value_text(pl, hi.value).c_str(),
+                   (hi.energy - lo.energy) * codata2018::kHartreeKcalPerMol,
+                   (hi.energy - lo.energy) * codata2018::kHartreeKJPerMol);
+    // the other parameters along the scan
+    if (sr.relaxed && !sr.points.front().parameters.empty()) {
+        const auto& names = sr.points.front().parameters;
+        s += "\n    Geometry along the scan (Å and degrees)\n    Point";
+        for (const auto& p : names) s += strprintf("  %16s", p.name.c_str());
+        s += "\n";
+        for (const auto& pt : sr.points) {
+            s += strprintf("    %5d", pt.index + 1);
+            for (const auto& n : names) {
+                auto it = std::find_if(pt.parameters.begin(), pt.parameters.end(),
+                                       [&](const GeometricParameter& q) { return q.name == n.name; });
+                if (it == pt.parameters.end()) s += strprintf("  %16s", "--");
+                else s += strprintf("  %16.6f", it->angle ? (std::fabs(it->value) < 5.0e-7 ? 0.0 : it->value)
+                                                          : it->value * kBohrInAngstrom);
+            }
+            s += "\n";
+        }
+    }
+    if (!sr.extrema.empty()) {
+        s += "\n    Stationary points along the scan (parabola through the point and its two neighbours)\n";
+        for (const auto& x : sr.extrema)
+            s += strprintf("    %-8s near %s = %s, E = %.10f E_h (%+.4f kcal/mol relative to the lowest point), at point %d\n",
+                           x.kind.c_str(), pl.coordinate.definition.c_str(), scan_value_text(pl, x.value).c_str(), x.energy,
+                           (x.energy - emin) * codata2018::kHartreeKcalPerMol, x.index + 1);
+        s += "    (estimates from the scan; a transition-state optimisation locates a maximum exactly)\n";
+    }
+    return s;
+}
+
+}  // namespace
+
+static void run_scan(OutputWriter& w, Streams& st, ElectronicCallbacks& cb, const MolecularResult& p, const JobSettings& s,
+                     const ElectronicOptions& eo, JobResult& r) {
+    const auto t0 = Clock::now();
+    const std::string method = p.input.method;
+    ScanResult sr;
+    {
+        const std::string why = plan_scan(p.molecule, s, &sr.plan);
+        if (!why.empty()) throw std::runtime_error("the scan is not possible: " + why);
+    }
+    const ScanPlan& pl = sr.plan;
+    const int npts = pl.steps + 1;
+    sr.relaxed = p.molecule.atoms.size() > 2;
+    const ConvergenceCriteria c = convergence_criteria(s.tight);
+    w.section("Relaxed potential energy surface scan: " + method_label(method) + "/" + p.input.basis);
+    std::string gaussian = pl.coordinate.letter;
+    for (int a : pl.coordinate.coordinate.atoms) gaussian += " " + std::to_string(a + 1);
+    w.line(strprintf("    Scanned coordinate   %s  (Gaussian: %s S %d %g%s)", pl.coordinate.definition.c_str(),
+                     gaussian.c_str(), pl.steps, pl.angular() ? pl.step : pl.step * kBohrInAngstrom,
+                     pl.angular() ? "" : " in Å"));
+    w.line("    At the input         " + scan_value_text(pl, pl.input_value));
+    w.line(strprintf("    Points               %d, from %s to %s in steps of %s", npts, scan_value_text(pl, pl.values.front()).c_str(),
+                     scan_value_text(pl, pl.values.back()).c_str(),
+                     (pl.angular() ? strprintf("%.6f deg", pl.step) : strprintf("%.8f Å", pl.step * kBohrInAngstrom)).c_str()));
+    if (sr.relaxed) {
+        w.line("    At each point the scanned coordinate is frozen at its value and all other coordinates are optimised");
+        w.line("    (redundant internal coordinates; projector P~ = P - P C (C' P C)^-1 C' P removes the frozen coordinate");
+        w.line("    from the RFO step and the convergence test). Each point starts from the optimised geometry of the");
+        w.line("    previous one, with the scanned coordinate set to its new value, and from its updated Hessian.");
+        w.line(strprintf("    %s convergence, at most %d steps per point; thresholds: max force %.1e, RMS force %.1e; "
+                         "max step %.1e, RMS step %.1e; energy change %.0e E_h; constraint %.1e",
+                         s.tight ? "Tight" : "Normal", s.max_steps, c.max_force, c.rms_force, c.max_displacement,
+                         c.rms_displacement, c.energy, 0.01 * c.max_displacement));
+    } else {
+        w.line("    A diatomic has no other coordinate to relax: the relaxed scan is a series of single-point energies.");
+    }
+    Molecule geom = p.molecule;
+    Matrix orbitals, hessian;
+    std::vector<InternalCoordinate> hessian_coords;
+    std::vector<int> failed;
+    for (int k = 0; k < npts; ++k) {
+        check_cancelled();
+        const auto tp = Clock::now();
+        ScanPoint pt;
+        pt.index = k;
+        pt.value = pl.values[static_cast<std::size_t>(k)];
+        w.subsection(strprintf("Scan point %d of %d: %s = %s", k + 1, npts, pl.coordinate.definition.c_str(),
+                               scan_value_text(pl, pt.value).c_str()));
+        CoordinateConstraint con;
+        con.coordinate = pl.coordinate.coordinate;
+        con.target = pl.targets[static_cast<std::size_t>(k)];
+        double residual = 0.0;
+        geom = apply_constraints(geom, {con}, &residual);
+        if (residual > 1.0e-6)
+            pt.warnings.push_back(strprintf("The coordinate could be set to its value only within %.1e.", residual));
+        const std::string ctx = strprintf("Scan point %d of %d · ", k + 1, npts);
+        report_progress(JobStage::Scan, k + 1, k > 0 ? sr.points.back().energy : 0.0, npts);
+        if (!sr.relaxed) {
+            st.reset();
+            st.context = ctx;
+            w.write(geometry_table(geom));
+            report_progress_text(ctx + "energy");
+            const SinglePoint sp = run_single_point(geom, basis_at_geometry(p.basis, geom), method, eo,
+                                                    orbitals.rows() ? &orbitals : nullptr, cb);
+            if (!sp.converged) throw std::runtime_error(strprintf("the energy at scan point %d did not converge", k + 1));
+            st.scf_done_line();
+            orbitals = sp.rhf.C;
+            pt.energy = sp.energy;
+            pt.converged = true;
+            pt.geometry = geom;
+            pt.measured = internal_value(geom, pl.coordinate.coordinate);
+            w.line(strprintf("\n    Energy %.10f E_h", sp.energy));
+            r.point = sp;
+        } else {
+            OptimizationOptions oo;
+            oo.tight = s.tight;
+            oo.max_steps = s.max_steps;
+            oo.constraints = {con};
+            oo.guess_orbitals = orbitals.rows() ? &orbitals : nullptr;
+            if (hessian.rows()) {
+                oo.initial_hessian_matrix = &hessian;
+                oo.hessian_coordinates = hessian_coords;
+            }
+            oo.on_step_start = [&](int step, const Molecule& g) {
+                st.reset();
+                st.context = ctx + strprintf("step %d · ", step);
+                w.line(strprintf("\n  Scan point %d, optimisation step %d", k + 1, step));
+                w.write(geometry_table(g));
+                report_progress_text(st.context + "energy and gradient");
+            };
+            const OptimizationResult opt = optimize_geometry(geom, p.basis, method, eo, oo, cb, [&](const OptimizationStep& stp) {
+                w.line(stp.step == 1 ? strprintf("\n    Energy %.10f E_h", stp.energy)
+                                     : strprintf("\n    Energy %.10f E_h (change %+.3e E_h)", stp.energy, stp.delta_e));
+                w.write(gradient_block(stp.geometry, stp.cartesian_gradient, stp.gradient_description));
+                w.write(optimization_step_block(stp, c));
+                report_progress_text(ctx + strprintf("step %d · E = %.10f E_h · max force %.2e", stp.step, stp.energy,
+                                                     stp.convergence[0].value));
+            });
+            if (opt.history.empty() || !opt.final_point.point.converged)
+                throw std::runtime_error(strprintf("the %s calculation at scan point %d did not converge", method.c_str(), k + 1));
+            orbitals = opt.final_point.point.rhf.C;
+            hessian = opt.final_hessian;
+            hessian_coords = opt.final_coordinates;
+            pt.energy = opt.final_energy;
+            pt.converged = opt.converged;
+            pt.steps = opt.steps;
+            pt.geometry = opt.final_geometry;
+            pt.max_force = opt.history.back().convergence[0].value;
+            for (const auto& h : opt.history) {
+                pt.step_energies.push_back(h.energy);
+                pt.step_forces.push_back(h.convergence[0].value);
+                for (const auto& x2 : h.warnings) pt.warnings.push_back(strprintf("step %d: ", h.step) + x2);
+            }
+            pt.measured = internal_value(opt.final_geometry, pl.coordinate.coordinate);
+            geom = opt.final_geometry;
+            r.point = opt.final_point.point;
+            if (!opt.converged) {
+                failed.push_back(k + 1);
+                pt.warnings.push_back(opt.message);
+            }
+        }
+        if (pl.coordinate.coordinate.type != InternalType::Stretch) {
+            pt.measured *= 180.0 / 3.14159265358979323846;
+            // report the measured dihedral on the branch of the nominal value
+            if (pl.coordinate.coordinate.type == InternalType::Dihedral)
+                pt.measured = pt.value + wrap_angle((pt.measured - pt.value) * 3.14159265358979323846 / 180.0) * 180.0 /
+                                             3.14159265358979323846;
+        }
+        pt.parameters = geometric_parameters(pt.geometry);
+        pt.seconds = seconds_since(tp);
+        w.line(strprintf("\n    Point %d: E = %.10f E_h, %s = %s (deviation %.1e)%s", k + 1, pt.energy,
+                         pl.coordinate.definition.c_str(), scan_value_text(pl, pt.measured).c_str(),
+                         std::fabs(pt.measured - pt.value),
+                         sr.relaxed ? strprintf(", %d optimisation step%s, %s", pt.steps, pt.steps == 1 ? "" : "s",
+                                                pt.converged ? "converged" : "NOT converged").c_str()
+                                    : ""));
+        if (sr.relaxed) w.write(parameter_lines(pt.geometry, "      "));
+        for (const auto& x2 : pt.warnings) w.line("    Warning: " + x2);
+        sr.points.push_back(pt);
+    }
+    sr.lowest = sr.highest = 0;
+    for (std::size_t i = 0; i < sr.points.size(); ++i) {
+        if (sr.points[i].energy < sr.points[static_cast<std::size_t>(sr.lowest)].energy) sr.lowest = static_cast<int>(i);
+        if (sr.points[i].energy > sr.points[static_cast<std::size_t>(sr.highest)].energy) sr.highest = static_cast<int>(i);
+    }
+    sr.extrema = scan_extrema(sr.points);
+    sr.converged = failed.empty();
+    if (!failed.empty()) {
+        std::string list;
+        for (int f : failed) list += (list.empty() ? "" : ", ") + std::to_string(f);
+        sr.message = strprintf("The constrained optimisation did not converge within %d steps at point%s %s; the other "
+                               "points are complete.",
+                               s.max_steps, failed.size() == 1 ? "" : "s", list.c_str());
+    } else {
+        sr.message = strprintf("All %d points %s.", npts, sr.relaxed ? "converged" : "computed");
+    }
+    sr.seconds = seconds_since(t0);
+    w.section("Summary of the relaxed scan: " + method_label(method) + "/" + p.input.basis);
+    w.write(scan_summary_block(sr));
+    w.line("    " + sr.message + " Total time " + duration_string(sr.seconds) + ".");
+    const ScanPoint& last = sr.points.back();
+    r.final_geometry = last.geometry;
+    r.final_energy = last.energy;
+    r.final_energy_label = method_label(method) + "/" + p.input.basis;
+    if (r.point) {
+        st.reset();
+        w.subsection("Electronic structure at the last scan point");
+        write_point_details(w, *r.point, basis_at_geometry(p.basis, last.geometry), true);
+    }
+    r.scan = sr;
+    if (!sr.converged) {
+        r.termination = "error";
+        r.message = sr.message;
+        throw std::runtime_error(sr.message);
+    }
+}
+
 JobResult run_job(const MolecularInput& input, const JobSettings& s, const OutputSink& sink, const std::string& echo) {
     const auto t0 = Clock::now();
     JobResult r;
@@ -532,7 +992,7 @@ JobResult run_job(const MolecularInput& input, const JobSettings& s, const Outpu
     }
     OutputWriter w(sink);
     write_header(w, s, echo, p.estimate.threads);
-    write_molecule(w, p, job_has_optimization(s.type) ? "Starting geometry" : "Geometry (input)");
+    write_molecule(w, p, job_uses_optimizer(s.type) ? "Starting geometry" : "Geometry (input)");
     r.estimate = estimate_job(p, s, psp ? &*psp : nullptr);
     write_estimate(w, p, r.estimate);
     r.initial_geometry = r.final_geometry = p.molecule;
@@ -553,6 +1013,8 @@ JobResult run_job(const MolecularInput& input, const JobSettings& s, const Outpu
     const Matrix* guess = nullptr;
     try {
         Molecule x = p.molecule;
+        // ---- relaxed scan (7.0)
+        if (job_has_scan(s.type)) run_scan(w, st, cb, p, s, eo, r);
         // ---- optimisation
         if (job_has_optimization(s.type)) {
             w.section("Geometry optimisation: " + method_label(method) + "/" + p.input.basis);

@@ -162,6 +162,15 @@ target_compile_definitions(macqc_optimizer_tests PRIVATE
 add_test(NAME macqc_optimizer_tests COMMAND macqc_optimizer_tests)
 set_tests_properties(macqc_optimizer_tests PROPERTIES
   ENVIRONMENT "PSILAB_BASIS_DIR=${CMAKE_CURRENT_SOURCE_DIR}/basis" TIMEOUT 7200)
+# ΨLab 7.0: relaxed potential-energy-surface scans (torsions, frozen coordinates).
+add_executable(macqc_scan_tests backend/tests/test_scan.cpp)
+target_link_libraries(macqc_scan_tests PRIVATE macqc)
+target_include_directories(macqc_scan_tests PRIVATE third_party)
+target_compile_definitions(macqc_scan_tests PRIVATE
+  MACQC_TEST_DATA_DIR="${CMAKE_CURRENT_SOURCE_DIR}/backend/tests/data")
+add_test(NAME macqc_scan_tests COMMAND macqc_scan_tests)
+set_tests_properties(macqc_scan_tests PROPERTIES
+  ENVIRONMENT "PSILAB_BASIS_DIR=${CMAKE_CURRENT_SOURCE_DIR}/basis" TIMEOUT 7200)
 # ΨLab 5.0: harmonic frequencies, IR intensities, thermochemistry.
 add_executable(macqc_frequency_tests backend/tests/test_frequencies.cpp)
 target_link_libraries(macqc_frequency_tests PRIVATE macqc)

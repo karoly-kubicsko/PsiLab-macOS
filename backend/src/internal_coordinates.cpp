@@ -30,8 +30,29 @@ double bend_angle(const Molecule& m, const InternalCoordinate& c) {
     return std::acos(cs);
 }
 
+double dihedral_angle(const Molecule& m, const InternalCoordinate& c) {
+    // IUPAC sign: atan2((b1^ x v) . w, v . w) with v, w the bonds B-A and C-D projected
+    // perpendicular to the central bond b1 = C - B
+    const Vec3 b0 = sub(pos(m, c.atoms[0]), pos(m, c.atoms[1])), b1 = sub(pos(m, c.atoms[2]), pos(m, c.atoms[1])),
+               b2 = sub(pos(m, c.atoms[3]), pos(m, c.atoms[2]));
+    const Vec3 e = scale(b1, 1.0 / norm(b1));
+    const Vec3 v = sub(b0, scale(e, dot(b0, e))), w = sub(b2, scale(e, dot(b2, e)));
+    return std::atan2(dot(cross(e, v), w), dot(v, w));
+}
+
+double angle_at(const Molecule& m, int a, int b, int c) {
+    const Vec3 u = sub(pos(m, a), pos(m, b)), v = sub(pos(m, c), pos(m, b));
+    return std::acos(std::max(-1.0, std::min(1.0, dot(u, v) / (norm(u) * norm(v)))));
+}
+
+// A dihedral is defined while both of its bends are below the linear threshold.
+bool dihedral_defined(const Molecule& m, const InternalCoordinate& c, double limit) {
+    return angle_at(m, c.atoms[0], c.atoms[1], c.atoms[2]) < limit && angle_at(m, c.atoms[1], c.atoms[2], c.atoms[3]) < limit;
+}
+
 double value_of(const Molecule& m, const InternalCoordinate& c) {
     switch (c.type) {
+        case InternalType::Dihedral: return dihedral_angle(m, c);
         case InternalType::Stretch: return norm(sub(pos(m, c.atoms[1]), pos(m, c.atoms[0])));
         case InternalType::Bend: return bend_angle(m, c);
         case InternalType::LinearBend: {
@@ -50,6 +71,27 @@ std::string label(const Molecule& m, int a) {
 
 }  // namespace
 
+double wrap_angle(double a) {
+    while (a > kPi) a -= 2.0 * kPi;
+    while (a <= -kPi) a += 2.0 * kPi;
+    return a;
+}
+
+double internal_value(const Molecule& mol, const InternalCoordinate& c) { return value_of(mol, c); }
+
+bool InternalCoordinate::same_as(const InternalCoordinate& o) const {
+    if (type != o.type || atoms.size() != o.atoms.size()) return false;
+    if (type == InternalType::LinearBend && component != o.component) return false;
+    if (atoms == o.atoms) return true;
+    return std::equal(atoms.begin(), atoms.end(), o.atoms.rbegin());
+}
+
+int InternalCoordinates::find(const InternalCoordinate& c) const {
+    for (std::size_t i = 0; i < coords_.size(); ++i)
+        if (coords_[i].same_as(c)) return static_cast<int>(i);
+    return -1;
+}
+
 double covalent_radius(int Z) {
     // Pyykkö & Atsumi, Chem. Eur. J. 15, 186 (2009), single-bond radii in angstrom.
     static const double r[] = {0.32, 0.46, 1.33, 1.02, 0.85, 0.75, 0.71, 0.63, 0.64, 0.67};
@@ -62,6 +104,7 @@ std::string InternalCoordinate::name() const {
         case InternalType::Stretch: return "R";
         case InternalType::Bend: return "A";
         case InternalType::LinearBend: return component == 0 ? "La" : "Lb";
+        case InternalType::Dihedral: return "D";
     }
     return "?";
 }
@@ -74,11 +117,15 @@ std::string InternalCoordinate::definition(const Molecule& m) const {
         case InternalType::LinearBend:
             return std::string("L(") + label(m, atoms[0]) + "-" + label(m, atoms[1]) + "-" + label(m, atoms[2]) + ", " +
                    (component == 0 ? "1" : "2") + ")";
+        case InternalType::Dihedral:
+            return "D(" + label(m, atoms[0]) + "-" + label(m, atoms[1]) + "-" + label(m, atoms[2]) + "-" + label(m, atoms[3]) +
+                   ")";
     }
     return "";
 }
 
-InternalCoordinates::InternalCoordinates(const Molecule& m) {
+InternalCoordinates::InternalCoordinates(const Molecule& m, const std::vector<InternalCoordinate>& required)
+    : required_(required) {
     const int n = static_cast<int>(m.atoms.size());
     if (n < 2) throw std::invalid_argument("internal coordinates need at least two atoms");
     // bonds by covalent radii, then connect the fragments through their closest atoms
@@ -138,7 +185,10 @@ InternalCoordinates::InternalCoordinates(const Molecule& m) {
                 InternalCoordinate c;
                 c.type = InternalType::Bend;
                 c.atoms = std::vector<int>{nb[x], B, nb[y]};
-                if (bend_angle(m, c) < kLinearOn) {
+                bool keep_bend = false;
+                for (const auto& r : required_)
+                    if (r.same_as(c)) keep_bend = true;
+                if (bend_angle(m, c) < kLinearOn || keep_bend) {
                     coords_.push_back(c);
                     continue;
                 }
@@ -162,14 +212,85 @@ InternalCoordinates::InternalCoordinates(const Molecule& m) {
                 }
             }
     }
+    // dihedrals A-B-C-D for every bond B-C (each chain once)
+    for (const auto& bc : bonds) {
+        for (const auto& ab : bonds) {
+            int A = -1;
+            if (ab == bc) continue;
+            if (ab.first == bc.first) A = ab.second;
+            else if (ab.second == bc.first) A = ab.first;
+            if (A < 0) continue;
+            for (const auto& cd : bonds) {
+                int D = -1;
+                if (cd == bc || cd == ab) continue;
+                if (cd.first == bc.second) D = cd.second;
+                else if (cd.second == bc.second) D = cd.first;
+                if (D < 0 || D == A) continue;
+                InternalCoordinate c;
+                c.type = InternalType::Dihedral;
+                c.atoms = std::vector<int>{A, bc.first, bc.second, D};
+                bool required_here = false;
+                for (const auto& r : required_)
+                    if (r.same_as(c)) required_here = true;
+                if (required_here || dihedral_defined(m, c, kLinearOn)) coords_.push_back(c);
+                else omitted_dihedrals_.push_back(c);
+            }
+        }
+    }
+    // required coordinates the connectivity does not contain
+    for (const auto& r : required_) {
+        if (find(r) >= 0) continue;
+        if (r.type == InternalType::LinearBend) {
+            // both components about the A...C axis of this geometry
+            InternalCoordinate c;
+            c.type = InternalType::Bend;
+            c.atoms = r.atoms;
+            Vec3 e0 = sub(pos(m, r.atoms[2]), pos(m, r.atoms[0]));
+            e0 = scale(e0, 1.0 / norm(e0));
+            int k = 0;
+            for (int d = 1; d < 3; ++d)
+                if (std::fabs(e0[static_cast<std::size_t>(d)]) < std::fabs(e0[static_cast<std::size_t>(k)])) k = d;
+            Vec3 w{0.0, 0.0, 0.0};
+            w[static_cast<std::size_t>(k)] = 1.0;
+            Vec3 e1 = sub(w, scale(e0, dot(w, e0)));
+            e1 = scale(e1, 1.0 / norm(e1));
+            const Vec3 e2 = cross(e0, e1);
+            for (int comp_k = 0; comp_k < 2; ++comp_k) {
+                InternalCoordinate l = c;
+                l.type = InternalType::LinearBend;
+                l.component = comp_k;
+                l.axis = comp_k == 0 ? e1 : e2;
+                if (find(l) < 0) coords_.push_back(l);
+            }
+            continue;
+        }
+        coords_.push_back(r);
+    }
 }
 
 bool InternalCoordinates::needs_rebuild(const Molecule& m) const {
+    auto required = [&](const InternalCoordinate& c) {
+        for (const auto& r : required_)
+            if (r.same_as(c)) return true;
+        return false;
+    };
     for (const auto& c : coords_) {
-        if (c.type == InternalType::Bend && bend_angle(m, c) > kLinearOn) return true;
-        if (c.type == InternalType::LinearBend && bend_angle(m, c) < kLinearOff) return true;
+        if (c.type == InternalType::Bend && bend_angle(m, c) > kLinearOn && !required(c)) return true;
+        if (c.type == InternalType::LinearBend && bend_angle(m, c) < kLinearOff && !required(c)) return true;
+        if (c.type == InternalType::Dihedral && !dihedral_defined(m, c, kLinearOn) && !required(c)) return true;
     }
+    for (const auto& c : omitted_dihedrals_)
+        if (dihedral_defined(m, c, kLinearOff)) return true;
     return false;
+}
+
+std::vector<double> wilson_b_row(const Molecule& m, const InternalCoordinate& c) {
+    InternalCoordinates one;
+    one.coords_.push_back(c);
+    const Matrix B = one.wilson_b(m);
+    std::vector<double> row(B.cols());
+    for (std::size_t x = 0; x < B.cols(); ++x) row[x] = B(0, x);
+    return row;
 }
 
 std::vector<double> InternalCoordinates::values(const Molecule& m) const {
@@ -202,6 +323,22 @@ Matrix InternalCoordinates::wilson_b(const Molecule& m) const {
                 B(i, 3 * static_cast<std::size_t>(c.atoms[0]) + k) = da;
                 B(i, 3 * static_cast<std::size_t>(c.atoms[2]) + k) = dc;
                 B(i, 3 * static_cast<std::size_t>(c.atoms[1]) + k) = -(da + dc);
+            }
+        } else if (c.type == InternalType::Dihedral) {
+            // Blondel & Karplus, J. Comput. Chem. 17, 1132 (1996): F = A - B, G = B - C, H = D - C
+            const Vec3 F = sub(pos(m, c.atoms[0]), pos(m, c.atoms[1])), Gv = sub(pos(m, c.atoms[1]), pos(m, c.atoms[2])),
+                       Hv = sub(pos(m, c.atoms[3]), pos(m, c.atoms[2]));
+            const Vec3 a = cross(F, Gv), b = cross(Hv, Gv);
+            const double a2 = dot(a, a), b2 = dot(b, b), g = norm(Gv);
+            const double fg = dot(F, Gv), hg = dot(Hv, Gv);
+            for (std::size_t k = 0; k < 3; ++k) {
+                const double dA = -g / a2 * a[k], dD = g / b2 * b[k];
+                const double dB = g / a2 * a[k] + fg / (a2 * g) * a[k] - hg / (b2 * g) * b[k];
+                const double dC = hg / (b2 * g) * b[k] - fg / (a2 * g) * a[k] - g / b2 * b[k];
+                B(i, 3 * static_cast<std::size_t>(c.atoms[0]) + k) += dA;
+                B(i, 3 * static_cast<std::size_t>(c.atoms[1]) + k) += dB;
+                B(i, 3 * static_cast<std::size_t>(c.atoms[2]) + k) += dC;
+                B(i, 3 * static_cast<std::size_t>(c.atoms[3]) + k) += dD;
             }
         } else {
             const double h = 1.0e-6;
@@ -238,7 +375,10 @@ Matrix InternalCoordinates::b_derivative_contracted(const Molecule& m, const std
 
 std::vector<double> InternalCoordinates::difference(const std::vector<double>& q1, const std::vector<double>& q0) const {
     std::vector<double> d(q1.size());
-    for (std::size_t i = 0; i < q1.size(); ++i) d[i] = q1[i] - q0[i];
+    for (std::size_t i = 0; i < q1.size(); ++i) {
+        d[i] = q1[i] - q0[i];
+        if (i < coords_.size() && coords_[i].type == InternalType::Dihedral) d[i] = wrap_angle(d[i]);
+    }
     return d;
 }
 
@@ -313,9 +453,9 @@ BackTransform back_transform(const InternalCoordinates& ic, const Molecule& mol,
             break;
         }
     }
-    const std::vector<double> qf = ic.values(x);
+    const std::vector<double> rd = ic.difference(ic.values(x), target);
     r.residual = 0.0;
-    for (std::size_t i = 0; i < nq; ++i) r.residual = std::max(r.residual, std::fabs(qf[i] - target[i]));
+    for (std::size_t i = 0; i < nq; ++i) r.residual = std::max(r.residual, std::fabs(rd[i]));
     r.molecule = x;
     return r;
 }

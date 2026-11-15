@@ -26,7 +26,8 @@ enum class JobStage : int {
     CPHF = 10,           // coupled-perturbed HF / orbital response (iteration, residual)
     Lambda = 11,         // coupled-cluster Lambda equations (iteration, residual)
     Optimization = 12,   // geometry optimisation step (iteration = step, energy, residual = max force)
-    NumericalHessian = 13  // displacement of a numerical Hessian (iteration = displacement)
+    NumericalHessian = 13,  // displacement of a numerical Hessian (iteration = displacement)
+    Scan = 14               // 7.0: point of a relaxed scan (iteration = point, residual = number of points)
 };
 
 struct Job {

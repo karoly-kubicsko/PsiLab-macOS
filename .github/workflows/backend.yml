@@ -61,6 +61,15 @@ jobs:
           if ./build/psilab h2o-ccsdtq.inp; then echo "CCSDTQ frequencies of H2O must be refused"; exit 1; fi
           grep -q "CCSDTQ frequencies for H2O is not possible" h2o-ccsdtq.out
 
+      - name: Terminal version, relaxed scan (7.0)
+        run: |
+          printf 'molecule = H2O\nmethod = HF\njob = scan\nscan = 2 1 3 S 8 10.0\nscan_start = 100\n' > scan.inp
+          ./build/psilab --estimate scan.inp
+          ./build/psilab scan.inp scan.out
+          grep -q "Scan point 9 of 9: A(H2-O1-H3) = 180.000000 deg" scan.out
+          grep -q "Normal termination" scan.out
+          sed -n '/---- Summary of the relaxed scan/,/All 9 points/p' scan.out
+
   # The same build and tests on macOS (Apple clang, libc++, matrix products through Apple's
   # Accelerate), and the installed terminal version: psilab must find its basis-set files in
   # <prefix>/share/psilab/basis through the executable's path, without the source tree.
@@ -137,6 +146,9 @@ jobs:
           python3 reference/pyscf_optimization_reference.py --check --only
           H2O/aug-cc-pVDZ/RHF H2O/aug-cc-pVDZ/CCSD "H2O/aug-cc-pVDZ/CCSD(T)" LiH/aug-cc-pVDZ/RHF
           "LiH/aug-cc-pVDZ/CCSD(T)" H2/aug-cc-pVTZ/FCI
+
+      - name: Relaxed-scan points (PySCF gradients + geomeTRIC with a frozen coordinate)
+        run: python3 reference/pyscf_scan_reference.py --check
 
   # On request only: every RHF reference case, including H2O/aug-cc-pCV5Z (341 functions), and
   # every Full CI case, including LiH/aug-cc-pCVTZ (11 million determinants).

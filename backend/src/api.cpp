@@ -49,7 +49,9 @@ json input_json(const Input& in) {
                 {"temperature", in.temperature},
                 {"pressure", in.pressure},
                 {"optConvergence", in.optConvergence},
-                {"maxSteps", in.maxSteps}};
+                {"maxSteps", in.maxSteps},
+                {"scan", in.scan.empty() ? json(nullptr) : json(in.scan)},
+                {"scanStart", in.scanStart ? json(*in.scanStart) : json(nullptr)}};
     return {{"R", in.R},           {"zeta1", in.zeta1},         {"zeta2", in.zeta2},
             {"ZA", in.ZA},         {"ZB", in.ZB},               {"nGaussians", in.nGaussians},
             {"exactErf", in.exactErf}, {"maxIter", in.maxIter}, {"convergence", in.convergence},
@@ -517,7 +519,63 @@ json job_json(const JobResult& r, const std::string& type) {
     return j;
 }
 
-// "job", "optimization", "frequencies", "thermochemistry", "singlePoint", "output".
+json params_json(const std::vector<GeometricParameter>& v) {
+    json a = json::array();
+    for (const auto& p : v) a.push_back({{"name", p.name}, {"value", p.value}, {"angle", p.angle}});
+    return a;
+}
+
+json scan_json(const ScanResult& sr) {
+    const ScanPlan& pl = sr.plan;
+    json j;
+    json atoms = json::array();
+    for (int a : pl.coordinate.coordinate.atoms) atoms.push_back(a + 1);
+    // values in angstrom (bond) or degrees, as in the ModRedundant line
+    const double f = pl.angular() ? 1.0 : kBohrInAngstrom;
+    j["coordinate"] = {{"type", pl.coordinate.kind},
+                       {"letter", pl.coordinate.letter},
+                       {"atoms", atoms},
+                       {"definition", pl.coordinate.definition},
+                       {"unit", pl.angular() ? "degrees" : "angstrom"}};
+    j["start"] = pl.start * f;
+    j["stepSize"] = pl.step * f;
+    j["steps"] = pl.steps;
+    j["inputValue"] = pl.input_value * f;
+    j["relaxed"] = sr.relaxed;
+    j["converged"] = sr.converged;
+    j["message"] = sr.message;
+    j["lowest"] = sr.lowest;
+    j["highest"] = sr.highest;
+    const double emin = sr.lowest >= 0 ? sr.points[static_cast<std::size_t>(sr.lowest)].energy : 0.0;
+    json pts = json::array();
+    for (const auto& p : sr.points) {
+        json steps = json::array();
+        for (std::size_t k = 0; k < p.step_energies.size(); ++k)
+            steps.push_back({{"step", k + 1}, {"energy", p.step_energies[k]}, {"maxForce", p.step_forces[k]}});
+        pts.push_back({{"index", p.index},
+                       {"value", p.value * f},
+                       {"measured", p.measured * f},
+                       {"energy", p.energy},
+                       {"relativeEnergy", p.energy - emin},
+                       {"converged", p.converged},
+                       {"steps", p.steps},
+                       {"maxForce", p.max_force},
+                       {"geometry", geometry_parameters_json(p.geometry)},
+                       {"parameters", params_json(p.parameters)},
+                       {"optimizationSteps", steps},
+                       {"warnings", p.warnings},
+                       {"seconds", p.seconds}});
+    }
+    j["points"] = pts;
+    json ex = json::array();
+    for (const auto& x : sr.extrema)
+        ex.push_back({{"kind", x.kind}, {"index", x.index}, {"value", x.value * f}, {"energy", x.energy}});
+    j["extrema"] = ex;
+    j["seconds"] = sr.seconds;
+    return j;
+}
+
+// "job", "optimization", "frequencies", "thermochemistry", "singlePoint", "scan", "output".
 void add_job_json(json& j, const Output& out) {
     if (!out.job) {
         j["job"] = nullptr;
@@ -525,6 +583,7 @@ void add_job_json(json& j, const Output& out) {
         j["frequencies"] = nullptr;
         j["thermochemistry"] = nullptr;
         j["singlePoint"] = nullptr;
+        j["scan"] = nullptr;
         j["output"] = nullptr;
         return;
     }
@@ -535,6 +594,7 @@ void add_job_json(json& j, const Output& out) {
     j["frequencies"] = (r.hessian && r.harmonic) ? frequencies_json(*r.hessian, *r.harmonic) : json(nullptr);
     j["thermochemistry"] = r.thermo ? thermo_json(*r.thermo) : json(nullptr);
     j["singlePoint"] = r.single_point ? point_json(*r.single_point) : json(nullptr);
+    j["scan"] = r.scan ? scan_json(*r.scan) : json(nullptr);
     j["output"] = r.termination == "estimate" ? json(nullptr) : json(r.output);
 }
 
@@ -589,6 +649,8 @@ Input parse_input_json(const std::string& text) {
     in.pressure = get_number(j, "pressure", in.pressure);
     in.optConvergence = get_string(j, "optConvergence", in.optConvergence);
     in.maxSteps = get_int(j, "maxSteps", in.maxSteps);
+    in.scan = get_string(j, "scan", in.scan);
+    if (auto it = j.find("scanStart"); it != j.end() && !it->is_null()) in.scanStart = get_number(j, "scanStart", 0.0);
     return in;
 }
 

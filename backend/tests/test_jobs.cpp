@@ -105,10 +105,11 @@ int main() {
     CHECK(macqc::canonical_job_type("5") == "opt+freq+sp");
     CHECK(macqc::canonical_job_type("frequencies") == "freq");
     CHECK(macqc::canonical_job_type("sp") == "energy");
-    CHECK(macqc::canonical_job_type("scan").empty());
+    CHECK(macqc::canonical_job_type("scan") == "scan");  // 7.0
+    CHECK(macqc::canonical_job_type("sweep").empty());
     {
-        json bad = run({{"molecule", "H2"}, {"job", "scan"}});
-        CHECK(contains(bad["error"].get<std::string>(), "job must be energy, opt, freq, opt+freq or opt+freq+sp"));
+        json bad = run({{"molecule", "H2"}, {"job", "sweep"}});
+        CHECK(contains(bad["error"].get<std::string>(), "job must be energy, opt, freq, opt+freq, opt+freq+sp or scan"));
         bad = run({{"molecule", "HeH+"}, {"job", "opt"}});
         CHECK(contains(bad["error"].get<std::string>(), "HeH+ (STO-nG) supports only the energy job"));
         bad = run({{"molecule", "H2"}, {"job", "freq"}, {"temperature", -5.0}});

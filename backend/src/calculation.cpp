@@ -30,6 +30,9 @@ MolecularInput molecular_input(const Input& in) {
     return m;
 }
 
+// Atoms of a general molecule (the atom numbers of a scan line refer to them).
+int atom_count(const Input& in) { return canonical_molecule_name(in.molecule) == "H2O" ? 3 : 2; }
+
 JobSettings job_settings(const Input& in) {
     JobSettings s;
     s.type = canonical_job_type(in.job);
@@ -39,11 +42,28 @@ JobSettings job_settings(const Input& in) {
     s.pressure = in.pressure;
     s.tight = in.optConvergence == "tight";
     s.max_steps = in.maxSteps;
+    if (job_has_scan(s.type) && !in.scan.empty()) {
+        parse_scan_line(in.scan, atom_count(in), &s);
+        if (in.scanStart) {
+            ScanCoordinate sc;
+            parse_scan_coordinate(s.scan_coordinate, atom_count(in), &sc);
+            s.scan_start = sc.letter == "B" ? *in.scanStart / kBohrInAngstrom : *in.scanStart;
+        }
+    }
     return s;
 }
 
 std::string job_input_error(const Input& in) {
-    if (canonical_job_type(in.job).empty()) return "job must be energy, opt, freq, opt+freq or opt+freq+sp";
+    const std::string job = canonical_job_type(in.job);
+    if (job.empty()) return "job must be energy, opt, freq, opt+freq, opt+freq+sp or scan";
+    if (job_has_scan(job)) {
+        if (in.scan.empty())
+            return "the scan job needs \"scan\": the ModRedundant line N1 N2 [N3 [N4]] S nsteps stepsize (e.g. \"1 2 S 10 "
+                   "0.05\")";
+        const std::string e = parse_scan_line(in.scan, atom_count(in), nullptr);
+        if (!e.empty()) return "scan: " + e;
+        if (in.scanStart && !std::isfinite(*in.scanStart)) return "scanStart must be a finite number";
+    }
     if (!in.spMethod.empty() && canonical_method_name(in.spMethod).empty())
         return "spMethod must be HF (RHF), CCSD, CCSD(T), CCSDT, CCSDTQ or FCI";
     if (!in.spBasis.empty() && canonical_basis_name(in.spBasis).empty()) return "unknown basis set '" + in.spBasis + "' for spBasis";
@@ -70,6 +90,10 @@ Output run_molecular_calculation(const Input& in0, const OutputSink& sink) {
         out.input.basis = out.molecular->input.basis;
         out.input.method = out.molecular->input.method;
         const JobSettings js = job_settings(in);
+        if (job_has_scan(js.type)) {
+            const std::string why = plan_scan(out.molecular->molecule, js, nullptr);
+            if (!why.empty()) throw std::runtime_error("the scan is not possible: " + why);
+        }
         if (in.estimateOnly) {
             out.report = molecular_report(*out.molecular);
             std::optional<MolecularResult> sp;
@@ -145,7 +169,21 @@ std::string input_echo(const Input& in) {
         kv("temperature", strprintf("%.2f K", in.temperature));
         kv("pressure", strprintf("%.2f Pa", in.pressure));
     }
-    if (job_has_optimization(canonical_job_type(in.job))) {
+    if (job_has_scan(canonical_job_type(in.job))) {
+        JobSettings js;
+        ScanCoordinate sc;
+        const int n = atom_count(in);
+        const bool ok = parse_scan_line(in.scan, n, &js).empty() && parse_scan_coordinate(js.scan_coordinate, n, &sc).empty();
+        const bool bond = ok && sc.letter == "B";
+        kv("scan", in.scan + (ok ? strprintf("   (%s, %d points; step in %s)", sc.kind.c_str(), js.scan_steps + 1,
+                                             bond ? "angstrom" : "degrees")
+                                 : ""));
+        if (in.scanStart)
+            kv("scan_start", bond ? strprintf("%.8f angstrom", *in.scanStart) : strprintf("%.6f degrees", *in.scanStart));
+        else
+            kv("scan_start", "(the value at the input geometry)");
+    }
+    if (job_uses_optimizer(canonical_job_type(in.job))) {
         kv("opt_convergence", in.optConvergence);
         kv("max_steps", std::to_string(in.maxSteps));
     }

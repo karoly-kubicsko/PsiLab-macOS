@@ -158,11 +158,11 @@ int main() {
     CHECK(j5.input.optConvergence == "tight" && j5.input.maxSteps == 30);
     CHECK(psilab::parse_input_text("molecule = H2\njob = freq\npressure = 1 atm\n").input.pressure == 101325.0);
     CHECK(psilab::parse_input_text("molecule = H2\njob = freq\npressure = 100 kPa\n").input.pressure == 1.0e5);
-    CHECK(rejects("molecule = H2\njob = scan\n", "job must be energy, opt, freq, opt+freq or opt+freq+sp"));
+    CHECK(rejects("molecule = H2\njob = sweep\n", "job must be energy, opt, freq, opt+freq, opt+freq+sp or scan"));
     CHECK(rejects("job = opt\n", "applies to H2, LiH and H2O only"));
     CHECK(rejects("molecule = H2\njob = opt\nsp_method = CCSD\n", "'sp_method' applies to job = opt+freq+sp only"));
     CHECK(rejects("molecule = H2\njob = opt\ntemperature = 300\n", "applies to job = freq, opt+freq and opt+freq+sp only"));
-    CHECK(rejects("molecule = H2\njob = freq\nmax_steps = 10\n", "applies to job = opt, opt+freq and opt+freq+sp only"));
+    CHECK(rejects("molecule = H2\njob = freq\nmax_steps = 10\n", "applies to job = opt, opt+freq, opt+freq+sp and scan only"));
     CHECK(rejects("molecule = H2\njob = opt\nopt_convergence = loose\n", "opt_convergence must be normal or tight"));
     CHECK(rejects("molecule = H2\njob = opt\nmax_steps = 0\n", "max_steps must be an integer from 1 to 1000"));
     CHECK(rejects("molecule = H2\njob = freq\ntemperature = -3\n", "temperature must be between"));
@@ -181,6 +181,30 @@ int main() {
     CHECK(contains(opt.text, "Optimisation step 1") && contains(opt.text, "Stationary point found"));
     CHECK(contains(opt.text, "R(Li1-H2)"));
     CHECK(opt.output && opt.output->job && opt.output->job->optimization && opt.output->job->optimization->converged);
+
+    // ΨLab 7.0: relaxed scan, the Gaussian ModRedundant line
+    const psilab::Settings sc = psilab::parse_input_text(
+        "molecule = H2O\njob = scan\nscan_start = 100\nscan = 2 1 3 S 8 10.0   # H-O-H\nmax_steps = 20\n");
+    CHECK(sc.input.job == "scan" && sc.input.scan == "2 1 3 S 8 10.0");
+    CHECK(sc.input.scanStart && *sc.input.scanStart == 100.0 && sc.input.maxSteps == 20);
+    const psilab::Settings sb = psilab::parse_input_text("molecule = H2O\njob = scan\nscan = B 1 2 S 4 0.05\nscan_start = 1.8 bohr\n");
+    CHECK(sb.input.scanStart && std::fabs(*sb.input.scanStart - 1.8 * psilab::kBohrToAngstrom) < 1e-12);
+    CHECK(psilab::parse_input_text("molecule = H2O\njob = scan\nscan = 1 2 S 4 0.05\nscan_start = 1.0 angstrom\n").input.scanStart == 1.0);
+    CHECK(rejects("molecule = H2O\njob = scan\nscan = 3 1 2 4 S 2 10\n", "atom 4 does not exist"));
+    CHECK(rejects("molecule = H2O\njob = scan\nscan = 1 2 S 2\n", "ModRedundant"));
+    CHECK(rejects("molecule = H2O\njob = scan\n", "job = scan needs 'scan ="));
+    CHECK(rejects("molecule = H2O\njob = opt\nscan = 1 2 S 2 0.1\n", "'scan' applies to job = scan only"));
+    CHECK(rejects("molecule = H2O\njob = scan\nscan = 1 2 S 2 0.1\nscan_start = 90 degrees\n", "degrees apply to angles"));
+    CHECK(rejects("molecule = H2O\njob = scan\nscan = 2 1 3 S 2 10\nscan_start = 1 bohr\n", "bohr applies to a bond"));
+    CHECK(rejects("scan_start = 1\n", "applies to H2, LiH and H2O only"));
+    const std::string sest = psilab::estimate_text(psilab::parse_input_text("molecule = H2O\njob = scan\nscan = 2 1 3 S 8 5\n"));
+    CHECK(contains(sest, "Relaxed scan: analytic gradient (derivative integrals); 9 points"));
+    const psilab::RunResult srun = psilab::run_to_text(
+        psilab::parse_input_text("molecule = LiH\nmethod = HF\njob = scan\nscan = 1 2 S 2 0.1\nscan_start = 1.5\n"));
+    CHECK(srun.error.empty());
+    CHECK(contains(srun.text, "Summary of the relaxed scan: HF/aug-cc-pVDZ"));
+    CHECK(contains(srun.text, "scan             = 1 2 S 2 0.1   (bond, 3 points; step in angstrom)"));
+    CHECK(srun.output && srun.output->job && srun.output->job->scan && srun.output->job->scan->points.size() == 3);
 
     // Without scan: no curve section.
     psilab::Settings single = ex;
