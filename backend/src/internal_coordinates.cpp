@@ -237,6 +237,27 @@ InternalCoordinates::InternalCoordinates(const Molecule& m, const std::vector<In
             }
         }
     }
+    // improper torsions at atoms with three bonds (NH3): (a, B, b, c), (b, B, c, a), (c, B, a, b)
+    // for neighbours a < b < c; they describe the out-of-plane motion, which the bends lose at a
+    // planar centre (Peng, Ayala, Schlegel & Frisch 1996)
+    for (int B = 0; B < n; ++B) {
+        std::vector<int> nb;
+        for (const auto& b : bonds) {
+            if (b.first == B) nb.push_back(b.second);
+            if (b.second == B) nb.push_back(b.first);
+        }
+        if (nb.size() != 3) continue;
+        std::sort(nb.begin(), nb.end());
+        for (int k = 0; k < 3; ++k) {
+            InternalCoordinate c;
+            c.type = InternalType::Dihedral;
+            c.atoms = std::vector<int>{nb[static_cast<std::size_t>(k)], B, nb[static_cast<std::size_t>((k + 1) % 3)],
+                                       nb[static_cast<std::size_t>((k + 2) % 3)]};
+            if (find(c) >= 0) continue;
+            if (dihedral_defined(m, c, kLinearOn)) coords_.push_back(c);
+            else omitted_dihedrals_.push_back(c);
+        }
+    }
     // required coordinates the connectivity does not contain
     for (const auto& r : required_) {
         if (find(r) >= 0) continue;

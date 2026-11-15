@@ -50,8 +50,10 @@ double gradient_seconds(const MolecularResult& p, bool* analytic, std::string* h
     const std::string& m = p.input.method;
     const CostEstimate& e = p.estimate;
     const int nbf = p.basis.n_functions, nocc = p.molecule.electrons() / 2;
-    const bool c2v_or_diatomic = true;  // the sidebar geometries are C2v
-    const int numerical_energies = p.molecule.atoms.size() == 2 ? 2 : (c2v_or_diatomic ? 4 : 6);
+    const bool c2v_or_diatomic = true;  // the sidebar geometries are C2v (H2O2: C2)
+    const std::size_t nat = p.molecule.atoms.size();
+    const int numerical_energies =
+        nat == 2 ? 2 : (nat == 4 ? (p.molecule.name == "H2O2" ? 8 : 12) : (c2v_or_diatomic ? 4 : 6));
     *energies = 0;
     if (analytic_gradient_method(m)) {
         const double need = analytic_gradient_bytes(m, nocc, nbf, nbf) / (1024.0 * 1024.0);
@@ -345,11 +347,16 @@ JobEstimate estimate_job(const MolecularResult& p, const JobSettings& s, const M
             st.seconds = 7.0 * tg;
         } else if (analytic) {
             st.analytic = false;
-            st.evaluations = diatomic ? 2 : 6;
+            const bool four = p.molecule.atoms.size() == 4;
+            st.evaluations = diatomic ? 2 : (four ? 12 : 6);
             st.evaluation_kind = "gradients";
             st.how = strprintf("numerical Hessian: central differences of %d analytic gradients along %s; IR intensities "
                                "from the relaxed dipole moments",
-                               st.evaluations, diatomic ? "the bond" : "the symmetry-adapted coordinates S1, S2, S3");
+                               st.evaluations,
+                               diatomic ? "the bond"
+                                        : (four ? (p.molecule.name == "H2O2" ? "the symmetry-adapted coordinates S1 ... S6"
+                                                                              : "the six internal coordinates")
+                                                : "the symmetry-adapted coordinates S1, S2, S3"));
             st.seconds = (st.evaluations + 1) * tg;
         } else {
             st.analytic = false;
@@ -390,6 +397,14 @@ JobEstimate estimate_job(const MolecularResult& p, const JobSettings& s, const M
         const std::string why = plan_scan(p.molecule, s, &plan);
         if (!why.empty()) est.refusal = "The scan is not possible: " + why + ".";
     }
+    if (est.refusal.empty() && (m == "CCSDT" || m == "CCSDTQ") && p.molecule.atoms.size() == 4 &&
+        job_has_frequencies(t)) {
+        est.refusal = strprintf(
+            "%s frequencies for %s are not possible: %s has no analytic gradient, and a Hessian from energies is "
+            "not available for four atoms (it would need about 140 %s energies of %s each). Use CCSD(T) for the "
+            "frequencies.",
+            m.c_str(), p.molecule.name.c_str(), m.c_str(), m.c_str(), human_time(e.total_seconds).c_str());
+    }
     if (est.refusal.empty() && m == "CCSDTQ" && p.molecule.name == "H2O") {
         const NumericalHessianCost c = numerical_hessian_cost(p.molecule, false, true);
         est.refusal = strprintf(
@@ -424,7 +439,7 @@ void write_header(OutputWriter& w, const JobSettings& s, const std::string& echo
     const std::string rule(88, '=');
     w.line(rule);
     w.line("                                ΨLab " + std::string(kProgramVersion));
-    w.line("        restricted Hartree-Fock, coupled cluster and Full CI for H2, LiH and H2O");
+    w.line("     restricted Hartree-Fock, coupled cluster and Full CI for H2, LiH, H2O, H2O2, NH3");
     w.line(rule);
     w.line("  Program      ΨLab " + std::string(kProgramVersion) + " (C++17 backend; integrals, SCF, CC, CI, derivatives)");
     w.line("  Started      " + local_time_string());
@@ -647,8 +662,17 @@ MolecularResult final_point_result(const JobResult& job, const MolecularInput& i
     if (r.molecule.name.empty()) r.molecule.name = canonical_molecule_name(input.molecule);
     // geometry parameters of the final point (R of the first bond, the H-O-H angle)
     const SimpleInternals si = simple_internals(r.molecule);
+    const double deg = 180.0 / 3.14159265358979323846;
     r.input.R = si.values[0];
-    if (si.values.size() == 3) r.input.angle = si.values[2] * 180.0 / 3.14159265358979323846;
+    if (si.values.size() == 3) r.input.angle = si.values[2] * deg;
+    if (si.values.size() == 6 && r.molecule.name == "H2O2") {
+        r.input.r_oo = si.values[0];
+        r.input.R = si.values[1];
+        r.input.angle = si.values[3] * deg;
+        r.input.dihedral = si.values[5] * deg;
+    } else if (si.values.size() == 6) {
+        r.input.angle = si.values[3] * deg;  // NH3: R(N1-H2), A(H2-N1-H3)
+    }
     r.basis = build_basis(r.molecule, r.input.basis, input.basis_directory);
     for (const auto& a : r.basis.atoms)
         if (!a.note.empty() && std::find(r.notes.begin(), r.notes.end(), a.note) == r.notes.end()) r.notes.push_back(a.note);

@@ -31,7 +31,7 @@ struct NormalMode {
     double ir_intensity = -1.0;   // km/mol (negative: not available)
     std::array<double, 3> dmu_dq{};  // dipole derivative along the mass-weighted mode (e / u^1/2)
     std::vector<std::array<double, 3>> displacement;  // normalised Cartesian displacement per atom
-    std::string symmetry;         // "A1", "B2", "SG+", "S+" or ""
+    std::string symmetry;         // "A1", "B2", "Sigma_g+", "Sigma+", (7.0, four atoms) "A", "E'", "A2''" ... or ""
 };
 
 struct HarmonicAnalysis {
@@ -43,6 +43,7 @@ struct HarmonicAnalysis {
     std::vector<double> low_frequencies;  // the translations, rotations (unprojected) and lowest modes, cm^-1
     bool has_intensities = false;
     std::array<double, 3> center_of_mass{};  // bohr
+    std::string point_group;              // 7.0: four-atom molecules (H2O2, NH3), else ""
 };
 
 // `dipole_derivatives`: atomic polar tensor, [3 n_atoms][xyz] (e), or nullptr.
@@ -79,7 +80,9 @@ ThermoResult thermochemistry(const Molecule& mol, const HarmonicAnalysis& h, dou
                              double temperature = 298.15, double pressure = 101325.0, int symmetry_number = 1,
                              double low_frequency_cutoff = 10.0);
 
-// Symmetry number of ΨLab's molecules: homonuclear diatomic 2, heteronuclear 1, C2v H2O 2.
+// Symmetry number of ΨLab's molecules: homonuclear diatomic 2, heteronuclear 1, C2v H2O 2; for four
+// atoms (7.0) the number of proper rotations of the point group (H2O2: C2, C2v, C2h 2; NH3: C3v 3,
+// D3h 6).
 int symmetry_number(const Molecule& mol);
 
 // J/mol -> E_h, kcal/mol, kJ/mol.

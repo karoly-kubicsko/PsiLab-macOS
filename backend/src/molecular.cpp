@@ -210,7 +210,7 @@ bool coupled_cluster_method(const std::string& canonical, CCMethod* method) {
 
 std::string validate_molecular(const MolecularInput& in) {
     const std::string m = canonical_molecule_name(in.molecule);
-    if (m.empty() || m == "HeH+") return "molecule must be H2, LiH or H2O";
+    if (m.empty() || m == "HeH+") return "molecule must be H2, LiH, H2O, H2O2 or NH3";
     if (canonical_basis_name(in.basis).empty()) {
         std::string list;
         for (const auto& b : supported_basis_sets()) list += (list.empty() ? "" : ", ") + b;
@@ -225,6 +225,16 @@ std::string validate_molecular(const MolecularInput& in) {
     if (in.R > 50.0) return "R must be at most 50 bohr (26.5 \xC3\x85)";
     if (m == "H2O" && !(std::isfinite(in.angle) && in.angle >= 30.0 && in.angle <= 180.0))
         return "the H-O-H angle must be between 30 and 180 degrees";
+    if (m == "H2O2") {
+        if (!(std::isfinite(in.angle) && in.angle >= 30.0 && in.angle <= 175.0))
+            return "the O-O-H angle must be between 30 and 175 degrees";
+        if (!std::isfinite(in.r_oo) || in.r_oo < 0.0 || (in.r_oo > 0.0 && in.r_oo < 0.3) || in.r_oo > 50.0)
+            return "R(O-O) must be between 0.3 and 50 bohr";
+        if (!(std::isfinite(in.dihedral) && in.dihedral >= -360.0 && in.dihedral <= 360.0))
+            return "the H-O-O-H dihedral angle must be between -360 and 360 degrees";
+    }
+    if (m == "NH3" && !(std::isfinite(in.angle) && in.angle >= 60.0 && in.angle <= 120.0))
+        return "the H-N-H angle must be between 60 and 120 degrees (120: planar)";
     if (in.threads < 0 || in.threads > 64) return "threads must be between 0 (automatic) and 64";
     if (!std::isfinite(in.memory_mb) || in.memory_mb < 0.0) return "memoryMB must be >= 0";
     if (in.max_iter < 1 || in.max_iter > 1000) return "scfMaxIter must be between 1 and 1000";
@@ -237,6 +247,7 @@ int expected_scf_iterations(const std::string& molecule) {
     // Observed with the core-Hamiltonian guess and DIIS near equilibrium (7, 10, 13), plus one.
     if (molecule == "H2") return 8;
     if (molecule == "LiH") return 11;
+    if (molecule == "H2O2") return 16;
     return 14;
 }
 
@@ -286,7 +297,8 @@ MolecularResult prepare_molecular(const MolecularInput& input) {
     r.input.basis = canonical_basis_name(input.basis);
     r.input.method = canonical_method_name(input.method);
     if (!(r.input.R > 0.0)) r.input.R = default_bond_length(r.input.molecule);
-    r.molecule = make_molecule(r.input.molecule, r.input.R, r.input.angle);
+    if (r.input.molecule == "H2O2" && !(r.input.r_oo > 0.0)) r.input.r_oo = default_oo_bond_length();
+    r.molecule = make_molecule(r.input.molecule, r.input.R, r.input.angle, r.input.r_oo, r.input.dihedral);
     r.basis = build_basis(r.molecule, r.input.basis, r.input.basis_directory);
     for (const auto& a : r.basis.atoms)
         if (!a.note.empty() && std::find(r.notes.begin(), r.notes.end(), a.note) == r.notes.end())
@@ -311,8 +323,8 @@ MolecularResult prepare_molecular(const MolecularInput& input) {
         e.total_seconds += e.fci->seconds;
         if (!e.fci->feasible) {
             r.refusal = e.fci->reason;
-            if (r.molecule.name == "H2O")
-                r.refusal += " Full CI for H2O is impossible in every basis set offered; use RHF.";
+            if (r.molecule.name == "H2O" || r.molecule.name == "H2O2" || r.molecule.name == "NH3")
+                r.refusal += " Full CI for " + r.molecule.name + " is impossible in every basis set offered; use RHF.";
             else if (r.molecule.name == "LiH")
                 r.refusal += " For LiH, Full CI is possible up to aug-cc-pCVTZ (11 million determinants).";
             return r;
@@ -441,7 +453,12 @@ std::string molecular_report(const MolecularResult& r) {
          rule + "\n";
     s += format("Molecule        %s, %d electrons, closed shell (charge %d, singlet)\n", mol.name.c_str(),
                 mol.electrons(), mol.charge);
-    if (mol.name == "H2O")
+    if (mol.name == "H2O2")
+        s += "Geometry        R(O-O) = " + angstrom_bohr(r.input.r_oo) + ", R(O-H) = " + angstrom_bohr(r.input.R) +
+             format(", angle O-O-H = %.4f deg, dihedral H-O-O-H = %.4f deg\n", r.input.angle, r.input.dihedral);
+    else if (mol.name == "NH3")
+        s += "Geometry        R(N-H) = " + angstrom_bohr(r.input.R) + format(", angle H-N-H = %.4f deg (C3v)\n", r.input.angle);
+    else if (mol.name == "H2O")
         s += "Geometry        R(O-H) = " + angstrom_bohr(r.input.R) + format(", angle H-O-H = %.4f deg\n", r.input.angle);
     else if (mol.name == "LiH")
         s += "Geometry        R(Li-H) = " + angstrom_bohr(r.input.R) + "\n";

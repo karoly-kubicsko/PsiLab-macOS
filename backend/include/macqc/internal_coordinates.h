@@ -8,7 +8,8 @@
 // bond; every pair of bonds at a common atom is a bend, replaced by two linear-bend
 // components (in two perpendicular planes through the A...C axis) when the angle exceeds 175
 // degrees; every chain A-B-C-D of three bonds is a dihedral (torsion), left out while one of
-// its two bends is above 175 degrees (7.0). Units: bohr for stretches, radians for bends and
+// its two bends is above 175 degrees, and an atom B with three bonds (to a < b < c) gets the
+// improper torsions (a, B, b, c), (b, B, c, a), (c, B, a, b) (7.0). Units: bohr for stretches, radians for bends and
 // dihedrals (IUPAC sign, in (-pi, pi]; differences are taken modulo 2 pi); the linear-bend
 // components are the projections (u + v) . e_k of the unit vectors from the central atom
 // (dimensionless, close to the deviation from 180 degrees in radians).

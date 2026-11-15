@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Constrained optimisations for the relaxed scans of ΨLab 7.0 (PySCF + geomeTRIC).
 
-Each point of a relaxed scan is a constrained minimum: the scanned bond or angle is fixed and
-all other coordinates are optimised. Here every point is computed independently: PySCF gives the
+Each point of a relaxed scan is a constrained minimum: the scanned bond, angle or dihedral angle
+is fixed and all other coordinates are optimised. Here every point is computed independently: PySCF gives the
 energies and analytic gradients (RHF; CCSD(T) with the CCSD(T) Lambda equations, see
 pyscf_optimization_reference.py), geomeTRIC (an independent optimiser in
 translation-rotation-internal coordinates) minimises with the coordinate set by a "$set"
@@ -12,7 +12,15 @@ geometries are ΨLab's defaults with the scanned coordinate at its value.
 H2O with the angle frozen at exactly 180 degrees (ΨLab imposes it through the two linear-bend
 components) is computed without geomeTRIC: the linear, symmetric molecule (D-infinity-h, which
 the constrained minimum keeps by symmetry) is minimised along the symmetric stretch by Newton
-steps on the PySCF analytic gradient.
+steps on the PySCF analytic gradient. NH3 with the improper dihedral H2-N1-H3-H4 at -180 degrees
+is planar; its constrained minimum is the D3h structure, found the same way along the N-H
+stretch.
+
+Stage 7.2 adds H2O2 (torsion H3-O1-O2-H4 from 0 to 180 degrees) and NH3 (the umbrella, the
+improper dihedral H2-N1-H3-H4 towards planarity). The planar structures (cis and trans H2O2, D3h
+NH3) are the transition states of the internal rotation and of the inversion; their RHF harmonic
+wavenumbers (PySCF analytic Hessian, AME 2020 masses; imaginary as negative numbers) are stored
+for the transition-state tests.
 
 Usage (needs: pip install pyscf geometric):
   python3 reference/pyscf_scan_reference.py           # -> backend/tests/data/scan_reference.json
@@ -36,16 +44,45 @@ from pyscf.geomopt.geometric_solver import optimize  # noqa: E402
 
 OUT = rr.ROOT / "backend" / "tests" / "data" / "scan_reference.json"
 B = rr.BOHR_IN_ANGSTROM
+H2O2 = dict(ROO=1.4556 / B, R=0.9670 / B, angle=102.32, dihedral=113.70)
+NH3 = dict(R=1.012 / B, angle=106.7)
+MASSES = {"H": 1.007825031898, "N": 14.003074004251, "O": 15.994914619257}  # AME 2020, as in macqc/constants.cpp
+
 # (molecule, basis, method, coordinate as in ΨLab, values in angstrom or degrees)
 CASES = [
     ("H2O", "aug-cc-pVDZ", "RHF", "B 1 2", [0.85, 1.2]),
     ("H2O", "aug-cc-pVDZ", "RHF", "A 2 1 3", [90.0, 150.0, 170.0, 180.0]),
     ("H2O", "aug-cc-pVDZ", "CCSD(T)", "B 1 2", [1.1]),
+    ("H2O2", "aug-cc-pVDZ", "RHF", "D 3 1 2 4", [0.0, 60.0, 120.0, 180.0]),
+    ("H2O2", "aug-cc-pVDZ", "CCSD(T)", "D 3 1 2 4", [180.0]),
+    ("NH3", "aug-cc-pVDZ", "RHF", "D 2 1 3 4", [-140.0, -180.0]),
 ]
+
+
+def h2o2_atoms(roo, r, ang, dih):
+    a, h = math.radians(ang), math.radians(dih) / 2
+    c, s = math.cos(a), math.sin(a)
+    return [("O", (-roo / 2, 0.0, 0.0)), ("O", (roo / 2, 0.0, 0.0)),
+            ("H", (-roo / 2 + r * c, r * s * math.sin(h), r * s * math.cos(h))),
+            ("H", (roo / 2 - r * c, -r * s * math.sin(h), r * s * math.cos(h)))]
+
+
+def nh3_atoms(r, ang):
+    c2 = max(0.0, (2.0 * math.cos(math.radians(ang)) + 1.0) / 3.0)
+    ct, st = math.sqrt(c2), math.sqrt(1.0 - c2)
+    return [("N", (0.0, 0.0, 0.0))] + [("H", (r * st * math.cos(p), r * st * math.sin(p), r * ct))
+                                       for p in (0.0, 2.0 * math.pi / 3.0, 4.0 * math.pi / 3.0)]
 
 
 def start_atoms(name, coord, value):
     kind = coord.split()[0]
+    if name == "H2O2":
+        g = dict(H2O2)
+        if kind == "D":
+            g["dihedral"] = value
+        return h2o2_atoms(g["ROO"], g["R"], g["angle"], g["dihedral"])
+    if name == "NH3":
+        return nh3_atoms(NH3["R"], NH3["angle"])  # geomeTRIC drives the dihedral to its value
     geo = rr.GEOMETRIES[name]
     if kind == "A":
         return rr.atoms(name, geo["R"], value)
@@ -77,7 +114,54 @@ def internal(x, kind, idx):
 
 
 def parameters(name, x):
+    if name == "H2O2":
+        return dict(ROO=internal(x, "B", [1, 2]), R1=internal(x, "B", [1, 3]), R2=internal(x, "B", [2, 4]),
+                    angle1=internal(x, "A", [2, 1, 3]), angle2=internal(x, "A", [1, 2, 4]),
+                    dihedral=internal(x, "D", [3, 1, 2, 4]))
+    if name == "NH3":
+        return dict(R1=internal(x, "B", [1, 2]), R2=internal(x, "B", [1, 3]), R3=internal(x, "B", [1, 4]),
+                    angle1=internal(x, "A", [2, 1, 3]), angle2=internal(x, "A", [2, 1, 4]),
+                    angle3=internal(x, "A", [3, 1, 4]), dihedral=internal(x, "D", [2, 1, 3, 4]))
     return dict(R1=internal(x, "B", [1, 2]), R2=internal(x, "B", [1, 3]), angle=internal(x, "A", [2, 1, 3]))
+
+
+def frequencies(mol):
+    """Harmonic wavenumbers (cm^-1, imaginary as negative numbers) from PySCF's analytic RHF Hessian."""
+    from pyscf import scf
+    from pyscf.hessian import thermo
+    mf = scf.RHF(mol)
+    mf.conv_tol = 1e-12
+    mf.conv_tol_grad = 1e-9
+    mf.kernel()
+    h = mf.Hessian().kernel()
+    mass = numpy.array([MASSES[mol.atom_symbol(i)] for i in range(mol.natm)])
+    res = thermo.harmonic_analysis(mol, h, mass=mass)
+    return [float(-abs(v.imag)) if abs(v.imag) > 1e-8 else float(v.real) for v in res["freq_wavenumber"]]
+
+
+def planar_ammonia(basis):
+    """D3h NH3 at the minimum along the N-H stretch (the planar constrained minimum), RHF."""
+    from pyscf import scf
+
+    def point(r):
+        mol = build(nh3_atoms(r, 120.0), basis)
+        mf = scf.RHF(mol)
+        mf.conv_tol = 1e-12
+        mf.conv_tol_grad = 1e-9
+        mf.kernel()
+        g = mf.nuc_grad_method().kernel()
+        x = mol.atom_coords(unit="Bohr")
+        d = sum(float(numpy.dot(g[k], (x[k] - x[0]) / numpy.linalg.norm(x[k] - x[0]))) for k in (1, 2, 3))
+        return mol, float(mf.e_tot), d
+
+    r = 1.0 / B
+    for _ in range(30):
+        mol, e, d1 = point(r)
+        if abs(d1) < 1e-10:
+            break
+        h = 1e-4
+        r -= d1 / ((point(r + h)[2] - d1) / h)
+    return mol, e
 
 
 def linear_gradient(r, basis):
@@ -111,6 +195,14 @@ def run_point(name, basis, method, coord, value):
     t0 = time.time()
     tok = coord.split()
     kind, idx = tok[0], [int(t) for t in tok[1:]]
+    if name == "NH3" and kind == "D" and value == -180.0:
+        mol_eq, e = planar_ammonia(basis)
+        x = mol_eq.atom_coords(unit="Bohr")
+        out = dict(value=value, energy=e, measured=internal(x, kind, idx), geometry=[[float(c) for c in row] for row in x])
+        out.update(parameters(name, x))
+        out["frequencies"] = frequencies(mol_eq)
+        out["seconds"] = round(time.time() - t0, 1)
+        return out
     if kind == "A" and value == 180.0:
         mol_eq, e = linear_water(basis, method)
         x = mol_eq.atom_coords(unit="Bohr")
@@ -124,10 +216,17 @@ def run_point(name, basis, method, coord, value):
         f.write("$set\n" + word + " " + " ".join(map(str, idx)) + f" {value:.10f}\n")
         cfile = f.name
     mol_eq = optimize(orf.solver(mol, method), maxsteps=200, constraints=cfile, **orf.CONV)
+    if name == "NH3":
+        # geomeTRIC drives the dihedral from the default geometry; its first run stops early in the
+        # flat valley of the constrained surface (1.6e-5 E_h above the constrained minimum at -140
+        # degrees), so it is restarted from its result
+        mol_eq = optimize(orf.solver(mol_eq, method), maxsteps=200, constraints=cfile, **orf.CONV)
     x = mol_eq.atom_coords(unit="Bohr")
     out = dict(value=value, energy=float(orf.energy(mol_eq, method)), measured=internal(x, kind, idx),
                geometry=[[float(c) for c in row] for row in x])
     out.update(parameters(name, x))
+    if name == "H2O2" and method == "RHF" and kind == "D" and value in (0.0, 180.0):
+        out["frequencies"] = frequencies(mol_eq)
     out["seconds"] = round(time.time() - t0, 1)
     return out
 
@@ -144,9 +243,11 @@ def main():
         for v in values:
             p = run_point(name, basis, method, coord, v)
             pts.append(p)
-            keys = [k for k in ("R1", "R2", "angle") if k in p]
+            keys = [k for k in ("ROO", "R1", "R2", "R3", "angle", "angle1", "angle2", "angle3", "dihedral") if k in p]
             line = (f"{name:4s} {basis} {method:8s} {coord} = {v:8.3f}: E = {p['energy']:.10f}  " +
                     ", ".join(f"{k} {p[k]:.6f}" for k in keys) + f"  ({p['seconds']} s)")
+            if "frequencies" in p:
+                line += "  freq " + " ".join(f"{f:.2f}" for f in p["frequencies"])
             if args.check and stored:
                 ref = next(c for c in stored["cases"] if (c["molecule"], c["method"], c["coordinate"]) == (name, method, coord))
                 rp = next(q for q in ref["points"] if q["value"] == v)
@@ -161,8 +262,9 @@ def main():
     doc = {
         "description": "Constrained minima (scan points) from PySCF analytic gradients and geomeTRIC with a $set "
                        "constraint (H2O at 180 degrees: Newton minimisation of the linear molecule along the symmetric "
-                       "stretch): bond lengths in angstrom, angles in degrees, energies in E_h, geometry in bohr; "
-                       "generated by reference/pyscf_scan_reference.py",
+                       "stretch; planar NH3 the same along the N-H stretch): bond lengths in angstrom, angles in "
+                       "degrees, energies in E_h, geometry in bohr; RHF wavenumbers (cm^-1, imaginary negative) of the "
+                       "planar H2O2 and NH3 transition states; generated by reference/pyscf_scan_reference.py",
         "program": f"PySCF {pyscf.__version__}, geomeTRIC",
         "settings": "all electrons correlated; geomeTRIC thresholds " + json.dumps(orf.CONV),
         "bohr_in_angstrom": B,

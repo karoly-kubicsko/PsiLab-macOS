@@ -1,16 +1,18 @@
 // ΨLab terminal version: plain-text input file -> plain-text output file.
 //
 // Input: one "key = value" per line, '#' starts a comment. Keys (case-insensitive):
-//   molecule   HeH+ (default) | H2 | LiH | H2O
+//   molecule   HeH+ (default) | H2 | LiH | H2O | H2O2 | NH3
 //   basis      HeH+: STO-1G | STO-2G | STO-3G; others: aug-cc-pVXZ, aug-cc-pCVXZ (X = D, T, Q, 5)
-//   R          bond length (H2O: O-H), a number optionally followed by a unit: bohr (default)
+//   R          bond length (H2O, H2O2: O-H; NH3: N-H), a number optionally followed by a unit: bohr (default)
 //              or angstrom; default for H2, LiH, H2O: the experimental equilibrium value
-//   angle      H-O-H angle in degrees (H2O; default 104.52)
+//   angle      degrees: H-O-H (H2O; default 104.52), O-O-H (H2O2; 102.32), H-N-H (NH3; 106.7, 120 planar)
+//   R_OO       O-O bond length (H2O2; default 1.4556 angstrom)   dihedral  H-O-O-H (H2O2; 113.70)
 //   method     HF | CCSD | CCSD(T) | CCSDT | CCSDTQ | FCI (H2, LiH, H2O; refused where impossible)
-//   job        energy (default) | opt | freq | opt+freq | opt+freq+sp | scan     (H2, LiH, H2O)
+//   job        energy (default) | opt | freq | opt+freq | opt+freq+sp | scan
 //   scan       job = scan: the Gaussian ModRedundant line N1 N2 [N3 [N4]] S nsteps stepsize
 //              (1-based atoms, optionally preceded by B, A or D; step in angstrom for a bond,
-//              degrees for an angle), e.g. 1 2 S 10 0.05 or 2 1 3 S 8 10.0
+//              degrees for an angle or dihedral), e.g. 1 2 S 10 0.05, 2 1 3 S 8 10.0 or
+//              3 1 2 4 S 18 10.0 (H2O2 torsion)
 //   scan_start value of the first scan point (angstrom or degrees; default: the input geometry)
 //   sp_method, sp_basis   method and basis set of the single point of opt+freq+sp
 //   temperature  K (default 298.15)       pressure  Pa (default 101325; units Pa, kPa, bar, atm)

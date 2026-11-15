@@ -34,6 +34,7 @@ add_library(macqc STATIC
   backend/src/optimizer.cpp
   backend/src/constants.cpp
   backend/src/frequencies.cpp
+  backend/src/symmetry.cpp
   backend/src/hessian.cpp
   backend/src/output.cpp
   backend/src/jobs.cpp
@@ -170,6 +171,15 @@ target_compile_definitions(macqc_scan_tests PRIVATE
   MACQC_TEST_DATA_DIR="${CMAKE_CURRENT_SOURCE_DIR}/backend/tests/data")
 add_test(NAME macqc_scan_tests COMMAND macqc_scan_tests)
 set_tests_properties(macqc_scan_tests PROPERTIES
+  ENVIRONMENT "PSILAB_BASIS_DIR=${CMAKE_CURRENT_SOURCE_DIR}/basis" TIMEOUT 7200)
+# ΨLab 7.0: H2O2 and NH3 (geometry, energies, gradients, optimisation, symmetry, scans).
+add_executable(macqc_molecule_tests backend/tests/test_molecules.cpp)
+target_link_libraries(macqc_molecule_tests PRIVATE macqc)
+target_include_directories(macqc_molecule_tests PRIVATE third_party)
+target_compile_definitions(macqc_molecule_tests PRIVATE
+  MACQC_TEST_DATA_DIR="${CMAKE_CURRENT_SOURCE_DIR}/backend/tests/data")
+add_test(NAME macqc_molecule_tests COMMAND macqc_molecule_tests)
+set_tests_properties(macqc_molecule_tests PROPERTIES
   ENVIRONMENT "PSILAB_BASIS_DIR=${CMAKE_CURRENT_SOURCE_DIR}/basis" TIMEOUT 7200)
 # ΨLab 5.0: harmonic frequencies, IR intensities, thermochemistry.
 add_executable(macqc_frequency_tests backend/tests/test_frequencies.cpp)

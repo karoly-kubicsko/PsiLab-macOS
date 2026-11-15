@@ -88,10 +88,10 @@ int main() {
     CHECK(std::fabs(w2.input.R - 1.0 / psilab::kBohrToAngstrom) < 1e-12 && w2.input.angle == 100.0);
     CHECK(w2.input.threads == 2 && w2.input.memoryMB == 2048.0 && w2.input.basis == "aug-cc-pVDZ");
     CHECK(std::fabs(psilab::parse_input_text("molecule = LiH\n").input.R - 1.5949 / psilab::kBohrToAngstrom) < 1e-12);
-    CHECK(rejects("molecule = CH4\n", "molecule must be HeH+, H2, LiH or H2O"));
+    CHECK(rejects("molecule = CH4\n", "molecule must be HeH+, H2, LiH, H2O, H2O2 or NH3"));
     CHECK(rejects("molecule = H2\nzeta_H = 1.2\n", "line 2: 'zeta_H' applies to HeH+ only"));
-    CHECK(rejects("molecule = H2\nangle = 100\n", "applies to H2O only"));
-    CHECK(rejects("angle = 100\n", "applies to H2O only"));
+    CHECK(rejects("molecule = H2\nangle = 100\n", "applies to H2O, H2O2 and NH3 only"));
+    CHECK(rejects("angle = 100\n", "applies to H2O, H2O2 and NH3 only"));
     CHECK(rejects("method = RHF\n", "HeH+ always runs Hartree-Fock and Full CI"));
     CHECK(rejects("molecule = H2O\nbasis = STO-3G\n", "basis must be one of aug-cc-pVDZ"));
     CHECK(rejects("molecule = H2\nmethod = MP2\n", "method must be HF (RHF), CCSD, CCSD(T), CCSDT, CCSDTQ or FCI"));
@@ -159,7 +159,7 @@ int main() {
     CHECK(psilab::parse_input_text("molecule = H2\njob = freq\npressure = 1 atm\n").input.pressure == 101325.0);
     CHECK(psilab::parse_input_text("molecule = H2\njob = freq\npressure = 100 kPa\n").input.pressure == 1.0e5);
     CHECK(rejects("molecule = H2\njob = sweep\n", "job must be energy, opt, freq, opt+freq, opt+freq+sp or scan"));
-    CHECK(rejects("job = opt\n", "applies to H2, LiH and H2O only"));
+    CHECK(rejects("job = opt\n", "applies to H2, LiH, H2O, H2O2 and NH3 only"));
     CHECK(rejects("molecule = H2\njob = opt\nsp_method = CCSD\n", "'sp_method' applies to job = opt+freq+sp only"));
     CHECK(rejects("molecule = H2\njob = opt\ntemperature = 300\n", "applies to job = freq, opt+freq and opt+freq+sp only"));
     CHECK(rejects("molecule = H2\njob = freq\nmax_steps = 10\n", "applies to job = opt, opt+freq, opt+freq+sp and scan only"));
@@ -196,7 +196,7 @@ int main() {
     CHECK(rejects("molecule = H2O\njob = opt\nscan = 1 2 S 2 0.1\n", "'scan' applies to job = scan only"));
     CHECK(rejects("molecule = H2O\njob = scan\nscan = 1 2 S 2 0.1\nscan_start = 90 degrees\n", "degrees apply to angles"));
     CHECK(rejects("molecule = H2O\njob = scan\nscan = 2 1 3 S 2 10\nscan_start = 1 bohr\n", "bohr applies to a bond"));
-    CHECK(rejects("scan_start = 1\n", "applies to H2, LiH and H2O only"));
+    CHECK(rejects("scan_start = 1\n", "applies to H2, LiH, H2O, H2O2 and NH3 only"));
     const std::string sest = psilab::estimate_text(psilab::parse_input_text("molecule = H2O\njob = scan\nscan = 2 1 3 S 8 5\n"));
     CHECK(contains(sest, "Relaxed scan: analytic gradient (derivative integrals); 9 points"));
     const psilab::RunResult srun = psilab::run_to_text(
@@ -205,6 +205,23 @@ int main() {
     CHECK(contains(srun.text, "Summary of the relaxed scan: HF/aug-cc-pVDZ"));
     CHECK(contains(srun.text, "scan             = 1 2 S 2 0.1   (bond, 3 points; step in angstrom)"));
     CHECK(srun.output && srun.output->job && srun.output->job->scan && srun.output->job->scan->points.size() == 3);
+
+    // ΨLab 7.0 stage 7.2: H2O2 and NH3
+    const psilab::Settings hp = psilab::parse_input_text(
+        "molecule = HOOH\nR_OO = 1.45 angstrom\nR = 0.96 angstrom\nangle = 100\ndihedral = 180\n");
+    CHECK(hp.input.molecule == "H2O2" && std::fabs(hp.input.ROO - 1.45 / psilab::kBohrToAngstrom) < 1e-12);
+    CHECK(std::fabs(hp.input.R - 0.96 / psilab::kBohrToAngstrom) < 1e-12 && hp.input.angle == 100.0 && hp.input.dihedral == 180.0);
+    const psilab::Settings hd = psilab::parse_input_text("molecule = H2O2\n");
+    CHECK(hd.input.angle == 102.32 && hd.input.dihedral == 113.70 && std::fabs(hd.input.R - 0.9670 / psilab::kBohrToAngstrom) < 1e-12);
+    const psilab::Settings am = psilab::parse_input_text("molecule = ammonia\nangle = 120\n");
+    CHECK(am.input.molecule == "NH3" && am.input.angle == 120.0 && std::fabs(am.input.R - 1.012 / psilab::kBohrToAngstrom) < 1e-12);
+    CHECK(psilab::parse_input_text("molecule = NH3\n").input.angle == 106.7);
+    CHECK(rejects("molecule = H2O\nR_OO = 1.4 angstrom\n", "'R_OO' applies to H2O2 only"));
+    CHECK(rejects("molecule = NH3\ndihedral = 100\n", "'dihedral' applies to H2O2 only"));
+    CHECK(rejects("molecule = NH3\nangle = 130\n", "between 60 and 120"));
+    const psilab::Settings hs = psilab::parse_input_text("molecule = H2O2\njob = scan\nscan = 3 1 2 4 S 18 10.0\nscan_start = 0\n");
+    CHECK(hs.input.scan == "3 1 2 4 S 18 10.0" && hs.input.scanStart && *hs.input.scanStart == 0.0);
+    CHECK(rejects("molecule = NH3\njob = scan\nscan = 2 1 3 5 S 2 10\n", "atom 5 does not exist"));
 
     // Without scan: no curve section.
     psilab::Settings single = ex;

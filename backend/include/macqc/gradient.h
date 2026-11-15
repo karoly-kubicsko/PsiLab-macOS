@@ -99,7 +99,11 @@ GradientResult run_gradient(const Molecule& mol, const BasisSet& basis, const st
                             const ElectronicCallbacks& callbacks = ElectronicCallbacks(), bool force_numerical = false);
 
 // Natural internal coordinates of the molecules of ΨLab: a diatomic has R; H2O (atom 0 = O)
-// has R(O-H1), R(O-H2) and the angle H1-O-H2. values() in bohr and rad.
+// has R(O-H1), R(O-H2) and the angle H1-O-H2; H2O2 (atoms O1, O2, H3, H4) has R(O1-O2),
+// R(O1-H3), R(O2-H4), A(O2-O1-H3), A(O1-O2-H4) and the dihedral D(H3-O1-O2-H4); NH3 (atoms N1,
+// H2, H3, H4) has R(N1-H2), R(N1-H3), R(N1-H4), A(H2-N1-H3), A(H2-N1-H4) and the improper
+// torsion D(H4-N1-H2-H3) (a Z-matrix; 180 degrees at the planar geometry) (7.0).
+// values() in bohr and rad.
 struct SimpleInternals {
     std::vector<std::string> names;
     std::vector<double> values;

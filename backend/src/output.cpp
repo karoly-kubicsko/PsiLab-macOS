@@ -342,6 +342,7 @@ std::string frequency_block(const Molecule& mol, const HessianResult& h, const H
     int imag = 0;
     for (const auto& m : a.modes) imag += m.imaginary ? 1 : 0;
     if (imag) s += strprintf("    Warning: %d imaginary frequenc%s (a saddle point, not a minimum)\n", imag, imag == 1 ? "y" : "ies");
+    if (!a.point_group.empty()) s += "\n    Point group " + a.point_group + " (symmetry species of the modes from their characters)\n";
     s += "\n    Mode  Symmetry   Wavenumber (cm-1)   Reduced mass (u)   Force const. (mdyn/Å)   IR intensity (km/mol)\n";
     for (std::size_t k = 0; k < a.modes.size(); ++k) {
         const auto& m = a.modes[k];

@@ -165,7 +165,9 @@ Settings parse_input_text(const std::string& text) {
         if (k == "molecule") return "molecule";
         if (k == "basis" || k == "basisset") return "basis";
         if (k == "r" || k == "bondlength") return "R";
-        if (k == "angle" || k == "bondangle" || k == "hoh") return "angle";
+        if (k == "angle" || k == "bondangle" || k == "hoh" || k == "ooh" || k == "hnh") return "angle";
+        if (k == "roo" || k == "oo") return "R_OO";
+        if (k == "dihedral" || k == "hooh" || k == "torsion") return "dihedral";
         if (k == "method") return "method";
         if (k == "zetahe" || k == "zeta1") return "zeta_He";
         if (k == "zetah" || k == "zeta2") return "zeta_H";
@@ -204,7 +206,7 @@ Settings parse_input_text(const std::string& text) {
         const std::string k = canonical_key(normalize_key(key));
         if (k.empty())
             fail(line, "unknown key '" + key +
-                           "' (known: molecule, basis, R, angle, method, job, sp_method, sp_basis, temperature, "
+                           "' (known: molecule, basis, R, angle, R_OO, dihedral, method, job, sp_method, sp_basis, temperature, "
                            "pressure, opt_convergence, max_steps, scan, scan_start, zeta_He, zeta_H, exact_erf, "
                            "scan_step, threads, memory, fci_memory, basis_dir)");
         if (entries.count(k)) fail(line, "'" + key + "' is given twice");
@@ -216,28 +218,32 @@ Settings parse_input_text(const std::string& text) {
     if (entries.count("molecule")) {
         const Entry& e = entries["molecule"];
         molecule = macqc::canonical_molecule_name(e.value);
-        if (molecule.empty()) fail(e.line, "molecule must be HeH+, H2, LiH or H2O, got '" + e.value + "'");
+        if (molecule.empty()) fail(e.line, "molecule must be HeH+, H2, LiH, H2O, H2O2 or NH3, got '" + e.value + "'");
     }
     s.input.molecule = molecule;
+    if (molecule != "HeH+") s.input.angle = macqc::default_angle(molecule);
     const bool heh = molecule == "HeH+";
     auto only = [&](const char* key, bool allowed, const std::string& who) {
         auto it = entries.find(key);
         if (it != entries.end() && !allowed)
             fail(it->second.line, "'" + it->second.key + "' applies to " + who + " only (molecule = " + molecule + ")");
     };
+    const std::string general = "H2, LiH, H2O, H2O2 and NH3";
     only("zeta_He", heh, "HeH+");
     only("zeta_H", heh, "HeH+");
     only("exact_erf", heh, "HeH+");
     only("scan_step", heh, "HeH+");
-    only("scan_start", !heh, "H2, LiH and H2O");
-    only("angle", molecule == "H2O", "H2O");
-    only("method", !heh, "H2, LiH and H2O (HeH+ always runs Hartree-Fock and Full CI)");
-    only("threads", !heh, "H2, LiH and H2O");
-    only("memory", !heh, "H2, LiH and H2O");
-    only("fci_memory", !heh, "H2, LiH and H2O");
-    only("basis_dir", !heh, "H2, LiH and H2O");
+    only("scan_start", !heh, general);
+    only("angle", molecule == "H2O" || molecule == "H2O2" || molecule == "NH3", "H2O, H2O2 and NH3");
+    only("R_OO", molecule == "H2O2", "H2O2");
+    only("dihedral", molecule == "H2O2", "H2O2");
+    only("method", !heh, general + " (HeH+ always runs Hartree-Fock and Full CI)");
+    only("threads", !heh, general);
+    only("memory", !heh, general);
+    only("fci_memory", !heh, general);
+    only("basis_dir", !heh, general);
     for (const char* k : {"job", "sp_method", "sp_basis", "temperature", "pressure", "opt_convergence", "max_steps"})
-        only(k, !heh, "H2, LiH and H2O");
+        only(k, !heh, general);
 
     std::vector<std::pair<std::string, Entry>> ordered(entries.begin(), entries.end());
     std::sort(ordered.begin(), ordered.end(),
@@ -264,6 +270,10 @@ Settings parse_input_text(const std::string& text) {
             s.rGiven = true;
         } else if (k == "angle") {
             s.input.angle = parse_number(value, ln, e.key);
+        } else if (k == "R_OO") {
+            s.input.ROO = parse_length(value, ln);
+        } else if (k == "dihedral") {
+            s.input.dihedral = parse_number(value, ln, e.key);
         } else if (k == "method") {
             std::string m;
             for (char c : lower(value))
@@ -282,7 +292,7 @@ Settings parse_input_text(const std::string& text) {
             s.scan = parse_bool(value, ln, e.key);
         } else if (k == "scan") {
             // relaxed scan (7.0): the Gaussian ModRedundant line "[B|A|D] N1 N2 [N3 [N4]] S nsteps stepsize"
-            const int n_atoms = molecule == "H2O" ? 3 : 2;
+            const int n_atoms = (molecule == "H2O2" || molecule == "NH3") ? 4 : (molecule == "H2O" ? 3 : 2);
             macqc::JobSettings js;
             const std::string err = macqc::parse_scan_line(value, n_atoms, &js);
             if (!err.empty()) fail(ln, "scan: " + err);

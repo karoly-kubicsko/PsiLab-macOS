@@ -8,6 +8,7 @@
 
 #include "macqc/gto_derivatives.h"
 #include "macqc/gto_integrals.h"
+#include "macqc/internal_coordinates.h"
 #include "macqc/job.h"
 #include "macqc/mo_integrals.h"
 #include "macqc/rhf_derivatives.h"
@@ -171,7 +172,35 @@ SimpleInternals simple_internals(const Molecule& mol) {
         stretch(0, 1, "R(" + mol.atoms[0].symbol + "1-" + mol.atoms[1].symbol + "2)");
         return s;
     }
-    if (n != 3) throw std::invalid_argument("simple_internals: two or three atoms");
+    if (n == 4) {
+        auto add = [&](InternalType t, std::vector<int> atoms) {
+            InternalCoordinate c;
+            c.type = t;
+            c.atoms = std::move(atoms);
+            s.names.push_back(c.definition(mol));
+            s.values.push_back(internal_value(mol, c));
+            s.B.push_back(wilson_b_row(mol, c));
+        };
+        if (mol.atoms[0].Z == 7) {
+            // NH3: N1, H2, H3, H4
+            add(InternalType::Stretch, {0, 1});
+            add(InternalType::Stretch, {0, 2});
+            add(InternalType::Stretch, {0, 3});
+            add(InternalType::Bend, {1, 0, 2});
+            add(InternalType::Bend, {1, 0, 3});
+            add(InternalType::Dihedral, {3, 0, 1, 2});
+        } else {
+            // H2O2: O1, O2, H3 (on O1), H4 (on O2)
+            add(InternalType::Stretch, {0, 1});
+            add(InternalType::Stretch, {0, 2});
+            add(InternalType::Stretch, {1, 3});
+            add(InternalType::Bend, {1, 0, 2});
+            add(InternalType::Bend, {0, 1, 3});
+            add(InternalType::Dihedral, {2, 0, 1, 3});
+        }
+        return s;
+    }
+    if (n != 3) throw std::invalid_argument("simple_internals: two, three or four atoms");
     stretch(0, 1, "R(O1-H2)");
     stretch(0, 2, "R(O1-H3)");
     double u[3], v[3];
@@ -210,6 +239,42 @@ Molecule geometry_from_internals(const Molecule& ref, const std::vector<double>&
     const auto& O = ref.atoms[0].position;
     if (n == 2) {
         for (int k = 0; k < 3; ++k) m.atoms[1].position[static_cast<std::size_t>(k)] = O[static_cast<std::size_t>(k)] + q[0] * e1[k];
+        return m;
+    }
+    if (n == 4) {
+        // A Z-matrix in the frame of the reference: atom 0 fixed, atom 1 along the reference
+        // 0-1 direction e1; p is the unit vector perpendicular to e1 towards the reference atom 2,
+        // t = e1 x p. A right-handed rotation about e1 by tau is the IUPAC dihedral angle seen
+        // along 0 -> 1.
+        double p[3], w[3];
+        for (int k = 0; k < 3; ++k) w[k] = ref.atoms[2].position[static_cast<std::size_t>(k)] - O[static_cast<std::size_t>(k)];
+        const double proj = w[0] * e1[0] + w[1] * e1[1] + w[2] * e1[2];
+        for (int k = 0; k < 3; ++k) p[k] = w[k] - proj * e1[k];
+        double pn = norm3(p);
+        if (pn < 1.0e-10) {
+            const double a[3] = {std::fabs(e1[0]) < 0.9 ? 1.0 : 0.0, std::fabs(e1[0]) < 0.9 ? 0.0 : 1.0, 0.0};
+            const double d = a[0] * e1[0] + a[1] * e1[1] + a[2] * e1[2];
+            for (int k = 0; k < 3; ++k) p[k] = a[k] - d * e1[k];
+            pn = norm3(p);
+        }
+        for (double& x : p) x /= pn;
+        const double t[3] = {e1[1] * p[2] - e1[2] * p[1], e1[2] * p[0] - e1[0] * p[2], e1[0] * p[1] - e1[1] * p[0]};
+        const bool ammonia = ref.atoms[0].Z == 7;
+        for (int k = 0; k < 3; ++k) {
+            const std::size_t kk = static_cast<std::size_t>(k);
+            const double a1 = O[kk] + q[0] * e1[k];
+            m.atoms[1].position[kk] = a1;
+            m.atoms[2].position[kk] = O[kk] + q[1] * (std::cos(q[3]) * e1[k] + std::sin(q[3]) * p[k]);
+            if (ammonia) {
+                // H4 on N1: angle H2-N1-H4 = q4, D(H4-N1-H2-H3) = q5 (H3 is H4 rotated by +q5)
+                const double perp = std::cos(q[5]) * p[k] - std::sin(q[5]) * t[k];
+                m.atoms[3].position[kk] = O[kk] + q[2] * (std::cos(q[4]) * e1[k] + std::sin(q[4]) * perp);
+            } else {
+                // H4 on O2: angle O1-O2-H4 = q4, D(H3-O1-O2-H4) = q5
+                const double perp = std::cos(q[5]) * p[k] + std::sin(q[5]) * t[k];
+                m.atoms[3].position[kk] = a1 + q[2] * (-std::cos(q[4]) * e1[k] + std::sin(q[4]) * perp);
+            }
+        }
         return m;
     }
     double w[3];
@@ -366,7 +431,10 @@ GradientResult run_gradient(const Molecule& mol, const BasisSet& basis, const st
     }
     const std::size_t nq = si.values.size();
     std::vector<double> gq(nq, 0.0);
-    const bool symmetric = nq == 3 && std::fabs(si.values[0] - si.values[1]) < 1.0e-9;
+    const bool peroxide = nq == 6 && mol.atoms[0].Z == 8;
+    const bool symmetric = (nq == 3 && std::fabs(si.values[0] - si.values[1]) < 1.0e-9) ||
+                           (peroxide && std::fabs(si.values[1] - si.values[2]) < 1.0e-9 &&
+                            std::fabs(si.values[3] - si.values[4]) < 1.0e-9);
     struct Disp {
         std::string name;
         std::vector<double> dir;  // displacement of (q1, q2, ...) per unit step
@@ -374,10 +442,17 @@ GradientResult run_gradient(const Molecule& mol, const BasisSet& basis, const st
     std::vector<Disp> disps;
     if (nq == 1) {
         disps.push_back({si.names[0], {1.0}});
-    } else if (symmetric) {
+    } else if (symmetric && nq == 3) {
         const double s = 1.0 / std::sqrt(2.0);
         disps.push_back({"S1 = [R(O1-H2) + R(O1-H3)]/sqrt(2) (symmetric stretch)", {s, s, 0.0}});
         disps.push_back({"S2 = A(H2-O1-H3) (bend)", {0.0, 0.0, 1.0}});
+    } else if (symmetric) {
+        // C2-symmetric H2O2: the antisymmetric (B) derivatives vanish by symmetry
+        const double s = 1.0 / std::sqrt(2.0);
+        disps.push_back({"S1 = R(O1-O2) (O-O stretch)", {1, 0, 0, 0, 0, 0}});
+        disps.push_back({"S2 = [R(O1-H3) + R(O2-H4)]/sqrt(2) (symmetric O-H stretch)", {0, s, s, 0, 0, 0}});
+        disps.push_back({"S3 = [A(O2-O1-H3) + A(O1-O2-H4)]/sqrt(2) (symmetric bend)", {0, 0, 0, s, s, 0}});
+        disps.push_back({"S4 = D(H3-O1-O2-H4) (torsion)", {0, 0, 0, 0, 0, 1}});
     } else {
         for (std::size_t k = 0; k < nq; ++k) {
             std::vector<double> d(nq, 0.0);
