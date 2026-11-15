@@ -172,6 +172,7 @@ Settings parse_input_text(const std::string& text) {
         if (k == "exacterf") return "exact_erf";
         if (k == "scan") return "scan";
         if (k == "scanstep") return "scan_step";
+        if (k == "scanstart") return "scan_start";
         if (k == "threads") return "threads";
         if (k == "memory" || k == "memorymb") return "memory";
         if (k == "fcimemory" || k == "fcimemorymb") return "fci_memory";
@@ -204,8 +205,8 @@ Settings parse_input_text(const std::string& text) {
         if (k.empty())
             fail(line, "unknown key '" + key +
                            "' (known: molecule, basis, R, angle, method, job, sp_method, sp_basis, temperature, "
-                           "pressure, opt_convergence, max_steps, zeta_He, zeta_H, exact_erf, scan, scan_step, "
-                           "threads, memory, fci_memory, basis_dir)");
+                           "pressure, opt_convergence, max_steps, scan, scan_start, zeta_He, zeta_H, exact_erf, "
+                           "scan_step, threads, memory, fci_memory, basis_dir)");
         if (entries.count(k)) fail(line, "'" + key + "' is given twice");
         entries[k] = Entry{key, value, line};
     }
@@ -227,8 +228,8 @@ Settings parse_input_text(const std::string& text) {
     only("zeta_He", heh, "HeH+");
     only("zeta_H", heh, "HeH+");
     only("exact_erf", heh, "HeH+");
-    only("scan", heh, "HeH+");
     only("scan_step", heh, "HeH+");
+    only("scan_start", !heh, "H2, LiH and H2O");
     only("angle", molecule == "H2O", "H2O");
     only("method", !heh, "H2, LiH and H2O (HeH+ always runs Hartree-Fock and Full CI)");
     only("threads", !heh, "H2, LiH and H2O");
@@ -241,6 +242,9 @@ Settings parse_input_text(const std::string& text) {
     std::vector<std::pair<std::string, Entry>> ordered(entries.begin(), entries.end());
     std::sort(ordered.begin(), ordered.end(),
               [](const auto& a, const auto& b) { return a.second.line < b.second.line; });
+    // the scan line decides the unit of scan_start (angstrom for a bond, degrees for an angle)
+    std::stable_partition(ordered.begin(), ordered.end(), [](const auto& x) { return x.first == "scan"; });
+    bool scan_bond = false;
     for (const auto& [k, e] : ordered) {
         const int ln = e.line;
         const std::string& value = e.value;
@@ -274,8 +278,37 @@ Settings parse_input_text(const std::string& text) {
             s.input.zeta2 = parse_number(value, ln, e.key);
         } else if (k == "exact_erf") {
             s.input.exactErf = parse_bool(value, ln, e.key);
-        } else if (k == "scan") {
+        } else if (k == "scan" && heh) {
             s.scan = parse_bool(value, ln, e.key);
+        } else if (k == "scan") {
+            // relaxed scan (7.0): the Gaussian ModRedundant line "[B|A|D] N1 N2 [N3 [N4]] S nsteps stepsize"
+            const int n_atoms = molecule == "H2O" ? 3 : 2;
+            macqc::JobSettings js;
+            const std::string err = macqc::parse_scan_line(value, n_atoms, &js);
+            if (!err.empty()) fail(ln, "scan: " + err);
+            macqc::ScanCoordinate sc;
+            macqc::parse_scan_coordinate(js.scan_coordinate, n_atoms, &sc);
+            scan_bond = sc.letter == "B";
+            s.input.scan = value;
+        } else if (k == "scan_start") {
+            // angstrom (or bohr) for a bond, degrees for an angle
+            std::istringstream vs(value);
+            std::string number, unit, extra;
+            vs >> number >> unit >> extra;
+            if (!extra.empty()) fail(ln, e.key + " has unexpected text '" + extra + "'");
+            double v = parse_number(number, ln, e.key);
+            const std::string u = lower(unit);
+            if (u == "bohr" || u == "a0") {
+                if (!scan_bond) fail(ln, "scan_start: bohr applies to a bond; angles are in degrees");
+                v *= kBohrToAngstrom;
+            } else if (u == "angstrom" || u == "ang" || u == "a" || u == "\xC3\x85") {
+                if (!scan_bond) fail(ln, "scan_start: angstrom applies to a bond; angles are in degrees");
+            } else if (u == "deg" || u == "degree" || u == "degrees") {
+                if (scan_bond) fail(ln, "scan_start: degrees apply to angles; a bond is in angstrom or bohr");
+            } else if (!u.empty()) {
+                fail(ln, "scan_start unit must be angstrom or bohr (bond) or degrees (angle)");
+            }
+            s.input.scanStart = v;
         } else if (k == "scan_step") {
             s.scanStep = parse_number(value, ln, e.key);
             if (!(s.scanStep > 0.0) || s.scanStep > kScanEnd - kScanStart)
@@ -300,7 +333,7 @@ Settings parse_input_text(const std::string& text) {
         } else if (k == "job") {
             s.input.job = macqc::canonical_job_type(value);
             if (s.input.job.empty())
-                fail(ln, "job must be energy, opt, freq, opt+freq or opt+freq+sp, got '" + value + "'");
+                fail(ln, "job must be energy, opt, freq, opt+freq, opt+freq+sp or scan, got '" + value + "'");
         } else if (k == "sp_method") {
             std::string m;
             for (char c : lower(value))
@@ -357,8 +390,13 @@ Settings parse_input_text(const std::string& text) {
         job_only("sp_basis", macqc::job_has_single_point(job), "opt+freq+sp");
         job_only("temperature", macqc::job_has_frequencies(job), "freq, opt+freq and opt+freq+sp");
         job_only("pressure", macqc::job_has_frequencies(job), "freq, opt+freq and opt+freq+sp");
-        job_only("opt_convergence", macqc::job_has_optimization(job), "opt, opt+freq and opt+freq+sp");
-        job_only("max_steps", macqc::job_has_optimization(job), "opt, opt+freq and opt+freq+sp");
+        job_only("opt_convergence", macqc::job_uses_optimizer(job), "opt, opt+freq, opt+freq+sp and scan");
+        job_only("max_steps", macqc::job_uses_optimizer(job), "opt, opt+freq, opt+freq+sp and scan");
+        job_only("scan", macqc::job_has_scan(job), "scan");
+        job_only("scan_start", macqc::job_has_scan(job), "scan");
+        if (macqc::job_has_scan(job) && s.input.scan.empty())
+            fail(entries.count("job") ? entries["job"].line : 1,
+                 "job = scan needs 'scan = N1 N2 [N3 [N4]] S nsteps stepsize', e.g. scan = 2 1 3 S 8 10.0");
     }
     if (!heh && !s.rGiven) s.input.R = macqc::default_bond_length(molecule);
     const std::string problem = macqc::validate(s.input);

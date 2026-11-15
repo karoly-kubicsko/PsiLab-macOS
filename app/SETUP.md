@@ -56,6 +56,21 @@ the test program have their own `main`, which would clash with the app's).
 Check *PsiLab target ▸ Build Phases ▸ Compile Sources*: exactly 19 Swift files + 32 C++ files, and
 *Copy Bundle Resources*: `Assets.xcassets` and the blue folder `basis`.
 
+**App icon at full size.** Xcode 26 writes `Contents/Resources/AppIcon.icns` with the 16, 32, 128
+and 256 px images only. Add a *Run Script* phase after *Copy Bundle Resources* (untick "Based on
+dependency analysis"; Build Settings ▸ *User Script Sandboxing* = No) that rebuilds it from the
+asset catalog, with every size up to 1024 × 1024 px:
+
+```bash
+SRC="$SRCROOT/../app/MacQC/Assets.xcassets/AppIcon.appiconset"
+SET="$DERIVED_FILE_DIR/AppIcon.iconset"
+rm -rf "$SET" && mkdir -p "$SET"
+for s in 16 32 128 256 512; do cp "$SRC/icon_${s}x${s}.png" "$SRC/icon_${s}x${s}@2x.png" "$SET/"; done
+iconutil --convert icns "$SET" --output "$TARGET_BUILD_DIR/$UNLOCALIZED_RESOURCES_FOLDER_PATH/AppIcon.icns"
+```
+
+(`xcode/project.yml` contains the same phase for XcodeGen.)
+
 ## 3. Build settings
 
 Select the project ▸ target **PsiLab** ▸ *Build Settings* ▸ "All" and "Combined", and set:

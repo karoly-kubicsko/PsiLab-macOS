@@ -85,7 +85,7 @@ std::string parameter_lines(const Molecule& mol, const std::string& indent) {
     std::string s;
     for (const GeometricParameter& p : geometric_parameters(mol)) {
         if (p.angle)
-            s += indent + strprintf("%-14s = %12.6f deg\n", p.name.c_str(), p.value);
+            s += indent + strprintf("%-14s = %12.6f deg\n", p.name.c_str(), std::fabs(p.value) < 5.0e-7 ? 0.0 : p.value);
         else
             s += indent + strprintf("%-14s = %12.8f Å   (%.8f bohr)\n", p.name.c_str(), p.value * kBohrInAngstrom, p.value);
     }
@@ -250,10 +250,15 @@ std::string optimization_step_block(const OptimizationStep& st, const Convergenc
     s += "    Name  Definition               Value (bohr/rad)    Value (Å/deg)       Force     Step\n";
     for (std::size_t i = 0; i < st.q.size(); ++i) {
         const bool angle = st.names[i] != "R";
-        const double shown = angle ? (st.names[i] == "A" ? st.q[i] * 180.0 / kPi : st.q[i]) : st.q[i] * kBohrInAngstrom;
-        s += strprintf("    %-4s  %-22s %16.8f %16.8f %11.6f %8.5f\n", (st.names[i] + std::to_string(i + 1)).c_str(),
-                       st.definitions[i].c_str(), st.q[i], shown, -st.gq[i], i < st.dq.size() ? st.dq[i] : 0.0);
+        const bool degrees = st.names[i] == "A" || st.names[i] == "D";
+        const double shown = angle ? (degrees ? st.q[i] * 180.0 / kPi : st.q[i]) : st.q[i] * kBohrInAngstrom;
+        const bool frozen = std::find(st.constrained.begin(), st.constrained.end(), static_cast<int>(i)) != st.constrained.end();
+        s += strprintf("    %-4s  %-22s %16.8f %16.8f %11.6f %8.5f%s\n", (st.names[i] + std::to_string(i + 1)).c_str(),
+                       st.definitions[i].c_str(), st.q[i], shown, -st.gq[i], i < st.dq.size() ? st.dq[i] : 0.0,
+                       frozen ? "  frozen" : "");
     }
+    if (!st.constrained.empty())
+        s += "    (frozen: the force shown is the projected force, which excludes the frozen coordinate)\n";
     s += "    " + st.hessian_update + "\n";
     if (st.has_ratio)
         s += strprintf("    previous step: energy change / predicted = %.3f\n", st.ratio);

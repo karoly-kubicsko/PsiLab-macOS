@@ -7,6 +7,11 @@
 //                 and basis set at the optimised geometry; the final energy is reported with the
 //                 thermal corrections of the frequency step
 // If the optimisation does not converge, jobs 4 and 5 stop after it with a message.
+// ΨLab 7.0 adds:
+//   scan          relaxed potential-energy-surface scan of one bond, angle or dihedral angle
+//                 (Gaussian: Opt=ModRedundant with the line "N1 N2 [N3 [N4]] S nsteps stepsize"):
+//                 at each of the nsteps + 1 points the coordinate is frozen and all others are
+//                 optimised; the job ends with a table of the energy against the coordinate
 #pragma once
 
 #include <functional>
@@ -29,6 +34,78 @@ struct JobSettings {
     double pressure = 101325.0;       // Pa
     bool tight = false;               // optimisation convergence
     int max_steps = 50;
+    // 7.0 relaxed scan (see parse_scan_line): coordinate with 1-based atom numbers ("B 1 2",
+    // "A 2 1 3", "D 3 1 2 4"), number of steps (points = steps + 1), step size (bohr for bonds,
+    // degrees for angles) and the value of the first point (empty: the input geometry's)
+    std::string scan_coordinate;
+    int scan_steps = 10;
+    double scan_step = 0.0;
+    std::optional<double> scan_start;
+};
+
+// The scanned coordinate: type (Stretch, Bend, Dihedral) and 0-based atoms.
+struct ScanCoordinate {
+    InternalCoordinate coordinate;
+    std::string letter;                 // "B", "A", "D"
+    std::string kind;                   // "bond", "angle", "dihedral"
+    std::string definition;             // e.g. "D(H3-O1-O2-H4)"
+};
+// Parses a coordinate "N1 N2 [N3 [N4]]" (2 atoms: bond, 3: angle, 4: dihedral), optionally
+// preceded by its type as in Gaussian's ModRedundant input: "B 1 2" (also "R", "bond"),
+// "A 2 1 3" ("angle"), "D 3 1 2 4" ("dihedral"); commas allowed. Returns "" or an error message
+// (unknown type, wrong number of atoms, atom out of range or repeated).
+std::string parse_scan_coordinate(const std::string& spec, int n_atoms, ScanCoordinate* out);
+
+// Parses a Gaussian ModRedundant scan line "[B|A|D] N1 N2 [N3 [N4]] S nsteps stepsize" (step size
+// in angstrom for a bond, degrees for an angle or a dihedral angle) into settings->scan_coordinate,
+// scan_steps and scan_step (bohr or degrees). Returns "" or an error message.
+std::string parse_scan_line(const std::string& line, int n_atoms, JobSettings* settings);
+
+// The points of a scan: nominal values (bohr or degrees, start + k step) and the targets of the
+// constraint (bohr or rad; dihedrals reduced to (-pi, pi]). Returns "" or why the scan is not
+// possible at this geometry (bond lengths outside 0.3-20 bohr, angles outside 10-180 degrees, an
+// undefined dihedral).
+struct ScanPlan {
+    ScanCoordinate coordinate;
+    double start = 0.0, step = 0.0;     // bohr or degrees
+    int steps = 0;
+    std::vector<double> values;         // bohr or degrees
+    std::vector<double> targets;        // bohr or rad
+    double input_value = 0.0;           // at the input geometry (bohr or degrees)
+    bool angular() const { return coordinate.letter != "B"; }
+};
+std::string plan_scan(const Molecule& mol, const JobSettings& settings, ScanPlan* plan);
+
+struct ScanPoint {
+    int index = 0;                      // 0-based
+    double value = 0.0;                 // nominal (bohr or degrees)
+    double measured = 0.0;              // at the optimised geometry (bohr or degrees)
+    double energy = 0.0;
+    bool converged = false;
+    int steps = 0;                      // optimisation steps (0: single point, diatomic)
+    double max_force = 0.0;             // projected, at the last step
+    Molecule geometry;
+    std::vector<GeometricParameter> parameters;
+    std::vector<double> step_energies, step_forces;  // per optimisation step
+    std::vector<std::string> warnings;
+    double seconds = 0.0;
+};
+
+struct ScanExtremum {
+    std::string kind;                   // "minimum" or "maximum"
+    int index = 0;                      // the scan point
+    double value = 0.0, energy = 0.0;   // parabola through the point and its neighbours
+};
+
+struct ScanResult {
+    ScanPlan plan;
+    bool relaxed = true;                // false for a diatomic (nothing to relax: single points)
+    std::vector<ScanPoint> points;
+    int lowest = -1, highest = -1;
+    std::vector<ScanExtremum> extrema;
+    bool converged = true;              // every point
+    std::string message;
+    double seconds = 0.0;
 };
 
 // Canonical job type for any spelling ("opt+freq", "OPT FREQ", "optfreq", "4"), or "".
@@ -39,6 +116,10 @@ std::string job_title(const std::string& type);
 bool job_has_optimization(const std::string& type);
 bool job_has_frequencies(const std::string& type);
 bool job_has_single_point(const std::string& type);
+bool job_has_scan(const std::string& type);
+// Jobs that run the optimiser (and take opt_convergence and max_steps): opt, opt+freq,
+// opt+freq+sp, scan.
+bool job_uses_optimizer(const std::string& type);
 
 struct JobStepEstimate {
     std::string name;          // "Geometry optimisation", "Hessian", "Single-point energy", "Energy"
@@ -78,6 +159,7 @@ struct JobResult {
     std::optional<HarmonicAnalysis> harmonic;
     std::optional<ThermoResult> thermo;
     std::optional<SinglePoint> single_point;    // job 5
+    std::optional<ScanResult> scan;             // 7.0 relaxed scan
     std::string single_point_method, single_point_basis;
     double final_energy = 0.0;
     std::string final_energy_label;             // e.g. "CCSD(T)/aug-cc-pVTZ"

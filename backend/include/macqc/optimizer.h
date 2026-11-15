@@ -36,6 +36,17 @@ struct ConvergenceCriteria {
 // "normal" (Gaussian's default) or "tight" (Gaussian's tight: 1.5e-5, 1.0e-5, 6.0e-5, 4.0e-5; 1e-8 E_h).
 ConvergenceCriteria convergence_criteria(bool tight);
 
+// A frozen internal coordinate (Gaussian: Opt=ModRedundant ... F; the scanned coordinate of a
+// relaxed scan, 7.0). The optimiser keeps it at `target` with the projector
+// P~ = P - P C (C' P C)^-1 C' P (Peng, Ayala, Schlegel & Frisch 1996): the RFO step and the
+// convergence test use the projected gradient P~ g, and every step adds the change
+// P C (C' P C)^-1 (target - q_c) that drives the coordinate to its target. A bend frozen at
+// exactly 180 degrees is imposed through its two linear-bend components (both 0).
+struct CoordinateConstraint {
+    InternalCoordinate coordinate;  // Stretch, Bend or Dihedral
+    double target = 0.0;            // bohr or rad
+};
+
 struct OptimizationOptions {
     bool tight = false;
     int max_steps = 50;
@@ -45,6 +56,14 @@ struct OptimizationOptions {
     int analytic_hessian_max_functions = 100;  // "auto": analytic RHF Hessian up to this size
     // Called before the energy and gradient of each step (for the output file).
     std::function<void(int, const Molecule&)> on_step_start;
+    // 7.0: frozen coordinates; SCF guess for the first step; a Hessian in internal coordinates
+    // to start from (e.g. that of the previous point of a scan), used when `hessian_coordinates`
+    // equals the coordinate set built at the first step.
+    std::vector<CoordinateConstraint> constraints;
+    const Matrix* guess_orbitals = nullptr;
+    const Matrix* initial_hessian_matrix = nullptr;
+    std::vector<InternalCoordinate> hessian_coordinates;
+    std::string initial_hessian_label = "Hessian of the previous scan point";
 };
 
 struct ConvergenceItem {
@@ -73,6 +92,9 @@ struct OptimizationStep {
     bool converged = false;
     std::vector<std::string> warnings;
     double seconds = 0.0;
+    // 7.0: frozen coordinates (index into names, deviation from the target at this geometry)
+    std::vector<int> constrained;
+    double constraint_deviation = 0.0;
 };
 
 struct GeometricParameter {
@@ -97,6 +119,11 @@ struct OptimizationResult {
     double symmetry_deviation = 0.0;      // |R1 - R2| at the end (bohr)
     bool removed_functions_changed = false;
     double seconds = 0.0;
+    // 7.0: the internal coordinates and the (updated) Hessian of the last step, for the next
+    // point of a scan
+    std::vector<InternalCoordinate> final_coordinates;
+    Matrix final_hessian;
+    double final_constraint_deviation = 0.0;
 };
 
 using OptimizationCallback = std::function<void(const OptimizationStep&)>;
@@ -109,6 +136,13 @@ OptimizationResult optimize_geometry(const Molecule& start, const BasisSet& basi
 
 // Bond lengths (bohr) and angles (degrees) of the internal coordinates of a geometry.
 std::vector<GeometricParameter> geometric_parameters(const Molecule& mol);
+
+// The geometry with the constrained coordinates set to their targets, all other internal
+// coordinates changed as little as possible (minimal change in the non-redundant space; for a
+// non-redundant set the others stay fixed, as in a Z-matrix), in substeps of at most 0.2 bohr /
+// 20 degrees. *residual: the largest remaining |q - target|.
+Molecule apply_constraints(const Molecule& mol, const std::vector<CoordinateConstraint>& constraints,
+                           double* residual = nullptr);
 
 // Model Hessians in internal coordinates (diagonal).
 std::vector<double> lindh_model_hessian(const Molecule& mol, const InternalCoordinates& ic);

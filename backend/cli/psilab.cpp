@@ -43,13 +43,16 @@ void usage(const char* prog) {
                  "  memory = <MB> (two-electron integrals kept in memory up to this size)\n"
                  "  fci_memory = <MB> (memory limit of Full CI and coupled cluster, default 4096)\n"
                  "  basis_dir = <folder with the .gbs files> (or environment variable PSILAB_BASIS_DIR)\n"
-                 "  job = energy | opt | freq | opt+freq | opt+freq+sp         (default energy)\n"
+                 "  job = energy | opt | freq | opt+freq | opt+freq+sp | scan   (default energy)\n"
                  "        opt: geometry optimisation (redundant internal coordinates, RFO, BFGS)\n"
                  "        freq: harmonic frequencies, IR intensities and thermochemistry\n"
                  "        opt+freq+sp: then a single-point energy with sp_method / sp_basis\n"
                  "  sp_method = <method>   sp_basis = <basis>    (opt+freq+sp; default: method, basis)\n"
                  "  temperature = <K> (298.15)   pressure = <number> [Pa | kPa | bar | atm] (101325 Pa)\n"
-                 "  opt_convergence = normal | tight   max_steps = <n> (50)\n\n"
+                 "  opt_convergence = normal | tight   max_steps = <n> (50, per point of a scan)\n"
+                 "  scan = N1 N2 [N3] S <steps> <step>    relaxed scan (job = scan), Gaussian ModRedundant line:\n"
+                 "        2 atoms: bond (step in angstrom), 3 atoms: angle (degrees); nsteps + 1 points\n"
+                 "  scan_start = <angstrom | degrees>     first point (default: the input geometry)\n\n"
                  "The output file is written while the job runs (tail -f OUTPUT follows it).\n",
                  prog, prog, prog, prog, prog);
 }
@@ -193,6 +196,20 @@ int main(int argc, char** argv) {
             std::printf("  optimisation: %s in %d steps, E = %.10f E_h\n",
                         j.optimization->converged ? "converged" : "NOT converged", j.optimization->steps,
                         j.optimization->final_energy);
+        if (j.scan) {
+            const auto& sc = *j.scan;
+            const bool ang = sc.plan.angular();
+            std::printf("  relaxed scan of %s: %zu points, %s\n", sc.plan.coordinate.definition.c_str(), sc.points.size(),
+                        sc.message.c_str());
+            if (!sc.points.empty()) {
+                const auto& lo = sc.points[static_cast<std::size_t>(sc.lowest)];
+                const auto& hi = sc.points[static_cast<std::size_t>(sc.highest)];
+                std::printf("  lowest point %d (%.6f %s): E = %.10f E_h; highest point %d (%.6f %s): %.4f kcal/mol above\n",
+                            lo.index + 1, ang ? lo.value : lo.value * psilab::kBohrToAngstrom, ang ? "deg" : "angstrom",
+                            lo.energy, hi.index + 1, ang ? hi.value : hi.value * psilab::kBohrToAngstrom,
+                            ang ? "deg" : "angstrom", (hi.energy - lo.energy) * 627.5094740631);
+            }
+        }
         if (j.harmonic) {
             std::printf("  frequencies (cm^-1):");
             for (const auto& m : j.harmonic->modes) std::printf(" %.2f%s", std::fabs(m.wavenumber), m.imaginary ? "i" : "");
