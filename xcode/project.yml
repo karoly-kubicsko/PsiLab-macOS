@@ -40,6 +40,28 @@ targets:
     dependencies:
       - sdk: Accelerate.framework
 
+    # The app icon with every size up to 1024 x 1024 px. Xcode 26's asset-catalog compiler
+    # (actool) writes Contents/Resources/AppIcon.icns with the 16, 32, 128 and 256 px images only
+    # (the ΨLab 6.0 release had nothing larger than 256 x 256), so this phase rebuilds it with
+    # iconutil from the ten PNG files of the asset catalog (16 ... 512 px at 1x and 2x, the
+    # largest 1024 x 1024). It runs after the resources and before code signing.
+    postBuildScripts:
+      - name: "App icon: AppIcon.icns with every size up to 1024 px"
+        basedOnDependencyAnalysis: false
+        shell: /bin/bash
+        script: |
+          set -euo pipefail
+          SRC="$SRCROOT/../app/MacQC/Assets.xcassets/AppIcon.appiconset"
+          SET="$DERIVED_FILE_DIR/AppIcon.iconset"
+          OUT="$TARGET_BUILD_DIR/$UNLOCALIZED_RESOURCES_FOLDER_PATH/AppIcon.icns"
+          rm -rf "$SET"
+          mkdir -p "$SET"
+          for s in 16 32 128 256 512; do
+            cp "$SRC/icon_${s}x${s}.png" "$SRC/icon_${s}x${s}@2x.png" "$SET/"
+          done
+          iconutil --convert icns "$SET" --output "$OUT"
+          echo "AppIcon.icns: $(stat -f %z "$OUT") bytes, from $(ls "$SET" | wc -l | tr -d ' ') images (16 to 1024 px)"
+
     entitlements:
       path: PsiLab.entitlements
       properties:
@@ -56,6 +78,8 @@ targets:
         CURRENT_PROJECT_VERSION: "6"
         GENERATE_INFOPLIST_FILE: YES
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        # The icon phase below reads the asset catalog and writes into the bundle.
+        ENABLE_USER_SCRIPT_SANDBOXING: NO
         INFOPLIST_KEY_CFBundleDisplayName: "ΨLab"
         INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.education
         MACOSX_DEPLOYMENT_TARGET: "14.0"

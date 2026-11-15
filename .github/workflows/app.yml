@@ -68,6 +68,31 @@ jobs:
           ls -l "build/app/ΨLab.app/Contents/Resources/basis"
           test -f "build/app/ΨLab.app/Contents/Resources/basis/aug-cc-pcv5z.gbs"
 
+      - name: App icon (every size up to 1024 x 1024 px)
+        run: |
+          # The images in Contents/Resources/AppIcon.icns; the job fails without the 1024 x 1024 one.
+          python3 - "build/app/ΨLab.app/Contents/Resources/AppIcon.icns" <<'PY'
+          import struct, sys
+          d = open(sys.argv[1], "rb").read()
+          assert d[:4] == b"icns", "not an icns file"
+          sizes, i = [], 8
+          while i < len(d):
+              tag, n = d[i:i + 4].decode("latin-1"), struct.unpack(">I", d[i + 4:i + 8])[0]
+              body = d[i + 8:i + n]
+              if body[:8] == b"\x89PNG\r\n\x1a\n":
+                  w, h = struct.unpack(">II", body[16:24])
+                  sizes.append((w, h))
+                  print(f"{tag}  {w} x {h} px  ({n} bytes)")
+              else:
+                  print(f"{tag}  ({n} bytes)")
+              i += n
+          print(f"AppIcon.icns: {len(d)} bytes, largest {max(sizes)[0]} x {max(sizes)[1]} px")
+          assert (1024, 1024) in sizes, "AppIcon.icns has no 1024 x 1024 image"
+          PY
+          # The icon in the asset catalog (Assets.car), for comparison
+          xcrun assetutil --info "build/app/ΨLab.app/Contents/Resources/Assets.car" > assets.json || true
+          python3 -c "import json; [print(r.get('Name'), r.get('PixelWidth'), r.get('PixelHeight'), r.get('Scale')) for r in json.load(open('assets.json')) if isinstance(r, dict) and r.get('Name') == 'AppIcon']" || true
+
       - name: Package
         run: ditto -c -k --keepParent "build/app/ΨLab.app" "ΨLab.app.zip"
 
