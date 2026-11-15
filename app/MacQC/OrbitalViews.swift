@@ -61,7 +61,7 @@ struct OrbitalExplorer: View {
     @State private var selected: Int
     @State private var display: OrbitalDisplay
     @State private var logIsovalue: Double
-    @State private var plane: OrbitalPlaneChoice = .axes12
+    @State private var plane: OrbitalPlaneChoice
     @State private var showAtoms = true
 
     @State private var surfaces: (positive: OrbitalMesh, negative: OrbitalMesh)?
@@ -95,6 +95,8 @@ struct OrbitalExplorer: View {
         _setIndex = State(initialValue: chosenSet)
         _selected = State(initialValue: choice)
         _display = State(initialValue: defaults.string(forKey: "psilabOrbitalView")?.lowercased() == "contour" ? .contour : .surface)
+        // planar molecules: the molecular plane; others: a plane that contains their unique axis
+        _plane = State(initialValue: OrbitalGeometry(atoms: orbitals.atoms).isPlanar ? .axes12 : .axes13)
         let iso = defaults.double(forKey: "psilabIsovalue")
         _logIsovalue = State(initialValue: log10(iso > 0 ? min(max(iso, 0.002), 0.5) : 0.05))
     }
@@ -166,42 +168,50 @@ struct OrbitalExplorer: View {
         }
     }
 
+    /// Two rows, so that they fit at the minimum window width.
     private var controls: some View {
-        HStack(spacing: 14) {
-            Picker("Display", selection: $display) {
-                ForEach(OrbitalDisplay.allCases) { d in
-                    Text(d.rawValue).tag(d)
-                }
-            }
-            .pickerStyle(.segmented)
-            .labelsHidden()
-            .frame(width: 230)
-            .accessibilityLabel("Orbital display")
-            Text("Isovalue")
-                .foregroundStyle(.secondary)
-            Slider(value: $logIsovalue, in: log10(0.002)...log10(0.5))
-                .frame(width: 130)
-                .accessibilityLabel("Isovalue")
-            Text(String(format: "%.3f", isovalue))
-                .monospacedDigit()
-                .frame(width: 44, alignment: .leading)
-            if display == .contour {
-                Picker("Plane", selection: $plane) {
-                    ForEach(OrbitalPlaneChoice.allCases) { p in
-                        Text(planeTitle(p)).tag(p)
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 12) {
+                Picker("Display", selection: $display) {
+                    ForEach(OrbitalDisplay.allCases) { d in
+                        Text(d.rawValue).tag(d)
                     }
                 }
-                .frame(width: 210)
-                .accessibilityLabel("Contour plane")
-            } else {
-                Toggle("Atoms", isOn: $showAtoms)
-                    .toggleStyle(.checkbox)
+                .pickerStyle(.segmented)
+                .labelsHidden()
+                .frame(width: 230)
+                .accessibilityLabel("Orbital display")
+                if display == .surface {
+                    Toggle("Atoms", isOn: $showAtoms)
+                        .toggleStyle(.checkbox)
+                }
+                if computing {
+                    ProgressView()
+                        .controlSize(.small)
+                }
+                Spacer(minLength: 0)
             }
-            if computing {
-                ProgressView()
-                    .controlSize(.small)
+            HStack(spacing: 10) {
+                Text("Isovalue")
+                    .foregroundStyle(.secondary)
+                Slider(value: $logIsovalue, in: log10(0.002)...log10(0.5))
+                    .frame(minWidth: 90, maxWidth: 140)
+                    .accessibilityLabel("Isovalue")
+                Text(String(format: "%.3f", isovalue))
+                    .monospacedDigit()
+                    .frame(width: 44, alignment: .leading)
+                if display == .contour {
+                    Picker("Plane", selection: $plane) {
+                        ForEach(OrbitalPlaneChoice.allCases) { p in
+                            Text(planeTitle(p)).tag(p)
+                        }
+                    }
+                    .labelsHidden()
+                    .frame(maxWidth: 250)
+                    .accessibilityLabel("Contour plane")
+                }
+                Spacer(minLength: 0)
             }
-            Spacer(minLength: 0)
         }
     }
 
@@ -255,13 +265,22 @@ struct OrbitalExplorer: View {
         }
     }
 
+    /// "Molecular plane", "Plane of N1, H2 (axes 1–3)" or "Principal axes 2–3": the nuclei within
+    /// 0.05 bohr of the plane.
     private func planeTitle(_ p: OrbitalPlaneChoice) -> String {
-        let planar = OrbitalGeometry(atoms: orbitals.atoms).isPlanar
+        let g = OrbitalGeometry(atoms: orbitals.atoms)
+        let axes: String
         switch p {
-        case .axes12: return planar ? "Molecular plane" : "Principal axes 1–2"
-        case .axes13: return "Principal axes 1–3"
-        case .axes23: return "Principal axes 2–3"
+        case .axes12: axes = "axes 1–2"
+        case .axes13: axes = "axes 1–3"
+        case .axes23: axes = "axes 2–3"
         }
+        let spec = g.planeSpec(p, points: 3)
+        let inPlane = g.projectedAtoms(orbitals.atoms, onto: spec).enumerated()
+            .filter { $0.element.distance < 0.05 }.map { "\($0.element.symbol)\($0.offset + 1)" }
+        if inPlane.count == orbitals.atoms.count && orbitals.atoms.count > 2 { return "Molecular plane" }
+        if inPlane.isEmpty { return "Principal " + axes }
+        return "Plane of " + inPlane.joined(separator: ", ") + " (" + axes + ")"
     }
 
     // MARK: Table
@@ -512,6 +531,23 @@ struct OrbitalGeometry {
             for i in 1..<3 where abs(v[i]) > abs(v[big]) + 1e-9 { big = i }
             return v[big] < 0 ? v.map { -$0 } : v
         }
+        let normal = vectorCross(e[0], e[1])
+        // A symmetric top (NH₃): the first axis is any direction in the plane of the two equal ones;
+        // turn it towards the first nucleus off the unique axis, so that the planes of the contour
+        // plot contain atoms (axes 1 and 3: the σᵥ plane through N1 and H2).
+        if values[order[0]] - values[order[1]] < 1e-3 * max(values[order[0]], 1e-12) {
+            for p in positions {
+                let d = (0..<3).map { p[$0] - c[$0] }
+                let along = vectorDot(d, normal)
+                let inPlane = (0..<3).map { d[$0] - along * normal[$0] }
+                let length = vectorNorm(inPlane)
+                if length > 1e-6 {
+                    e[0] = inPlane.map { $0 / length }
+                    e[1] = vectorCross(normal, e[0])
+                    break
+                }
+            }
+        }
         e[2] = vectorCross(e[0], e[1])
         axes = e
         radius = positions.map { p in vectorDistance(p, c) }.max() ?? 1
@@ -688,8 +724,9 @@ struct OrbitalContourView: View {
 // MARK: - Isosurfaces (SceneKit)
 
 /// The two lobes of an orbital and the molecule (balls and sticks, bohr), in a SceneKit view that
-/// rotates with the mouse. The camera looks at the molecule 20° above the plane of its two
-/// longest principal axes.
+/// rotates with the mouse. The camera looks along the second principal axis from 30° above the
+/// plane of the two longest ones, with the third axis (the normal of a planar molecule, the C₃
+/// axis of NH₃) up: out-of-plane lobes appear above and below the molecule.
 struct OrbitalSceneView: View {
     var atoms: [MacQCAtom]
     var surfaces: (positive: OrbitalMesh, negative: OrbitalMesh)?
@@ -720,10 +757,10 @@ struct OrbitalSceneView: View {
         cam.zFar = 500
         cam.fieldOfView = 35
         camera.camera = cam
-        let up0 = g.axes[1], back0 = g.axes[2]
-        let t = 20.0 * Double.pi / 180
-        let back = (0..<3).map { cos(t) * back0[$0] + sin(t) * up0[$0] }
-        let up = (0..<3).map { -sin(t) * back0[$0] + cos(t) * up0[$0] }
+        let side = g.axes[1], normal = g.axes[2]
+        let t = 30.0 * Double.pi / 180
+        let back = (0..<3).map { cos(t) * side[$0] + sin(t) * normal[$0] }
+        let up = (0..<3).map { -sin(t) * side[$0] + cos(t) * normal[$0] }
         let distance = (g.radius + 5.0) / tan(17.5 * Double.pi / 180)
         let eye = (0..<3).map { g.center[$0] + distance * back[$0] }
         camera.position = SCNVector3(x: CGFloat(eye[0]), y: CGFloat(eye[1]), z: CGFloat(eye[2]))

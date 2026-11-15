@@ -667,7 +667,7 @@ struct FrequencyPage: View {
                 if isTransitionStateJob {
                     transitionStateCheck
                 }
-                NotesPanel(notes: [], warnings: (out.job?.warnings ?? []) + (out.thermochemistry?.warnings ?? []))
+                NotesPanel(notes: [], warnings: uniqueWarnings)
 
                 SectionTitle("Normal modes")
                 if !f.modes.isEmpty {
@@ -706,6 +706,13 @@ struct FrequencyPage: View {
             }
             .padding(20)
         }
+    }
+
+    /// The warnings of the job and of the thermochemistry, each once (a left-out imaginary mode
+    /// is reported by both).
+    private var uniqueWarnings: [String] {
+        var seen = Set<String>()
+        return ((out.job?.warnings ?? []) + (out.thermochemistry?.warnings ?? [])).filter { seen.insert($0).inserted }
     }
 
     private var isTransitionStateJob: Bool {
