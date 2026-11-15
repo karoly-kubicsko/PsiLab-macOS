@@ -12,6 +12,10 @@
 //                 (Gaussian: Opt=ModRedundant with the line "N1 N2 [N3 [N4]] S nsteps stepsize"):
 //                 at each of the nsteps + 1 points the coordinate is frozen and all others are
 //                 optimised; the job ends with a table of the energy against the coordinate
+//   ts            transition-state optimisation (Gaussian: Opt=TS, with CalcFC or CalcAll):
+//                 P-RFO steps, Bofill updates, eigenvalue test (see optimizer.h)
+//   ts+freq       then harmonic frequencies at the transition state; the job ends with an error
+//                 unless there is exactly one imaginary frequency
 #pragma once
 
 #include <functional>
@@ -41,6 +45,10 @@ struct JobSettings {
     int scan_steps = 10;
     double scan_step = 0.0;
     std::optional<double> scan_start;
+    // 7.0 transition states: the Hessian computed at the first point ("calcfc", Gaussian's
+    // default for Opt=(TS,CalcFC)) or at every point ("calcall"); the eigenvalue test
+    std::string ts_hessian = "calcfc";
+    bool eigen_test = true;
 };
 
 // The scanned coordinate: type (Stretch, Bend, Dihedral) and 0-based atoms.
@@ -117,8 +125,9 @@ bool job_has_optimization(const std::string& type);
 bool job_has_frequencies(const std::string& type);
 bool job_has_single_point(const std::string& type);
 bool job_has_scan(const std::string& type);
+bool job_has_ts(const std::string& type);  // ts, ts+freq (job_has_optimization is true for them too)
 // Jobs that run the optimiser (and take opt_convergence and max_steps): opt, opt+freq,
-// opt+freq+sp, scan.
+// opt+freq+sp, scan, ts, ts+freq.
 bool job_uses_optimizer(const std::string& type);
 
 struct JobStepEstimate {

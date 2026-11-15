@@ -47,6 +47,8 @@ JobSettings job_settings(const Input& in) {
     s.pressure = in.pressure;
     s.tight = in.optConvergence == "tight";
     s.max_steps = in.maxSteps;
+    s.ts_hessian = in.tsHessian;
+    s.eigen_test = in.eigenTest;
     if (job_has_scan(s.type) && !in.scan.empty()) {
         parse_scan_line(in.scan, atom_count(in), &s);
         if (in.scanStart) {
@@ -60,7 +62,8 @@ JobSettings job_settings(const Input& in) {
 
 std::string job_input_error(const Input& in) {
     const std::string job = canonical_job_type(in.job);
-    if (job.empty()) return "job must be energy, opt, freq, opt+freq, opt+freq+sp or scan";
+    if (job.empty()) return "job must be energy, opt, freq, opt+freq, opt+freq+sp, scan, ts or ts+freq";
+    if (in.tsHessian != "calcfc" && in.tsHessian != "calcall") return "tsHessian must be calcfc or calcall";
     if (job_has_scan(job)) {
         if (in.scan.empty())
             return "the scan job needs \"scan\": the ModRedundant line N1 N2 [N3 [N4]] S nsteps stepsize (e.g. \"1 2 S 10 "
@@ -191,6 +194,11 @@ std::string input_echo(const Input& in) {
             kv("scan_start", bond ? strprintf("%.8f angstrom", *in.scanStart) : strprintf("%.6f degrees", *in.scanStart));
         else
             kv("scan_start", "(the value at the input geometry)");
+    }
+    if (job_has_ts(canonical_job_type(in.job))) {
+        kv("ts_hessian", in.tsHessian == "calcall" ? "calcall (Hessian computed at every step)"
+                                                   : "calcfc (Hessian computed at the first step, then Bofill updates)");
+        kv("eigen_test", in.eigenTest ? "yes (exactly one negative eigenvalue)" : "no");
     }
     if (job_uses_optimizer(canonical_job_type(in.job))) {
         kv("opt_convergence", in.optConvergence);

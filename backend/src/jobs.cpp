@@ -103,6 +103,8 @@ std::string canonical_job_type(const std::string& type) {
     if (t == "scan" || t == "relaxedscan" || t == "pesscan" || t == "relaxedpesscan" || t == "modredundant" ||
         t == "optmodredundant" || t == "6")
         return "scan";
+    if (t == "ts" || t == "opt=ts" || t == "optts" || t == "transitionstate" || t == "tsopt" || t == "7") return "ts";
+    if (t == "ts+freq" || t == "tsfreq" || t == "opt=tsfreq" || t == "optts+freq" || t == "8") return "ts+freq";
     return "";
 }
 
@@ -112,14 +114,21 @@ std::string job_title(const std::string& t) {
     if (t == "opt+freq") return "Optimisation + frequencies";
     if (t == "opt+freq+sp") return "Optimisation + frequencies + single-point energy";
     if (t == "scan") return "Relaxed potential energy surface scan";
+    if (t == "ts") return "Transition-state optimisation";
+    if (t == "ts+freq") return "Transition-state optimisation + frequencies";
     return "Energy";
 }
 
-bool job_has_optimization(const std::string& t) { return t == "opt" || t == "opt+freq" || t == "opt+freq+sp"; }
-bool job_has_frequencies(const std::string& t) { return t == "freq" || t == "opt+freq" || t == "opt+freq+sp"; }
+bool job_has_optimization(const std::string& t) {
+    return t == "opt" || t == "opt+freq" || t == "opt+freq+sp" || t == "ts" || t == "ts+freq";
+}
+bool job_has_frequencies(const std::string& t) {
+    return t == "freq" || t == "opt+freq" || t == "opt+freq+sp" || t == "ts+freq";
+}
+bool job_has_ts(const std::string& t) { return t == "ts" || t == "ts+freq"; }
 bool job_has_single_point(const std::string& t) { return t == "opt+freq+sp"; }
 bool job_has_scan(const std::string& t) { return t == "scan"; }
-bool job_uses_optimizer(const std::string& t) { return job_has_optimization(t) || job_has_scan(t); }
+bool job_uses_optimizer(const std::string& t) { return job_has_optimization(t) || job_has_scan(t); }  // incl. ts
 
 std::string parse_scan_coordinate(const std::string& spec, int n_atoms, ScanCoordinate* out) {
     std::string text;
@@ -290,50 +299,7 @@ JobEstimate estimate_job(const MolecularResult& p, const JobSettings& s, const M
     if (e.fci) est.memory_mb = std::max(est.memory_mb, e.fci->memory_bytes / (1024.0 * 1024.0));
     if (e.cc) est.memory_mb = std::max(est.memory_mb, e.cc->memory_bytes / (1024.0 * 1024.0));
     const int typical_steps = 6;
-    if (job_has_optimization(t)) {
-        JobStepEstimate st;
-        st.name = "Geometry optimisation";
-        st.method = m;
-        st.basis = p.input.basis;
-        st.analytic = analytic;
-        st.how = how + strprintf("; typically %d steps (at most %d)", typical_steps, s.max_steps);
-        st.evaluations = typical_steps;
-        st.evaluation_kind = "steps";
-        st.seconds = typical_steps * tg;
-        if (m == "RHF" && nbf <= 100) st.seconds += 6.0 * tg;  // analytic initial Hessian
-        st.memory_mb = grad_mb;
-        est.steps.push_back(st);
-    }
-    if (job_has_scan(t)) {
-        JobStepEstimate st;
-        st.name = "Relaxed scan";
-        st.method = m;
-        st.basis = p.input.basis;
-        st.analytic = analytic;
-        const int points = std::max(1, s.scan_steps + 1);
-        if (p.molecule.atoms.size() == 2) {
-            st.how = strprintf("%d single-point energies (a diatomic has no other coordinate to relax)", points);
-            st.evaluations = points;
-            st.evaluation_kind = "energies";
-            st.seconds = points * e.total_seconds;
-            st.analytic = true;
-        } else {
-            // the first point from the input Hessian guess, later points start from the previous
-            // point's geometry and Hessian
-            const int first = typical_steps, later = 4;
-            const int total = first + later * (points - 1);
-            st.how = how + strprintf("; %d points, typically %d optimisation steps at the first and %d at each further "
-                                     "point (at most %d per point)",
-                                     points, first, later, s.max_steps);
-            st.evaluations = total;
-            st.evaluation_kind = "steps";
-            st.seconds = total * tg;
-            if (m == "RHF" && nbf <= 100) st.seconds += 6.0 * tg;  // analytic initial Hessian
-        }
-        st.memory_mb = grad_mb;
-        est.steps.push_back(st);
-    }
-    if (job_has_frequencies(t)) {
+    auto hessian_estimate = [&]() {
         JobStepEstimate st;
         st.name = "Hessian";
         st.method = m;
@@ -372,8 +338,67 @@ JobEstimate estimate_job(const MolecularResult& p, const JobSettings& s, const M
                                      c.energies, m.c_str());
             st.seconds = (st.evaluations + 1) * (e.total_seconds + ((m == "CCSDT" || m == "CCSDTQ") ? 0.25 : 0.05));
         }
+        return st;
+    };
+    if (job_has_optimization(t)) {
+        JobStepEstimate st;
+        st.name = job_has_ts(t) ? "Transition-state optimisation" : "Geometry optimisation";
+        st.method = m;
+        st.basis = p.input.basis;
+        st.analytic = analytic;
+        st.how = how + strprintf("; typically %d steps (at most %d)", typical_steps, s.max_steps);
+        st.evaluations = typical_steps;
+        st.evaluation_kind = "steps";
+        st.seconds = typical_steps * tg;
+        if (job_has_ts(t)) {
+            // the Hessian computed at the first point (CalcFC) or at every point (CalcAll)
+            const JobStepEstimate h = hessian_estimate();
+            const bool all = s.ts_hessian == "calcall";
+            std::string hh = h.how;
+            const auto ir = hh.find("; IR");
+            if (ir != std::string::npos) hh = hh.substr(0, ir);
+            const auto dip = hh.find(", analytic dipole");
+            if (dip != std::string::npos) hh = hh.substr(0, dip);
+            st.how += std::string("; P-RFO steps, Bofill updates; Hessian computed ") +
+                      (all ? "at every step (CalcAll)" : "at the first step (CalcFC)") + ": " + hh;
+            st.seconds += (all ? typical_steps : 1) * h.seconds;
+            st.analytic = st.analytic && h.analytic;
+        } else if (m == "RHF" && nbf <= 100) {
+            st.seconds += 6.0 * tg;  // analytic initial Hessian
+        }
+        st.memory_mb = grad_mb;
         est.steps.push_back(st);
     }
+    if (job_has_scan(t)) {
+        JobStepEstimate st;
+        st.name = "Relaxed scan";
+        st.method = m;
+        st.basis = p.input.basis;
+        st.analytic = analytic;
+        const int points = std::max(1, s.scan_steps + 1);
+        if (p.molecule.atoms.size() == 2) {
+            st.how = strprintf("%d single-point energies (a diatomic has no other coordinate to relax)", points);
+            st.evaluations = points;
+            st.evaluation_kind = "energies";
+            st.seconds = points * e.total_seconds;
+            st.analytic = true;
+        } else {
+            // the first point from the input Hessian guess, later points start from the previous
+            // point's geometry and Hessian
+            const int first = typical_steps, later = 4;
+            const int total = first + later * (points - 1);
+            st.how = how + strprintf("; %d points, typically %d optimisation steps at the first and %d at each further "
+                                     "point (at most %d per point)",
+                                     points, first, later, s.max_steps);
+            st.evaluations = total;
+            st.evaluation_kind = "steps";
+            st.seconds = total * tg;
+            if (m == "RHF" && nbf <= 100) st.seconds += 6.0 * tg;  // analytic initial Hessian
+        }
+        st.memory_mb = grad_mb;
+        est.steps.push_back(st);
+    }
+    if (job_has_frequencies(t)) est.steps.push_back(hessian_estimate());
     if (job_has_single_point(t) && sp) {
         JobStepEstimate st;
         st.name = "Single-point energy";
@@ -397,13 +422,17 @@ JobEstimate estimate_job(const MolecularResult& p, const JobSettings& s, const M
         const std::string why = plan_scan(p.molecule, s, &plan);
         if (!why.empty()) est.refusal = "The scan is not possible: " + why + ".";
     }
+    if (est.refusal.empty() && job_has_ts(t) && p.molecule.atoms.size() == 2)
+        est.refusal = "A diatomic molecule has no transition state: its energy depends on the bond length only. Use a "
+                      "relaxed scan (job scan) for the potential curve.";
     if (est.refusal.empty() && (m == "CCSDT" || m == "CCSDTQ") && p.molecule.atoms.size() == 4 &&
-        job_has_frequencies(t)) {
+        (job_has_frequencies(t) || job_has_ts(t))) {
         est.refusal = strprintf(
-            "%s frequencies for %s are not possible: %s has no analytic gradient, and a Hessian from energies is "
+            "%s %s for %s are not possible: %s has no analytic gradient, and a Hessian from energies is "
             "not available for four atoms (it would need about 140 %s energies of %s each). Use CCSD(T) for the "
-            "frequencies.",
-            m.c_str(), p.molecule.name.c_str(), m.c_str(), m.c_str(), human_time(e.total_seconds).c_str());
+            "Hessian.",
+            m.c_str(), job_has_ts(t) ? "transition-state searches" : "frequencies", p.molecule.name.c_str(), m.c_str(),
+            m.c_str(), human_time(e.total_seconds).c_str());
     }
     if (est.refusal.empty() && m == "CCSDTQ" && p.molecule.name == "H2O") {
         const NumericalHessianCost c = numerical_hessian_cost(p.molecule, false, true);
@@ -1041,21 +1070,40 @@ JobResult run_job(const MolecularInput& input, const JobSettings& s, const Outpu
         if (job_has_scan(s.type)) run_scan(w, st, cb, p, s, eo, r);
         // ---- optimisation
         if (job_has_optimization(s.type)) {
-            w.section("Geometry optimisation: " + method_label(method) + "/" + p.input.basis);
+            const bool ts = job_has_ts(s.type);
+            const std::string label = ts ? "TS optimisation step" : "Optimisation step";
+            w.section((ts ? "Transition-state optimisation: " : "Geometry optimisation: ") + method_label(method) + "/" +
+                      p.input.basis);
             const ConvergenceCriteria c = convergence_criteria(s.tight);
-            w.line(strprintf("    Redundant internal coordinates, RFO steps with a trust radius, BFGS updates; %s "
-                             "convergence, at most %d steps",
-                             s.tight ? "tight" : "normal", s.max_steps));
+            if (ts) {
+                w.line("    Berny-type search for a first-order saddle point (Gaussian: Opt=TS) in redundant internal");
+                w.line(std::string("    coordinates: Hessian computed ") +
+                       (s.ts_hessian == "calcall" ? "at every step (CalcAll)" : "at the first step (CalcFC), then Bofill updates") +
+                       "; partitioned RFO steps (Baker 1986) that");
+                w.line("    maximise along the followed Hessian eigenvector (the lowest at the start, then the one most");
+                w.line(strprintf("    like the previous one) and minimise along the others; trust radius %.2f bohr/rad (fixed);",
+                                 OptimizationOptions().trust_radius));
+                w.line(strprintf("    eigenvalue test %s; %s convergence, at most %d steps",
+                                 s.eigen_test ? "on (exactly one negative eigenvalue)" : "off (NoEigenTest)",
+                                 s.tight ? "tight" : "normal", s.max_steps));
+            } else {
+                w.line(strprintf("    Redundant internal coordinates, RFO steps with a trust radius, BFGS updates; %s "
+                                 "convergence, at most %d steps",
+                                 s.tight ? "tight" : "normal", s.max_steps));
+            }
             w.line(strprintf("    thresholds: max force %.1e, RMS force %.1e E_h/bohr; max step %.1e, RMS step %.1e bohr; "
                              "energy change %.0e E_h",
                              c.max_force, c.rms_force, c.max_displacement, c.rms_displacement, c.energy));
             OptimizationOptions oo;
             oo.tight = s.tight;
             oo.max_steps = s.max_steps;
+            oo.transition_state = ts;
+            oo.ts_hessian = s.ts_hessian;
+            oo.eigen_test = s.eigen_test;
             oo.on_step_start = [&](int step, const Molecule& geom) {
                 st.reset();
-                st.context = strprintf("Optimisation step %d · ", step);
-                w.subsection(strprintf("Optimisation step %d", step));
+                st.context = strprintf("%s %d · ", label.c_str(), step);
+                w.subsection(strprintf("%s %d", label.c_str(), step));
                 w.write(geometry_table(geom));
                 report_progress_text(st.context + "energy and gradient");
             };
@@ -1064,7 +1112,7 @@ JobResult run_job(const MolecularInput& input, const JobSettings& s, const Outpu
                                      : strprintf("\n    Energy %.10f E_h (change %+.3e E_h)", stp.energy, stp.delta_e));
                 w.write(gradient_block(stp.geometry, stp.cartesian_gradient, stp.gradient_description));
                 w.write(optimization_step_block(stp, c));
-                report_progress_text(strprintf("Optimisation step %d · E = %.10f E_h · max force %.2e", stp.step, stp.energy,
+                report_progress_text(strprintf("%s %d · E = %.10f E_h · max force %.2e", label.c_str(), stp.step, stp.energy,
                                                stp.convergence[0].value));
             });
             w.write(optimization_result_block(opt));
@@ -1079,7 +1127,8 @@ JobResult run_job(const MolecularInput& input, const JobSettings& s, const Outpu
                 SinglePoint sp = opt.final_point.point;
                 r.point = sp;
                 st.reset();
-                w.subsection("Electronic structure at the " + std::string(opt.converged ? "optimised" : "last") + " geometry");
+                w.subsection("Electronic structure at the " +
+                             std::string(opt.converged ? (ts ? "transition state" : "optimised geometry") : "last geometry"));
                 write_point_details(w, sp, basis_at_geometry(p.basis, x), true);
                 if (opt.final_point.has_dipole && method != "RHF") {
                     const auto& d = opt.final_point.dipole;
@@ -1091,9 +1140,10 @@ JobResult run_job(const MolecularInput& input, const JobSettings& s, const Outpu
             }
             if (!opt.converged) {
                 r.termination = "error";
-                r.message = opt.message + (s.type != "opt" ? " The frequency and single-point steps were not run: they "
-                                                             "need a stationary point."
-                                                           : "");
+                r.message = opt.message + (s.type == "ts+freq" ? " The frequency step was not run: it needs a transition state."
+                                           : (s.type != "opt" && s.type != "ts" ? " The frequency and single-point steps were "
+                                                                                    "not run: they need a stationary point."
+                                                                                  : ""));
                 throw std::runtime_error(r.message);
             }
         }
@@ -1101,7 +1151,8 @@ JobResult run_job(const MolecularInput& input, const JobSettings& s, const Outpu
         if (job_has_frequencies(s.type)) {
             const bool at_input = s.type == "freq";
             w.section("Harmonic frequencies: " + method_label(method) + "/" + p.input.basis);
-            w.line(std::string("    at the ") + (at_input ? "input geometry" : "optimised geometry"));
+            w.line(std::string("    at the ") +
+                   (at_input ? "input geometry" : (job_has_ts(s.type) ? "transition state" : "optimised geometry")));
             w.write(geometry_table(x));
             st.reset();
             st.context = "Hessian · ";
@@ -1158,6 +1209,30 @@ JobResult run_job(const MolecularInput& input, const JobSettings& s, const Outpu
             for (const auto& x2 : t.warnings) r.warnings.push_back(x2);
             r.harmonic = a;
             r.thermo = t;
+            if (job_has_ts(s.type)) {
+                // a transition state has exactly one imaginary frequency
+                int imaginary = 0;
+                for (const auto& md : a.modes) imaginary += md.imaginary ? 1 : 0;
+                w.section("Transition-state check");
+                if (imaginary == 1) {
+                    const NormalMode& md = a.modes.front();
+                    w.line(strprintf("    One imaginary frequency, %.2fi cm-1%s: a first-order saddle point (transition state).",
+                                     std::fabs(md.wavenumber), md.symmetry.empty() ? "" : (" (" + md.symmetry + ")").c_str()));
+                    w.line("    Its normal mode (normalised Cartesian displacements) is the reaction coordinate at the "
+                           "transition state:");
+                    for (std::size_t i = 0; i < x.atoms.size(); ++i)
+                        w.line(strprintf("      %-2s%-3zu %12.6f %12.6f %12.6f", x.atoms[i].symbol.c_str(), i + 1,
+                                         md.displacement[i][0], md.displacement[i][1], md.displacement[i][2]));
+                } else {
+                    r.termination = "error";
+                    r.message = strprintf(
+                        "The frequencies give %d imaginary frequencies, not one: the stationary point is %s, not a "
+                        "transition state.",
+                        imaginary, imaginary == 0 ? "a minimum" : strprintf("a saddle point of order %d", imaginary).c_str());
+                    w.line("    " + r.message);
+                    throw std::runtime_error(r.message);
+                }
+            }
         }
         // ---- single point
         if (job_has_single_point(s.type)) {
