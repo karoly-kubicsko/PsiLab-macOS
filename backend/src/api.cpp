@@ -689,6 +689,20 @@ Input parse_input_json(const std::string& text) {
     if (canonical.empty()) throw std::runtime_error("\"molecule\" must be HeH+, H2, LiH, H2O, H2O2 or NH3");
     in.molecule = canonical;
     if (canonical != "HeH+") in.R = 0.0;  // default bond length of the molecule unless given
+    if (canonical == "HeH+") {
+        // 7.0: a correlation-consistent basis set selects the general path; STO-1G/2G/3G (or no
+        // basis) the Szabo-Ostlund calculation
+        const std::string b = get_string(j, "basis", "");
+        if (!b.empty() && !canonical_basis_name(b).empty()) {
+            in.hehGeneral = true;
+        } else if (!b.empty()) {
+            std::string t;
+            for (char c : b)
+                if (c != '-' && c != ' ') t += static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+            if (t == "sto1g" || t == "sto2g" || t == "sto3g") in.nGaussians = t[3] - '0';
+            else throw std::runtime_error("\"basis\" for HeH+ must be STO-1G, STO-2G, STO-3G or a correlation-consistent set");
+        }
+    }
     if (canonical != "HeH+") in.angle = default_angle(canonical);
     in.R = get_number(j, "R", in.R);
     in.zeta1 = get_number(j, "zeta1", in.zeta1);
@@ -700,7 +714,7 @@ Input parse_input_json(const std::string& text) {
     in.maxIter = get_int(j, "maxIter", in.maxIter);
     in.convergence = get_number(j, "convergence", in.convergence);
     in.printLevel = get_int(j, "printLevel", in.printLevel);
-    in.basis = get_string(j, "basis", in.basis);
+    if (!is_heh_input(in)) in.basis = get_string(j, "basis", in.basis);
     in.angle = get_number(j, "angle", in.angle);
     in.ROO = get_number(j, "ROO", in.ROO);
     in.dihedral = get_number(j, "dihedral", in.dihedral);

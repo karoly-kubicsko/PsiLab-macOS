@@ -13,26 +13,28 @@ functions are used as spherical harmonics (5d, 7f, 9g, 11h), as the correlation-
 designed. Contracted functions are normalised; the contraction coefficients refer to normalised
 primitives (Gaussian94 convention).
 
-| File | Basis set | H | Li | N | O | highest l |
-|---|---|---|---|---|---|---|
-| `aug-cc-pvdz.gbs`  | aug-cc-pVDZ  | [3s2p] | [4s3p2d] | [4s3p2d] | [4s3p2d] | d |
-| `aug-cc-pvtz.gbs`  | aug-cc-pVTZ  | [4s3p2d] | [5s4p3d2f] | [5s4p3d2f] | [5s4p3d2f] | f |
-| `aug-cc-pvqz.gbs`  | aug-cc-pVQZ  | [5s4p3d2f] | [6s5p4d3f2g] | [6s5p4d3f2g] | [6s5p4d3f2g] | g |
-| `aug-cc-pv5z.gbs`  | aug-cc-pV5Z  | [6s5p4d3f2g] | [7s6p5d4f3g2h] | [7s6p5d4f3g2h] | [7s6p5d4f3g2h] | h |
-| `aug-cc-pcvdz.gbs` | aug-cc-pCVDZ | – | [5s4p2d] | [5s4p2d] | [5s4p2d] | d |
-| `aug-cc-pcvtz.gbs` | aug-cc-pCVTZ | – | [7s6p4d2f] | [7s6p4d2f] | [7s6p4d2f] | f |
-| `aug-cc-pcvqz.gbs` | aug-cc-pCVQZ | – | [9s8p6d4f2g] | [9s8p6d4f2g] | [9s8p6d4f2g] | g |
-| `aug-cc-pcv5z.gbs` | aug-cc-pCV5Z | – | – | [11s10p8d6f4g2h] | [11s10p8d6f4g2h] | h |
+| File | Basis set | H | He | Li | N | O | highest l |
+|---|---|---|---|---|---|---|---|
+| `aug-cc-pvdz.gbs`  | aug-cc-pVDZ  | [3s2p] | [3s2p] | [4s3p2d] | [4s3p2d] | [4s3p2d] | d |
+| `aug-cc-pvtz.gbs`  | aug-cc-pVTZ  | [4s3p2d] | [4s3p2d] | [5s4p3d2f] | [5s4p3d2f] | [5s4p3d2f] | f |
+| `aug-cc-pvqz.gbs`  | aug-cc-pVQZ  | [5s4p3d2f] | [5s4p3d2f] | [6s5p4d3f2g] | [6s5p4d3f2g] | [6s5p4d3f2g] | g |
+| `aug-cc-pv5z.gbs`  | aug-cc-pV5Z  | [6s5p4d3f2g] | [6s5p4d3f2g] | [7s6p5d4f3g2h] | [7s6p5d4f3g2h] | [7s6p5d4f3g2h] | h |
+| `aug-cc-pcvdz.gbs` | aug-cc-pCVDZ | – | – | [5s4p2d] | [5s4p2d] | [5s4p2d] | d |
+| `aug-cc-pcvtz.gbs` | aug-cc-pCVTZ | – | – | [7s6p4d2f] | [7s6p4d2f] | [7s6p4d2f] | f |
+| `aug-cc-pcvqz.gbs` | aug-cc-pCVQZ | – | – | [9s8p6d4f2g] | [9s8p6d4f2g] | [9s8p6d4f2g] | g |
+| `aug-cc-pcv5z.gbs` | aug-cc-pCV5Z | – | – | – | [11s10p8d6f4g2h] | [11s10p8d6f4g2h] | h |
 
-Nitrogen (for NH3) was added in ΨLab 7.0 with the offline copy of the same data,
-`pip install basis_set_exchange` (BSE data version 0.12):
+Nitrogen (for NH3) and helium (for HeH+ with correlation-consistent basis sets) were added in
+ΨLab 7.0 with the offline copy of the same data, `pip install basis_set_exchange` (BSE data
+version 0.12):
 
 ```
-basis_set_exchange.get_basis(<name>, elements=[1, 3, 7, 8], fmt="gaussian94", header=True)
+basis_set_exchange.get_basis(<name>, elements=[1, 2, 3, 7, 8], fmt="gaussian94", header=True)
 ```
 
 With `elements=[1, 3, 8]` this reproduces the eight earlier files byte for byte, so the files
-differ from them only by the inserted N block.
+differ from them only by the inserted He and N blocks. The core-valence sets are not defined for
+He (its 1s shell is the valence shell); like H, He then takes the aug-cc-pVXZ functions.
 
 **Element coverage.**
 
@@ -47,6 +49,7 @@ Number of basis functions per molecule (spherical):
 | | aug-cc-pVDZ | TZ | QZ | 5Z | aug-cc-pCVDZ | CVTZ | CVQZ | CV5Z |
 |---|---|---|---|---|---|---|---|---|
 | H2  | 18 | 46 | 92 | 160 | 18 | 46 | 92 | 160 |
+| HeH+ | 18 | 46 | 92 | 160 | 18 | 46 | 92 | 160 |
 | LiH | 32 | 69 | 126 | 207 | 36 | 82 | 155 | – |
 | H2O | 41 | 92 | 172 | 287 | 45 | 105 | 201 | 341 |
 | NH3 | 50 | 115 | 218 | 367 | 54 | 128 | 247 | 421 |

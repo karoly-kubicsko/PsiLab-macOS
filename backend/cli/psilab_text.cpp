@@ -71,7 +71,8 @@ int parse_basis(const std::string& text, int line) {
     if (t == "sto1g" || t == "1") return 1;
     if (t == "sto2g" || t == "2") return 2;
     if (t == "sto3g" || t == "3") return 3;
-    fail(line, "basis must be STO-1G, STO-2G or STO-3G, got '" + trim(text) + "'");
+    fail(line, "basis must be STO-1G, STO-2G or STO-3G (Szabo-Ostlund) or a correlation-consistent set "
+               "(aug-cc-pVXZ, aug-cc-pCVXZ), got '" + trim(text) + "'");
 }
 
 // "1.4632", "1.4632 bohr", "0.7743 angstrom", "0.7743 Å" -> bohr
@@ -224,17 +225,23 @@ Settings parse_input_text(const std::string& text) {
     }
     s.input.molecule = molecule;
     if (molecule != "HeH+") s.input.angle = macqc::default_angle(molecule);
-    const bool heh = molecule == "HeH+";
+    // 7.0: HeH+ with a correlation-consistent basis set is a general molecule (all methods and
+    // jobs); with STO-1G/2G/3G (or no basis) it is the Szabo-Ostlund calculation
+    const bool heh_general = molecule == "HeH+" && entries.count("basis") &&
+                             !macqc::canonical_basis_name(entries["basis"].value).empty();
+    s.input.hehGeneral = heh_general;
+    const bool heh = molecule == "HeH+" && !heh_general;
     auto only = [&](const char* key, bool allowed, const std::string& who) {
         auto it = entries.find(key);
         if (it != entries.end() && !allowed)
             fail(it->second.line, "'" + it->second.key + "' applies to " + who + " only (molecule = " + molecule + ")");
     };
-    const std::string general = "H2, LiH, H2O, H2O2 and NH3";
-    only("zeta_He", heh, "HeH+");
-    only("zeta_H", heh, "HeH+");
-    only("exact_erf", heh, "HeH+");
-    only("scan_step", heh, "HeH+");
+    const std::string general = "H2, LiH, H2O, H2O2, NH3 and HeH+ in a correlation-consistent basis set";
+    const std::string sto = "HeH+ in an STO-nG basis (Szabo-Ostlund)";
+    only("zeta_He", heh, sto);
+    only("zeta_H", heh, sto);
+    only("exact_erf", heh, sto);
+    only("scan_step", heh, sto);
     only("scan_start", !heh, general);
     only("angle", molecule == "H2O" || molecule == "H2O2" || molecule == "NH3", "H2O, H2O2 and NH3");
     only("R_OO", molecule == "H2O2", "H2O2");
@@ -295,7 +302,7 @@ Settings parse_input_text(const std::string& text) {
             s.scan = parse_bool(value, ln, e.key);
         } else if (k == "scan") {
             // relaxed scan (7.0): the Gaussian ModRedundant line "[B|A|D] N1 N2 [N3 [N4]] S nsteps stepsize"
-            const int n_atoms = (molecule == "H2O2" || molecule == "NH3") ? 4 : (molecule == "H2O" ? 3 : 2);
+            const int n_atoms = (molecule == "H2O2" || molecule == "NH3") ? 4 : (molecule == "H2O" ? 3 : 2);  // HeH+: 2
             macqc::JobSettings js;
             const std::string err = macqc::parse_scan_line(value, n_atoms, &js);
             if (!err.empty()) fail(ln, "scan: " + err);

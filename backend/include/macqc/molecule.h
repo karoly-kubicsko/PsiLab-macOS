@@ -51,7 +51,8 @@ double default_oo_bond_length();                            // bohr
 // Default of the `angle` input of a molecule: H-O-H (H2O), O-O-H (H2O2), H-N-H (NH3), else 104.52.
 double default_angle(const std::string& molecule);
 
-// Builds the molecule. H2: atoms at z = -R/2, +R/2. LiH: Li at the origin, H at z = R.
+// Builds the molecule. H2: atoms at z = -R/2, +R/2. LiH: Li at the origin, H at z = R. HeH+ (7.0, for
+// the general path with correlation-consistent basis sets): He at the origin, H at z = R, charge +1.
 // H2O: O at the origin, the hydrogens in the xz plane at distance R, symmetric about
 // the z axis, enclosing `angle_degrees`.
 // H2O2: atoms O1, O2, H3 (bonded to O1), H4 (bonded to O2); the O-O bond along x, centred at

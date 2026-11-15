@@ -405,6 +405,54 @@ int main() {
         }
     }
 
+    // ---- HeH+ with correlation-consistent basis sets (7.4): a general molecule, charge +1
+    std::printf("HeH+ with correlation-consistent basis sets against PySCF\n");
+    if (ref.contains("HeH+")) {
+        const json& h = ref["HeH+"];
+        for (const auto& p : h["points"]) {
+            const std::string basis = p["basis"], method = p["method"];
+            const Molecule m = make_molecule("HeH+", 1.4632, 0.0);
+            CHECK(m.charge == 1 && m.electrons() == 2);
+            const BasisSet b = build_basis(m, basis, dir);
+            CHECK(b.n_functions == p["nbf"].get<int>());
+            const std::string tag = "  HeH+ " + method + "/" + basis;
+            if (method == "RHF") {
+                const GradientResult g = run_gradient(m, b, "RHF", tight());
+                check_max(tag + ": energy (E_h)", std::fabs(g.point.energy - p["energy"].get<double>()), 1e-9);
+                check_max(tag + ": analytic gradient (E_h/bohr)", grad_diff(g.gradient, p["gradient"]), 2e-9);
+            } else {
+                const SinglePoint sp = run_single_point(m, b, method, tight());
+                check_max(tag + ": energy (E_h)", std::fabs(sp.energy - p["energy"].get<double>()), 1e-9);
+            }
+        }
+        const json& o = h["optimization"];
+        for (const std::string method : {"CCSD", "FCI"}) {
+            const json r = run_logged("HeH+ " + method + "/aug-cc-pVTZ opt+freq (two electrons: exact)",
+                                      {{"molecule", "HeH+"}, {"basis", "aug-cc-pVTZ"}, {"method", method},
+                                       {"job", "opt+freq"}, {"optConvergence", "tight"}});
+            CHECK(r["error"].is_null());
+            if (!r["error"].is_null()) continue;
+            CHECK(r["molecule"]["charge"].get<int>() == 1);
+            check_max("  HeH+ " + method + ": r_e vs PySCF + geomeTRIC CCSD (angstrom)",
+                      std::fabs(r["optimization"]["finalGeometry"]["R"].get<double>() * kBohrInAngstrom - o["R"].get<double>()), 2e-5);
+            check_max("  HeH+ " + method + ": energy at r_e (E_h)",
+                      std::fabs(r["optimization"]["finalEnergy"].get<double>() - o["energy"].get<double>()), 1e-9);
+            check_max("  HeH+ " + method + ": harmonic wavenumber vs PySCF energies' second derivative (cm-1)",
+                      std::fabs(r["frequencies"]["modes"][0]["wavenumber"].get<double>() - o["wavenumber"].get<double>()), 0.5);
+            CHECK(r["frequencies"]["modes"][0]["symmetry"] == "Sigma+" && r["thermochemistry"]["symmetryNumber"].get<int>() == 1);
+        }
+        // the Szabo-Ostlund path is unchanged
+        const json legacy = run({{"molecule", "HeH+"}});
+        CHECK(legacy["error"].is_null() && !legacy["hf"].is_null());
+        check_max("  HeH+ without a basis set: the Szabo-Ostlund STO-3G energy (E_h)",
+                  std::fabs(legacy["hf"]["totalEnergy"].get<double>() - (-2.860661992)), 1e-9);
+        CHECK(run({{"molecule", "HeH+"}, {"basis", "STO-1G"}})["input"]["nGaussians"].get<int>() == 1);
+        CHECK(contains(run({{"molecule", "HeH+"}, {"job", "opt"}})["error"].get<std::string>(), "correlation-consistent"));
+        CHECK(contains(run({{"molecule", "HeH+"}, {"basis", "6-31G"}})["error"].get<std::string>(), "STO-1G, STO-2G, STO-3G"));
+        CHECK(contains(run({{"molecule", "HeH+"}, {"basis", "aug-cc-pVDZ"}, {"job", "ts"}})["error"].get<std::string>(),
+                       "no transition state"));
+    }
+
     // ---- refusals, input errors
     std::printf("Refusals and input errors\n");
     {

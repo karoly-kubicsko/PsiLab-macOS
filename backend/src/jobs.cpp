@@ -470,7 +470,7 @@ void write_header(OutputWriter& w, const JobSettings& s, const std::string& echo
     const std::string rule(88, '=');
     w.line(rule);
     w.line("                                ΨLab " + std::string(kProgramVersion));
-    w.line("     restricted Hartree-Fock, coupled cluster and Full CI for H2, LiH, H2O, H2O2, NH3");
+    w.line("  restricted Hartree-Fock, coupled cluster and Full CI for H2, HeH+, LiH, H2O, H2O2, NH3");
     w.line(rule);
     w.line("  Program      ΨLab " + std::string(kProgramVersion) + " (C++17 backend; integrals, SCF, CC, CI, derivatives)");
     w.line("  Started      " + local_time_string());
