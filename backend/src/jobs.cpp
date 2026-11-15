@@ -105,6 +105,7 @@ std::string canonical_job_type(const std::string& type) {
         return "scan";
     if (t == "ts" || t == "opt=ts" || t == "optts" || t == "transitionstate" || t == "tsopt" || t == "7") return "ts";
     if (t == "ts+freq" || t == "tsfreq" || t == "opt=tsfreq" || t == "optts+freq" || t == "8") return "ts+freq";
+    if (t == "ts+freq+sp" || t == "tsfreqsp" || t == "opt=tsfreqsp" || t == "optts+freq+sp" || t == "9") return "ts+freq+sp";
     return "";
 }
 
@@ -116,17 +117,18 @@ std::string job_title(const std::string& t) {
     if (t == "scan") return "Relaxed potential energy surface scan";
     if (t == "ts") return "Transition-state optimisation";
     if (t == "ts+freq") return "Transition-state optimisation + frequencies";
+    if (t == "ts+freq+sp") return "Transition-state optimisation + frequencies + single-point energy";
     return "Energy";
 }
 
 bool job_has_optimization(const std::string& t) {
-    return t == "opt" || t == "opt+freq" || t == "opt+freq+sp" || t == "ts" || t == "ts+freq";
+    return t == "opt" || t == "opt+freq" || t == "opt+freq+sp" || t == "ts" || t == "ts+freq" || t == "ts+freq+sp";
 }
 bool job_has_frequencies(const std::string& t) {
-    return t == "freq" || t == "opt+freq" || t == "opt+freq+sp" || t == "ts+freq";
+    return t == "freq" || t == "opt+freq" || t == "opt+freq+sp" || t == "ts+freq" || t == "ts+freq+sp";
 }
-bool job_has_ts(const std::string& t) { return t == "ts" || t == "ts+freq"; }
-bool job_has_single_point(const std::string& t) { return t == "opt+freq+sp"; }
+bool job_has_ts(const std::string& t) { return t == "ts" || t == "ts+freq" || t == "ts+freq+sp"; }
+bool job_has_single_point(const std::string& t) { return t == "opt+freq+sp" || t == "ts+freq+sp"; }
 bool job_has_scan(const std::string& t) { return t == "scan"; }
 bool job_uses_optimizer(const std::string& t) { return job_has_optimization(t) || job_has_scan(t); }  // incl. ts
 
@@ -404,7 +406,7 @@ JobEstimate estimate_job(const MolecularResult& p, const JobSettings& s, const M
         st.name = "Single-point energy";
         st.method = sp->input.method;
         st.basis = sp->input.basis;
-        st.how = "single point at the optimised geometry";
+        st.how = job_has_ts(t) ? "single point at the transition state" : "single point at the optimised geometry";
         st.evaluations = 1;
         st.evaluation_kind = "energies";
         st.seconds = sp->estimate.total_seconds;
@@ -1141,6 +1143,8 @@ JobResult run_job(const MolecularInput& input, const JobSettings& s, const Outpu
             if (!opt.converged) {
                 r.termination = "error";
                 r.message = opt.message + (s.type == "ts+freq" ? " The frequency step was not run: it needs a transition state."
+                                           : s.type == "ts+freq+sp" ? " The frequency and single-point steps were not run: they "
+                                                                      "need a transition state."
                                            : (s.type != "opt" && s.type != "ts" ? " The frequency and single-point steps were "
                                                                                     "not run: they need a stationary point."
                                                                                   : ""));
@@ -1237,7 +1241,8 @@ JobResult run_job(const MolecularInput& input, const JobSettings& s, const Outpu
         // ---- single point
         if (job_has_single_point(s.type)) {
             const std::string m2 = psp->input.method, b2 = psp->input.basis;
-            w.section("Single-point energy at the optimised geometry: " + method_label(m2) + "/" + b2);
+            w.section(std::string("Single-point energy at the ") +
+                      (job_has_ts(s.type) ? "transition state: " : "optimised geometry: ") + method_label(m2) + "/" + b2);
             w.write(geometry_table(x));
             const BasisSet bs = build_basis(x, b2, p.input.basis_directory);
             w.write(basis_block(bs, psp->notes));

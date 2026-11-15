@@ -62,7 +62,7 @@ JobSettings job_settings(const Input& in) {
 
 std::string job_input_error(const Input& in) {
     const std::string job = canonical_job_type(in.job);
-    if (job.empty()) return "job must be energy, opt, freq, opt+freq, opt+freq+sp, scan, ts or ts+freq";
+    if (job.empty()) return "job must be energy, opt, freq, opt+freq, opt+freq+sp, scan, ts, ts+freq or ts+freq+sp";
     if (in.tsHessian != "calcfc" && in.tsHessian != "calcall") return "tsHessian must be calcfc or calcall";
     if (job_has_scan(job)) {
         if (in.scan.empty())

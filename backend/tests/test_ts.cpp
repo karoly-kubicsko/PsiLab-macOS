@@ -9,6 +9,9 @@
 //  - the eigenvalue test: a search started at the minimum stops (0 negative eigenvalues), with the
 //    test off P-RFO climbs from the minimum to the trans transition state; linear H2O (a second-order
 //    saddle point) fails the test, and without it ts+freq ends with an error (two imaginary modes);
+//  - ts+freq+sp: the single point (CCSD(T)/aug-cc-pVTZ) at the transition state equals an independent
+//    calculation at that geometry, and the final energies are the single point plus the thermal
+//    corrections of the frequency step;
 //  - refusals (diatomics, CCSDT/CCSDTQ of four atoms), input errors, the estimate, the output file.
 #include <chrono>
 #include <cmath>
@@ -207,6 +210,55 @@ int main() {
                                   {{"molecule", "H2O"}, {"job", "ts+freq"}, {"angle", 180.0}, {"eigenTest", false}});
         CHECK(!d["error"].is_null() && contains(d["error"].get<std::string>(), "a saddle point of order 2, not a transition state"));
         CHECK(d["job"]["termination"] == "error");
+    }
+
+    // ---- ts+freq+sp
+    std::printf("Transition state + frequencies + single-point energy\n");
+    {
+        const json r = run_logged("NH3 HF/aug-cc-pVDZ ts+freq, CCSD(T)/aug-cc-pVTZ single point",
+                                  {{"molecule", "NH3"}, {"method", "HF"}, {"job", "ts+freq+sp"}, {"angle", 119.0},
+                                   {"spMethod", "CCSD(T)"}, {"spBasis", "aug-cc-pVTZ"}, {"optConvergence", "tight"}});
+        CHECK(r["error"].is_null());
+        if (r["error"].is_null()) {
+            const json& j = r["job"];
+            CHECK(j["type"] == "ts+freq+sp" && j["termination"] == "normal");
+            CHECK(j["estimate"]["steps"].size() == 3 && j["estimate"]["steps"][2]["name"] == "Single-point energy");
+            CHECK(j["estimate"]["steps"][2]["how"] == "single point at the transition state");
+            CHECK(j["finalEnergyLabel"] == "CCSD(T)/aug-cc-pVTZ");
+            CHECK(r["frequencies"]["pointGroup"] == "D3h" && r["frequencies"]["modes"][0]["symmetry"] == "A2''");
+            // the single point again, independently, at the transition state
+            Molecule m = make_molecule("NH3", 1.9, 120.0);
+            const json& atoms = r["optimization"]["finalGeometry"]["atoms"];
+            for (std::size_t a = 0; a < 4; ++a)
+                for (std::size_t k = 0; k < 3; ++k) m.atoms[a].position[k] = atoms[a]["position"][k].get<double>();
+            ElectronicOptions eo;
+            eo.scf_energy_tol = 1e-12;
+            eo.scf_gradient_tol = 1e-10;
+            eo.cc_amplitude_tol = 1e-10;
+            eo.cc_energy_tol = 1e-12;
+            const SinglePoint sp = run_single_point(m, build_basis(m, "aug-cc-pVTZ", default_basis_directory()), "CCSD(T)", eo);
+            const double e_sp = r["singlePoint"]["energy"].get<double>();
+            check_max("  single point at the transition state vs an independent CCSD(T)/aug-cc-pVTZ energy (E_h)",
+                      std::fabs(e_sp - sp.energy), 2e-9);
+            check_max("  final energy = the single point (E_h)", std::fabs(j["finalEnergy"].get<double>() - e_sp), 1e-12);
+            const json& t = r["thermochemistry"];
+            const double kj = 1.0 / (4.3597447222071e-18 * 6.02214076e23);  // J/mol -> E_h (CODATA 2018)
+            check_max("  G = single point + thermal correction to G (E_h)",
+                      std::fabs(t["totals"]["gibbs"].get<double>() - (e_sp + t["corrections"]["gibbs"].get<double>() * kj)), 1e-10);
+            check_max("  H = single point + thermal correction to H (E_h)",
+                      std::fabs(t["totals"]["enthalpy"].get<double>() - (e_sp + t["corrections"]["enthalpy"].get<double>() * kj)),
+                      1e-10);
+            const std::string out = r["output"].get<std::string>();
+            CHECK(contains(out, "---- Single-point energy at the transition state: CCSD(T)/aug-cc-pVTZ"));
+            CHECK(contains(out, "One imaginary frequency"));
+            CHECK(out.find("One imaginary frequency") < out.find("---- Single-point energy at the transition state"));
+        }
+        // a failed transition-state check stops before the single point
+        const json d = run_logged("linear H2O, eigenTest false, ts+freq+sp",
+                                  {{"molecule", "H2O"}, {"job", "ts+freq+sp"}, {"angle", 180.0}, {"eigenTest", false},
+                                   {"spMethod", "CCSD"}});
+        CHECK(!d["error"].is_null() && contains(d["error"].get<std::string>(), "a saddle point of order 2"));
+        CHECK(d["singlePoint"].is_null());
     }
 
     // ---- refusals, input errors, estimate

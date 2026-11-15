@@ -16,6 +16,9 @@
 //                 P-RFO steps, Bofill updates, eigenvalue test (see optimizer.h)
 //   ts+freq       then harmonic frequencies at the transition state; the job ends with an error
 //                 unless there is exactly one imaginary frequency
+//   ts+freq+sp    then, at the confirmed transition state, a single-point energy with its own
+//                 method and basis set; final U, H, G, A = single point + thermal corrections
+//                 (the transition-state counterpart of opt+freq+sp)
 #pragma once
 
 #include <functional>
@@ -32,7 +35,7 @@
 namespace macqc {
 
 struct JobSettings {
-    std::string type = "energy";      // energy | opt | freq | opt+freq | opt+freq+sp
+    std::string type = "energy";      // energy | opt | freq | opt+freq | opt+freq+sp | scan | ts | ts+freq | ts+freq+sp
     std::string sp_method, sp_basis;  // job 5 (default: the method and basis set of the job)
     double temperature = 298.15;      // K
     double pressure = 101325.0;       // Pa
@@ -125,7 +128,7 @@ bool job_has_optimization(const std::string& type);
 bool job_has_frequencies(const std::string& type);
 bool job_has_single_point(const std::string& type);
 bool job_has_scan(const std::string& type);
-bool job_has_ts(const std::string& type);  // ts, ts+freq (job_has_optimization is true for them too)
+bool job_has_ts(const std::string& type);  // ts, ts+freq, ts+freq+sp (job_has_optimization is true for them too)
 // Jobs that run the optimiser (and take opt_convergence and max_steps): opt, opt+freq,
 // opt+freq+sp, scan, ts, ts+freq.
 bool job_uses_optimizer(const std::string& type);

@@ -83,12 +83,14 @@ jobs:
 
       - name: Terminal version, transition states (7.0)
         run: |
-          printf 'molecule = NH3\nmethod = HF\njob = ts+freq\nangle = 116\n' > nh3ts.inp
+          printf 'molecule = NH3\nmethod = HF\njob = ts+freq+sp\nangle = 116\nsp_method = CCSD(T)\n' > nh3ts.inp
           ./build/psilab nh3ts.inp nh3ts.out
           grep -q "Transition state found" nh3ts.out
           grep -q "Point group D3h" nh3ts.out
           grep -q "One imaginary frequency" nh3ts.out
+          grep -q "Single-point energy at the transition state: CCSD(T)/aug-cc-pVDZ" nh3ts.out
           sed -n '/---- Transition-state check/,/^$/p' nh3ts.out
+          sed -n '/Final energies:/,/G = E/p' nh3ts.out
           printf 'molecule = H2O2\nmethod = HF\njob = ts+freq\ndihedral = 160\nts_hessian = calcall\n' > h2o2ts.inp
           ./build/psilab h2o2ts.inp h2o2ts.out
           grep -q "Point group C2h" h2o2ts.out

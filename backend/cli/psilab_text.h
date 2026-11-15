@@ -8,13 +8,13 @@
 //   angle      degrees: H-O-H (H2O; default 104.52), O-O-H (H2O2; 102.32), H-N-H (NH3; 106.7, 120 planar)
 //   R_OO       O-O bond length (H2O2; default 1.4556 angstrom)   dihedral  H-O-O-H (H2O2; 113.70)
 //   method     HF | CCSD | CCSD(T) | CCSDT | CCSDTQ | FCI (H2, LiH, H2O; refused where impossible)
-//   job        energy (default) | opt | freq | opt+freq | opt+freq+sp | scan | ts | ts+freq
+//   job        energy (default) | opt | freq | opt+freq | opt+freq+sp | scan | ts | ts+freq | ts+freq+sp
 //   scan       job = scan: the Gaussian ModRedundant line N1 N2 [N3 [N4]] S nsteps stepsize
 //              (1-based atoms, optionally preceded by B, A or D; step in angstrom for a bond,
 //              degrees for an angle or dihedral), e.g. 1 2 S 10 0.05, 2 1 3 S 8 10.0 or
 //              3 1 2 4 S 18 10.0 (H2O2 torsion)
 //   scan_start value of the first scan point (angstrom or degrees; default: the input geometry)
-//   ts_hessian job = ts, ts+freq (Gaussian Opt=TS): calcfc (Hessian at the first step, default) | calcall
+//   ts_hessian job = ts, ts+freq, ts+freq+sp (Gaussian Opt=TS): calcfc (Hessian at the first step, default) | calcall
 //   eigen_test yes (default: exactly one negative Hessian eigenvalue) | no (Gaussian NoEigenTest)
 //   sp_method, sp_basis   method and basis set of the single point of opt+freq+sp
 //   temperature  K (default 298.15)       pressure  Pa (default 101325; units Pa, kPa, bar, atm)

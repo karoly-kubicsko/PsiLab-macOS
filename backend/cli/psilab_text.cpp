@@ -346,7 +346,8 @@ Settings parse_input_text(const std::string& text) {
         } else if (k == "job") {
             s.input.job = macqc::canonical_job_type(value);
             if (s.input.job.empty())
-                fail(ln, "job must be energy, opt, freq, opt+freq, opt+freq+sp, scan, ts or ts+freq, got '" + value + "'");
+                fail(ln, "job must be energy, opt, freq, opt+freq, opt+freq+sp, scan, ts, ts+freq or ts+freq+sp, got '" + value +
+                             "'");
         } else if (k == "ts_hessian") {
             const std::string h = lower(value);
             if (h != "calcfc" && h != "calcall") fail(ln, "ts_hessian must be calcfc or calcall, got '" + value + "'");
@@ -405,14 +406,14 @@ Settings parse_input_text(const std::string& text) {
             if (it != entries.end() && !allowed)
                 fail(it->second.line, "'" + it->second.key + "' applies to job = " + jobs + " only (job = " + job + ")");
         };
-        job_only("sp_method", macqc::job_has_single_point(job), "opt+freq+sp");
-        job_only("sp_basis", macqc::job_has_single_point(job), "opt+freq+sp");
-        job_only("temperature", macqc::job_has_frequencies(job), "freq, opt+freq and opt+freq+sp");
-        job_only("pressure", macqc::job_has_frequencies(job), "freq, opt+freq and opt+freq+sp");
-        job_only("opt_convergence", macqc::job_uses_optimizer(job), "opt, opt+freq, opt+freq+sp, scan, ts and ts+freq");
-        job_only("max_steps", macqc::job_uses_optimizer(job), "opt, opt+freq, opt+freq+sp, scan, ts and ts+freq");
-        job_only("ts_hessian", macqc::job_has_ts(job), "ts and ts+freq");
-        job_only("eigen_test", macqc::job_has_ts(job), "ts and ts+freq");
+        job_only("sp_method", macqc::job_has_single_point(job), "opt+freq+sp and ts+freq+sp");
+        job_only("sp_basis", macqc::job_has_single_point(job), "opt+freq+sp and ts+freq+sp");
+        job_only("temperature", macqc::job_has_frequencies(job), "freq, opt+freq, opt+freq+sp, ts+freq and ts+freq+sp");
+        job_only("pressure", macqc::job_has_frequencies(job), "freq, opt+freq, opt+freq+sp, ts+freq and ts+freq+sp");
+        job_only("opt_convergence", macqc::job_uses_optimizer(job), "opt, opt+freq, opt+freq+sp, scan, ts, ts+freq and ts+freq+sp");
+        job_only("max_steps", macqc::job_uses_optimizer(job), "opt, opt+freq, opt+freq+sp, scan, ts, ts+freq and ts+freq+sp");
+        job_only("ts_hessian", macqc::job_has_ts(job), "ts, ts+freq and ts+freq+sp");
+        job_only("eigen_test", macqc::job_has_ts(job), "ts, ts+freq and ts+freq+sp");
         job_only("scan", macqc::job_has_scan(job), "scan");
         job_only("scan_start", macqc::job_has_scan(job), "scan");
         if (macqc::job_has_scan(job) && s.input.scan.empty())

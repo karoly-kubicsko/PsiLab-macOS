@@ -158,11 +158,13 @@ int main() {
     CHECK(j5.input.optConvergence == "tight" && j5.input.maxSteps == 30);
     CHECK(psilab::parse_input_text("molecule = H2\njob = freq\npressure = 1 atm\n").input.pressure == 101325.0);
     CHECK(psilab::parse_input_text("molecule = H2\njob = freq\npressure = 100 kPa\n").input.pressure == 1.0e5);
-    CHECK(rejects("molecule = H2\njob = sweep\n", "job must be energy, opt, freq, opt+freq, opt+freq+sp, scan, ts or ts+freq"));
+    CHECK(rejects("molecule = H2\njob = sweep\n", "job must be energy, opt, freq, opt+freq, opt+freq+sp, scan, ts, ts+freq or ts+freq+sp"));
     CHECK(rejects("job = opt\n", "applies to H2, LiH, H2O, H2O2 and NH3 only"));
-    CHECK(rejects("molecule = H2\njob = opt\nsp_method = CCSD\n", "'sp_method' applies to job = opt+freq+sp only"));
-    CHECK(rejects("molecule = H2\njob = opt\ntemperature = 300\n", "applies to job = freq, opt+freq and opt+freq+sp only"));
-    CHECK(rejects("molecule = H2\njob = freq\nmax_steps = 10\n", "applies to job = opt, opt+freq, opt+freq+sp, scan, ts and ts+freq only"));
+    CHECK(rejects("molecule = H2\njob = opt\nsp_method = CCSD\n", "'sp_method' applies to job = opt+freq+sp and ts+freq+sp only"));
+    CHECK(rejects("molecule = H2\njob = opt\ntemperature = 300\n",
+                  "applies to job = freq, opt+freq, opt+freq+sp, ts+freq and ts+freq+sp only"));
+    CHECK(rejects("molecule = H2\njob = freq\nmax_steps = 10\n",
+                  "applies to job = opt, opt+freq, opt+freq+sp, scan, ts, ts+freq and ts+freq+sp only"));
     CHECK(rejects("molecule = H2\njob = opt\nopt_convergence = loose\n", "opt_convergence must be normal or tight"));
     CHECK(rejects("molecule = H2\njob = opt\nmax_steps = 0\n", "max_steps must be an integer from 1 to 1000"));
     CHECK(rejects("molecule = H2\njob = freq\ntemperature = -3\n", "temperature must be between"));
@@ -231,8 +233,11 @@ int main() {
     CHECK(tsd.input.job == "ts" && tsd.input.tsHessian == "calcfc" && tsd.input.eigenTest);
     CHECK(psilab::parse_input_text("molecule = H2O2\njob = Opt=TS\n").input.job == "ts");
     CHECK(rejects("molecule = NH3\njob = ts\nts_hessian = readfc\n", "ts_hessian must be calcfc or calcall"));
-    CHECK(rejects("molecule = NH3\njob = opt\nts_hessian = calcfc\n", "'ts_hessian' applies to job = ts and ts+freq only"));
-    CHECK(rejects("molecule = NH3\njob = opt\neigen_test = no\n", "'eigen_test' applies to job = ts and ts+freq only"));
+    CHECK(rejects("molecule = NH3\njob = opt\nts_hessian = calcfc\n", "'ts_hessian' applies to job = ts, ts+freq and ts+freq+sp only"));
+    CHECK(rejects("molecule = NH3\njob = opt\neigen_test = no\n", "'eigen_test' applies to job = ts, ts+freq and ts+freq+sp only"));
+    const psilab::Settings tsp = psilab::parse_input_text(
+        "molecule = NH3\njob = ts+freq+sp\nangle = 119\nsp_method = CCSD(T)\nsp_basis = aug-cc-pVTZ\n");
+    CHECK(tsp.input.job == "ts+freq+sp" && tsp.input.spMethod == "CCSD(T)" && tsp.input.spBasis == "aug-cc-pVTZ");
     const std::string tsest = psilab::estimate_text(psilab::parse_input_text("molecule = NH3\njob = ts\n"));
     CHECK(contains(tsest, "Transition-state optimisation: analytic gradient"));
     CHECK(contains(tsest, "Hessian computed at the first step (CalcFC)"));
