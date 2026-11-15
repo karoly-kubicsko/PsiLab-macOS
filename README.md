@@ -1,6 +1,6 @@
 # ΨLab — a native macOS quantum-chemistry app
 
-**Current version: 6.0** — see [Versions](#versions).
+**Current version: 7.0** — see [Versions](#versions).
 
 ΨLab computes small molecules with restricted Hartree–Fock, coupled cluster and Full CI:
 
@@ -119,6 +119,14 @@ Silicon and Intel Macs. The same calculations run in the terminal on Linux and m
   `xcode/project.yml`).
 
 ## Versions
+
+### 7.0
+Relaxed potential-energy scans (Gaussian's Opt=ModRedundant), transition-state searches
+(Gaussian's Opt=TS: partitioned RFO with CalcFC or CalcAll, Bofill updates, the eigenvalue test;
+jobs ts, ts+freq, ts+freq+sp), the molecules H₂O₂ and NH₃ (point groups up to D₃ₕ), and HeH⁺ in
+the correlation-consistent basis sets with every method and job type; in the app the scan and TS
+settings, the *Scan* tab with the relaxed scan, the TS steps and the transition-state check. The
+README of version 8.0 describes them in full.
 
 ### 6.0
 The molecule of each geometry-optimisation step is drawn in the *Optimisation* tab (bond lengths,
