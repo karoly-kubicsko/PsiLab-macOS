@@ -1073,7 +1073,7 @@ JobResult run_job(const MolecularInput& input, const JobSettings& s, const Outpu
         // ---- optimisation
         if (job_has_optimization(s.type)) {
             const bool ts = job_has_ts(s.type);
-            const std::string label = ts ? "TS optimisation step" : "Optimisation step";
+            const std::string label = ts ? "TS Optimisation step" : "Optimisation step";
             w.section((ts ? "Transition-state optimisation: " : "Geometry optimisation: ") + method_label(method) + "/" +
                       p.input.basis);
             const ConvergenceCriteria c = convergence_criteria(s.tight);

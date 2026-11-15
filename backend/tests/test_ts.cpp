@@ -156,7 +156,7 @@ int main() {
                     std::fabs(f["modes"][0]["wavenumber"].get<double>()), f["modes"][0]["symmetry"].get<std::string>().c_str());
         const std::string out = r["output"].get<std::string>();
         CHECK(contains(out, "---- Transition-state optimisation: HF/aug-cc-pVDZ"));
-        CHECK(contains(out, "TS optimisation step 1"));
+        CHECK(contains(out, "TS Optimisation step 1"));
         CHECK(contains(out, "P-RFO step: lambda_p"));
         CHECK(contains(out, "Transition state found"));
         CHECK(contains(out, "One imaginary frequency"));

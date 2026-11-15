@@ -21,7 +21,7 @@ with a computed Hessian, CalcFC or CalcAll), runs **relaxed potential-energy sca
 angle or a dihedral angle (Gaussian's Opt=ModRedundant), computes **harmonic frequencies, IR
 intensities and thermochemistry** (analytic RHF Hessian; numerical Hessians from analytic
 gradients or energies for the correlated methods; point groups up to D₃ₕ) and runs nine job types,
-from *energy* to *TS optimisation + frequencies + single-point energy*, each with a complete
+from *energy* to *TS Optimisation + frequencies + single-point energy*, each with a complete
 output file that is written while the job runs.
 
 It shows energies, orbital energies, SCF, coupled-cluster and Davidson iterations, the largest
@@ -50,8 +50,8 @@ same calculations run in the terminal on Linux and macOS
     frequencies* (frequencies at the optimised geometry), 5 *Optimisation + frequencies +
     single-point energy* (the single point with its own method and basis set, by default the
     same; the final energies add the thermal corrections), and (7.0) 6 *Relaxed scan*, 7 *TS
-    optimisation*, 8 *TS optimisation + frequencies* (exactly one imaginary frequency required),
-    9 *TS optimisation + frequencies + single-point energy*. Jobs 4, 5, 8 and 9 stop with a message
+    optimisation*, 8 *TS Optimisation + frequencies* (exactly one imaginary frequency required),
+    9 *TS Optimisation + frequencies + single-point energy*. Jobs 4, 5, 8 and 9 stop with a message
     if the optimisation does not converge;
   - the geometry — the *starting* geometry of an optimisation: the X–H bond length in Å and in
     bohr (both editable); H₂O the H–O–H angle; H₂O₂ R(O–O), the O–O–H angle and the H–O–O–H

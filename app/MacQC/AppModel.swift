@@ -481,7 +481,7 @@ final class AppModel {
 
     /// A point of the displayed relaxed scan as the start of a transition-state search
     /// (Gaussian's usual route: scan, then Opt=TS from the highest point): copies its geometry
-    /// into the inputs and selects the job TS optimisation + frequencies.
+    /// into the inputs and selects the job TS Optimisation + frequencies.
     func startTransitionStateSearch(from point: MacQCScanPoint) {
         guard let out = result, out.input.molecule == molecule.rawValue,
               let g = geometryInputs(point.geometry, symmetric: true) else { return }
