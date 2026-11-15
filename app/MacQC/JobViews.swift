@@ -636,7 +636,7 @@ struct FrequenciesView: View {
             } else {
                 JobPlaceholder(model: model, title: model.vibrationPage == .frequencies ? "No frequencies" : "No thermochemistry",
                                systemImage: "waveform.path",
-                               text: "Choose a job with frequencies (Frequencies, Optimisation + frequencies, TS Optimisation + frequencies, with or without a single-point energy) in the sidebar and press Run.")
+                               text: "Choose a job with frequencies (Frequencies, Optimisation + frequencies, TS optimisation + frequencies, with or without a single-point energy) in the sidebar and press Run.")
                     .frame(maxHeight: .infinity)
             }
         }

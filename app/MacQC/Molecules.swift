@@ -362,8 +362,8 @@ nonisolated enum JobChoice: String, CaseIterable, Identifiable, Sendable {
         case .optFreqSP: return "Optimisation + frequencies + single-point energy"
         case .scan: return "Relaxed potential-energy scan"
         case .ts: return "Transition-state optimisation"
-        case .tsFreq: return "TS Optimisation + frequencies"
-        case .tsFreqSP: return "TS Optimisation + frequencies + single-point energy"
+        case .tsFreq: return "TS optimisation + frequencies"
+        case .tsFreqSP: return "TS optimisation + frequencies + single-point energy"
         }
     }
 
@@ -375,7 +375,7 @@ nonisolated enum JobChoice: String, CaseIterable, Identifiable, Sendable {
         case .freq: return "Frequencies"
         case .optFreq: return "OPT + FREQ"
         case .optFreqSP: return "OPT + FREQ + SP"
-        case .scan: return "Relaxed scan"
+        case .scan: return "Relaxed Scan"
         case .ts: return "TS Optimisation"
         case .tsFreq: return "TS + FREQ"
         case .tsFreqSP: return "TS + FREQ + SP"

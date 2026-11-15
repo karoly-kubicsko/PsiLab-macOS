@@ -181,7 +181,7 @@ struct RelaxedScanView: View {
                         }
                         .secondaryActionStyle()
                         .disabled(!model.scanMatchesMolecule || model.isRunning)
-                        .help("Copies this geometry into the inputs and selects the job TS Optimisation + frequencies (Gaussian's route: scan, then Opt=TS from the highest point).")
+                        .help("Copies this geometry into the inputs and selects the job TS optimisation + frequencies (Gaussian's route: scan, then Opt=TS from the highest point).")
                     }
                 }
                 .frame(width: 290, alignment: .leading)
@@ -357,7 +357,7 @@ struct RelaxedScanView: View {
                         Fmt.scanValue(x.value, angular: scan.isAngular) + " · " + Fmt.energy10(x.energy) + " E_h"
                         + String(format: " · %.4f kcal/mol", kcal(x.energy - lowest)))
             }
-            Text("Vertex of the parabola through an interior point lower (minimum) or higher (maximum) than both neighbours. A maximum of a relaxed scan approximates a transition state: refine it with a TS Optimisation (button above).")
+            Text("Vertex of the parabola through an interior point lower (minimum) or higher (maximum) than both neighbours. A maximum of a relaxed scan approximates a transition state: refine it with a TS optimisation (button above).")
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }
