@@ -34,11 +34,35 @@ struct Direction {
     bool antisymmetric = false;  // C2v B2 coordinate
 };
 
-// Displacement directions: symmetry-adapted for C2v H2O.
+// C2-symmetric H2O2: R(O1-H3) = R(O2-H4) and A(O2-O1-H3) = A(O1-O2-H4).
+bool c2_peroxide(const Molecule& mol, const SimpleInternals& si) {
+    return si.values.size() == 6 && mol.atoms[0].Z == 8 && std::fabs(si.values[1] - si.values[2]) < 1.0e-6 &&
+           std::fabs(si.values[3] - si.values[4]) < 1.0e-6;
+}
+
+// Displacement directions: symmetry-adapted for C2v H2O and C2 H2O2.
 std::vector<Direction> directions(const Molecule& mol, const SimpleInternals& si) {
     std::vector<Direction> out;
     if (si.values.size() == 1) {
         out.push_back({si.names[0], {1.0}, false});
+        return out;
+    }
+    if (si.values.size() == 6) {
+        if (c2_peroxide(mol, si)) {
+            const double s = 1.0 / std::sqrt(2.0);
+            out.push_back({"S1 (A) = R(O1-O2), O-O stretch", {1, 0, 0, 0, 0, 0}, false});
+            out.push_back({"S2 (A) = [R(O1-H3) + R(O2-H4)]/sqrt(2), symmetric O-H stretch", {0, s, s, 0, 0, 0}, false});
+            out.push_back({"S3 (A) = [A(O2-O1-H3) + A(O1-O2-H4)]/sqrt(2), symmetric bend", {0, 0, 0, s, s, 0}, false});
+            out.push_back({"S4 (A) = D(H3-O1-O2-H4), torsion", {0, 0, 0, 0, 0, 1}, false});
+            out.push_back({"S5 (B) = [R(O1-H3) - R(O2-H4)]/sqrt(2), antisymmetric O-H stretch", {0, s, -s, 0, 0, 0}, true});
+            out.push_back({"S6 (B) = [A(O2-O1-H3) - A(O1-O2-H4)]/sqrt(2), antisymmetric bend", {0, 0, 0, s, -s, 0}, true});
+        } else {
+            for (std::size_t k = 0; k < 6; ++k) {
+                std::vector<double> d(6, 0.0);
+                d[k] = 1.0;
+                out.push_back({si.names[k], d, false});
+            }
+        }
         return out;
     }
     const bool c2v = std::fabs(si.values[0] - si.values[1]) < 1.0e-6 && mol.atoms[1].Z == mol.atoms[2].Z;
@@ -58,6 +82,11 @@ std::vector<Direction> directions(const Molecule& mol, const SimpleInternals& si
 }
 
 bool is_c2v(const std::vector<Direction>& dirs) { return dirs.size() == 3 && dirs[2].antisymmetric; }
+bool is_symmetry_adapted(const std::vector<Direction>& dirs) {
+    for (const auto& d : dirs)
+        if (d.antisymmetric) return true;
+    return false;
+}
 
 // sum_i c_i d2q_i/dx dx' of the simple internal coordinates (central differences of B).
 Matrix internal_second_derivatives(const Molecule& mol, const std::vector<double>& c) {
@@ -197,6 +226,10 @@ NumericalHessianCost numerical_hessian_cost(const Molecule& mol, bool analytic_g
     } else if (is_c2v(dirs)) {
         c.energies = 4 + 4 + 1;  // S1 +-, S2 +-, (S1, S2) mixed 4, S3 + (S3 - by symmetry)
         if (dipoles) c.field_energies = 4 + 4 + 2;
+    } else if (n == 6) {
+        // four atoms: not available from energies (counted for the refusal message)
+        c.energies = 12 + 4 * 15;
+        if (dipoles) c.field_energies = 6 * 2 * 3 * 2;
     } else {
         c.energies = 6 + 12;
         if (dipoles) c.field_energies = 6 * 2 * 2;
@@ -325,12 +358,15 @@ HessianResult run_hessian(const Molecule& mol, const BasisSet& basis, const std:
         }
         r.description = format("numerical (central differences of analytic gradients along %zu %sinternal coordinate%s, "
                                "%d gradients, step %.4f bohr / rad)",
-                               ns, is_c2v(dirs) ? "symmetry-adapted " : "", ns == 1 ? "" : "s", r.gradient_evaluations, h);
+                               ns, is_symmetry_adapted(dirs) ? "symmetry-adapted " : "", ns == 1 ? "" : "s", r.gradient_evaluations, h);
         r.seconds = seconds_since(t0);
         return r;
     }
 
     // ---- finite differences of energies (CCSDT, CCSDTQ)
+    if (si.values.size() == 6)
+        throw std::runtime_error("a numerical Hessian from energies is not available for " + mol.name +
+                                 "; use a method with analytic gradients (HF, CCSD, CCSD(T))");
     if (linear3)
         throw std::runtime_error("a numerical Hessian from energies at a linear H2O geometry is not available; "
                                  "optimise first or use a method with analytic gradients");

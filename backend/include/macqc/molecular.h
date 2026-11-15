@@ -1,5 +1,5 @@
-// ΨLab 3.0 driver for general molecules (H2, LiH, H2O): basis set, size and time
-// estimate, warnings and refusals, restricted Hartree-Fock, text report.
+// ΨLab 3.0 driver for general molecules (H2, LiH, H2O; 7.0: H2O2, NH3): basis set, size and
+// time estimate, warnings and refusals, restricted Hartree-Fock, text report.
 #pragma once
 
 #include <optional>
@@ -16,8 +16,10 @@ namespace macqc {
 
 struct MolecularInput {
     std::string molecule = "H2O";
-    double R = 0.0;              // bond length in bohr (H2O: O-H); <= 0 means the default
-    double angle = kDefaultWaterAngle;  // H-O-H angle in degrees (H2O only)
+    double R = 0.0;              // bond length in bohr (H2O, H2O2: O-H; NH3: N-H); <= 0 means the default
+    double angle = kDefaultWaterAngle;  // degrees: H-O-H (H2O), O-O-H (H2O2), H-N-H (NH3)
+    double r_oo = 0.0;           // H2O2: O-O bond length in bohr; <= 0 means the default
+    double dihedral = kDefaultPeroxideDihedral;  // H2O2: H-O-O-H dihedral angle in degrees
     std::string basis = "aug-cc-pVDZ";
     // "RHF" (shown as HF), "CCSD", "CCSD(T)", "CCSDT", "CCSDTQ" or "FCI"; the correlated
     // methods follow RHF and correlate all electrons.

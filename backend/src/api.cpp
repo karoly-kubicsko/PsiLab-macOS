@@ -33,6 +33,8 @@ json input_json(const Input& in) {
                 {"basis", in.basis},
                 {"R", in.R},
                 {"angle", in.angle},
+                {"ROO", canonical_molecule_name(in.molecule) == "H2O2" ? json(in.ROO) : json(nullptr)},
+                {"dihedral", canonical_molecule_name(in.molecule) == "H2O2" ? json(in.dihedral) : json(nullptr)},
                 {"method", in.method},
                 {"basisDirectory", in.basisDirectory},
                 {"threads", in.threads},
@@ -88,7 +90,10 @@ json molecular_json(const MolecularResult& m) {
     mol["electrons"] = m.molecule.electrons();
     mol["charge"] = m.molecule.charge;
     mol["R"] = m.input.R;
-    mol["angle"] = m.molecule.name == "H2O" ? json(m.input.angle) : json(nullptr);
+    const bool has_angle = m.molecule.name == "H2O" || m.molecule.name == "H2O2" || m.molecule.name == "NH3";
+    mol["angle"] = has_angle ? json(m.input.angle) : json(nullptr);
+    mol["ROO"] = m.molecule.name == "H2O2" ? json(m.input.r_oo) : json(nullptr);
+    mol["dihedral"] = m.molecule.name == "H2O2" ? json(m.input.dihedral) : json(nullptr);
     mol["nuclearRepulsion"] = m.molecule.nuclear_repulsion();
     json atoms = json::array();
     for (const Atom& a : m.molecule.atoms)
@@ -288,13 +293,54 @@ double distance(const Atom& a, const Atom& b) {
 }
 
 // The parameters of the inputs: R (bohr; H2O: both O-H distances and their mean) and the
-// H-O-H angle (degrees).
+// H-O-H angle (degrees); H2O2: R (mean O-H), R1, R2, ROO, angle (mean O-O-H), angle1, angle2,
+// dihedral; NH3: R (mean N-H), R1, R2, R3, angle (mean H-N-H), angle1, angle2, angle3 and
+// "pyramidal" (360 minus the sum of the H-N-H angles, 0 for the planar molecule).
 json geometry_parameters_json(const Molecule& m) {
     json g;
     g["atoms"] = atoms_json(m);
     if (m.atoms.size() == 2) {
         g["R"] = distance(m.atoms[0], m.atoms[1]);
         g["angle"] = nullptr;
+        return g;
+    }
+    if (m.atoms.size() == 4) {
+        const double deg = 180.0 / 3.14159265358979323846;
+        auto angle = [&](int a, int b, int c) {
+            double u[3], v[3], uu = 0, vv = 0, uv = 0;
+            for (int k = 0; k < 3; ++k) {
+                u[k] = m.atoms[a].position[k] - m.atoms[b].position[k];
+                v[k] = m.atoms[c].position[k] - m.atoms[b].position[k];
+                uu += u[k] * u[k];
+                vv += v[k] * v[k];
+                uv += u[k] * v[k];
+            }
+            return std::acos(std::max(-1.0, std::min(1.0, uv / std::sqrt(uu * vv)))) * deg;
+        };
+        if (m.atoms[0].Z == 7) {
+            const double r1 = distance(m.atoms[0], m.atoms[1]), r2 = distance(m.atoms[0], m.atoms[2]),
+                         r3 = distance(m.atoms[0], m.atoms[3]);
+            const double a1 = angle(1, 0, 2), a2 = angle(1, 0, 3), a3 = angle(2, 0, 3);
+            g["R1"] = r1;
+            g["R2"] = r2;
+            g["R3"] = r3;
+            g["R"] = (r1 + r2 + r3) / 3.0;
+            g["angle1"] = a1;
+            g["angle2"] = a2;
+            g["angle3"] = a3;
+            g["angle"] = (a1 + a2 + a3) / 3.0;
+            g["pyramidal"] = 360.0 - (a1 + a2 + a3);
+            return g;
+        }
+        const SimpleInternals si = simple_internals(m);
+        g["ROO"] = si.values[0];
+        g["R1"] = si.values[1];
+        g["R2"] = si.values[2];
+        g["R"] = 0.5 * (si.values[1] + si.values[2]);
+        g["angle1"] = si.values[3] * deg;
+        g["angle2"] = si.values[4] * deg;
+        g["angle"] = 0.5 * (si.values[3] + si.values[4]) * deg;
+        g["dihedral"] = si.values[5] * deg;
         return g;
     }
     int o = 0;
@@ -431,6 +477,7 @@ json frequencies_json(const HessianResult& hr, const HarmonicAnalysis& h) {
     j["intensityDescription"] = hr.dipole_description;
     j["dipole"] = hr.has_dipole ? json({hr.dipole[0], hr.dipole[1], hr.dipole[2]}) : json(nullptr);
     j["linear"] = h.linear;
+    j["pointGroup"] = h.point_group.empty() ? json(nullptr) : json(h.point_group);
     j["vibrations"] = h.n_vib;
     j["masses"] = h.masses;
     j["isotopes"] = h.isotopes;
@@ -618,9 +665,10 @@ Input parse_input_json(const std::string& text) {
     Input in;
     in.molecule = get_string(j, "molecule", in.molecule);
     const std::string canonical = canonical_molecule_name(in.molecule);
-    if (canonical.empty()) throw std::runtime_error("\"molecule\" must be HeH+, H2, LiH or H2O");
+    if (canonical.empty()) throw std::runtime_error("\"molecule\" must be HeH+, H2, LiH, H2O, H2O2 or NH3");
     in.molecule = canonical;
     if (canonical != "HeH+") in.R = 0.0;  // default bond length of the molecule unless given
+    if (canonical != "HeH+") in.angle = default_angle(canonical);
     in.R = get_number(j, "R", in.R);
     in.zeta1 = get_number(j, "zeta1", in.zeta1);
     in.zeta2 = get_number(j, "zeta2", in.zeta2);
@@ -633,6 +681,8 @@ Input parse_input_json(const std::string& text) {
     in.printLevel = get_int(j, "printLevel", in.printLevel);
     in.basis = get_string(j, "basis", in.basis);
     in.angle = get_number(j, "angle", in.angle);
+    in.ROO = get_number(j, "ROO", in.ROO);
+    in.dihedral = get_number(j, "dihedral", in.dihedral);
     in.method = get_string(j, "method", in.method);
     in.basisDirectory = get_string(j, "basisDirectory", in.basisDirectory);
     in.threads = get_int(j, "threads", in.threads);

@@ -17,6 +17,8 @@ MolecularInput molecular_input(const Input& in) {
     m.molecule = in.molecule;
     m.R = in.R;
     m.angle = in.angle;
+    m.r_oo = in.ROO;
+    m.dihedral = in.dihedral;
     m.basis = in.basis;
     m.method = in.method;
     m.basis_directory = in.basisDirectory;
@@ -31,7 +33,10 @@ MolecularInput molecular_input(const Input& in) {
 }
 
 // Atoms of a general molecule (the atom numbers of a scan line refer to them).
-int atom_count(const Input& in) { return canonical_molecule_name(in.molecule) == "H2O" ? 3 : 2; }
+int atom_count(const Input& in) {
+    const std::string m = canonical_molecule_name(in.molecule);
+    return (m == "H2O2" || m == "NH3") ? 4 : (m == "H2O" ? 3 : 2);
+}
 
 JobSettings job_settings(const Input& in) {
     JobSettings s;
@@ -86,6 +91,7 @@ Output run_molecular_calculation(const Input& in0, const OutputSink& sink) {
         out.input.job = in.job;
         out.molecular = prepare_molecular(molecular_input(in));
         out.input.R = out.molecular->input.R;
+        out.input.ROO = out.molecular->input.r_oo;
         out.input.molecule = out.molecular->input.molecule;
         out.input.basis = out.molecular->input.basis;
         out.input.method = out.molecular->input.method;
@@ -159,8 +165,11 @@ std::string input_echo(const Input& in) {
     kv("job", in.job);
     kv("method", in.method == "RHF" ? "HF" : in.method);
     kv("basis", in.basis);
+    const std::string mol = canonical_molecule_name(in.molecule);
+    if (mol == "H2O2") kv("R_OO", strprintf("%.10f bohr (%.8f angstrom)", in.ROO, in.ROO * kBohrInAngstrom));
     kv("R", strprintf("%.10f bohr (%.8f angstrom)", in.R, in.R * kBohrInAngstrom));
-    if (canonical_molecule_name(in.molecule) == "H2O") kv("angle", strprintf("%.6f degrees", in.angle));
+    if (mol == "H2O" || mol == "H2O2" || mol == "NH3") kv("angle", strprintf("%.6f degrees", in.angle));
+    if (mol == "H2O2") kv("dihedral", strprintf("%.6f degrees", in.dihedral));
     if (job_has_single_point(canonical_job_type(in.job))) {
         kv("sp_method", in.spMethod.empty() ? "(same as method)" : in.spMethod);
         kv("sp_basis", in.spBasis.empty() ? "(same as basis)" : in.spBasis);
@@ -195,7 +204,7 @@ std::string input_echo(const Input& in) {
 
 std::string validate(const Input& in) {
     if (canonical_molecule_name(in.molecule).empty())
-        return "molecule must be HeH+, H2, LiH or H2O";
+        return "molecule must be HeH+, H2, LiH, H2O, H2O2 or NH3";
     if (!is_heh_input(in)) {
         const std::string e = validate_molecular(molecular_input(in));
         return e.empty() ? job_input_error(in) : e;

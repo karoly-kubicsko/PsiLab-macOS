@@ -14,7 +14,8 @@ namespace macqc {
 struct Input {
     // "HeH+" (default): the Szabo-Ostlund STO-nG calculation (HF + FCI), unchanged
     // since version 1.0, which uses the keys R .. printLevel below.
-    // "H2", "LiH", "H2O": general molecules (version 3.0), see the keys after printLevel.
+    // "H2", "LiH", "H2O": general molecules (version 3.0), see the keys after printLevel;
+    // "H2O2", "NH3" (7.0).
     std::string molecule = "HeH+";
     double R = 1.4632;  // bohr; for H2O the O-H distance
     double zeta1 = 2.0925;
@@ -29,7 +30,9 @@ struct Input {
 
     // General molecules (molecule != "HeH+").
     std::string basis = "aug-cc-pVDZ";
-    double angle = kDefaultWaterAngle;  // H-O-H angle (degrees), H2O only
+    double angle = kDefaultWaterAngle;  // degrees: H-O-H (H2O), O-O-H (H2O2), H-N-H (NH3)
+    double ROO = 0.0;                   // H2O2: R(O-O) in bohr (<= 0: the default 1.4556 Å)
+    double dihedral = kDefaultPeroxideDihedral;  // H2O2: H-O-O-H dihedral angle (degrees)
     std::string method = "RHF";         // "RHF" (HF), "CCSD", "CCSD(T)", "CCSDT", "CCSDTQ" or "FCI"
     std::string basisDirectory;         // "" -> default_basis_directory()
     int threads = 0;                    // 0 -> all hardware threads

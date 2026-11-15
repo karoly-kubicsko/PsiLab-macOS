@@ -70,6 +70,17 @@ jobs:
           grep -q "Normal termination" scan.out
           sed -n '/---- Summary of the relaxed scan/,/All 9 points/p' scan.out
 
+      - name: Terminal version, H2O2 and NH3 (7.0)
+        run: |
+          printf 'molecule = NH3\nmethod = HF\njob = scan\nscan = 2 1 3 4 S 7 -10.0   # umbrella\nscan_start = -110\n' > nh3.inp
+          ./build/psilab nh3.inp nh3.out
+          grep -q "Scan point 8 of 8: D(H2-N1-H3-H4) = -180.000000 deg" nh3.out
+          sed -n '/---- Summary of the relaxed scan/,/All 8 points/p' nh3.out
+          printf 'molecule = H2O2\nmethod = HF\njob = opt+freq\n' > h2o2.inp
+          ./build/psilab h2o2.inp h2o2.out
+          grep -q "Point group C2" h2o2.out
+          grep -q "Normal termination" h2o2.out
+
   # The same build and tests on macOS (Apple clang, libc++, matrix products through Apple's
   # Accelerate), and the installed terminal version: psilab must find its basis-set files in
   # <prefix>/share/psilab/basis through the executable's path, without the source tree.
@@ -149,6 +160,9 @@ jobs:
 
       - name: Relaxed-scan points (PySCF gradients + geomeTRIC with a frozen coordinate)
         run: python3 reference/pyscf_scan_reference.py --check
+
+      - name: H2O2 and NH3 (energies, gradients, optimised geometries, frequencies)
+        run: python3 reference/pyscf_molecules_reference.py --check
 
   # On request only: every RHF reference case, including H2O/aug-cc-pCV5Z (341 functions), and
   # every Full CI case, including LiH/aug-cc-pCVTZ (11 million determinants).

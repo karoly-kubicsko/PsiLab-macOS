@@ -6,6 +6,7 @@
 #include <stdexcept>
 
 #include "macqc/constants.h"
+#include "macqc/symmetry.h"
 
 namespace macqc {
 
@@ -78,6 +79,7 @@ Inertia inertia(const Molecule& mol, const std::vector<double>& m) {
 
 int symmetry_number(const Molecule& mol) {
     if (mol.atoms.size() == 2) return mol.atoms[0].Z == mol.atoms[1].Z ? 2 : 1;
+    if (mol.atoms.size() >= 4) return point_group(mol).symmetry_number;
     if (mol.atoms.size() == 3) {
         auto d = [&](int a, int b) {
             double s = 0.0;
@@ -178,6 +180,7 @@ HarmonicAnalysis harmonic_analysis(const Molecule& mol, const Matrix& H,
         for (double& c : c2axis) c /= n;
     }
     const double ifac = intensity_factor();
+    std::vector<std::vector<double>> mass_weighted;  // per mode (four atoms: symmetry species)
     for (std::size_t k = 0; k < nvib; ++k) {
         NormalMode m;
         std::vector<double> l(n3, 0.0);
@@ -231,6 +234,26 @@ HarmonicAnalysis harmonic_analysis(const Molecule& mol, const Matrix& H,
             m.symmetry = ch > 0.5 ? "A1" : (ch < -0.5 ? "B2" : "");
         }
         res.modes.push_back(m);
+        mass_weighted.push_back(l);
+    }
+    if (nat >= 4) {
+        // species from the point group; (near-)degenerate modes together where the group has
+        // degenerate species (C3, C3v, D3h)
+        const PointGroup pg = point_group(mol);
+        res.point_group = pg.name;
+        const bool degenerate_species = pg.name == "C3" || pg.name == "C3v" || pg.name == "D3h";
+        for (std::size_t k = 0; k < res.modes.size();) {
+            std::size_t e = k + 1;
+            while (degenerate_species && e < res.modes.size() &&
+                   std::fabs(res.modes[e].wavenumber - res.modes[k].wavenumber) <
+                       std::max(1.0, 1.0e-4 * std::fabs(res.modes[k].wavenumber)))
+                ++e;
+            std::vector<std::vector<double>> set(mass_weighted.begin() + static_cast<long>(k),
+                                                 mass_weighted.begin() + static_cast<long>(e));
+            const std::string sp = mode_species(pg, set);
+            for (std::size_t j = k; j < e; ++j) res.modes[j].symmetry = sp;
+            k = e;
+        }
     }
     res.has_intensities = apt != nullptr;
     return res;
