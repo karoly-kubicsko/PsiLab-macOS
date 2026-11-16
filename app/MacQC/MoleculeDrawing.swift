@@ -43,6 +43,9 @@ func heaviestAtom(_ atoms: [MacQCAtom]) -> Int? {
 /// hydrogen atoms bonded to them in turn (H3 to O1, H4 to O2); H₂: H–H.
 func moleculeBonds(_ atoms: [MacQCAtom]) -> [(Int, Int)] {
     guard atoms.count > 1 else { return [] }
+    // ΨLab 9.0: custom molecules (any atoms in any order) are bonded by distance
+    let builtInPatterns: [[Int]] = [[2, 1], [1, 1], [3, 1], [8, 1, 1], [8, 8, 1, 1], [7, 1, 1, 1]]
+    if !builtInPatterns.contains(atoms.map(\.Z)) { return distanceBonds(atoms) }
     let heavy = atoms.indices.filter { atoms[$0].Z > 1 }
     if heavy.count >= 2 {
         var bonds: [(Int, Int)] = []
@@ -60,6 +63,33 @@ func moleculeBonds(_ atoms: [MacQCAtom]) -> [(Int, Int)] {
     }
     guard let hub = heaviestAtom(atoms) else { return [] }
     return atoms.indices.filter { $0 != hub }.map { (min(hub, $0), max(hub, $0)) }
+}
+
+/// Bonds of a custom molecule: atoms closer than 1.25 times the sum of their covalent radii (the
+/// backend uses 1.3 for its internal coordinates); every atom keeps at least a bond to its
+/// nearest neighbour, so that no atom floats alone in the drawing of a stretched geometry.
+func distanceBonds(_ atoms: [MacQCAtom]) -> [(Int, Int)] {
+    let p = atomCoordinates(atoms)
+    var bonds: [(Int, Int)] = []
+    var bonded = Array(repeating: false, count: atoms.count)
+    for i in 0..<atoms.count {
+        for j in (i + 1)..<atoms.count {
+            let limit = 1.25 * (Elements.covalentRadiusBohr(atoms[i].Z) + Elements.covalentRadiusBohr(atoms[j].Z))
+            if vectorDistance(p[i], p[j]) < limit {
+                bonds.append((i, j))
+                bonded[i] = true
+                bonded[j] = true
+            }
+        }
+    }
+    for i in 0..<atoms.count where !bonded[i] && atoms.count > 1 {
+        var nearest = i == 0 ? 1 : 0
+        for j in 0..<atoms.count where j != i && vectorDistance(p[i], p[j]) < vectorDistance(p[i], p[nearest]) {
+            nearest = j
+        }
+        bonds.append((min(i, nearest), max(i, nearest)))
+    }
+    return bonds
 }
 
 func vectorDistance(_ a: [Double], _ b: [Double]) -> Double {
@@ -297,29 +327,27 @@ struct MoleculeFrame {
     }
 }
 
-/// Colours and sizes of the atoms (CPK colours: H white, He cyan, Li violet, N blue, O red).
+/// Colours and sizes of the atoms (CPK colours: H white, He cyan, Li violet, C grey, N blue, O red,
+/// …; 9.0: every element, see ElementData.swift).
 enum AtomStyle {
     static func color(_ Z: Int) -> Color {
-        switch Z {
-        case 1: return Color(white: 0.93)
-        case 2: return Color(red: 0.75, green: 0.95, blue: 1.0)
-        case 3: return Color(red: 0.75, green: 0.45, blue: 1.0)
-        case 7: return Color(red: 0.19, green: 0.31, blue: 0.97)
-        case 8: return Color(red: 0.92, green: 0.16, blue: 0.12)
-        default: return Color.gray
-        }
+        let (r, g, b) = Elements.cpk(Z)
+        return Color(red: r, green: g, blue: b)
     }
 
     static func radius(_ Z: Int) -> Double {
         switch Z {
         case 1, 2: return 11
         case 3: return 17
-        default: return 15
+        case 4...10: return 15
+        default: return min(19, max(13, 8 + 7 * (Elements.covalentRadiusBohr(Z) * Units.bohrToAngstrom)))
         }
     }
 
+    /// Black on light atoms, white on dark ones.
     static func labelColor(_ Z: Int) -> Color {
-        Z <= 2 ? Color.black : Color.white
+        let (r, g, b) = Elements.cpk(Z)
+        return 0.299 * r + 0.587 * g + 0.114 * b > 0.6 ? Color.black : Color.white
     }
 }
 

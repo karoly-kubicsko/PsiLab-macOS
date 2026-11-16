@@ -55,6 +55,11 @@ nonisolated struct MacQCInput: Codable, Sendable, Equatable {
     var scanStart: Double? = nil    // Å or degrees (nil: the value at the input geometry)
     var tsHessian: String = "calcfc" // "calcfc" (first step) or "calcall" (every step)
     var eigenTest: Bool = true      // the TS search needs exactly one negative eigenvalue
+    // ΨLab 9.0: molecule "custom" (a structure file): atoms in Å, charge, multiplicity, name (LaTeX)
+    var atoms: [CustomAtom]? = nil
+    var charge: Int? = nil
+    var multiplicity: Int? = nil
+    var title: String? = nil
 
     init() {}
 
@@ -63,6 +68,7 @@ nonisolated struct MacQCInput: Codable, Sendable, Equatable {
         case basis, angle, method, basisDirectory, threads, memoryMB, fciMemoryMB, estimateOnly
         case job, spMethod, spBasis, temperature, pressure, optConvergence, maxSteps
         case ROO, dihedral, scan, scanStart, tsHessian, eigenTest
+        case atoms, charge, multiplicity, title
     }
 
     init(from decoder: Decoder) throws {
@@ -100,6 +106,10 @@ nonisolated struct MacQCInput: Codable, Sendable, Equatable {
         scanStart = try c.decodeIfPresent(Double.self, forKey: .scanStart)
         tsHessian = try c.decodeIfPresent(String.self, forKey: .tsHessian) ?? d.tsHessian
         eigenTest = try c.decodeIfPresent(Bool.self, forKey: .eigenTest) ?? d.eigenTest
+        atoms = try c.decodeIfPresent([CustomAtom].self, forKey: .atoms)
+        charge = try c.decodeIfPresent(Int.self, forKey: .charge)
+        multiplicity = try c.decodeIfPresent(Int.self, forKey: .multiplicity)
+        title = try c.decodeIfPresent(String.self, forKey: .title)
         // The echo of the Szabo–Ostlund calculation has no "molecule" and no "basis".
         if !c.contains(.molecule) {
             basis = "STO-\(nGaussians)G"
@@ -109,6 +119,9 @@ nonisolated struct MacQCInput: Codable, Sendable, Equatable {
     /// True for the general Gaussian-basis path: H₂, LiH, H₂O, H₂O₂, NH₃, and HeH⁺ in a
     /// correlation-consistent basis set (false: HeH⁺ in STO-nG, Szabo–Ostlund).
     var isGeneral: Bool { molecule != "HeH+" || !basis.uppercased().hasPrefix("STO") }
+
+    /// ΨLab 9.0: a custom molecule (atoms from a structure file).
+    var isCustom: Bool { molecule == "custom" }
 }
 
 // MARK: - Output
@@ -211,6 +224,10 @@ nonisolated struct MacQCMoleculeInfo: Codable, Sendable, Equatable {
     var dihedral: Double?    // degrees (H2O2)
     var nuclearRepulsion: Double
     var atoms: [MacQCAtom]
+    // ΨLab 9.0
+    var formula: String?     // Hill order, e.g. "CO2"
+    var custom: Bool?
+    var title: String?       // custom molecules: the name from the structure file (LaTeX)
 }
 
 nonisolated struct MacQCAtomBasis: Codable, Sendable, Equatable {
@@ -793,6 +810,23 @@ nonisolated struct MacQCOutput: Codable, Sendable, Equatable {
 
     /// True for the general path (all molecules except HeH⁺ in STO-nG).
     var isGeneral: Bool { input.isGeneral }
+
+    /// ΨLab 9.0: the name of the molecule as LaTeX source: a custom molecule's name (or its
+    /// formula), "H$_2$O" for the built-in molecules.
+    var moleculeNameSource: String {
+        if input.isCustom {
+            let t = (input.title ?? molecule?.title ?? "").trimmingCharacters(in: .whitespaces)
+            if !t.isEmpty { return t }
+            let f = molecule?.formula ?? "?"
+            return f.replacingOccurrences(of: #"(\d+)"#, with: #"\$_{$1}\$"#, options: .regularExpression)
+        }
+        let name = molecule?.name ?? input.molecule
+        if name == "HeH+" { return "HeH$^+$" }
+        return name.replacingOccurrences(of: #"(\d+)"#, with: #"\$_{$1}\$"#, options: .regularExpression)
+    }
+
+    /// The name in plain text with Unicode subscripts ("CO₂", "H₂O", "HeH⁺").
+    var moleculeTitle: String { LaTeX.plain(moleculeNameSource) }
 }
 
 // MARK: - Jobs (cancellation and progress)
@@ -899,6 +933,7 @@ nonisolated enum MacQCEngineError: LocalizedError {
     case backendReturnedNull
     case decodingFailed(String)
     case orbital(String)
+    case structure(String)
 
     var errorDescription: String? {
         switch self {
@@ -910,11 +945,30 @@ nonisolated enum MacQCEngineError: LocalizedError {
             return "The backend output could not be decoded: \(detail)"
         case .orbital(let message):
             return "The orbital could not be drawn: \(message)"
+        case .structure(let message):
+            return "The structure file could not be read: \(message)"
         }
     }
 }
 
 nonisolated enum MacQCEngine {
+
+    /// ΨLab 9.0: reads a structure file (.xyz, .gjf, .com) given as text; `fileName` decides the
+    /// format by its extension (otherwise it is recognised from the text). Throws the backend's
+    /// explanation for a file that is not a valid structure.
+    static func parseStructure(_ text: String, fileName: String) throws -> ParsedStructure {
+        guard let raw = macqc_parse_structure(text, fileName) else { throw MacQCEngineError.backendReturnedNull }
+        defer { macqc_free(raw) }
+        let json = String(cString: raw)
+        let parsed: ParsedStructure
+        do {
+            parsed = try JSONDecoder().decode(ParsedStructure.self, from: Data(json.utf8))
+        } catch {
+            throw MacQCEngineError.decodingFailed(String(describing: error))
+        }
+        if let message = parsed.error { throw MacQCEngineError.structure(message) }
+        return parsed
+    }
 
     /// Synchronous call into the C++ backend. Blocks the calling thread, so do not call it
     /// from the main thread for long scans; use `run(_:)` instead.

@@ -146,7 +146,7 @@ struct OrbitalExplorer: View {
 
     private var header: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text("\(MoleculeChoice(rawValue: out.input.molecule)?.title ?? Fmt.formula(out.input.molecule)) · \(orbitals.basis) · molecular orbitals")
+            Text("\(out.moleculeTitle) · \(orbitals.basis) · molecular orbitals")
                 .font(.title2.weight(.semibold))
             if orbitals.sets.count > 1 {
                 Picker("Orbitals", selection: Binding(get: { setIndex }, set: { k in

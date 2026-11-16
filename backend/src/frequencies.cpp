@@ -79,7 +79,7 @@ Inertia inertia(const Molecule& mol, const std::vector<double>& m) {
 
 int symmetry_number(const Molecule& mol) {
     if (mol.atoms.size() == 2) return mol.atoms[0].Z == mol.atoms[1].Z ? 2 : 1;
-    if (mol.atoms.size() >= 4) return point_group(mol).symmetry_number;
+    if (mol.atoms.size() >= 4 || (mol.custom && mol.atoms.size() >= 3)) return point_group(mol).symmetry_number;
     if (mol.atoms.size() == 3) {
         auto d = [&](int a, int b) {
             double s = 0.0;
@@ -164,7 +164,7 @@ HarmonicAnalysis harmonic_analysis(const Molecule& mol, const Matrix& H,
     }
     const EigenResult ev = symmetric_eigen(project(ntr, nvib));
     // C2 operation of a C2v triatomic (H1 <-> H2) for the symmetry species
-    const bool c2v = nat == 3 && symmetry_number(mol) == 2;
+    const bool c2v = nat == 3 && !mol.custom && symmetry_number(mol) == 2;
     std::array<double, 3> c2axis{};
     if (c2v) {
         for (std::size_t k = 0; k < 3; ++k) {
@@ -236,12 +236,12 @@ HarmonicAnalysis harmonic_analysis(const Molecule& mol, const Matrix& H,
         res.modes.push_back(m);
         mass_weighted.push_back(l);
     }
-    if (nat >= 4) {
+    if (nat >= 4 || (mol.custom && nat == 3)) {
         // species from the point group; (near-)degenerate modes together where the group has
-        // degenerate species (C3, C3v, D3h)
+        // degenerate species (C3, C3v, D3h; 9.0: D3, D3d, Td, linear molecules)
         const PointGroup pg = point_group(mol);
         res.point_group = pg.name;
-        const bool degenerate_species = pg.name == "C3" || pg.name == "C3v" || pg.name == "D3h";
+        const bool degenerate_species = has_degenerate_species(pg);
         for (std::size_t k = 0; k < res.modes.size();) {
             std::size_t e = k + 1;
             while (degenerate_species && e < res.modes.size() &&

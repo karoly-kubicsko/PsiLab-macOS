@@ -106,12 +106,15 @@ struct GeneralSummaryView: View {
 
     private var header: some View {
         VStack(alignment: .leading, spacing: 4) {
-            let name = Fmt.formula(out.molecule?.name ?? out.input.molecule)
             let finalMethod = out.singlePoint?.method ?? out.input.method
             let method = finalMethod == "RHF" ? "RHF" : "RHF and \(MethodChoice.title(of: finalMethod))"
             let job = JobChoice(rawValue: out.input.job).map { $0 == .energy ? "" : " · " + $0.shortTitle } ?? ""
-            Text("\(name) · \(out.basis?.name ?? out.input.basis) · \(method)\(job)")
-                .font(.title2.weight(.semibold))
+            // the name drawn from its LaTeX source (custom molecules: the structure file's name line)
+            let rest: String = " · " + (out.basis?.name ?? out.input.basis) + " · " + method + job
+            let name: Text = LaTeX.text(out.moleculeNameSource, size: 17, weight: .semibold)
+            let tail: Text = Text(verbatim: rest).font(.system(size: 17, weight: .semibold))
+            (name + tail)
+                .accessibilityLabel(out.moleculeTitle + rest)
             if let mol = out.molecule {
                 Text(geometryText(mol))
                     .foregroundStyle(.secondary)
@@ -127,6 +130,9 @@ struct GeneralSummaryView: View {
         Grid(alignment: .trailing, horizontalSpacing: 24, verticalSpacing: 5) {
             GridRow {
                 Text("Atom").gridColumnAlignment(.leading)
+                Text("x (Å)")
+                Text("y (Å)")
+                Text("z (Å)")
                 Text("x (bohr)")
                 Text("y (bohr)")
                 Text("z (bohr)")
@@ -138,17 +144,21 @@ struct GeneralSummaryView: View {
                 GridRow {
                     Text(atom.symbol)
                     ForEach(0..<3, id: \.self) { k in
+                        Text(String(format: "%.6f", k < atom.position.count ? atom.position[k] * Units.bohrToAngstrom : 0))
+                    }
+                    ForEach(0..<3, id: \.self) { k in
                         Text(String(format: "%.6f", k < atom.position.count ? atom.position[k] : 0))
+                            .foregroundStyle(.secondary)
                     }
                 }
             }
             Divider().gridCellUnsizedAxes(.horizontal)
             GridRow {
                 Text("\(mol.electrons) electrons, charge \(mol.charge), singlet")
-                    .gridCellColumns(2)
+                    .gridCellColumns(4)
                     .gridColumnAlignment(.leading)
                 Text("E_nn = " + Fmt.energy10(mol.nuclearRepulsion) + " E_h")
-                    .gridCellColumns(2)
+                    .gridCellColumns(3)
             }
         }
         .monospacedDigit()

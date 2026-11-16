@@ -1,6 +1,6 @@
 # ΨLab — a native macOS quantum-chemistry app
 
-**Current version: 8.0** — see [Versions](#versions).
+**Current version: 9.0** — see [Versions](#versions).
 
 ΨLab computes small molecules with restricted Hartree–Fock, coupled cluster and Full CI:
 
@@ -43,7 +43,11 @@ same calculations run in the terminal on Linux and macOS
   request is under *Actions* ▸ *app* ▸ the run ▸ *Artifacts* ▸ **ΨLab-app** (kept 90 days; it
   contains `ΨLab.app.zip`). Unzip it; the app is not notarized: right-click `ΨLab.app` ▸ *Open*
   once, or run `xattr -dr com.apple.quarantine` on it.
-- **Sidebar**: the **molecule** (HeH⁺, H₂, LiH, H₂O, H₂O₂, NH₃) and, for all of them except HeH⁺
+- **Sidebar**: the **molecule** (HeH⁺, H₂, LiH, H₂O, H₂O₂, NH₃; 9.0: the kept custom molecules by
+  name, and *Custom molecule…*, which opens an .xyz or Gaussian input file — the molecule is kept in
+  the menu; its name, charge and coordinates in Å are shown, the name and charge editable; after an
+  optimisation *Save in Molecule Menu* / *Save as XYZ…* keep the optimised coordinates with their
+  level) and, for all of them except HeH⁺
   in STO-nG:
   - the **job** (a menu, in this order): 1 *Energy*, 2 *Geometry optimisation*, 3 *Frequencies*
     (at the input geometry; a warning if it is not a stationary point), 4 *Optimisation +
@@ -157,6 +161,21 @@ same calculations run in the terminal on Linux and macOS
   `xcode/project.yml`).
 
 ## Versions
+
+### 9.0
+**Custom molecules** from structure files: *Custom molecule…* in the molecule menu (or *File ▸ Open
+Structure File…*, ⌘O) reads an XYZ file (coordinates in Å; the comment line is the name of the
+molecule, written in LaTeX, e.g. `CO$_2$`, `NH$_4^+$`, `\ce{H2SO4}`, shown as CO₂, NH₄⁺, H₂SO₄)
+or a Gaussian input file (.gjf, .com: title, charge and multiplicity, Cartesian coordinates). The
+app keeps every molecule it has read: the molecule menu lists them by name, like H₂ or H₂O. The
+sidebar shows the name, formula, number of atoms and electrons, the editable name and charge, and the
+coordinates in Å. After a converged geometry optimisation or transition-state search of any
+molecule ΨLab offers to save the optimised coordinates — in the molecule menu, listed with the level
+of the optimisation (e.g. "CO₂ · CCSD/aug-cc-pCVTZ"), or as an .xyz file whose comment line gives
+the name, the level and the energy. All methods and job types work for custom molecules (closed-shell
+singlets); structures may contain any element (Z = 1 … 118), the basis sets cover H–Ar and Sc–Kr
+(not K, Ca; heavier elements would need effective core potentials). See
+[Custom molecules](#custom-molecules-version-90).
 
 ### 8.0
 **Molecular orbitals** in the app (*Methods ▸ Orbitals*): the canonical RHF orbitals (all occupied
@@ -1334,6 +1353,52 @@ How the backend is wired into the ΨLab Xcode target (the full step-by-step guid
 
    Run it off the main thread for scans; the library keeps no global state, so concurrent calls
    are safe.
+
+### Custom molecules (version 9.0)
+
+**Input.** JSON `"molecule": "custom"` with `"atoms"` (`[{"symbol": "C", "x": 0, "y": 0, "z": 1.16}, …]`,
+Å), `"charge"` (0), `"multiplicity"` (1) and `"title"`; `psilab`: `molecule = custom` and
+`geometry = file.xyz` (or .gjf/.com, relative to the input file; `charge`, `multiplicity`, `title`
+override the file's; see `examples/co2.inp`). `macqc_parse_structure(text, hint)` reads XYZ files
+(several frames: the first one, with a note) and Gaussian inputs (Link 0 and route lines, the title
+section, charge and multiplicity, labels such as `C1`, `C(Fragment=1)`, freeze codes, `Units=AU`);
+Z-matrices, ghost and dummy atoms are refused with the line number. Every element (Z = 1 … 118) can
+be read; masses are those of the most abundant isotope (AME 2020 up to Kr).
+
+**Basis sets.** The eight Gaussian94 files now contain every element the Basis Set Exchange defines
+among H–Ar and Sc–Kr (see [`basis/README.md`](basis/README.md)); Sc–Zn stop at aug-cc-pVQZ (their 5Z
+sets need i functions). K and Ca have no aug-cc-pVXZ sets; elements beyond Kr need effective core
+potentials (aug-cc-pVXZ-PP), which ΨLab does not implement — such molecules are refused with this
+explanation. RHF needs a closed-shell singlet: an odd number of electrons or a multiplicity other
+than 1 is refused (change the charge).
+
+**General code paths.** The built-in molecules have Z-matrix coordinates for their numerical
+derivatives; a custom molecule (atoms in any order) uses the Cartesian directions orthogonal to the
+three translations and the rotations about the centroid: 3N − 6 (linear: 3N − 5) directions, so a
+numerical gradient takes 2(3N − 6) energies and a numerical Hessian 2(3N − 6) analytic gradients.
+The Hessian is completed exactly in the rigid-motion space by invariance — H t = 0 for a translation
+and H (n × (x − c)) = n × g for a rotation — so it is correct also away from a stationary point; the
+atomic polar tensor is completed likewise (a translation changes μ by the charge times the shift, a
+rotation by n × (μ − Q c)). Numerical Hessians from energies (CCSDT, CCSDTQ) are refused for custom
+molecules of three or more atoms (use CCSD(T) for the Hessian). The point group is found from the
+symmetry operations (C2 … C8, S3 … S8, reflections, inversion; candidate axes from atoms, pairs and
+triangles of equivalent atoms and the principal axes): C1 … Oh and C∞v, D∞h, with the rotational
+symmetry number of the thermochemistry (e.g. CH₄ 12, C₆H₆ 12, CO₂ 2); species of the normal modes for
+C1, Cs, Ci, C2, C2v, C2h, C3, C3v, D3h, D2, D2h (Mulliken's axes), D3, D3d, Td and linear molecules
+(Σ, Π with g/u). The potential curve of the app (X–H bonds stretched) is for the built-in molecules;
+use the relaxed scan for custom molecules.
+
+**Verification** (`macqc_custom_tests`; `reference/pyscf_custom_reference.py` in CI):
+
+| Check | Result |
+|---|---|
+| RHF energies of 23 custom molecules against PySCF (CO₂, CH₄, C₂H₄, HCN, BeH₂, BH₃, LiF, NaH, SiH₄, PH₃, H₂S, HCl, HBr, Kr, Zn, ZnH₂, CuH, NH₄⁺, OH⁻, HOCl; HCl and SiH₄ in aug-cc-pCVDZ) | ≤ 2·10⁻¹⁰ Eₕ |
+| CCSD(T)/aug-cc-pVDZ of HCl and CH₄ | ≤ 1.2·10⁻⁹ Eₕ |
+| Analytic RHF gradient of HOCl | 8·10⁻¹⁰ Eₕ/bohr |
+| Numerical gradient (6 energies) and Hessian (6 gradients, not at a minimum) of HOCl against the analytic ones | 1.4·10⁻⁵ Eₕ/bohr; 0.10 cm⁻¹, IR intensities 3·10⁻⁵ (relative) |
+| NH₃ with the atoms in another order against the built-in NH₃ (energy, analytic frequencies, species, G) | 3·10⁻¹³ Eₕ, 10⁻⁹ cm⁻¹ |
+| H₂O (H, O, H) CCSD/aug-cc-pVDZ opt+freq against the built-in H₂O | energy identical to 10⁻¹⁰ Eₕ; wavenumbers within 0.1 cm⁻¹, IR intensities within 10⁻⁴ km/mol |
+| Point groups and symmetry numbers of 18 molecules (C1, Cs, C2v, C2, C3v, D3h, Td, D2h, D2d, D3d, C3h, D4h, D6h, Oh, D∞h, C∞v) | all correct |
 
 ## App sources
 

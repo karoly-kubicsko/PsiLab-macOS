@@ -1,6 +1,8 @@
 // Molecules of ΨLab: H2, LiH and H2O (3.0) built from bond length (and angle); H2O2 (7.0) built
 // from R(O-O), R(O-H), the O-O-H angle and the H-O-O-H dihedral angle; NH3 (7.0) built from
-// R(N-H) and the H-N-H angle (C3v; 120 degrees: planar, D3h).
+// R(N-H) and the H-N-H angle (C3v; 120 degrees: planar, D3h). ΨLab 9.0: any closed-shell molecule
+// of any elements from Cartesian coordinates ("custom", read from .xyz or .gjf files); the basis sets
+// cover H-Kr (see kMaxAtomicNumber).
 #pragma once
 
 #include <array>
@@ -19,20 +21,36 @@ struct Atom {
 };
 
 struct Molecule {
-    std::string name;  // "H2", "LiH", "H2O", "H2O2", "NH3"
+    std::string name;  // "H2", "LiH", "H2O", "H2O2", "NH3", "HeH+"; "custom" (9.0)
     std::vector<Atom> atoms;
     int charge = 0;
+    // 9.0: a molecule given by Cartesian coordinates (a structure file). Its atoms may come in any
+    // order, so the code paths written for the built-in molecules (Z-matrix coordinates of the
+    // numerical derivatives, symmetry-adapted displacements) are replaced by general ones.
+    bool custom = false;
+    std::string title;  // custom: the name of the structure file's comment/title line (may contain LaTeX)
 
     int electrons() const;
     double nuclear_repulsion() const;
+    // Molecular formula in Hill order ("CO2", "CH4", "H2O"; with the charge: "NH4+", "SO4 2-").
+    std::string formula() const;
+    // Name for the output: the formula for custom molecules, else `name`.
+    std::string display_name() const;
 };
 
-// Element symbol of Z = 1..10 ("H", "He", "Li", ..., "Ne"); throws otherwise.
+// Element symbol of Z = 1..118 ("H", "He", "Li", ..., "Og"); throws otherwise.
 std::string element_symbol(int Z);
-// Atomic number of an element symbol (case-insensitive), 0 if unknown.
+// Atomic number of an element symbol (case-insensitive) or of a number given as text ("8"), 0 if
+// unknown. 9.0: every element, Z = 1 .. 118.
 int atomic_number(const std::string& symbol);
+// Largest atomic number (118). A structure may contain any element; which elements a calculation
+// can use depends on the basis set: the all-electron aug-cc-pVXZ sets of the Basis Set Exchange
+// cover H-Ar and Sc-Kr (Sc-Zn up to aug-cc-pVQZ: their 5Z sets need i functions), aug-cc-pCVXZ
+// Li-Ar (aug-cc-pCV5Z: B-Ar). Heavier elements need effective core potentials (aug-cc-pVXZ-PP),
+// which ΨLab does not implement; such molecules are refused with that explanation.
+constexpr int kMaxAtomicNumber = 118;
 
-// Canonical molecule name ("H2", "LiH", "H2O", "H2O2", "NH3", "HeH+") for any spelling, or "".
+// Canonical molecule name ("H2", "LiH", "H2O", "H2O2", "NH3", "HeH+"; "custom") for any spelling, or "".
 std::string canonical_molecule_name(const std::string& name);
 
 // Default geometries (experimental structures), in bohr / degrees:
@@ -63,5 +81,11 @@ double default_angle(const std::string& molecule);
 // Throws std::invalid_argument on bad input.
 Molecule make_molecule(const std::string& name, double bond_length_bohr, double angle_degrees,
                        double r_oo_bohr = 0.0, double dihedral_degrees = kDefaultPeroxideDihedral);
+
+// 9.0: a custom molecule from atoms (Z and positions in bohr; the symbols are filled in), its
+// charge and title. Throws std::invalid_argument for no atoms, unknown elements, non-finite
+// coordinates or two atoms closer than 0.3 bohr (0.16 Å). Open shells are not rejected here
+// (prepare_molecular explains that RHF needs an even number of electrons).
+Molecule make_custom_molecule(const std::vector<Atom>& atoms, int charge, const std::string& title);
 
 }  // namespace macqc

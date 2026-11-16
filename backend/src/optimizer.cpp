@@ -59,7 +59,7 @@ double norm(const std::vector<double>& v) {
 
 // Symmetric difference |R(O-H1) - R(O-H2)| of a triatomic with the heavy atom first.
 double c2v_deviation(const Molecule& m) {
-    if (m.atoms.size() != 3) return 0.0;
+    if (m.atoms.size() != 3 || m.custom) return 0.0;
     return std::fabs(distance(m, 0, 1) - distance(m, 0, 2));
 }
 
@@ -125,6 +125,7 @@ std::vector<double> schlegel_model_hessian(const Molecule& m, const InternalCoor
 
 std::vector<GeometricParameter> geometric_parameters(const Molecule& mol) {
     std::vector<GeometricParameter> out;
+    if (mol.atoms.size() < 2) return out;  // 9.0: a single atom (custom molecule)
     const InternalCoordinates ic(mol);
     const std::vector<double> q = ic.values(mol);
     for (std::size_t i = 0; i < ic.size(); ++i) {
@@ -335,7 +336,7 @@ OptimizationResult optimize_geometry(const Molecule& start, const BasisSet& basi
     res.criteria = convergence_criteria(oo.tight);
     res.initial = start;
     res.initial_parameters = geometric_parameters(start);
-    res.symmetric_start = start.atoms.size() == 3 && c2v_deviation(start) < 1.0e-8;
+    res.symmetric_start = start.atoms.size() == 3 && !start.custom && c2v_deviation(start) < 1.0e-8;
     const ConvergenceCriteria& cc = res.criteria;
     const std::vector<PrimitiveConstraint> pcs = expand_constraints(oo.constraints);
     const std::vector<InternalCoordinate> required = required_coordinates(pcs);
@@ -834,7 +835,7 @@ OptimizationResult optimize_geometry(const Molecule& start, const BasisSet& basi
     res.final_parameters = geometric_parameters(res.final_geometry);
     res.initial_energy = res.history.empty() ? 0.0 : res.history.front().energy;
     res.symmetry_deviation = c2v_deviation(res.final_geometry);
-    res.symmetric_end = res.final_geometry.atoms.size() == 3 && res.symmetry_deviation < 1.0e-6;
+    res.symmetric_end = res.final_geometry.atoms.size() == 3 && !res.final_geometry.custom && res.symmetry_deviation < 1.0e-6;
     res.seconds = seconds_since(t0);
     return res;
 }

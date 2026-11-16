@@ -53,7 +53,9 @@ double gradient_seconds(const MolecularResult& p, bool* analytic, std::string* h
     const bool c2v_or_diatomic = true;  // the sidebar geometries are C2v (H2O2: C2)
     const std::size_t nat = p.molecule.atoms.size();
     const int numerical_energies =
-        nat == 2 ? 2 : (nat == 4 ? (p.molecule.name == "H2O2" ? 8 : 12) : (c2v_or_diatomic ? 4 : 6));
+        uses_cartesian_displacements(p.molecule)
+            ? static_cast<int>(2 * vibrational_directions(p.molecule).size())  // 9.0: custom molecules
+            : (nat == 2 ? 2 : (nat == 4 ? (p.molecule.name == "H2O2" ? 8 : 12) : (c2v_or_diatomic ? 4 : 6)));
     *energies = 0;
     if (analytic_gradient_method(m)) {
         const double need = analytic_gradient_bytes(m, nocc, nbf, nbf) / (1024.0 * 1024.0);
@@ -313,6 +315,16 @@ JobEstimate estimate_job(const MolecularResult& p, const JobSettings& s, const M
             st.evaluations = 1;
             st.evaluation_kind = "Hessians";
             st.seconds = 7.0 * tg;
+        } else if (analytic && uses_cartesian_displacements(p.molecule)) {
+            // 9.0: custom molecules, Cartesian directions orthogonal to translations and rotations
+            st.analytic = false;
+            st.evaluations = static_cast<int>(2 * vibrational_directions(p.molecule).size());
+            st.evaluation_kind = "gradients";
+            st.how = strprintf("numerical Hessian: central differences of %d analytic gradients along the %d Cartesian "
+                               "directions orthogonal to the translations and rotations; IR intensities from the "
+                               "relaxed dipole moments",
+                               st.evaluations, st.evaluations / 2);
+            st.seconds = (st.evaluations + 1) * tg;
         } else if (analytic) {
             st.analytic = false;
             const bool four = p.molecule.atoms.size() == 4;
@@ -424,6 +436,18 @@ JobEstimate estimate_job(const MolecularResult& p, const JobSettings& s, const M
         const std::string why = plan_scan(p.molecule, s, &plan);
         if (!why.empty()) est.refusal = "The scan is not possible: " + why + ".";
     }
+    if (est.refusal.empty() && p.molecule.atoms.size() == 1)
+        est.refusal = "A single atom has no geometry to optimise, scan or vibrate: only the energy job is possible.";
+    if (est.refusal.empty() && (m == "CCSDT" || m == "CCSDTQ") && uses_cartesian_displacements(p.molecule) &&
+        (job_has_frequencies(t) || job_has_ts(t))) {
+        const NumericalHessianCost c = numerical_hessian_cost(p.molecule, false, true);
+        est.refusal = strprintf(
+            "%s %s for a custom molecule of %zu atoms are not possible: %s has no analytic gradient, and a Hessian "
+            "from energies is not available (it would need about %d %s energies of %s each). Use CCSD(T) for the "
+            "Hessian, and %s in the single-point step of job 5.",
+            m.c_str(), job_has_ts(t) ? "transition-state searches" : "frequencies", p.molecule.atoms.size(), m.c_str(),
+            c.energies, m.c_str(), human_time(e.total_seconds).c_str(), m.c_str());
+    }
     if (est.refusal.empty() && job_has_ts(t) && p.molecule.atoms.size() == 2)
         est.refusal = "A diatomic molecule has no transition state: its energy depends on the bond length only. Use a "
                       "relaxed scan (job scan) for the potential curve.";
@@ -470,7 +494,7 @@ void write_header(OutputWriter& w, const JobSettings& s, const std::string& echo
     const std::string rule(88, '=');
     w.line(rule);
     w.line("                                ΨLab " + std::string(kProgramVersion));
-    w.line("  restricted Hartree-Fock, coupled cluster and Full CI for H2, HeH+, LiH, H2O, H2O2, NH3");
+    w.line("  restricted Hartree-Fock, coupled cluster and Full CI for closed-shell molecules");
     w.line(rule);
     w.line("  Program      ΨLab " + std::string(kProgramVersion) + " (C++17 backend; integrals, SCF, CC, CI, derivatives)");
     w.line("  Started      " + local_time_string());
@@ -485,7 +509,8 @@ void write_header(OutputWriter& w, const JobSettings& s, const std::string& echo
 void write_molecule(OutputWriter& w, const MolecularResult& p, const std::string& what) {
     const Molecule& m = p.molecule;
     w.section("Molecule");
-    w.line(strprintf("    %s, %d electrons, charge %d, closed-shell singlet", m.name.c_str(), m.electrons(), m.charge));
+    w.line(strprintf("    %s, %d electrons, charge %d, closed-shell singlet", m.display_name().c_str(), m.electrons(), m.charge));
+    if (m.custom) w.line(strprintf("    %s (%zu atoms, Cartesian coordinates)", m.title.empty() ? "custom molecule" : m.title.c_str(), m.atoms.size()));
     w.line("    " + what);
     w.write(geometry_table(m));
     w.write(parameter_lines(m));
@@ -691,10 +716,20 @@ MolecularResult final_point_result(const JobResult& job, const MolecularInput& i
     if (job.single_point) r.input.basis = job.single_point_basis;
     r.molecule = sp ? sp->molecule : job.final_geometry;
     if (r.molecule.name.empty()) r.molecule.name = canonical_molecule_name(input.molecule);
+    // 9.0: a custom molecule keeps its atoms (the final geometry); R is the first interatomic distance
+    if (r.molecule.custom) {
+        r.input.atoms = r.molecule.atoms;
+        if (r.molecule.atoms.size() >= 2) {
+            double s = 0.0;
+            for (std::size_t k = 0; k < 3; ++k)
+                s += std::pow(r.molecule.atoms[1].position[k] - r.molecule.atoms[0].position[k], 2);
+            r.input.R = std::sqrt(s);
+        }
+    }
     // geometry parameters of the final point (R of the first bond, the H-O-H angle)
-    const SimpleInternals si = simple_internals(r.molecule);
+    const SimpleInternals si = r.molecule.custom ? SimpleInternals() : simple_internals(r.molecule);
     const double deg = 180.0 / 3.14159265358979323846;
-    r.input.R = si.values[0];
+    if (!si.values.empty()) r.input.R = si.values[0];
     if (si.values.size() == 3) r.input.angle = si.values[2] * deg;
     if (si.values.size() == 6 && r.molecule.name == "H2O2") {
         r.input.r_oo = si.values[0];

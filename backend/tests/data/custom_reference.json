@@ -1,0 +1,292 @@
+{
+ "structures": {
+  "CO2": {
+   "title": "CO$_2$",
+   "charge": 0,
+   "xyz": "3\nCO$_2$\nC 0 0 0\nO 0 0 1.16\nO 0 0 -1.16\n"
+  },
+  "CH4": {
+   "title": "CH$_4$",
+   "charge": 0,
+   "xyz": "5\nCH$_4$\nC 0 0 0\nH 0.629118 0.629118 0.629118\nH -0.629118 -0.629118 0.629118\nH -0.629118 0.629118 -0.629118\nH 0.629118 -0.629118 -0.629118\n"
+  },
+  "C2H4": {
+   "title": "C$_2$H$_4$",
+   "charge": 0,
+   "xyz": "6\nC$_2$H$_4$\nC 0 0 0.6695\nC 0 0 -0.6695\nH 0 0.9289 1.2321\nH 0 -0.9289 1.2321\nH 0 0.9289 -1.2321\nH 0 -0.9289 -1.2321\n"
+  },
+  "HCN": {
+   "title": "HCN",
+   "charge": 0,
+   "xyz": "3\nHCN\nH 0 0 -1.0655\nC 0 0 0\nN 0 0 1.1532\n"
+  },
+  "BeH2": {
+   "title": "BeH$_2$",
+   "charge": 0,
+   "xyz": "3\nBeH$_2$\nBe 0 0 0\nH 0 0 1.326\nH 0 0 -1.326\n"
+  },
+  "BH3": {
+   "title": "BH$_3$",
+   "charge": 0,
+   "xyz": "4\nBH$_3$\nB 0 0 0\nH 1.19 0 0\nH -0.595 1.030570 0\nH -0.595 -1.030570 0\n"
+  },
+  "LiF": {
+   "title": "LiF",
+   "charge": 0,
+   "xyz": "2\nLiF\nLi 0 0 0\nF 0 0 1.5639\n"
+  },
+  "NaH": {
+   "title": "NaH",
+   "charge": 0,
+   "xyz": "2\nNaH\nNa 0 0 0\nH 0 0 1.8874\n"
+  },
+  "SiH4": {
+   "title": "SiH$_4$",
+   "charge": 0,
+   "xyz": "5\nSiH$_4$\nSi 0 0 0\nH 0.854364 0.854364 0.854364\nH -0.854364 -0.854364 0.854364\nH -0.854364 0.854364 -0.854364\nH 0.854364 -0.854364 -0.854364\n"
+  },
+  "PH3": {
+   "title": "PH$_3$",
+   "charge": 0,
+   "xyz": "4\nPH$_3$\nP 0 0 0.1272\nH 1.1937 0 -0.5937\nH -0.59685 1.033775 -0.5937\nH -0.59685 -1.033775 -0.5937\n"
+  },
+  "H2S": {
+   "title": "H$_2$S",
+   "charge": 0,
+   "xyz": "3\nH$_2$S\nH 0.9616 0 0.9269\nS 0 0 0\nH -0.9616 0 0.9269\n"
+  },
+  "HCl": {
+   "title": "HCl",
+   "charge": 0,
+   "xyz": "2\nHCl\nH 0 0 0\nCl 0 0 1.2746\n"
+  },
+  "HBr": {
+   "title": "HBr",
+   "charge": 0,
+   "xyz": "2\nHBr\nBr 0 0 0\nH 0 0 1.4145\n"
+  },
+  "Kr": {
+   "title": "Kr",
+   "charge": 0,
+   "xyz": "1\nKr\nKr 0 0 0\n"
+  },
+  "Zn": {
+   "title": "Zn",
+   "charge": 0,
+   "xyz": "1\nZn\nZn 0 0 0\n"
+  },
+  "ZnH2": {
+   "title": "ZnH$_2$",
+   "charge": 0,
+   "xyz": "3\nZnH$_2$\nZn 0 0 0\nH 0 0 1.535\nH 0 0 -1.535\n"
+  },
+  "CuH": {
+   "title": "CuH",
+   "charge": 0,
+   "xyz": "2\nCuH\nCu 0 0 0\nH 0 0 1.4626\n"
+  },
+  "NH4+": {
+   "title": "NH$_4^+$",
+   "charge": 1,
+   "xyz": "5\nNH$_4^+$\nN 0 0 0\nH 0.590 0.590 0.590\nH -0.590 -0.590 0.590\nH -0.590 0.590 -0.590\nH 0.590 -0.590 -0.590\n"
+  },
+  "OH-": {
+   "title": "OH$^-$",
+   "charge": -1,
+   "xyz": "2\nOH$^-$\nO 0 0 0\nH 0 0 0.9697\n"
+  },
+  "HOCl": {
+   "title": "HOCl",
+   "charge": 0,
+   "xyz": "3\nHOCl\nO 0 0 0\nH 0.9257 0 -0.2137\nCl 0 0 1.67\n"
+  }
+ },
+ "energies": [
+  {
+   "molecule": "CO2",
+   "basis": "aug-cc-pVDZ",
+   "method": "RHF",
+   "energy": -187.66282366020843,
+   "basisFunctions": 69
+  },
+  {
+   "molecule": "CH4",
+   "basis": "aug-cc-pVDZ",
+   "method": "RHF",
+   "energy": -40.19963296850203,
+   "basisFunctions": 59
+  },
+  {
+   "molecule": "C2H4",
+   "basis": "aug-cc-pVDZ",
+   "method": "RHF",
+   "energy": -78.04334803123635,
+   "basisFunctions": 82
+  },
+  {
+   "molecule": "HCN",
+   "basis": "aug-cc-pVDZ",
+   "method": "RHF",
+   "energy": -92.88747326124282,
+   "basisFunctions": 55
+  },
+  {
+   "molecule": "BeH2",
+   "basis": "aug-cc-pVDZ",
+   "method": "RHF",
+   "energy": -15.76846764251448,
+   "basisFunctions": 41
+  },
+  {
+   "molecule": "BH3",
+   "basis": "aug-cc-pVDZ",
+   "method": "RHF",
+   "energy": -26.3912544893693,
+   "basisFunctions": 50
+  },
+  {
+   "molecule": "LiF",
+   "basis": "aug-cc-pVDZ",
+   "method": "RHF",
+   "energy": -106.9571122582935,
+   "basisFunctions": 46
+  },
+  {
+   "molecule": "NaH",
+   "basis": "aug-cc-pVDZ",
+   "method": "RHF",
+   "energy": -162.38454489112667,
+   "basisFunctions": 36
+  },
+  {
+   "molecule": "SiH4",
+   "basis": "aug-cc-pVDZ",
+   "method": "RHF",
+   "energy": -291.24317984665504,
+   "basisFunctions": 63
+  },
+  {
+   "molecule": "PH3",
+   "basis": "aug-cc-pVDZ",
+   "method": "RHF",
+   "energy": -342.4716314356459,
+   "basisFunctions": 54
+  },
+  {
+   "molecule": "H2S",
+   "basis": "aug-cc-pVDZ",
+   "method": "RHF",
+   "energy": -398.69803532550367,
+   "basisFunctions": 45
+  },
+  {
+   "molecule": "HCl",
+   "basis": "aug-cc-pVDZ",
+   "method": "RHF",
+   "energy": -460.09261549477014,
+   "basisFunctions": 36
+  },
+  {
+   "molecule": "HBr",
+   "basis": "aug-cc-pVDZ",
+   "method": "RHF",
+   "energy": -2572.9738028036645,
+   "basisFunctions": 45
+  },
+  {
+   "molecule": "Kr",
+   "basis": "aug-cc-pVDZ",
+   "method": "RHF",
+   "energy": -2751.9777526135504,
+   "basisFunctions": 36
+  },
+  {
+   "molecule": "Zn",
+   "basis": "aug-cc-pVDZ",
+   "method": "RHF",
+   "energy": -1777.8467465469935,
+   "basisFunctions": 59
+  },
+  {
+   "molecule": "ZnH2",
+   "basis": "aug-cc-pVDZ",
+   "method": "RHF",
+   "energy": -1778.9684545519403,
+   "basisFunctions": 77
+  },
+  {
+   "molecule": "CuH",
+   "basis": "aug-cc-pVDZ",
+   "method": "RHF",
+   "energy": -1639.5109113078565,
+   "basisFunctions": 68
+  },
+  {
+   "molecule": "NH4+",
+   "basis": "aug-cc-pVDZ",
+   "method": "RHF",
+   "energy": -56.54771550491323,
+   "basisFunctions": 59
+  },
+  {
+   "molecule": "OH-",
+   "basis": "aug-cc-pVDZ",
+   "method": "RHF",
+   "energy": -75.3956669168126,
+   "basisFunctions": 32
+  },
+  {
+   "molecule": "HOCl",
+   "basis": "aug-cc-pVDZ",
+   "method": "RHF",
+   "energy": -534.8874421867857,
+   "basisFunctions": 59
+  },
+  {
+   "molecule": "HCl",
+   "basis": "aug-cc-pCVDZ",
+   "method": "RHF",
+   "energy": -460.0930587563781,
+   "basisFunctions": 45
+  },
+  {
+   "molecule": "SiH4",
+   "basis": "aug-cc-pCVDZ",
+   "method": "RHF",
+   "energy": -291.24411222515465,
+   "basisFunctions": 72
+  },
+  {
+   "molecule": "HCl",
+   "basis": "aug-cc-pVDZ",
+   "method": "CCSD(T)",
+   "energy": -460.2787177575137,
+   "basisFunctions": 36
+  },
+  {
+   "molecule": "CH4",
+   "basis": "aug-cc-pVDZ",
+   "method": "CCSD(T)",
+   "energy": -40.39839100262932,
+   "basisFunctions": 59
+  }
+ ],
+ "gradients": [
+  {
+   "molecule": "HOCl",
+   "basis": "aug-cc-pVDZ",
+   "method": "RHF",
+   "gradient": [
+    -0.007175617688804703,
+    1.5322503336153633e-16,
+    0.0019579861847169866,
+    0.0043891092776267016,
+    -1.2778990693273098e-16,
+    0.004013738211669171,
+    0.002786508411233901,
+    -2.5435126429525972e-17,
+    -0.005971724396390599
+   ]
+  }
+ ]
+}

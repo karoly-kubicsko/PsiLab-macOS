@@ -22,6 +22,7 @@ add_library(macqc STATIC
   backend/src/scf.cpp
   backend/src/fci.cpp
   backend/src/molecule.cpp
+  backend/src/structure_file.cpp
   backend/src/basis.cpp
   backend/src/gto_integrals.cpp
   backend/src/gto_derivatives.cpp
@@ -219,3 +220,14 @@ target_compile_definitions(macqc_job_tests PRIVATE
 add_test(NAME macqc_job_tests COMMAND macqc_job_tests)
 set_tests_properties(macqc_job_tests PROPERTIES
   ENVIRONMENT "PSILAB_BASIS_DIR=${CMAKE_CURRENT_SOURCE_DIR}/basis" TIMEOUT 7200)
+
+# ΨLab 9.0: custom molecules (structure files, any closed-shell molecule H-Kr, general point
+# groups, Cartesian numerical derivatives) against PySCF.
+add_executable(macqc_custom_tests backend/tests/test_custom.cpp)
+target_link_libraries(macqc_custom_tests PRIVATE macqc)
+target_include_directories(macqc_custom_tests PRIVATE third_party)
+target_compile_definitions(macqc_custom_tests PRIVATE
+  MACQC_TEST_DATA_DIR="${CMAKE_CURRENT_SOURCE_DIR}/backend/tests/data")
+add_test(NAME macqc_custom_tests COMMAND macqc_custom_tests)
+set_tests_properties(macqc_custom_tests PROPERTIES
+  ENVIRONMENT "PSILAB_BASIS_DIR=${CMAKE_CURRENT_SOURCE_DIR}/basis" TIMEOUT 3600)

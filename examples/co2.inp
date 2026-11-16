@@ -1,0 +1,6 @@
+# ΨLab 9.0: a custom molecule from a structure file (.xyz in angstrom, or a Gaussian .gjf/.com)
+molecule = custom
+geometry = co2.xyz          # relative to this input file; the comment line is the name (LaTeX allowed)
+method   = HF
+basis    = aug-cc-pVDZ
+job      = opt+freq

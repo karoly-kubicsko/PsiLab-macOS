@@ -13,7 +13,9 @@
 # Full CI/aug-cc-pVTZ opt+freq, the relaxed torsion scan of H2O2 with its points played, the
 # inversion transition state of NH3 and the trans transition state of H2O2 with CalcAll, the
 # scan settings in the sidebar, the refused TS search of LiH) and ΨLab 8.0 (the orbitals:
-# isosurfaces, a contour plot, Full CI natural orbitals, the Szabo-Ostlund orbitals). The screen of the
+# isosurfaces, a contour plot, Full CI natural orbitals, the Szabo-Ostlund orbitals) and ΨLab 9.0 (custom
+# molecules from XYZ and Gaussian input text, the kept optimised geometry, the molecule menu, the
+# file panel, refusals). The screen of the
 # runner is 1024 pt wide: the screenshots show that the six tabs fit at the minimum window width.
 # Never fails the job: it only gathers evidence (screenshots + text) for review.
 #
@@ -573,6 +575,56 @@ relaunch -appearanceChoice light -psilabTab orbitals
 sleep 5
 dump_tab "68-heh-sto3g-orbitals" ""
 view_tab "69-orbitals-view-menu" "Orbitals"
+
+# --- ΨLab 9.0: custom molecules ------------------------------------------------------------------
+# The sandboxed app reads files only through the file panel, so the structures are passed as text
+# (-psilabStructure); the molecule is kept in the molecule menu by its name (CO$_2$ drawn as CO₂).
+cat > "$OUT/file-menu.applescript" <<'APPLESCRIPT'
+on run argv
+    tell application "System Events"
+        tell process "ΨLab"
+            set frontmost to true
+            click menu item (item 1 of argv) of menu 1 of menu bar item "File" of menu bar 1
+        end tell
+    end tell
+    return "FILE MENU " & (item 1 of argv)
+end run
+APPLESCRIPT
+echo "== custom molecule: CO2 from an XYZ text (name CO\$_2\$), RHF/aug-cc-pVDZ opt+freq, optimised geometry kept"
+CO2_XYZ=$'3\nCO$_2$\nC   0.000000   0.000000   0.000000\nO   0.000000   0.000000   1.170000\nO   0.000000   0.000000  -1.170000\n'
+relaunch -appearanceChoice light -psilabStructure "$CO2_XYZ" -psilabStructureName co2.xyz -psilabBasis aug-cc-pVDZ -psilabMethod RHF -psilabJob opt+freq -psilabAutoRun YES -psilabSaveOptimized YES
+sleep 40
+view_tab "70-co2-custom-summary" "Summary"
+print_shot "70-co2-custom-summary"
+view_tab "71-co2-custom-optimisation" "Optimisation"
+print_shot "71-co2-custom-optimisation"
+view_tab "72-co2-custom-frequencies" "Frequencies"
+frames "72-co2-bending-mode"
+view_tab "73-co2-custom-output" "Output"
+
+echo "== custom molecule: methane from a Gaussian input (charge 0, multiplicity 1), RHF frequencies; the menu lists CO2 and its optimised geometry"
+CH4_GJF=$'%chk=ch4.chk\n#p HF/aug-cc-pVDZ freq\n\nmethane, CH$_4$\n\n0 1\nC 0 0 0\nH 0.629118 0.629118 0.629118\nH -0.629118 -0.629118 0.629118\nH -0.629118 0.629118 -0.629118\nH 0.629118 -0.629118 -0.629118\n\n'
+relaunch -appearanceChoice dark -psilabStructure "$CH4_GJF" -psilabStructureName ch4.gjf -psilabBasis aug-cc-pVDZ -psilabMethod RHF -psilabJob freq -psilabAutoRun YES
+sleep 30
+view_tab "74-ch4-custom-summary" "Summary"
+view_tab "75-ch4-custom-frequencies" "Frequencies"
+print_shot "75-ch4-custom-frequencies"
+with_timeout 20 osascript "$OUT/tab.applescript" "Molecule" > /dev/null 2>&1 || true
+sleep 2
+shot "76-molecule-menu-with-custom-molecules"
+osascript -e 'tell application "System Events" to key code 53' || true
+echo "== File > Open Structure File… (the file panel; closed with Escape)"
+with_timeout 20 osascript "$OUT/file-menu.applescript" "Open Structure File…" || echo "could not open the file panel"
+sleep 3
+shot "77-open-structure-panel"
+osascript -e 'tell application "System Events" to key code 53' || true
+sleep 1
+
+echo "== custom molecule refused: an odd number of electrons (OH radical) and a heavy element (RbH)"
+relaunch -appearanceChoice light -psilabStructure $'2\nOH\nO 0 0 0\nH 0 0 0.97\n' -psilabStructureName oh.xyz -psilabBasis aug-cc-pVDZ -psilabMethod RHF
+dump_tab "78-oh-radical-refused" ""
+relaunch -appearanceChoice light -psilabStructure $'2\nRbH\nRb 0 0 0\nH 0 0 2.37\n' -psilabStructureName rbh.xyz -psilabBasis aug-cc-pVDZ -psilabMethod RHF
+dump_tab "79-rbh-refused" ""
 
 echo "== NH3 scan settings in the sidebar (umbrella) and the refused TS search of a diatomic"
 relaunch -appearanceChoice light -psilabMolecule NH3 -psilabBasis aug-cc-pVDZ -psilabMethod RHF -psilabJob scan

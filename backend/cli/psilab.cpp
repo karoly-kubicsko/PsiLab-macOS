@@ -92,12 +92,14 @@ std::string read_input(const std::string& path, psilab::Settings& settings, int&
     }
     const std::string text((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
     try {
-        settings = psilab::parse_input_text(text);
+        const auto slash = path.find_last_of('/');
+        settings = psilab::parse_input_text(text, slash == std::string::npos ? std::string(".") : path.substr(0, slash));
     } catch (const std::exception& e) {
         std::fprintf(stderr, "error in %s: %s\n", path.c_str(), e.what());
         status = 2;
         return "";
     }
+    for (const auto& w : settings.structureWarnings) std::fprintf(stderr, "note: %s\n", w.c_str());
     // Basis-set folder: input file > PSILAB_BASIS_DIR > installed copy > source tree.
     const char* env = std::getenv("PSILAB_BASIS_DIR");
     if (settings.input.basisDirectory.empty() && !(env && *env))

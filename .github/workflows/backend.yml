@@ -81,6 +81,22 @@ jobs:
           grep -q "Point group C2" h2o2.out
           grep -q "Normal termination" h2o2.out
 
+      - name: Terminal version, custom molecules (9.0)
+        run: |
+          ./build/psilab --estimate examples/co2.inp
+          ./build/psilab examples/co2.inp co2.out
+          grep -q "CO2, 22 electrons, charge 0, closed-shell singlet" co2.out
+          grep -q "Point group D∞h" co2.out
+          grep -q "symmetry number 2; linear rigid rotor" co2.out
+          grep -q "Normal termination" co2.out
+          printf '%%chk=nh4.chk\n#p HF/aug-cc-pVDZ\n\nammonium\n\n1 1\nN 0 0 0\nH 0.59 0.59 0.59\nH -0.59 -0.59 0.59\nH -0.59 0.59 -0.59\nH 0.59 -0.59 -0.59\n\n' > nh4.gjf
+          printf 'molecule = custom\ngeometry = nh4.gjf\nmethod = HF\njob = freq\n' > nh4.inp
+          ./build/psilab nh4.inp nh4.out
+          grep -q "Point group Td" nh4.out
+          grep -q "symmetry number 12" nh4.out
+          printf 'molecule = custom\ngeometry = nh4.gjf\ncharge = 0\n' > nh4-odd.inp
+          if ./build/psilab nh4-odd.inp; then echo "an odd number of electrons must be refused"; exit 1; fi
+
       - name: Terminal version, transition states (7.0)
         run: |
           printf 'molecule = NH3\nmethod = HF\njob = ts+freq+sp\nangle = 116\nsp_method = CCSD(T)\n' > nh3ts.inp
@@ -184,6 +200,9 @@ jobs:
 
       - name: Molecular orbitals (basis functions up to h, RHF orbitals, Full CI natural orbitals)
         run: python3 reference/pyscf_orbitals_reference.py --check
+
+      - name: Custom molecules (9.0; elements H-Kr, ions, a single atom, CCSD(T), a gradient)
+        run: python3 reference/pyscf_custom_reference.py --check
 
   # On request only: every RHF reference case, including H2O/aug-cc-pCV5Z (341 functions), and
   # every Full CI case, including LiH/aug-cc-pCVTZ (11 million determinants).

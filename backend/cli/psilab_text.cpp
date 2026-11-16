@@ -1,5 +1,10 @@
 #include "psilab_text.h"
 
+#include <fstream>
+#include <iterator>
+
+#include "macqc/structure_file.h"
+
 #include <algorithm>
 #include <cctype>
 #include <cmath>
@@ -156,7 +161,7 @@ std::string input_echo_text(const Settings& settings) {
     return s;
 }
 
-Settings parse_input_text(const std::string& text) {
+Settings parse_input_text(const std::string& text, const std::string& base_directory) {
     struct Entry {
         std::string key, value;
         int line = 0;
@@ -189,6 +194,10 @@ Settings parse_input_text(const std::string& text) {
         if (k == "pressure" || k == "p") return "pressure";
         if (k == "optconvergence" || k == "convergence") return "opt_convergence";
         if (k == "maxsteps" || k == "optmaxsteps") return "max_steps";
+        if (k == "geometry" || k == "geometryfile" || k == "structure" || k == "xyz" || k == "coordinates") return "geometry";
+        if (k == "charge") return "charge";
+        if (k == "multiplicity" || k == "mult" || k == "spin") return "multiplicity";
+        if (k == "title" || k == "name") return "title";
         return "";
     };
     std::map<std::string, Entry> entries;
@@ -211,7 +220,7 @@ Settings parse_input_text(const std::string& text) {
             fail(line, "unknown key '" + key +
                            "' (known: molecule, basis, R, angle, R_OO, dihedral, method, job, sp_method, sp_basis, temperature, "
                            "pressure, opt_convergence, max_steps, scan, scan_start, ts_hessian, eigen_test, zeta_He, zeta_H, exact_erf, "
-                           "scan_step, threads, memory, fci_memory, basis_dir)");
+                           "scan_step, threads, memory, fci_memory, basis_dir, geometry, charge, multiplicity, title)");
         if (entries.count(k)) fail(line, "'" + key + "' is given twice");
         entries[k] = Entry{key, value, line};
     }
@@ -221,10 +230,37 @@ Settings parse_input_text(const std::string& text) {
     if (entries.count("molecule")) {
         const Entry& e = entries["molecule"];
         molecule = macqc::canonical_molecule_name(e.value);
-        if (molecule.empty()) fail(e.line, "molecule must be HeH+, H2, LiH, H2O, H2O2 or NH3, got '" + e.value + "'");
+        if (molecule.empty())
+            fail(e.line, "molecule must be HeH+, H2, LiH, H2O, H2O2, NH3 or custom, got '" + e.value + "'");
     }
     s.input.molecule = molecule;
-    if (molecule != "HeH+") s.input.angle = macqc::default_angle(molecule);
+    if (molecule != "HeH+" && molecule != "custom") s.input.angle = macqc::default_angle(molecule);
+    const bool custom = molecule == "custom";
+    if (custom) {
+        // 9.0: the atoms from a structure file (.xyz or Gaussian .gjf/.com), relative to the input file
+        if (!entries.count("geometry"))
+            fail(entries["molecule"].line, "molecule = custom needs 'geometry = <file.xyz or file.gjf>'");
+        const Entry& e = entries["geometry"];
+        std::string path = e.value;
+        if (path.size() >= 2 && (path.front() == '"' || path.front() == '\'') && path.back() == path.front())
+            path = path.substr(1, path.size() - 2);
+        if (!path.empty() && path[0] != '/' && !base_directory.empty()) path = base_directory + "/" + path;
+        std::ifstream f(path, std::ios::binary);
+        if (!f) fail(e.line, "cannot open the structure file " + path);
+        const std::string content((std::istreambuf_iterator<char>(f)), std::istreambuf_iterator<char>());
+        macqc::StructureFile sf;
+        try {
+            sf = macqc::parse_structure_file(content, path);
+        } catch (const std::exception& ex) {
+            fail(e.line, path + ", " + ex.what());
+        }
+        s.input.atoms = sf.atoms;
+        s.input.title = sf.title;
+        s.input.charge = sf.charge;
+        s.input.multiplicity = sf.multiplicity;
+        s.input.geometryFile = e.value;
+        s.structureWarnings = sf.warnings;
+    }
     // 7.0: HeH+ with a correlation-consistent basis set is a general molecule (all methods and
     // jobs); with STO-1G/2G/3G (or no basis) it is the Szabo-Ostlund calculation
     const bool heh_general = molecule == "HeH+" && entries.count("basis") &&
@@ -247,6 +283,11 @@ Settings parse_input_text(const std::string& text) {
     only("R_OO", molecule == "H2O2", "H2O2");
     only("dihedral", molecule == "H2O2", "H2O2");
     only("method", !heh, general + " (HeH+ always runs Hartree-Fock and Full CI)");
+    only("geometry", custom, "molecule = custom");
+    only("charge", custom, "molecule = custom");
+    only("multiplicity", custom, "molecule = custom");
+    only("title", custom, "molecule = custom");
+    only("R", !custom, "the built-in molecules (a custom molecule takes its geometry from the structure file)");
     only("threads", !heh, general);
     only("memory", !heh, general);
     only("fci_memory", !heh, general);
@@ -302,7 +343,8 @@ Settings parse_input_text(const std::string& text) {
             s.scan = parse_bool(value, ln, e.key);
         } else if (k == "scan") {
             // relaxed scan (7.0): the Gaussian ModRedundant line "[B|A|D] N1 N2 [N3 [N4]] S nsteps stepsize"
-            const int n_atoms = (molecule == "H2O2" || molecule == "NH3") ? 4 : (molecule == "H2O" ? 3 : 2);  // HeH+: 2
+            const int n_atoms = custom ? static_cast<int>(s.input.atoms.size())
+                                       : (molecule == "H2O2" || molecule == "NH3") ? 4 : (molecule == "H2O" ? 3 : 2);  // HeH+: 2
             macqc::JobSettings js;
             const std::string err = macqc::parse_scan_line(value, n_atoms, &js);
             if (!err.empty()) fail(ln, "scan: " + err);
@@ -404,6 +446,12 @@ Settings parse_input_text(const std::string& text) {
             const double t = parse_number(value, ln, e.key);
             if (t != std::floor(t) || t < 1 || t > 1000) fail(ln, "max_steps must be an integer from 1 to 1000");
             s.input.maxSteps = static_cast<int>(t);
+        } else if (k == "charge" || k == "multiplicity") {
+            const double t = parse_number(value, ln, e.key);
+            if (t != std::floor(t) || std::fabs(t) > 100) fail(ln, e.key + " must be an integer");
+            (k == "charge" ? s.input.charge : s.input.multiplicity) = static_cast<int>(t);
+        } else if (k == "title") {
+            s.input.title = value;
         }
     }
     if (!heh) {
@@ -427,7 +475,7 @@ Settings parse_input_text(const std::string& text) {
             fail(entries.count("job") ? entries["job"].line : 1,
                  "job = scan needs 'scan = N1 N2 [N3 [N4]] S nsteps stepsize', e.g. scan = 2 1 3 S 8 10.0");
     }
-    if (!heh && !s.rGiven) s.input.R = macqc::default_bond_length(molecule);
+    if (!heh && !custom && !s.rGiven) s.input.R = macqc::default_bond_length(molecule);
     const std::string problem = macqc::validate(s.input);
     if (!problem.empty()) throw std::runtime_error(problem);
     s.sourceText = text;

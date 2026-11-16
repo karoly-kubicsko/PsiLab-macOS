@@ -110,6 +110,28 @@ struct SimpleInternals {
     std::vector<std::vector<double>> B;  // Wilson B matrix rows (dq/dx), 3 n_atoms columns
 };
 SimpleInternals simple_internals(const Molecule& mol);
+
+// 9.0: numerical derivatives of custom molecules with three or more atoms use Cartesian
+// directions instead of the Z-matrix coordinates above (their atoms may come in any order).
+bool uses_cartesian_displacements(const Molecule& mol);
+// Orthonormal Cartesian directions (3 n_atoms components each) that span the complement of the
+// three translations and the rigid rotations about the centroid: 3N - 6 directions, 3N - 5 for a
+// linear molecule (*linear). Energies and gradients are invariant along the translations and
+// rotations, so central differences along these directions give the whole gradient (2(3N - 6)
+// energies) and the whole Hessian at a stationary point (2(3N - 6) gradients).
+std::vector<std::vector<double>> vibrational_directions(const Molecule& mol, bool* linear = nullptr);
+// The translations (3) and rotations (2 or 3) as orthonormal Cartesian directions u, with the
+// derivative of the dipole moment along each (translations change the dipole by charge times
+// the shift, a rotation by theta about n through the centroid c by theta n x (mu - charge c))
+// and, given the gradient g, the Hessian times u, which invariance fixes exactly: H u = 0 for a
+// translation, and for the rotation about n, H (n x (x_a - c))_a = (n x g_a)_a.
+struct RigidMotion {
+    std::vector<std::vector<double>> directions;
+    std::vector<std::array<double, 3>> dipole_derivatives;
+    std::vector<std::vector<double>> hessian_times;  // with a gradient: H u for every direction
+};
+RigidMotion rigid_motions(const Molecule& mol, const std::array<double, 3>& dipole,
+                          const std::vector<double>* gradient = nullptr);
 // The geometry with the given internal-coordinate values (same orientation of the first bond).
 Molecule geometry_from_internals(const Molecule& reference, const std::vector<double>& values);
 

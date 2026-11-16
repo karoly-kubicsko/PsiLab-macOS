@@ -30,8 +30,8 @@ constexpr double kDebyeInAtomicUnits = 1.0e-21 / kSpeedOfLight / (kElementaryCha
 
 }  // namespace codata2018
 
-// Mass (u) of the most abundant isotope of element Z = 1 .. 10 (AME 2020: Wang, Huang, Kondev,
-// Audi & Naimi, Chin. Phys. C 45, 030003 (2021)); ¹H, ⁴He, ⁷Li, ⁹Be, ¹¹B, ¹²C, ¹⁴N, ¹⁶O, ¹⁹F, ²⁰Ne.
+// Mass (u) of the most abundant isotope of element Z = 1 .. 36 (AME 2020: Wang, Huang, Kondev,
+// Audi & Naimi, Chin. Phys. C 45, 030003 (2021)); ¹H, ⁴He, ⁷Li, …, ³⁵Cl, ⁴⁰Ar, …, ⁷⁹Br, ⁸⁴Kr (9.0: Z up to 36).
 double isotope_mass(int Z);
 // Its label, e.g. "1H", "7Li", "16O".
 const char* isotope_label(int Z);
