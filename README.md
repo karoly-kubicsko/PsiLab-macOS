@@ -170,10 +170,11 @@ analytic gradients, with analytic dipole derivatives (IR intensities) and the re
 moment. The sidebar of a frequency or TS job has a *Hessian* section (*Analytic* by default,
 *Numerical* for the central differences of analytic gradients of earlier versions; terminal:
 `hessian = analytic | numerical`); the analytic Hessian falls back to the numerical one when it
-would not fit into the memory limit. A minimisation may start from the analytic correlated
-Hessian (*Analytic initial Hessian* in the Optimisation section; terminal:
-`initial_hessian = analytic`); the default stays Lindh's model Hessian for the correlated methods,
-since an analytic Hessian costs several gradients. The analytic Hessians agree with 4-point differences of
+would not fit into the memory limit. Minimisations (optimisations, the first point of a relaxed
+scan) start from the analytic Hessian of the method — as before for HF, now also for CCSD,
+CCSD(T) and Full CI — where it fits into the memory limit, otherwise from Lindh's model Hessian
+(*Analytic initial Hessian* in the Optimisation section, on by default; terminal:
+`initial_hessian = auto | analytic | model`). The analytic Hessians agree with 4-point differences of
 analytic gradients within 1e-10–1e-8 Eₕ/bohr² (the accuracy of the differences), including
 HOF without symmetry and NH₃ with degenerate orbitals; the central differences of earlier versions
 were accurate to about 3e-5. See [Analytic Hessians](#analytic-hessians-version-100).
@@ -361,7 +362,7 @@ scan_start = 0               # first value (Å, bohr or degrees); default: the v
 ts_hessian = calcfc          # ts jobs: calcfc (Hessian at the first step) or calcall (at every step)
 eigen_test = yes             # ts jobs: stop unless the Hessian has exactly one negative eigenvalue
 hessian  = analytic          # 10.0, freq and ts jobs with FCI, CCSD, CCSD(T): analytic or numerical
-initial_hessian = auto       # 10.0, minimisations: auto (HF analytic, else Lindh), analytic or model
+initial_hessian = auto       # 10.0, minimisations: auto/analytic (HF, FCI, CCSD, CCSD(T) where possible), model (Lindh)
 ```
 
 `molecule = HeH+` with a correlation-consistent `basis` runs the general calculation (all methods
@@ -791,7 +792,8 @@ Chem. 17, 49 (1996)).
   change); iterative back-transformation x ← x + Bᵀ G⁻ (q_target − q(x)) to 1e-10 bohr.
 - **Hessian**: initial Hessian analytic (the RHF Hessian of stage 1 in internal coordinates,
   including the gradient term Σ g_q ∂²q/∂x², when the method is RHF and the basis has at most 100
-  functions), otherwise Lindh's model Hessian (Chem. Phys. Lett. 241, 423 (1995)); Schlegel's is
+  functions; 10.0: also the analytic CCSD, CCSD(T) and Full CI Hessians, without dipole
+  derivatives, where they fit into the memory limit), otherwise Lindh's model Hessian (Chem. Phys. Lett. 241, 423 (1995)); Schlegel's is
   available. Negative eigenvalues of an analytic initial Hessian are replaced by their magnitude;
   if the start is a saddle point with no gradient along the negative-curvature direction (e.g. H₂O
   at exactly 180°), the first step follows that direction. BFGS updates (skipped, and reported,

@@ -466,11 +466,40 @@ OptimizationResult optimize_geometry(const Molecule& start, const BasisSet& basi
                     if (!oo.hessian_coordinates[i].same_as(ic.coordinates()[i])) carried = false;
             }
             std::string kind = oo.initial_hessian;
+            // "auto": the analytic RHF Hessian up to analytic_hessian_max_functions; 10.0: the analytic
+            // Full CI, CCSD and CCSD(T) Hessians where they are possible (otherwise Lindh's model)
             if (kind == "auto")
-                kind = (method == "RHF" && bx.n_functions <= oo.analytic_hessian_max_functions) ? "analytic" : "lindh";
-            // 10.0: "analytic" also for Full CI, CCSD and CCSD(T) (the analytic correlated Hessian);
-            // "auto" keeps the model Hessian for them (an analytic correlated Hessian costs several gradients)
+                kind = (method == "RHF" ? bx.n_functions <= oo.analytic_hessian_max_functions : analytic_hessian_method(method))
+                           ? "analytic"
+                           : "lindh";
             if (kind == "analytic" && !analytic_hessian_method(method)) kind = "lindh";
+            std::string model_reason;  // why a requested analytic correlated Hessian was not possible
+            Matrix Hcorr;
+            if (!carried && kind == "analytic" && method != "RHF") {
+                const RHFResult& rr = g.point.rhf;
+                const double need = analytic_hessian_bytes(method, rr.n_occupied, static_cast<int>(rr.C.cols()),
+                                                           static_cast<int>(rr.C.rows()), static_cast<int>(x.atoms.size())) /
+                                    1048576.0;
+                if (!g.analytic) model_reason = "the gradient is numerical";
+                else if (need > eo.fci_memory_mb)
+                    model_reason = format("the analytic %s Hessian would need about %.1f GB (limit %.1f GB)", method.c_str(),
+                                          need / 1024.0, eo.fci_memory_mb / 1024.0);
+                if (model_reason.empty()) {
+                    HessianOptions ho;
+                    ho.reference = &g;
+                    ho.dipoles = false;
+                    ho.analytic_only = true;
+                    report_progress_text(format("Step %d · initial Hessian (analytic %s)", step, method.c_str()));
+                    const HessianResult hr = run_hessian(x, bx, method, eo, ho, cb, &orbitals);
+                    if (hr.analytic && hr.hessian.rows() == n3) {
+                        Hcorr = hr.hessian;
+                        ++res.hessian_evaluations;
+                    } else {
+                        model_reason = hr.numerical_reason.empty() ? "not possible" : hr.numerical_reason;
+                    }
+                }
+                if (!model_reason.empty()) kind = "lindh";
+            }
             H = Matrix(nq, nq);
             if (carried) {
                 H = *oo.initial_hessian_matrix;
@@ -482,14 +511,8 @@ OptimizationResult optimize_geometry(const Molecule& start, const BasisSet& basi
                 if (method == "RHF") {
                     Hc = rhf_hessian(x, bx, g.point.rhf, eo.threads, eo.memory_mb, 1e-8).hessian;
                 } else {
-                    HessianOptions ho;
-                    ho.reference = &g;
-                    ho.dipoles = false;
-                    report_progress_text(format("Step %d · initial Hessian", step));
-                    const HessianResult hr = run_hessian(x, bx, method, eo, ho, cb, &orbitals);
-                    Hc = hr.hessian;
-                    label = (hr.analytic ? "analytic " : "numerical ") + method + " Hessian";
-                    ++res.hessian_evaluations;
+                    Hc = Hcorr;
+                    label = "analytic " + method + " Hessian";
                 }
                 const Matrix K = ic.b_derivative_contracted(x, gq0);
                 for (std::size_t a = 0; a < n3; ++a)
@@ -543,6 +566,10 @@ OptimizationResult optimize_geometry(const Molecule& start, const BasisSet& basi
                 rec.hessian_update = std::string("initial Hessian: ") +
                                      (kind == "schlegel" ? "Schlegel model Hessian" : "Lindh model Hessian");
                 res.initial_hessian = kind == "schlegel" ? "Schlegel model Hessian" : "Lindh model Hessian";
+                if (!model_reason.empty()) {
+                    rec.hessian_update += " (analytic " + method + " Hessian not possible: " + model_reason + ")";
+                    res.initial_hessian += " (analytic " + method + " Hessian not possible: " + model_reason + ")";
+                }
             }
             need_initial = false;
         } else {

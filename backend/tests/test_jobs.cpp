@@ -359,6 +359,7 @@ int main() {
                       2e-3);
         }
         CHECK(r["frequencies"]["analytic"].get<bool>());
+        CHECK(contains(r["optimization"]["initialHessian"].get<std::string>(), "analytic " + m + " Hessian"));
         CHECK(contains(r["frequencies"]["intensityDescription"].get<std::string>(), "analytic"));
         CHECK(r["frequencies"]["intensities"].get<bool>());
         CHECK(r["frequencies"]["modes"].size() == 3);
@@ -397,6 +398,11 @@ int main() {
                                    {"R", 1.9}, {"angle", 112.0}, {"initialHessian", "analytic"}});
         CHECK(o["error"].is_null() && o["optimization"]["converged"].get<bool>());
         CHECK(contains(o["optimization"]["initialHessian"].get<std::string>(), "analytic CCSD Hessian"));
+        const json om = run_logged("H2O CCSD/aug-cc-pVDZ opt, model initial Hessian",
+                                   {{"molecule", "H2O"}, {"basis", "aug-cc-pVDZ"}, {"method", "CCSD"}, {"job", "opt"},
+                                    {"R", 1.9}, {"angle", 112.0}, {"initialHessian", "model"}});
+        CHECK(om["error"].is_null() && om["optimization"]["converged"].get<bool>());
+        CHECK(contains(om["optimization"]["initialHessian"].get<std::string>(), "Lindh"));
         std::printf("     optimisation from the analytic CCSD Hessian: %s steps\n", o["optimization"]["steps"].dump().substr(0, 40).c_str());
     }
 

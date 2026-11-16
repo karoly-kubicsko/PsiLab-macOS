@@ -124,7 +124,7 @@ final class AppModel {
     var tsCalcAll = false                             // Hessian at every step (CalcAll)
     var eigenTest = true                              // exactly one negative eigenvalue
     var analyticHessian = true                        // 10.0: Full CI, CCSD, CCSD(T) Hessians analytic
-    var analyticInitialHessian = false                // 10.0: minimisations start from the analytic Hessian
+    var analyticInitialHessian = true                 // 10.0: minimisations start from the analytic Hessian
 
     // Job (ΨLab 5.0)
     var job: JobChoice = .energy
@@ -331,6 +331,7 @@ final class AppModel {
         }
         // ΨLab 7.0: -psilabROO 1.40 (Å) -psilabDihedral 160 -psilabScan "D 3 1 2 4 S 18 10"
         // -psilabScanStart 0 -psilabTSHessian calcall -psilabEigenTest NO -psilabHessian numerical
+        // 10.0: -psilabInitialHessian model
         if defaults.object(forKey: "psilabROO") != nil {
             let r = defaults.double(forKey: "psilabROO")
             if r > 0 { ooBondLength = r / Units.bohrToAngstrom }
@@ -355,7 +356,7 @@ final class AppModel {
             analyticHessian = h.lowercased() != "numerical"
         }
         if let h = defaults.string(forKey: "psilabInitialHessian") {
-            analyticInitialHessian = h.lowercased() == "analytic"
+            analyticInitialHessian = h.lowercased() != "model"
         }
         if let t = defaults.string(forKey: "psilabTab") {
             switch t.lowercased() {
@@ -432,7 +433,8 @@ final class AppModel {
             input.tsHessian = tsCalcAll ? "calcall" : "calcfc"
             input.eigenTest = eigenTest
             input.hessian = analyticHessian ? "analytic" : "numerical"
-            input.initialHessian = analyticInitialHessian && method.hasAnalyticCorrelatedHessian ? "analytic" : "auto"
+            // "auto": the analytic Hessian (HF, Full CI, CCSD, CCSD(T)) where possible, else Lindh's model
+            input.initialHessian = method.hasAnalyticCorrelatedHessian && !analyticInitialHessian ? "model" : "auto"
         } else {
             input.molecule = MoleculeChoice.heh.rawValue
             input.basis = hehBasis   // STO-1G, STO-2G or STO-3G: the Szabo–Ostlund calculation

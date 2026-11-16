@@ -391,6 +391,11 @@ HessianResult run_hessian(const Molecule& mol, const BasisSet& basis, const std:
         }
     }
 
+    if (ho.analytic_only) {
+        r.numerical_reason = correlated_reason.empty() ? "no analytic Hessian for " + method : correlated_reason;
+        r.seconds = seconds_since(t0);
+        return r;
+    }
     if (!correlated_reason.empty())
         r.numerical_reason = correlated_reason;
     else if (method == "RHF" && ref.point.rhf.removed_functions > 0)

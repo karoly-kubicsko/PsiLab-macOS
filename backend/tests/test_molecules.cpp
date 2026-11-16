@@ -470,7 +470,13 @@ int main() {
         CHECK(contains(err({{"molecule", "H2O2"}, {"job", "scan"}, {"scan", "3 1 2 5 S 2 10"}}), "atom 5 does not exist"));
         const json e = run({{"molecule", "H2O2"}, {"method", "CCSD(T)"}, {"job", "freq"}, {"estimateOnly", true}});
         CHECK(e["error"].is_null());
-        CHECK(contains(e["job"]["estimate"]["steps"][0]["how"].get<std::string>(), "central differences of 12 analytic gradients"));
+        // 10.0: analytic Hessian (6 internal directions and 3 field components); numerical on request
+        CHECK(contains(e["job"]["estimate"]["steps"][0]["how"].get<std::string>(),
+                       "analytic Hessian: amplitude responses along the 6 internal directions"));
+        CHECK(e["job"]["estimate"]["steps"][0]["evaluations"].get<int>() == 9);
+        const json en6 = run({{"molecule", "H2O2"}, {"method", "CCSD(T)"}, {"job", "freq"}, {"estimateOnly", true},
+                              {"hessian", "numerical"}});
+        CHECK(contains(en6["job"]["estimate"]["steps"][0]["how"].get<std::string>(), "central differences of 12 analytic gradients"));
         const json en = run({{"molecule", "NH3"}, {"basis", "aug-cc-pVTZ"}, {"method", "HF"}});
         CHECK(en["error"].is_null());
         CHECK(en["molecule"]["angle"].get<double>() == 106.7);

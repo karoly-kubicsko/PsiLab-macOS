@@ -34,6 +34,9 @@ struct HessianOptions {
     // used instead of computing them again; nullptr: computed here.
     const GradientResult* reference = nullptr;
     double response_tol = 1.0e-9;  // 10.0: residual of the response equations of the analytic correlated Hessians
+    // 10.0: only the analytic correlated Hessian: if it is not possible, return an empty Hessian
+    // (numerical_reason says why) instead of computing a numerical one (initial Hessians)
+    bool analytic_only = false;
 };
 
 struct HessianResult {

@@ -305,6 +305,16 @@ JobEstimate estimate_job(const MolecularResult& p, const JobSettings& s, const M
     if (e.fci) est.memory_mb = std::max(est.memory_mb, e.fci->memory_bytes / (1024.0 * 1024.0));
     if (e.cc) est.memory_mb = std::max(est.memory_mb, e.cc->memory_bytes / (1024.0 * 1024.0));
     const int typical_steps = 6;
+    // 10.0: the analytic Full CI, CCSD or CCSD(T) Hessian at the first point of a minimisation
+    // ("auto" or "analytic", where it fits into memory; no dipole derivatives): extra seconds
+    const bool correlated_hessian_fits =
+        analytic && (m == "FCI" || m == "CCSD" || m == "CCSD(T)") && p.molecule.atoms.size() >= 2 &&
+        analytic_hessian_bytes(m, nocc, nbf, nbf, static_cast<int>(p.molecule.atoms.size())) / 1048576.0 <= p.input.fci_memory_mb;
+    const bool analytic_initial = correlated_hessian_fits && s.initial_hessian != "lindh";
+    const double initial_hessian_seconds =
+        analytic_initial
+            ? ((m == "FCI" ? 0.6 : 1.5) * static_cast<double>(vibrational_directions(p.molecule).size()) + 3.0) * tg
+            : 0.0;
     auto hessian_estimate = [&]() {
         JobStepEstimate st;
         st.name = "Hessian";
@@ -397,10 +407,8 @@ JobEstimate estimate_job(const MolecularResult& p, const JobSettings& s, const M
             st.analytic = st.analytic && h.analytic;
         } else if (m == "RHF" && nbf <= 100) {
             st.seconds += 6.0 * tg;  // analytic initial Hessian
-        } else if (s.initial_hessian == "analytic" && analytic && (m == "FCI" || m == "CCSD" || m == "CCSD(T)")) {
-            // 10.0: the analytic correlated Hessian at the first point (no dipole derivatives)
-            const int dirs = static_cast<int>(vibrational_directions(p.molecule).size());
-            st.seconds += ((m == "FCI" ? 0.6 : 1.5) * dirs + 3.0) * tg;
+        } else if (analytic_initial) {
+            st.seconds += initial_hessian_seconds;  // 10.0: analytic correlated initial Hessian
             st.how += "; analytic initial Hessian";
         }
         st.memory_mb = grad_mb;
@@ -431,6 +439,10 @@ JobEstimate estimate_job(const MolecularResult& p, const JobSettings& s, const M
             st.evaluation_kind = "steps";
             st.seconds = total * tg;
             if (m == "RHF" && nbf <= 100) st.seconds += 6.0 * tg;  // analytic initial Hessian
+            if (analytic_initial) {
+                st.seconds += initial_hessian_seconds;  // 10.0: at the first point
+                st.how += "; analytic initial Hessian at the first point";
+            }
         }
         st.memory_mb = grad_mb;
         est.steps.push_back(st);

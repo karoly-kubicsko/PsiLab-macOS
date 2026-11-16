@@ -219,10 +219,17 @@ static void test_formula_and_checks() {
     const json e = run({{"molecule", "custom"}, {"atoms", h2o}, {"estimateOnly", true}, {"job", "opt+freq"}, {"method", "CCSD"}});
     CHECK(e["error"].is_null() && e["molecule"]["formula"] == "H2O" && e["molecule"]["custom"] == true);
     CHECK(e["input"]["atoms"].size() == 3 && e["input"]["multiplicity"] == 1);
-    bool hessian_note = false;
-    for (const auto& n : e["job"]["estimate"]["notes"])
-        if (contains(n.get<std::string>(), "6 analytic gradients along the 3 Cartesian directions")) hessian_note = true;
-    CHECK(hessian_note);
+    // 10.0: the analytic CCSD Hessian (3 internal directions); with "hessian": "numerical" the
+    // central differences of 6 analytic gradients along the 3 Cartesian directions
+    auto has_note = [](const json& j, const std::string& part) {
+        for (const auto& n : j["job"]["estimate"]["notes"])
+            if (contains(n.get<std::string>(), part)) return true;
+        return false;
+    };
+    CHECK(has_note(e, "amplitude responses along the 3 internal directions"));
+    const json en = run({{"molecule", "custom"}, {"atoms", h2o}, {"estimateOnly", true}, {"job", "opt+freq"}, {"method", "CCSD"},
+                         {"hessian", "numerical"}});
+    CHECK(has_note(en, "6 analytic gradients along the 3 Cartesian directions"));
 }
 
 struct GroupCase {

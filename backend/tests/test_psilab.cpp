@@ -181,6 +181,12 @@ int main() {
     const std::string esti = psilab::estimate_text(
         psilab::parse_input_text("molecule = H2O\nmethod = CCSD\njob = opt\ninitial_hessian = analytic\n"));
     CHECK(contains(esti, "analytic initial Hessian"));
+    // the default: the analytic initial Hessian also for the correlated methods; "model": Lindh
+    CHECK(contains(psilab::estimate_text(psilab::parse_input_text("molecule = H2O\nmethod = CCSD\njob = opt\n")),
+                   "analytic initial Hessian"));
+    CHECK(!contains(psilab::estimate_text(
+                        psilab::parse_input_text("molecule = H2O\nmethod = CCSD\njob = opt\ninitial_hessian = model\n")),
+                    "analytic initial Hessian"));
     CHECK(rejects("molecule = H2\njob = freq\nhessian = exact\n", "hessian must be analytic or numerical"));
     CHECK(rejects("molecule = H2\njob = energy\nhessian = analytic\n", "applies to job = freq"));
     CHECK(rejects("molecule = H2\njob = ts\ninitial_hessian = analytic\n", "applies to job = opt, opt+freq, opt+freq+sp and scan only"));

@@ -370,7 +370,7 @@ struct SidebarView: View {
                 if model.method.hasAnalyticCorrelatedHessian && !model.job.hasTransitionState {
                     Toggle("Analytic initial Hessian", isOn: $model.analyticInitialHessian)
                     Text(model.analyticInitialHessian
-                         ? "The first step uses the analytic \(model.method.title) Hessian (exact curvature, costs several gradients)."
+                         ? "The first step uses the analytic \(model.method.title) Hessian (exact curvature; Lindh's model Hessian if it does not fit in memory); later steps update it (BFGS)."
                          : "The first step uses Lindh's model Hessian (no cost); later steps update it (BFGS).")
                         .font(.caption)
                         .foregroundStyle(.secondary)
