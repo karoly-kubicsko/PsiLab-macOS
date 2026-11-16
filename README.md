@@ -1,6 +1,6 @@
 # ΨLab — a native macOS quantum-chemistry app
 
-**Current version: 10.0** — see [Versions](#versions).
+**Current version: 11.0** — see [Versions](#versions).
 
 ΨLab computes small molecules with restricted Hartree–Fock, coupled cluster and Full CI:
 
@@ -58,8 +58,8 @@ same calculations run in the terminal on Linux and macOS
     optimisation*, 8 *TS optimisation + frequencies* (exactly one imaginary frequency required),
     9 *TS optimisation + frequencies + single-point energy*. Jobs 4, 5, 8 and 9 stop with a message
     if the optimisation does not converge;
-  - the geometry — the *starting* geometry of an optimisation: the X–H bond length in Å and in
-    bohr (both editable); H₂O the H–O–H angle; H₂O₂ R(O–O), the O–O–H angle and the H–O–O–H
+  - the geometry — the *starting* geometry of an optimisation: the X–H bond length in Å
+    (editable); H₂O the H–O–H angle; H₂O₂ R(O–O), the O–O–H angle and the H–O–O–H
     dihedral angle (C₂; 0° cis, 180° trans); NH₃ the H–N–H angle (C₃ᵥ; 120° planar). The reset
     button restores 0.74144 Å (H₂), 1.5949 Å (LiH), 0.9572 Å and 104.52° (H₂O), 1.4556 Å, 0.9670 Å,
     102.32° and 113.70° (H₂O₂), 1.012 Å and 106.7° (NH₃), 1.4632 bohr (HeH⁺); after an optimisation
@@ -162,6 +162,13 @@ same calculations run in the terminal on Linux and macOS
   `xcode/project.yml`).
 
 ## Versions
+
+### 11.0
+**Enthalpy**: the thermochemistry tables (app, output file) give the definition of the enthalpy,
+H = U + pV, instead of "H = U + kT"; for the ideal gas pV = RT per mole (k_BT per molecule), so the
+values are unchanged. The *Starting geometry* (*Geometry*) section of the sidebar gives the bond
+length in Å only (no longer also in bohr). The README gives the measured timings of the analytic
+Full CI Hessian of LiH against the numerical route of earlier versions (6.0 s vs 4.1 s).
 
 ### 10.0
 **Analytic Hessians of CCSD, CCSD(T) and Full CI.** Frequency jobs and transition-state searches
@@ -768,12 +775,13 @@ bohr, of analytic gradients and their relaxed dipoles; aug-cc-pVDZ):
 Without the (T) curvature term the CCSD(T) errors would be 6e-5 (LiH) and 2e-2 (H₂O). The
 relaxed dipole moments agree with those of the analytic gradients within 2e-10 e bohr.
 
-Timings (4 threads), analytic vs the numerical route of earlier versions: Full CI LiH 3.3 s vs
-62 s (4-point differences); H₂O/aug-cc-pVDZ CCSD 13 s vs 8 s, CCSD(T) 21 s vs 11 s (2-point
-differences along the 3 internal directions; the analytic Hessian also solves 3 field responses
-for the IR intensities). For molecules this small the differences are cheaper but about 10⁴ times
-less accurate; the cost of the analytic route grows with 3N − 3 responses instead of
-2(3N − 6) gradients.
+Timings of the frequency step (4 threads, including the energy and gradient at the geometry),
+analytic vs the numerical route of earlier versions (2-point differences of analytic gradients
+along the internal directions): Full CI LiH/aug-cc-pVDZ 6.0 s vs 4.1 s (2 gradients);
+H₂O/aug-cc-pVDZ CCSD 13 s vs 8 s, CCSD(T) 21 s vs 11 s (6 gradients). The analytic Hessian also
+solves 3 field responses for the IR intensities. For molecules this small the differences are
+cheaper but about 10⁴ times less accurate; the cost of the analytic route grows with 3N − 3
+responses instead of 2(3N − 6) gradients.
 
 ### Geometry optimisation (version 5.0)
 
@@ -855,7 +863,7 @@ Verification (`backend/tests/test_optimizer.cpp`; references from
 - **Thermochemistry** (CODATA 2018): ideal-gas translation at the chosen pressure (Sackur–Tetrode),
   rigid rotor (linear for H₂ and LiH, nonlinear for H₂O; σ(H₂) = 2, σ(LiH) = 1, σ(H₂O) = 2), harmonic
   oscillators with the zero-point energy, closed-shell singlet (q_el = 1). Reported: zero-point
-  energy; thermal corrections and totals of U, H = U + k_BT, S (total and its electronic,
+  energy; thermal corrections and totals of U, H = U + pV (pV = RT per mole of ideal gas), S (total and its electronic,
   translational, rotational and vibrational parts), A = U − TS, G = H − TS; C_V; moments of
   inertia, rotational constants (GHz, cm⁻¹), rotational and vibrational temperatures; in hartree,
   kcal/mol, kJ/mol and cal/(mol K) (also J/(mol K)). Imaginary frequencies and those below 10 cm⁻¹

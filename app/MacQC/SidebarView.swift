@@ -225,9 +225,6 @@ struct SidebarView: View {
             LabeledContent("\(model.molecule.bondLabel) (Å)") {
                 numberField("bond length angstrom", value: $model.bondLengthAngstrom)
             }
-            LabeledContent("\(model.molecule.bondLabel) (bohr)") {
-                numberField("bond length bohr", value: $model.bondLength)
-            }
             if model.molecule == .h2o2 {
                 LabeledContent("R(O–O) (Å)") {
                     numberField("O-O bond length angstrom", value: $model.ooBondLengthAngstrom)

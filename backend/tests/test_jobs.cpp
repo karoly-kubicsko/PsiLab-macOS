@@ -29,6 +29,7 @@
 #include <vector>
 
 #include "macqc/calculation.h"
+#include "macqc/constants.h"
 #include "macqc/jobs.h"
 #include "macqc/macqc_api.h"
 #include "nlohmann/json.hpp"
@@ -375,6 +376,16 @@ int main() {
         json inn = in;
         inn["hessian"] = "numerical";
         const json a = run_logged("H2O CCSD/aug-cc-pVDZ freq, analytic Hessian", in);
+        // 11.0: the enthalpy is defined as H = U + pV (ideal gas: pV = RT per mole)
+        CHECK(contains(a["output"].get<std::string>(), "Thermal correction to H = U + pV"));
+        CHECK(!contains(a["output"].get<std::string>(), "U + kT"));
+        {
+            const json& tc = a["thermochemistry"]["corrections"];
+            check_max("  H - U = pV = RT of one mole of ideal gas at 298.15 K (J/mol)",
+                      std::fabs(tc["enthalpy"].get<double>() - tc["thermalEnergy"].get<double>() -
+                                macqc::codata2018::kGasConstant * 298.15),
+                      1e-6);
+        }
         const json n = run_logged("H2O CCSD/aug-cc-pVDZ freq, numerical Hessian", inn);
         CHECK(a["error"].is_null() && n["error"].is_null());
         CHECK(a["frequencies"]["analytic"].get<bool>() && !n["frequencies"]["analytic"].get<bool>());
