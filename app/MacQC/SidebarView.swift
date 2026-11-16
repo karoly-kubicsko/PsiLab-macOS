@@ -14,6 +14,7 @@ import SwiftUI
 
 struct SidebarView: View {
     @Bindable var model: AppModel
+    @State private var confirmRemove = false
     @AppStorage(AppearanceChoice.storageKey) private var appearanceRaw: String = AppearanceChoice.system.rawValue
 
     private static let numberFormat = FloatingPointFormatStyle<Double>()
@@ -22,15 +23,30 @@ struct SidebarView: View {
     var body: some View {
         Form {
             Section("Molecule") {
-                Picker("Molecule", selection: $model.molecule) {
-                    ForEach(MoleculeChoice.allCases) { choice in
-                        Text(choice.title).tag(choice)
+                // the built-in molecules, the kept custom molecules (by name; 9.0) and
+                // "Custom molecule…", which opens a structure file
+                Picker("Molecule", selection: $model.moleculeSelection) {
+                    ForEach(MoleculeChoice.builtIn) { choice in
+                        Text(choice.title).tag(MoleculeSelection.builtIn(choice))
                     }
+                    if !model.savedMolecules.isEmpty {
+                        Divider()
+                        ForEach(model.savedMolecules) { m in
+                            Text(m.menuTitle).tag(MoleculeSelection.saved(m.id))
+                        }
+                    }
+                    Divider()
+                    Text("Custom molecule…").tag(MoleculeSelection.openFile)
                 }
                 .disabled(model.isRunning || model.isScanning)
-                Text(model.molecule.subtitle)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                .accessibilityLabel("Molecule")
+                if model.molecule == .custom, let m = model.customMolecule {
+                    CustomMoleculeHeader(model: model, molecule: m, confirmRemove: $confirmRemove)
+                } else {
+                    Text(model.molecule.subtitle)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
             }
 
             if model.isGeneral {
@@ -59,6 +75,18 @@ struct SidebarView: View {
             try? await Task.sleep(for: .milliseconds(200))
             guard !Task.isCancelled else { return }
             await model.refreshEstimate()
+        }
+        .alert("Structure file", isPresented: $model.showStructureError) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(model.structureError ?? "The file could not be read.")
+        }
+        .confirmationDialog("Remove \(model.customMolecule?.menuTitle ?? "the molecule") from the molecule menu?",
+                            isPresented: $confirmRemove) {
+            Button("Remove", role: .destructive) { model.removeCustomMolecule() }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("Its coordinates are deleted from ΨLab's list (the structure file is not changed).")
         }
         .confirmationDialog("Long calculation", isPresented: $model.showLongRunConfirmation) {
             Button("Run") {
@@ -154,7 +182,7 @@ struct SidebarView: View {
         switch model.molecule {
         case .h2, .lih, .h2o: return "Experimental geometry"
         case .heh: return "Szabo–Ostlund R = 1.4632 bohr"
-        case .h2o2, .nh3: return "Default geometry"
+        case .h2o2, .nh3, .custom: return "Default geometry"
         }
     }
 
@@ -174,6 +202,25 @@ struct SidebarView: View {
 
     @ViewBuilder
     private var generalSections: some View {
+        if model.molecule == .custom {
+            Section(model.job.usesOptimizer ? "Starting geometry (Å)" : "Geometry (Å)") {
+                if let m = model.customMolecule {
+                    CustomCoordinateTable(molecule: m)
+                } else {
+                    Text("Choose Custom molecule… in the molecule menu to read a structure file.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                SaveOptimizedGeometryBox(model: model)
+            }
+        } else {
+            builtInGeometrySection
+        }
+        generalSectionsBelowGeometry
+    }
+
+    @ViewBuilder
+    private var builtInGeometrySection: some View {
         Section(model.job.usesOptimizer ? "Starting geometry" : "Geometry") {
             LabeledContent("\(model.molecule.bondLabel) (Å)") {
                 numberField("bond length angstrom", value: $model.bondLengthAngstrom)
@@ -223,8 +270,12 @@ struct SidebarView: View {
                     .disabled(!model.canUseOptimizedGeometry || model.isRunning)
                 }
             }
+            SaveOptimizedGeometryBox(model: model)
         }
+    }
 
+    @ViewBuilder
+    private var generalSectionsBelowGeometry: some View {
         if model.job.hasScan {
             scanSection
         }
@@ -245,6 +296,8 @@ struct SidebarView: View {
             basisPicker
             Text(model.molecule == .heh
                  ? "Spherical Gaussian functions from basissetexchange.org (He has no core-valence sets: they fall back to aug-cc-pVXZ). STO-nG returns to the Szabo–Ostlund calculation."
+                 : model.molecule == .custom
+                 ? "Spherical Gaussian functions from basissetexchange.org: aug-cc-pVXZ for H–Ar and Sc–Kr (Sc–Zn up to QZ; none for K, Ca), aug-cc-pCVXZ for Li–Ar. Heavier elements would need effective core potentials, which ΨLab does not have."
                  : "Spherical Gaussian functions from basissetexchange.org; the core-valence sets (CV) add tight functions for the 1s core.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
@@ -326,7 +379,7 @@ struct SidebarView: View {
         let s = model.scan
         let positions = model.estimate?.molecule.map { atomCoordinates($0.atoms) }
         let value = positions.flatMap { internalCoordinateValue($0, kind: s.kind, atoms: s.atoms) }
-        let labels = model.molecule.atomLabels
+        let labels = model.atomLabels
         let names: [String] = s.usedAtoms.map { n in n >= 1 && n <= labels.count ? labels[n - 1] : "?\(n)" }
         let definition = "\(s.kind.rawValue)(\(names.joined(separator: "–")))"
         let unit = s.kind.unit
@@ -359,8 +412,8 @@ struct SidebarView: View {
                 HStack(spacing: 4) {
                     ForEach(0..<s.kind.atomCount, id: \.self) { k in
                         Picker("Atom \(k + 1)", selection: $model.scan.atoms[k]) {
-                            ForEach(1...max(model.molecule.atomCount, 1), id: \.self) { n in
-                                Text(labels[n - 1]).tag(n)
+                            ForEach(1...max(model.atomCount, 1), id: \.self) { n in
+                                Text(n <= labels.count ? labels[n - 1] : "\(n)").tag(n)
                             }
                         }
                         .labelsHidden()
@@ -394,7 +447,7 @@ struct SidebarView: View {
                     .font(.caption)
                     .foregroundStyle(.red)
             } else {
-                Text(model.molecule.atomCount == 2
+                Text(model.atomCount == 2
                      ? "A diatomic has nothing else to relax: the scan computes single points."
                      : "At each point the coordinate is frozen and all others are optimised, starting from the previous point.")
                     .font(.caption)

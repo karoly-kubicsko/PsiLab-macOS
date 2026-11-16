@@ -21,6 +21,25 @@ struct MacQCApp: App {
             // File > Export Results as Text… (general path: the output file) / as JSON… /
             // Potential Curve as Text… (replace the unused "New Window" item)
             CommandGroup(replacing: .newItem) {
+                // 9.0: a custom molecule from a structure file (kept in the molecule menu)
+                Button("Open Structure File…") {
+                    model.openStructureFile()
+                }
+                .keyboardShortcut("o", modifiers: [.command])
+                .disabled(model.isRunning || model.isScanning)
+
+                Button("Save Optimised Geometry in Molecule Menu") {
+                    model.saveOptimizedMolecule(select: false)
+                }
+                .disabled(model.optimizedMolecule == nil || model.optimizedMoleculeSaved)
+
+                Button("Save Optimised Geometry as XYZ…") {
+                    if let m = model.optimizedMolecule { model.exportXYZ(m) }
+                }
+                .disabled(model.optimizedMolecule == nil)
+
+                Divider()
+
                 Button("Export Results as Text…") {
                     model.exportText()
                 }

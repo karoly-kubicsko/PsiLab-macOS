@@ -203,7 +203,7 @@ struct OptimizationView: View {
 
     private func header(_ out: MacQCOutput, _ opt: MacQCOptimization) -> some View {
         VStack(alignment: .leading, spacing: 4) {
-            Text("\(Fmt.formula(out.input.molecule)) · \(MethodChoice.title(of: out.input.method))/\(out.input.basis) · "
+            Text("\(out.moleculeTitle) · \(MethodChoice.title(of: out.input.method))/\(out.input.basis) · "
                  + (opt.isTransitionState ? "transition-state optimisation" : "geometry optimisation"))
                 .font(.title2.weight(.semibold))
             Label(opt.converged
@@ -281,6 +281,7 @@ struct OptimizationView: View {
                     }
                 }
             }
+            SaveOptimizedGeometryBox(model: model)
         }
         .dataPanel()
     }
@@ -659,7 +660,7 @@ struct FrequencyPage: View {
                     ErrorBanner(message: message)
                 }
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("\(Fmt.formula(out.input.molecule)) · harmonic frequencies · \(MethodChoice.title(of: out.input.method))/\(out.input.basis)")
+                    Text("\(out.moleculeTitle) · harmonic frequencies · \(MethodChoice.title(of: out.input.method))/\(out.input.basis)")
                         .font(.title2.weight(.semibold))
                     Text(geometryNote)
                         .foregroundStyle(.secondary)
@@ -914,7 +915,7 @@ struct ThermochemistryPage: View {
                     ErrorBanner(message: message)
                 }
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("\(Fmt.formula(out.input.molecule)) · thermochemistry")
+                    Text("\(out.moleculeTitle) · thermochemistry")
                         .font(.title2.weight(.semibold))
                     Text(String(format: "Ideal gas, rigid rotor, harmonic oscillators · T = %.2f K · p = %.2f Pa (%.6f atm, %.5f bar) · symmetry number %ld",
                                 t.temperature, t.pressure, t.pressure / 101325, t.pressure / 1.0e5, t.symmetryNumber))
@@ -1134,6 +1135,7 @@ struct JobSummaryPanel: View {
                     .secondaryActionStyle()
                     .disabled(!model.canUseOptimizedGeometry || model.isRunning)
                 }
+                SaveOptimizedGeometryBox(model: model)
             }
             .dataPanel()
         }

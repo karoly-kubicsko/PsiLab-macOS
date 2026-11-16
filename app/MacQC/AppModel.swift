@@ -112,6 +112,13 @@ final class AppModel {
     var ooBondLength: Double = MoleculeChoice.defaultPeroxideOO       // bohr, H2O2
     var dihedral: Double = MoleculeChoice.defaultPeroxideDihedral     // degrees, H2O2
 
+    // ΨLab 9.0: custom molecules (structure files), kept in Application Support/ΨLab/Molecules.json
+    var savedMolecules: [SavedMolecule] = MoleculeStore.load()
+    var customID: UUID?                    // the selected one (molecule == .custom)
+    var structureError: String?            // why the last structure file could not be read
+    var showStructureError = false
+    var savedMessage: String?              // after keeping an optimised geometry
+
     // Relaxed scan and transition-state search (7.0)
     var scans: [MoleculeChoice: ScanSettings] = [:]   // missing = the molecule's default scan
     var tsCalcAll = false                             // Hessian at every step (CalcAll)
@@ -182,7 +189,9 @@ final class AppModel {
     var estimateKey: String {
         guard isGeneral else { return "HeH+" }
         let s = scan
-        return "\(molecule.rawValue)|\(currentBasis)|\(method.rawValue)|\(bondLength)|\(angle)|\(ooBondLength)|\(dihedral)|"
+        let custom = molecule == .custom
+            ? (customMolecule.map { "\($0.id)|\($0.charge)|\($0.multiplicity)|\($0.atoms.hashValue)" } ?? "none") : ""
+        return "\(molecule.rawValue)|\(custom)|\(currentBasis)|\(method.rawValue)|\(bondLength)|\(angle)|\(ooBondLength)|\(dihedral)|"
             + "\(job.rawValue)|\(spMethod?.rawValue ?? "")|\(spBasis ?? "")|\(temperature)|\(pressure)|"
             + "\(tightConvergence)|\(maxSteps)|\(s.line)|\(s.fromInput)|\(s.start)|\(tsCalcAll)|\(eigenTest)"
     }
@@ -221,7 +230,7 @@ final class AppModel {
     /// Problem of the scan settings that the app reports before asking the backend (atoms), or nil.
     var scanProblem: String? {
         guard job == .scan else { return nil }
-        return scan.atomProblem(atomCount: molecule.atomCount)
+        return scan.atomProblem(atomCount: atomCount)
     }
 
     // MARK: Results and the running job
@@ -281,6 +290,13 @@ final class AppModel {
         if let m = defaults.string(forKey: "psilabMolecule"),
            let choice = MoleculeChoice.allCases.first(where: { $0.rawValue.lowercased() == m.lowercased() }) {
             molecule = choice
+        }
+        // ΨLab 9.0: -psilabStructure "<text of an .xyz or .gjf file>" -psilabStructureName co2.xyz
+        // (the text itself: the sandboxed app reads files only through the file panel)
+        if let text = defaults.string(forKey: "psilabStructure") {
+            addStructure(text: text, fileName: defaults.string(forKey: "psilabStructureName") ?? "structure.xyz", select: true)
+        } else if molecule == .custom {
+            if let last = savedMolecules.last { selectSaved(last.id) } else { molecule = .heh }
         }
         // HeH+: -psilabBasis STO-2G (Szabo–Ostlund) or aug-cc-pVTZ (general path)
         if let b = defaults.string(forKey: "psilabBasis"),
@@ -362,9 +378,24 @@ final class AppModel {
     func currentInput(printLevel: Int = 2) -> MacQCInput {
         var input = MacQCInput()
         input.printLevel = printLevel
+        if isGeneral && molecule == .custom {
+            // ΨLab 9.0: the atoms of the selected custom molecule (Å)
+            input.molecule = MoleculeChoice.custom.rawValue
+            input.R = 0
+            if let c = customMolecule {
+                input.atoms = c.atoms
+                input.charge = c.charge
+                input.multiplicity = c.multiplicity
+                input.title = c.title
+            } else {
+                input.atoms = []
+            }
+        }
         if isGeneral {
-            input.molecule = molecule.rawValue
-            input.R = bondLength
+            if molecule != .custom {
+                input.molecule = molecule.rawValue
+                input.R = bondLength
+            }
             input.angle = molecule.angleLabel == nil ? MoleculeChoice.defaultWaterAngle : angle
             if molecule == .h2o2 {
                 input.ROO = ooBondLength
@@ -438,7 +469,7 @@ final class AppModel {
     /// The optimised geometry (minimum or transition state) of the displayed result, if it is for
     /// the selected molecule and converged.
     var optimizedGeometry: GeometryInputs? {
-        guard isGeneral, let out = result, out.input.molecule == molecule.rawValue, out.input.isGeneral,
+        guard isGeneral, molecule != .custom, let out = result, out.input.molecule == molecule.rawValue, out.input.isGeneral,
               let opt = out.optimization, opt.converged else { return nil }
         let symmetric = opt.symmetricEnd || (out.input.molecule != "H2O" && out.input.molecule != "H2O2" && out.input.molecule != "NH3")
         return geometryInputs(opt.finalGeometry, symmetric: symmetric)
@@ -483,6 +514,10 @@ final class AppModel {
     /// (Gaussian's usual route: scan, then Opt=TS from the highest point): copies its geometry
     /// into the inputs and selects the job TS optimisation + frequencies.
     func startTransitionStateSearch(from point: MacQCScanPoint) {
+        if molecule == .custom {
+            startCustomTransitionStateSearch(from: point)
+            return
+        }
         guard let out = result, out.input.molecule == molecule.rawValue,
               let g = geometryInputs(point.geometry, symmetric: true) else { return }
         useGeometry(g)
@@ -492,6 +527,7 @@ final class AppModel {
     /// The displayed scan belongs to the selected molecule (its points can be copied).
     var scanMatchesMolecule: Bool {
         guard let out = result, out.scan != nil else { return false }
+        if molecule == .custom { return resultMatchesCustom }
         return out.input.molecule == molecule.rawValue && out.input.isGeneral && isGeneral
     }
 
@@ -543,6 +579,7 @@ final class AppModel {
         guard !isRunning else { return }
         isRunning = true
         errorMessage = nil
+        savedMessage = nil
         progress = MacQCProgress()
         progressLine = ""
         runStarted = Date()
@@ -592,6 +629,10 @@ final class AppModel {
             }
             result = output
             errorMessage = output.error
+            // UI smoke test (-psilabSaveOptimized YES): keep the optimised geometry
+            if UserDefaults.standard.bool(forKey: "psilabSaveOptimized") && optimizedMolecule != nil {
+                saveOptimizedMolecule(select: false)
+            }
             if output.scan != nil {
                 scanPage = .relaxed
             }
@@ -647,6 +688,10 @@ final class AppModel {
     /// Run scan button: confirmation first when the scan would take more than 30 s.
     func requestScan() {
         guard !isScanning else { return }
+        if let reason = curveUnavailableReason {
+            scanMessage = reason
+            return
+        }
         if isGeneral && energyRefusal != nil {
             scanMessage = energyRefusal
             return
@@ -839,7 +884,7 @@ final class AppModel {
     private func generalSummaryText(_ out: MacQCOutput) -> String? {
         guard let mol = out.molecule, let rhf = out.rhf else { return nil }
         var lines: [String] = []
-        lines.append("ΨLab – \(mol.name), \(out.input.method)/\(out.basis?.name ?? out.input.basis)")
+        lines.append("ΨLab – \(out.moleculeTitle), \(out.input.method)/\(out.basis?.name ?? out.input.basis)")
         lines.append(Fmt.moleculeGeometry(mol, plain: true))
         if let b = out.basis {
             let atoms = Fmt.uniqueAtoms(b.atoms).map { "\($0.symbol) \($0.contraction)" }.joined(separator: ", ")
@@ -1004,6 +1049,10 @@ final class AppModel {
         if out.isGeneral {
             let method = out.input.method
             let job = out.input.job == "energy" ? "" : "-" + out.input.job
+            if out.input.isCustom {
+                let name = (out.molecule?.formula ?? "custom").replacingOccurrences(of: " ", with: "")
+                return String(format: "PsiLab-%@-%@-%@%@", name, method, out.input.basis, job)
+            }
             return String(format: "PsiLab-%@-%@-%@%@-R%.4f", out.input.molecule, method, out.input.basis, job, out.input.R)
         }
         return String(format: "PsiLab-HeH+-STO%ldG-R%.4f", out.input.nGaussians, out.input.R)

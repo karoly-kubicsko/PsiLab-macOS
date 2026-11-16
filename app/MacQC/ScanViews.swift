@@ -111,7 +111,7 @@ struct RelaxedScanView: View {
 
     private func header(_ out: MacQCOutput, _ scan: MacQCScan) -> some View {
         VStack(alignment: .leading, spacing: 4) {
-            Text("\(Fmt.formula(out.input.molecule)) · \(MethodChoice.title(of: out.input.method))/\(out.input.basis) · "
+            Text("\(out.moleculeTitle) · \(MethodChoice.title(of: out.input.method))/\(out.input.basis) · "
                  + (scan.relaxed ? "relaxed scan of " : "scan of ") + scan.coordinate.definition)
                 .font(.title2.weight(.semibold))
             Text(String(format: "%@ from %@ in %ld steps of %@ (%ld points); ", scan.coordinate.type.capitalized,

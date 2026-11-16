@@ -17,8 +17,13 @@ nonisolated enum MoleculeChoice: String, CaseIterable, Identifiable, Sendable {
     case h2o = "H2O"
     case h2o2 = "H2O2"
     case nh3 = "NH3"
+    /// ΨLab 9.0: a molecule from a structure file (the app keeps them; see CustomMolecules.swift).
+    case custom = "custom"
 
     var id: String { rawValue }
+
+    /// The built-in molecules, in the order of the molecule menu.
+    static var builtIn: [MoleculeChoice] { allCases.filter { $0 != .custom } }
 
     /// Name in the user interface.
     var title: String {
@@ -29,6 +34,7 @@ nonisolated enum MoleculeChoice: String, CaseIterable, Identifiable, Sendable {
         case .h2o: return "H₂O"
         case .h2o2: return "H₂O₂"
         case .nh3: return "NH₃"
+        case .custom: return "Custom molecule"
         }
     }
 
@@ -38,6 +44,7 @@ nonisolated enum MoleculeChoice: String, CaseIterable, Identifiable, Sendable {
         case .lih: return 4
         case .h2o, .nh3: return 10
         case .h2o2: return 18
+        case .custom: return 0
         }
     }
 
@@ -50,6 +57,7 @@ nonisolated enum MoleculeChoice: String, CaseIterable, Identifiable, Sendable {
         case .h2o: return ["O", "H", "H"]
         case .h2o2: return ["O", "O", "H", "H"]
         case .nh3: return ["N", "H", "H", "H"]
+        case .custom: return []
         }
     }
 
@@ -68,6 +76,7 @@ nonisolated enum MoleculeChoice: String, CaseIterable, Identifiable, Sendable {
         case .lih: return "R(Li–H)"
         case .h2o, .h2o2: return "R(O–H)"
         case .nh3: return "R(N–H)"
+        case .custom: return "R"
         }
     }
 
@@ -91,6 +100,7 @@ nonisolated enum MoleculeChoice: String, CaseIterable, Identifiable, Sendable {
         case .h2o: return 0.9572 / Units.bohrToAngstrom
         case .h2o2: return 0.9670 / Units.bohrToAngstrom
         case .nh3: return 1.012 / Units.bohrToAngstrom
+        case .custom: return 1.0
         }
     }
 
@@ -125,7 +135,7 @@ nonisolated enum MoleculeChoice: String, CaseIterable, Identifiable, Sendable {
         case .heh: return 0.8...5.0
         case .h2: return (0.40 / Units.bohrToAngstrom)...(3.00 / Units.bohrToAngstrom)
         case .lih: return (1.00 / Units.bohrToAngstrom)...(4.00 / Units.bohrToAngstrom)
-        case .h2o, .h2o2, .nh3: return (0.70 / Units.bohrToAngstrom)...(2.00 / Units.bohrToAngstrom)
+        case .h2o, .h2o2, .nh3, .custom: return (0.70 / Units.bohrToAngstrom)...(2.00 / Units.bohrToAngstrom)
         }
     }
 
@@ -138,6 +148,7 @@ nonisolated enum MoleculeChoice: String, CaseIterable, Identifiable, Sendable {
         case .h2o: return "10 electrons, closed shell (Full CI impossible)"
         case .h2o2: return "18 electrons, closed shell, C₂ (Full CI impossible)"
         case .nh3: return "10 electrons, closed shell, C₃ᵥ (Full CI impossible)"
+        case .custom: return "A molecule from a structure file: .xyz (Å; the comment line is its name, LaTeX allowed) or Gaussian input (.gjf, .com)"
         }
     }
 
@@ -157,11 +168,15 @@ nonisolated enum MoleculeChoice: String, CaseIterable, Identifiable, Sendable {
             return [ScanSuggestion(kind: .dihedral, atoms: [2, 1, 3, 4], title: "Umbrella: D(H2–N1–H3–H4) from −110° to −180°", steps: 7, step: -10, start: -110),
                     ScanSuggestion(kind: .angle, atoms: [2, 1, 3], title: "One H–N–H angle", steps: 8, step: 2, start: nil),
                     ScanSuggestion(kind: .bond, atoms: [1, 2], title: "One N–H bond", steps: 10, step: 0.05, start: nil)]
+        case .custom:
+            return [ScanSuggestion(kind: .bond, atoms: [1, 2], title: "Bond between atoms 1 and 2", steps: 10, step: 0.05, start: nil),
+                    ScanSuggestion(kind: .angle, atoms: [2, 1, 3], title: "Angle of atoms 2–1–3", steps: 8, step: 5, start: nil),
+                    ScanSuggestion(kind: .dihedral, atoms: [4, 1, 2, 3], title: "Dihedral of atoms 4–1–2–3 from 0° to 180°", steps: 18, step: 10, start: 0)]
         }
     }
 
     /// The default scan of this molecule.
-    var defaultScan: ScanSettings { ScanSettings(scanSuggestions[0]) }
+    var defaultScan: ScanSettings { scanSuggestions.first.map { ScanSettings($0) } ?? ScanSettings() }
 }
 
 /// Type of the scanned coordinate (Gaussian's B, A and D).

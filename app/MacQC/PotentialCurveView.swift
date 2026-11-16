@@ -62,7 +62,7 @@ struct PotentialCurveView: View {
                 }
                 .prominentActionStyle()
                 .accessibilityLabel("Run scan")
-                .disabled(model.isScanning)
+                .disabled(model.isScanning || model.curveUnavailableReason != nil)
 
                 if model.isScanning {
                     Button("Stop") {
@@ -108,6 +108,9 @@ struct PotentialCurveView: View {
         let rangeText = String(format: "R = %.2f … %.2f Å (%.2f … %.2f bohr)",
                                range.lowerBound * Units.bohrToAngstrom, range.upperBound * Units.bohrToAngstrom,
                                range.lowerBound, range.upperBound)
+        if let reason = model.curveUnavailableReason {
+            return reason
+        }
         if model.isGeneral {
             let method = model.method == .hf ? "RHF" : "RHF and \(model.method.title)"
             let what = model.molecule.angleLabel != nil ? "all X–H bonds stretched together, \(rangeText), the other geometry inputs fixed" : rangeText

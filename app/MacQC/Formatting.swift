@@ -103,6 +103,11 @@ nonisolated enum Fmt {
     /// angle O–O–H = 102.32°, dihedral H–O–O–H = 113.70°" (`plain`: "deg" instead of "°").
     static func moleculeGeometry(_ mol: MacQCMoleculeInfo, plain: Bool = false) -> String {
         let deg = plain ? " deg" : "°"
+        if mol.custom == true {
+            // 9.0: a custom molecule is given by its Cartesian coordinates
+            let n = mol.atoms.count
+            return "\(plain ? (mol.formula ?? "") : formula(mol.formula ?? "")), \(n) atom\(n == 1 ? "" : "s"), Cartesian coordinates"
+        }
         let choice = MoleculeChoice(rawValue: mol.name)
         var text = "\(choice?.bondLabel ?? "R") = " + lengthBoth(mol.R)
         if let roo = mol.ROO {
@@ -161,7 +166,7 @@ nonisolated enum Fmt {
     /// Point group with subscripts: "C2v" -> "C₂ᵥ", "D3h" -> "D₃ₕ", "Cs" -> "Cₛ".
     static func pointGroup(_ name: String) -> String {
         let subscripts: [Character: Character] = ["1": "₁", "2": "₂", "3": "₃", "4": "₄", "5": "₅", "6": "₆",
-                                                  "h": "ₕ", "v": "ᵥ", "s": "ₛ", "i": "ᵢ"]
+                                                  "7": "₇", "8": "₈", "h": "ₕ", "v": "ᵥ", "s": "ₛ", "i": "ᵢ"]
         var out = ""
         for (i, c) in name.enumerated() {
             out.append(i == 0 ? c : (subscripts[c] ?? c))
