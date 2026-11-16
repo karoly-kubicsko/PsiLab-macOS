@@ -1,119 +1,93 @@
 name: releases
 
-# Makes the GitHub Releases of the versions below hold their own app builds (CI artifacts, deleted
-# after 90 days; the releases stay). Runs when this file changes on main (once, after it is
-# merged) or by hand. The app workflow publishes each new version (a new MARKETING_VERSION) once
-# and does not change existing releases.
-#
-# The job never creates, moves or deletes a tag. The workflow token is refused (HTTP 403) when a
-# tag would point at one of these older commits - by the REST API, by git push and when a release
-# creates its tag (v6.0, run 43775442184; v1.0 ... v4.0 were still created that way). A tag that
-# is missing or at another commit is reported; a person sets it (README, "Releases"), and the job
-# goes on with the other versions and fails at the end. For a tag at its commit:
-# - no release: the release is created on the tag, with the build and the notes;
-# - a release without this build (other notes, other or no assets): its assets are replaced by
-#   the build, and its title and notes are set;
-# - a release with this build is left alone.
-# At the end the highest version is marked as the latest release.
-#
-# v6.0 and v7.0: until 8.0, the app workflow replaced a release with every later build of the same
-# version, and the stages of a new version keep the previous version's number until their last
-# stage. So the builds of the 7.0 stages replaced v6.0, and the build of the orbital viewer (8.0,
-# merged while still numbered 7.0) became v7.0. v6.0 is the build of 9904c29 (merge of #28); v7.0
-# is ΨLab 6.0 with the changes of stages 7.1-7.4 (the merge of #32, b54ac0e) and the version 7.0
-# (commit c11b1d7, the tip of the branch claude/fervent-thompson-voh6gk), without the orbital
-# viewer.
+# ONE-OFF version on the branch claude/psilab-5-0-dev-ypee0y, run by hand (workflow_dispatch on
+# this branch); main keeps the regular releases.yml. It only sets the tags:
+#   v6.0 -> 9904c29 (the tag is missing)
+#   v7.0 -> c11b1d7 (the tag is at d0b5770)
+# The workflow token was refused (HTTP 403) every time it tried to set a tag at a commit whose
+# workflow files matched no branch tip, and it succeeded every time a branch tip had the same
+# workflow files (v1.0, v2.0: claude/dazzling-hypatia-wngrbm; v4.0:
+# claude/psilab-3-molecules-bases-61tfh7). The branch claude/release-6.0 is at 9904c29 and
+# claude/fervent-thompson-voh6gk at c11b1d7. Each creation is tried up to 8 times, 30 s apart.
+# v7.0 is moved if GitHub allows it; otherwise a probe tag at c11b1d7 is created and deleted
+# first, and only then is the release v7.0 deleted with its tag and the tag created at c11b1d7.
+# The releases are then completed (builds, notes) by the regular releases.yml on main.
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - ".github/workflows/releases.yml"
   workflow_dispatch:
 
 permissions:
   contents: write
-  actions: read
 
 jobs:
-  releases:
+  tags:
     runs-on: ubuntu-latest
     steps:
-      - name: Attach the builds of these versions to their releases
+      - name: Set the tags v6.0 and v7.0
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GH_REPO: ${{ github.repository }}
         run: |
-          set -euo pipefail
-          PROBLEMS=0
-          # version | app-workflow run with the build | commit | what was new
-          while IFS='|' read -r VERSION RUN SHA SUMMARY; do
-            VERSION=$(echo "$VERSION" | xargs)
-            [ -n "$VERSION" ] || continue
-            TAG="v$VERSION"
-            ASSET="PsiLab-$VERSION.app.zip"
-            BUILT="Built by run $RUN from $SHA"
-            NOTES="ΨLab $VERSION: $SUMMARY $BUILT (macOS 14 and later, Apple Silicon and Intel). Unzip $ASSET; the app is not notarized: right-click ΨLab.app ▸ Open the first time, or run xattr -dr com.apple.quarantine ΨLab.app."
-            # the commit of the tag (lightweight or annotated)
-            if ! OBJECT=$(gh api "repos/$GH_REPO/git/ref/tags/$TAG" --jq '.object.type + " " + .object.sha' 2> /dev/null); then
-              echo "::error::$TAG: the tag does not exist; create it at $SHA (README, Releases)"
-              PROBLEMS=$((PROBLEMS + 1))
-              continue
+          set -uo pipefail
+          tag_commit() {  # the commit of a tag; empty if the tag does not exist
+            local o
+            o=$(gh api "repos/$GH_REPO/git/ref/tags/$1" --jq '.object.type + " " + .object.sha' 2> /dev/null) || return 0
+            if [ "${o%% *}" = tag ]; then
+              gh api "repos/$GH_REPO/git/tags/${o#* }" --jq .object.sha
+            else
+              echo "${o#* }"
             fi
-            AT=${OBJECT#* }
-            if [ "${OBJECT%% *}" = "tag" ]; then
-              AT=$(gh api "repos/$GH_REPO/git/tags/$AT" --jq .object.sha)
-            fi
-            if [ "$AT" != "$SHA" ]; then
-              echo "::error::$TAG: the tag is at $AT, not at $SHA; set it there (README, Releases)"
-              PROBLEMS=$((PROBLEMS + 1))
-              continue
-            fi
-            NAMES=""
-            if gh release view "$TAG" > /dev/null 2>&1; then
-              BODY=$(gh release view "$TAG" --json body --jq .body)
-              NAMES=$(gh release view "$TAG" --json assets --jq '.assets[].name')
-              if [ "$NAMES" = "$ASSET" ] && [[ "$BODY" == *"$BUILT"* ]]; then
-                echo "$TAG: at $SHA with the build of run $RUN, unchanged"
-                continue
+          }
+          create_tag() {  # create_tag NAME COMMIT
+            local i
+            for i in 1 2 3 4 5 6 7 8; do
+              if gh api -X POST "repos/$GH_REPO/git/refs" -f ref="refs/tags/$1" -f sha="$2" > /dev/null; then
+                echo "created $1 at $2 (try $i)"
+                return 0
               fi
-              EXISTS=yes
-            else
-              EXISTS=no
-            fi
-            DIR="download-$VERSION"
-            gh run download "$RUN" --name "ΨLab-app" --dir "$DIR"
-            mv "$DIR/ΨLab.app.zip" "$ASSET"
-            if [ "$EXISTS" = yes ]; then
-              gh release upload "$TAG" "$ASSET" --clobber
-              while IFS= read -r NAME; do
-                if [ -n "$NAME" ] && [ "$NAME" != "$ASSET" ]; then
-                  gh release delete-asset "$TAG" "$NAME" --yes
-                fi
-              done <<< "$NAMES"
-              gh release edit "$TAG" --title "ΨLab $VERSION" --notes "$NOTES"
-              echo "$TAG: the build of run $RUN attached, title and notes set"
-            else
-              # --verify-tag: never create the tag (it exists at $SHA, checked above)
-              gh release create "$TAG" "$ASSET" --verify-tag --title "ΨLab $VERSION" --notes "$NOTES" --latest=false
-              echo "$TAG: release created on the tag, with the build of run $RUN"
-            fi
-          done <<'TABLE'
-          1.0|43035989222|72c550877db4f52fad57b14ab5731a5e5c3c22ca|HeH+ in STO-1G/2G/3G: restricted Hartree-Fock (Szabo-Ostlund) and Full CI, potential curves.
-          2.0|43236328696|ed3f0d69367334fa1355b5bdc6973fd56dea4efb|terminal version psilab, bond lengths in angstrom and bohr, Export Results as Text, app icon and the name ΨLab.
-          3.0|43323100734|18e28035d188b57f2db6aa68889bf7e17ad9b3b2|H2, LiH and H2O in aug-cc-pVXZ and aug-cc-pCVXZ: restricted Hartree-Fock and Full CI.
-          4.0|43409354864|969db1158e590cd5a7edcce77658ce5b6b7cdc40|coupled cluster CCSD, CCSD(T), CCSDT and CCSDTQ; the method menu HF ... Full CI.
-          6.0|43596832549|9904c29c1c1f32c5d6db52008401eb5525b2b438|the molecule of each optimisation step, drawn and played step by step; every normal mode animated.
-          7.0|43755295792|c11b1d70689308d51448d420e3517be18a4c3790|relaxed potential-energy scans (Opt=ModRedundant), transition-state searches (Opt=TS with CalcFC or CalcAll; ts, ts+freq, ts+freq+sp), H2O2 and NH3 with point groups up to D3h, HeH+ in the correlation-consistent basis sets with every method and job type, and the Scan tab in the app.
-          TABLE
-          # the highest version is the latest release (a release made by hand may have taken it)
-          LATEST=$(gh release list --limit 100 --exclude-drafts --exclude-pre-releases --json tagName --jq '.[].tagName' | sort -V | tail -n 1)
-          if [ -n "$LATEST" ]; then
-            gh release edit "$LATEST" --latest
-            echo "latest release: $LATEST"
+              if [ "$(tag_commit "$1")" = "$2" ]; then
+                echo "$1 is at $2"
+                return 0
+              fi
+              echo "try $i: creating $1 at $2 was refused"
+              [ "$i" = 8 ] || sleep 30
+            done
+            return 1
+          }
+          FAIL=0
+
+          V6=9904c29c1c1f32c5d6db52008401eb5525b2b438
+          AT=$(tag_commit v6.0)
+          if [ "$AT" = "$V6" ]; then
+            echo "v6.0 is at $V6 already"
+          elif [ -z "$AT" ]; then
+            create_tag v6.0 "$V6" || { echo "::error::v6.0 could not be created at $V6"; FAIL=1; }
+          else
+            echo "::error::v6.0 is at $AT; not changed"
+            FAIL=1
           fi
-          gh release list --limit 20
-          if [ "$PROBLEMS" -gt 0 ]; then
-            echo "::error::$PROBLEMS tag(s) missing or at another commit: set them by hand (README, Releases), then run this workflow again"
-            exit 1
+
+          V7=c11b1d70689308d51448d420e3517be18a4c3790
+          AT=$(tag_commit v7.0)
+          if [ "$AT" = "$V7" ]; then
+            echo "v7.0 is at $V7 already"
+          elif [ -z "$AT" ]; then
+            create_tag v7.0 "$V7" || { echo "::error::v7.0 could not be created at $V7"; FAIL=1; }
+          elif gh api -X PATCH "repos/$GH_REPO/git/refs/tags/v7.0" -f sha="$V7" -F force=true > /dev/null; then
+            echo "moved v7.0 from $AT to $V7 (the release v7.0 stays)"
+          else
+            echo "moving v7.0 was refused; probing a new tag at $V7"
+            PROBE="probe-v7.0-$GITHUB_RUN_ID"
+            if create_tag "$PROBE" "$V7"; then
+              gh api -X DELETE "repos/$GH_REPO/git/refs/tags/$PROBE" && echo "deleted $PROBE"
+              gh release delete v7.0 --cleanup-tag --yes && echo "deleted the release v7.0 and its tag (was at $AT)"
+              create_tag v7.0 "$V7" || { echo "::error::v7.0 was deleted and could not be created at $V7"; FAIL=1; }
+            else
+              echo "::error::a tag at $V7 is refused; v7.0 left at $AT"
+              FAIL=1
+            fi
           fi
+
+          echo "tags now:"
+          gh api "repos/$GH_REPO/git/matching-refs/tags/" --jq '.[] | .ref + " " + .object.sha'
+          exit $FAIL
