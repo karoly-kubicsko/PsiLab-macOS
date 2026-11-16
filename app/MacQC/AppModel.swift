@@ -123,6 +123,8 @@ final class AppModel {
     var scans: [MoleculeChoice: ScanSettings] = [:]   // missing = the molecule's default scan
     var tsCalcAll = false                             // Hessian at every step (CalcAll)
     var eigenTest = true                              // exactly one negative eigenvalue
+    var analyticHessian = true                        // 10.0: Full CI, CCSD, CCSD(T) Hessians analytic
+    var analyticInitialHessian = false                // 10.0: minimisations start from the analytic Hessian
 
     // Job (ΨLab 5.0)
     var job: JobChoice = .energy
@@ -193,7 +195,7 @@ final class AppModel {
             ? (customMolecule.map { "\($0.id)|\($0.charge)|\($0.multiplicity)|\($0.atoms.hashValue)" } ?? "none") : ""
         return "\(molecule.rawValue)|\(custom)|\(currentBasis)|\(method.rawValue)|\(bondLength)|\(angle)|\(ooBondLength)|\(dihedral)|"
             + "\(job.rawValue)|\(spMethod?.rawValue ?? "")|\(spBasis ?? "")|\(temperature)|\(pressure)|"
-            + "\(tightConvergence)|\(maxSteps)|\(s.line)|\(s.fromInput)|\(s.start)|\(tsCalcAll)|\(eigenTest)"
+            + "\(tightConvergence)|\(maxSteps)|\(s.line)|\(s.fromInput)|\(s.start)|\(tsCalcAll)|\(eigenTest)|\(analyticHessian)|\(analyticInitialHessian)"
     }
 
     /// The backend refuses the calculation (reason), or the inputs are invalid.
@@ -328,7 +330,7 @@ final class AppModel {
             if a > 0 { angle = a }
         }
         // ΨLab 7.0: -psilabROO 1.40 (Å) -psilabDihedral 160 -psilabScan "D 3 1 2 4 S 18 10"
-        // -psilabScanStart 0 -psilabTSHessian calcall -psilabEigenTest NO
+        // -psilabScanStart 0 -psilabTSHessian calcall -psilabEigenTest NO -psilabHessian numerical
         if defaults.object(forKey: "psilabROO") != nil {
             let r = defaults.double(forKey: "psilabROO")
             if r > 0 { ooBondLength = r / Units.bohrToAngstrom }
@@ -348,6 +350,12 @@ final class AppModel {
         }
         if defaults.object(forKey: "psilabEigenTest") != nil {
             eigenTest = defaults.bool(forKey: "psilabEigenTest")
+        }
+        if let h = defaults.string(forKey: "psilabHessian") {
+            analyticHessian = h.lowercased() != "numerical"
+        }
+        if let h = defaults.string(forKey: "psilabInitialHessian") {
+            analyticInitialHessian = h.lowercased() == "analytic"
         }
         if let t = defaults.string(forKey: "psilabTab") {
             switch t.lowercased() {
@@ -423,6 +431,8 @@ final class AppModel {
             }
             input.tsHessian = tsCalcAll ? "calcall" : "calcfc"
             input.eigenTest = eigenTest
+            input.hessian = analyticHessian ? "analytic" : "numerical"
+            input.initialHessian = analyticInitialHessian && method.hasAnalyticCorrelatedHessian ? "analytic" : "auto"
         } else {
             input.molecule = MoleculeChoice.heh.rawValue
             input.basis = hehBasis   // STO-1G, STO-2G or STO-3G: the Szabo–Ostlund calculation

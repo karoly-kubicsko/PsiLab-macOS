@@ -83,6 +83,7 @@ struct OptimizationOptions {
     bool transition_state = false;
     std::string ts_hessian = "calcfc";   // calcfc (computed at the first point) | calcall (every point)
     bool eigen_test = true;              // stop unless the Hessian has exactly one negative eigenvalue
+    bool numerical_hessian = false;      // 10.0: computed Hessians by differences even where analytic
 };
 
 struct ConvergenceItem {

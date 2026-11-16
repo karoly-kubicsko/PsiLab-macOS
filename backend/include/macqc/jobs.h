@@ -52,6 +52,9 @@ struct JobSettings {
     // default for Opt=(TS,CalcFC)) or at every point ("calcall"); the eigenvalue test
     std::string ts_hessian = "calcfc";
     bool eigen_test = true;
+    // 10.0: "analytic" or "numerical" Hessians of Full CI, CCSD and CCSD(T)
+    std::string hessian = "analytic";
+    std::string initial_hessian = "auto";  // minimisations: auto | analytic | lindh
 };
 
 // The scanned coordinate: type (Stretch, Bend, Dihedral) and 0-based atoms.
@@ -201,6 +204,6 @@ std::string job_estimate_text(const MolecularResult& prepared, const JobEstimate
 MolecularResult final_point_result(const JobResult& job, const MolecularInput& input);
 
 // The program version.
-constexpr const char* kProgramVersion = "9.0";
+constexpr const char* kProgramVersion = "10.0";
 
 }  // namespace macqc

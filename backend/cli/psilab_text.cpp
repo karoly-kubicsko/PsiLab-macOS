@@ -183,6 +183,8 @@ Settings parse_input_text(const std::string& text, const std::string& base_direc
         if (k == "scanstart") return "scan_start";
         if (k == "tshessian" || k == "tsfc") return "ts_hessian";
         if (k == "eigentest") return "eigen_test";
+        if (k == "hessian") return "hessian";
+        if (k == "initialhessian") return "initial_hessian";
         if (k == "threads") return "threads";
         if (k == "memory" || k == "memorymb") return "memory";
         if (k == "fcimemory" || k == "fcimemorymb") return "fci_memory";
@@ -219,7 +221,7 @@ Settings parse_input_text(const std::string& text, const std::string& base_direc
         if (k.empty())
             fail(line, "unknown key '" + key +
                            "' (known: molecule, basis, R, angle, R_OO, dihedral, method, job, sp_method, sp_basis, temperature, "
-                           "pressure, opt_convergence, max_steps, scan, scan_start, ts_hessian, eigen_test, zeta_He, zeta_H, exact_erf, "
+                           "pressure, opt_convergence, max_steps, scan, scan_start, ts_hessian, eigen_test, hessian, initial_hessian, zeta_He, zeta_H, exact_erf, "
                            "scan_step, threads, memory, fci_memory, basis_dir, geometry, charge, multiplicity, title)");
         if (entries.count(k)) fail(line, "'" + key + "' is given twice");
         entries[k] = Entry{key, value, line};
@@ -293,7 +295,7 @@ Settings parse_input_text(const std::string& text, const std::string& base_direc
     only("fci_memory", !heh, general);
     only("basis_dir", !heh, general);
     for (const char* k : {"job", "sp_method", "sp_basis", "temperature", "pressure", "opt_convergence", "max_steps",
-                          "ts_hessian", "eigen_test"})
+                          "ts_hessian", "eigen_test", "hessian", "initial_hessian"})
         only(k, !heh, general);
 
     std::vector<std::pair<std::string, Entry>> ordered(entries.begin(), entries.end());
@@ -403,6 +405,15 @@ Settings parse_input_text(const std::string& text, const std::string& base_direc
             s.input.tsHessian = h;
         } else if (k == "eigen_test") {
             s.input.eigenTest = parse_bool(value, ln, e.key);
+        } else if (k == "hessian") {
+            const std::string h = lower(value);
+            if (h != "analytic" && h != "numerical") fail(ln, "hessian must be analytic or numerical, got '" + value + "'");
+            s.input.hessian = h;
+        } else if (k == "initial_hessian") {
+            const std::string h = lower(value);
+            if (h != "auto" && h != "analytic" && h != "model")
+                fail(ln, "initial_hessian must be auto, analytic or model, got '" + value + "'");
+            s.input.initialHessian = h;
         } else if (k == "sp_method") {
             std::string m;
             for (char c : lower(value))
@@ -469,6 +480,10 @@ Settings parse_input_text(const std::string& text, const std::string& base_direc
         job_only("max_steps", macqc::job_uses_optimizer(job), "opt, opt+freq, opt+freq+sp, scan, ts, ts+freq and ts+freq+sp");
         job_only("ts_hessian", macqc::job_has_ts(job), "ts, ts+freq and ts+freq+sp");
         job_only("eigen_test", macqc::job_has_ts(job), "ts, ts+freq and ts+freq+sp");
+        job_only("hessian", macqc::job_has_ts(job) || macqc::job_has_frequencies(job),
+                 "freq, opt+freq, opt+freq+sp, ts, ts+freq and ts+freq+sp");
+        job_only("initial_hessian", macqc::job_uses_optimizer(job) && !macqc::job_has_ts(job),
+                 "opt, opt+freq, opt+freq+sp and scan");
         job_only("scan", macqc::job_has_scan(job), "scan");
         job_only("scan_start", macqc::job_has_scan(job), "scan");
         if (macqc::job_has_scan(job) && s.input.scan.empty())

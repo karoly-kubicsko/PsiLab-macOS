@@ -55,7 +55,9 @@ void usage(const char* prog) {
                  "  scan = N1 N2 [N3 [N4]] S <steps> <step>   relaxed scan (job = scan), Gaussian ModRedundant line:\n"
                  "        2 atoms: bond (step in angstrom), 3: angle, 4: dihedral (degrees); nsteps + 1 points\n"
                  "  scan_start = <angstrom | degrees>     first point (default: the input geometry)\n"
-                 "  ts_hessian = calcfc | calcall   eigen_test = yes | no   (ts, ts+freq: Gaussian Opt=TS, CalcFC, CalcAll)\n\n"
+                 "  ts_hessian = calcfc | calcall   eigen_test = yes | no   (ts, ts+freq: Gaussian Opt=TS, CalcFC, CalcAll)\n"
+                 "  hessian = analytic | numerical   (frequencies and TS searches with FCI, CCSD, CCSD(T); 10.0)\n"
+                 "  initial_hessian = auto | analytic | model   (minimisations: the first Hessian; 10.0)\n\n"
                  "The output file is written while the job runs (tail -f OUTPUT follows it).\n",
                  prog, prog, prog, prog, prog);
 }

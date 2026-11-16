@@ -281,6 +281,8 @@ std::string plan_scan(const Molecule& mol, const JobSettings& s, ScanPlan* plan)
     return "";
 }
 
+static bool fewer_than_two_atoms(const MolecularResult& p) { return p.molecule.atoms.size() < 2; }
+
 JobEstimate estimate_job(const MolecularResult& p, const JobSettings& s, const MolecularResult* sp) {
     JobEstimate est;
     const std::string& m = p.input.method;
@@ -315,6 +317,22 @@ JobEstimate estimate_job(const MolecularResult& p, const JobSettings& s, const M
             st.evaluations = 1;
             st.evaluation_kind = "Hessians";
             st.seconds = 7.0 * tg;
+        } else if (analytic && (m == "FCI" || m == "CCSD" || m == "CCSD(T)") && s.hessian != "numerical" && !fewer_than_two_atoms(p) &&
+                   analytic_hessian_bytes(m, nocc, nbf, nbf, static_cast<int>(p.molecule.atoms.size())) / 1048576.0 <=
+                       p.input.fci_memory_mb) {
+            // 10.0: analytic correlated Hessian, responses along the internal directions and the
+            // field components (dipole derivatives)
+            st.analytic = true;
+            const int dirs = static_cast<int>(vibrational_directions(p.molecule).size());
+            const int responses = dirs + 3;
+            st.evaluations = responses;
+            st.evaluation_kind = "responses";
+            st.how = strprintf("analytic Hessian: %s responses along the %d internal direction%s and the 3 electric-field "
+                               "components (IR intensities), CPHF orbital response of all %zu coordinates, Z-vector",
+                               m == "FCI" ? "CI-vector" : "amplitude", dirs, dirs == 1 ? "" : "s",
+                               3 * p.molecule.atoms.size());
+            st.seconds = ((m == "FCI" ? 0.6 : 1.5) * responses + 3.0) * tg;
+            st.memory_mb = analytic_hessian_bytes(m, nocc, nbf, nbf, static_cast<int>(p.molecule.atoms.size())) / 1048576.0;
         } else if (analytic && uses_cartesian_displacements(p.molecule)) {
             // 9.0: custom molecules, Cartesian directions orthogonal to translations and rotations
             st.analytic = false;
@@ -379,6 +397,11 @@ JobEstimate estimate_job(const MolecularResult& p, const JobSettings& s, const M
             st.analytic = st.analytic && h.analytic;
         } else if (m == "RHF" && nbf <= 100) {
             st.seconds += 6.0 * tg;  // analytic initial Hessian
+        } else if (s.initial_hessian == "analytic" && analytic && (m == "FCI" || m == "CCSD" || m == "CCSD(T)")) {
+            // 10.0: the analytic correlated Hessian at the first point (no dipole derivatives)
+            const int dirs = static_cast<int>(vibrational_directions(p.molecule).size());
+            st.seconds += ((m == "FCI" ? 0.6 : 1.5) * dirs + 3.0) * tg;
+            st.how += "; analytic initial Hessian";
         }
         st.memory_mb = grad_mb;
         est.steps.push_back(st);
@@ -966,6 +989,7 @@ static void run_scan(OutputWriter& w, Streams& st, ElectronicCallbacks& cb, cons
             OptimizationOptions oo;
             oo.tight = s.tight;
             oo.max_steps = s.max_steps;
+            oo.initial_hessian = s.initial_hessian;
             oo.constraints = {con};
             oo.guess_orbitals = orbitals.rows() ? &orbitals : nullptr;
             if (hessian.rows()) {
@@ -1135,7 +1159,9 @@ JobResult run_job(const MolecularInput& input, const JobSettings& s, const Outpu
             oo.tight = s.tight;
             oo.max_steps = s.max_steps;
             oo.transition_state = ts;
+            oo.initial_hessian = s.initial_hessian;
             oo.ts_hessian = s.ts_hessian;
+            oo.numerical_hessian = s.hessian == "numerical";
             oo.eigen_test = s.eigen_test;
             oo.on_step_start = [&](int step, const Molecule& geom) {
                 st.reset();
@@ -1196,6 +1222,7 @@ JobResult run_job(const MolecularInput& input, const JobSettings& s, const Outpu
             st.reset();
             st.context = "Hessian · ";
             HessianOptions ho;
+            ho.force_numerical = s.hessian == "numerical";
             if (r.optimization && r.optimization->converged) {
                 ho.reference = &r.optimization->final_point;  // energy and gradient of the last step
                 w.line("    energy, gradient and orbitals at this geometry: from the last optimisation step");

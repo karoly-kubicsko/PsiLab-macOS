@@ -282,6 +282,9 @@ struct SidebarView: View {
         if model.job.hasTransitionState {
             transitionStateSection
         }
+        if (model.job.hasFrequencies || model.job.hasTransitionState) && model.method.hasAnalyticCorrelatedHessian {
+            hessianSection
+        }
 
         Section("Method and basis set") {
             Picker("Method", selection: $model.method) {
@@ -364,6 +367,14 @@ struct SidebarView: View {
                      : "Max force 4.5e-4, RMS force 3.0e-4 E_h/bohr; max step 1.8e-3, RMS step 1.2e-3 bohr; energy change 1e-6 E_h.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
+                if model.method.hasAnalyticCorrelatedHessian && !model.job.hasTransitionState {
+                    Toggle("Analytic initial Hessian", isOn: $model.analyticInitialHessian)
+                    Text(model.analyticInitialHessian
+                         ? "The first step uses the analytic \(model.method.title) Hessian (exact curvature, costs several gradients)."
+                         : "The first step uses Lindh's model Hessian (no cost); later steps update it (BFGS).")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
             }
             .disabled(model.isRunning || model.isScanning)
         }
@@ -459,6 +470,33 @@ struct SidebarView: View {
 
     private func valueText(_ v: Double, unit: String) -> String {
         unit == "Å" ? String(format: "%.4f Å", v) : String(format: "%.2f°", v)
+    }
+
+    /// ΨLab 10.0: analytic or numerical Hessians of Full CI, CCSD and CCSD(T).
+    private var hessianSection: some View {
+        Section("Hessian") {
+            Picker("Second derivatives", selection: $model.analyticHessian) {
+                Text("Analytic").tag(true)
+                Text("Numerical").tag(false)
+            }
+            .pickerStyle(.segmented)
+            .accessibilityLabel("Hessian")
+            Text(model.analyticHessian ? analyticHessianText : numericalHessianText)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+        .disabled(model.isRunning || model.isScanning)
+    }
+
+    private var analyticHessianText: String {
+        let what = model.method == .fci ? "CI-vector" : "amplitude"
+        return "Analytic: \(what) responses along the internal directions and to an electric field (IR intensities), "
+            + "orbital response by CPHF; exact second derivatives. Numerical only if it does not fit in memory."
+    }
+
+    private var numericalHessianText: String {
+        "Numerical: central differences of analytic gradients (step 0.005 bohr), IR intensities from the relaxed "
+            + "dipole moments."
     }
 
     private var transitionStateSection: some View {

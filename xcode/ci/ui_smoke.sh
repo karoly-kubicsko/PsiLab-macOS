@@ -13,9 +13,9 @@
 # Full CI/aug-cc-pVTZ opt+freq, the relaxed torsion scan of H2O2 with its points played, the
 # inversion transition state of NH3 and the trans transition state of H2O2 with CalcAll, the
 # scan settings in the sidebar, the refused TS search of LiH) and ΨLab 8.0 (the orbitals:
-# isosurfaces, a contour plot, Full CI natural orbitals, the Szabo-Ostlund orbitals) and ΨLab 9.0 (custom
+# isosurfaces, a contour plot, Full CI natural orbitals, the Szabo-Ostlund orbitals), ΨLab 9.0 (custom
 # molecules from XYZ and Gaussian input text, the kept optimised geometry, the molecule menu, the
-# file panel, refusals). The screen of the
+# file panel, refusals) and ΨLab 10.0 (the analytic CCSD Hessian of H2O, the Hessian setting). The screen of the
 # runner is 1024 pt wide: the screenshots show that the six tabs fit at the minimum window width.
 # Never fails the job: it only gathers evidence (screenshots + text) for review.
 #
@@ -625,6 +625,18 @@ relaunch -appearanceChoice light -psilabStructure $'2\nOH\nO 0 0 0\nH 0 0 0.97\n
 dump_tab "78-oh-radical-refused" ""
 relaunch -appearanceChoice light -psilabStructure $'2\nRbH\nRb 0 0 0\nH 0 0 2.37\n' -psilabStructureName rbh.xyz -psilabBasis aug-cc-pVDZ -psilabMethod RHF
 dump_tab "79-rbh-refused" ""
+
+# --- ΨLab 10.0: analytic Hessians of Full CI, CCSD and CCSD(T) -----------------------------------
+echo "== H2O CCSD/aug-cc-pVDZ frequencies with the analytic Hessian (sidebar: the Hessian section)"
+relaunch -appearanceChoice light -psilabMolecule H2O -psilabBasis aug-cc-pVDZ -psilabMethod CCSD -psilabJob freq -psilabAutoRun YES
+dump_tab "80-h2o-ccsd-analytic-hessian-sidebar" ""
+sleep 60
+view_tab "81-h2o-ccsd-analytic-frequencies" "Frequencies"
+print_shot "81-h2o-ccsd-analytic-frequencies"
+view_tab "82-h2o-ccsd-analytic-output" "Output"
+echo "== the same with the numerical Hessian (estimate only)"
+relaunch -appearanceChoice light -psilabMolecule H2O -psilabBasis aug-cc-pVDZ -psilabMethod "CCSD(T)" -psilabJob freq -psilabHessian numerical
+dump_tab "83-h2o-ccsd-t-numerical-hessian-sidebar" ""
 
 echo "== NH3 scan settings in the sidebar (umbrella) and the refused TS search of a diatomic"
 relaunch -appearanceChoice light -psilabMolecule NH3 -psilabBasis aug-cc-pVDZ -psilabMethod RHF -psilabJob scan

@@ -115,14 +115,14 @@ int main() {
                                                      });
     CHECK(h2.error.empty());
     CHECK(streamed == h2.text && pieces > 10);
-    CHECK(contains(h2.text, "\xCE\xA8Lab 9.0"));
+    CHECK(contains(h2.text, "\xCE\xA8Lab 10.0"));
     CHECK(contains(h2.text, "Job          Energy (energy)"));
     CHECK(contains(h2.text, "    | molecule = H2"));  // the input file as given
     CHECK(contains(h2.text, "Hartree-Fock (RHF) total energy:  -1.1287937367 E_h"));
     CHECK(contains(h2.text, "total energy (RHF)               -1.1287937367"));
     CHECK(contains(h2.text, "18 basis functions"));
     CHECK(contains(h2.text, "H   aug-cc-pVDZ   (5s2p)           -> [3s2p]"));
-    CHECK(contains(h2.text, "Normal termination of \xCE\xA8Lab 9.0"));
+    CHECK(contains(h2.text, "Normal termination of \xCE\xA8Lab 10.0"));
     CHECK(contains(psilab::estimate_text(psilab::parse_input_text("molecule = H2O\nbasis = aug-cc-pCVDZ\n")),
                    "aug-cc-pCVDZ is not defined for H"));
     // Full CI: H2 runs, H2O is refused with an explanation (in the output file and the error).
@@ -173,7 +173,17 @@ int main() {
     // estimates of jobs: steps, analytic or numerical, refusals
     const std::string est = psilab::estimate_text(psilab::parse_input_text("molecule = H2O\nmethod = CCSD(T)\njob = opt+freq\n"));
     CHECK(contains(est, "Geometry optimisation: analytic gradient"));
-    CHECK(contains(est, "numerical Hessian: central differences of 6 analytic gradients"));
+    CHECK(contains(est, "analytic Hessian: amplitude responses along the 3 internal directions"));
+    // 10.0: hessian = numerical keeps the differences of analytic gradients; initial_hessian
+    const std::string estn = psilab::estimate_text(
+        psilab::parse_input_text("molecule = H2O\nmethod = CCSD(T)\njob = opt+freq\nhessian = numerical\n"));
+    CHECK(contains(estn, "numerical Hessian: central differences of 6 analytic gradients"));
+    const std::string esti = psilab::estimate_text(
+        psilab::parse_input_text("molecule = H2O\nmethod = CCSD\njob = opt\ninitial_hessian = analytic\n"));
+    CHECK(contains(esti, "analytic initial Hessian"));
+    CHECK(rejects("molecule = H2\njob = freq\nhessian = exact\n", "hessian must be analytic or numerical"));
+    CHECK(rejects("molecule = H2\njob = energy\nhessian = analytic\n", "applies to job = freq"));
+    CHECK(rejects("molecule = H2\njob = ts\ninitial_hessian = analytic\n", "applies to job = opt, opt+freq, opt+freq+sp and scan only"));
     const std::string refused = psilab::estimate_text(psilab::parse_input_text("molecule = H2O\nmethod = CCSDTQ\njob = freq\nfci_memory = 8 GB\n"));
     CHECK(refused.rfind("Error: ", 0) == 0 && contains(refused, "CCSDTQ frequencies for H2O is not possible"));
     // a short optimisation job with psilab

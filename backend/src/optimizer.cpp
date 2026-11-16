@@ -437,6 +437,7 @@ OptimizationResult optimize_geometry(const Molecule& start, const BasisSet& basi
             HessianOptions ho;
             ho.reference = &g;
             ho.dipoles = false;
+            ho.force_numerical = oo.numerical_hessian;
             const std::string ctx = format("Step %d · Hessian (%s)", step, oo.ts_hessian == "calcall" ? "CalcAll" : "CalcFC");
             report_progress_text(ctx);
             const HessianResult hr = run_hessian(x, bx, method, eo, ho, cb, &orbitals, [&](int i, int n, const std::string& what) {
@@ -467,15 +468,29 @@ OptimizationResult optimize_geometry(const Molecule& start, const BasisSet& basi
             std::string kind = oo.initial_hessian;
             if (kind == "auto")
                 kind = (method == "RHF" && bx.n_functions <= oo.analytic_hessian_max_functions) ? "analytic" : "lindh";
-            if (kind == "analytic" && method != "RHF") kind = "lindh";
+            // 10.0: "analytic" also for Full CI, CCSD and CCSD(T) (the analytic correlated Hessian);
+            // "auto" keeps the model Hessian for them (an analytic correlated Hessian costs several gradients)
+            if (kind == "analytic" && !analytic_hessian_method(method)) kind = "lindh";
             H = Matrix(nq, nq);
             if (carried) {
                 H = *oo.initial_hessian_matrix;
                 rec.hessian_update = "initial Hessian: " + oo.initial_hessian_label;
                 res.initial_hessian = oo.initial_hessian_label;
             } else if (kind == "analytic") {
-                const RHFHessianResult hx = rhf_hessian(x, bx, g.point.rhf, eo.threads, eo.memory_mb, 1e-8);
-                Matrix Hc = hx.hessian;
+                Matrix Hc;
+                std::string label = "analytic RHF Hessian";
+                if (method == "RHF") {
+                    Hc = rhf_hessian(x, bx, g.point.rhf, eo.threads, eo.memory_mb, 1e-8).hessian;
+                } else {
+                    HessianOptions ho;
+                    ho.reference = &g;
+                    ho.dipoles = false;
+                    report_progress_text(format("Step %d · initial Hessian", step));
+                    const HessianResult hr = run_hessian(x, bx, method, eo, ho, cb, &orbitals);
+                    Hc = hr.hessian;
+                    label = (hr.analytic ? "analytic " : "numerical ") + method + " Hessian";
+                    ++res.hessian_evaluations;
+                }
                 const Matrix K = ic.b_derivative_contracted(x, gq0);
                 for (std::size_t a = 0; a < n3; ++a)
                     for (std::size_t b = 0; b < n3; ++b) Hc(a, b) -= K(a, b);
@@ -488,8 +503,8 @@ OptimizationResult optimize_geometry(const Molecule& start, const BasisSet& basi
                         for (std::size_t k = 0; k < n3; ++k) s += T(i, k) * GB(j, k);
                         H(i, j) = s;
                     }
-                rec.hessian_update = "initial Hessian: analytic RHF Hessian in internal coordinates";
-                res.initial_hessian = "analytic RHF Hessian";
+                rec.hessian_update = "initial Hessian: " + label + " in internal coordinates";
+                res.initial_hessian = label;
                 // A minimisation needs a positive definite Hessian: negative eigenvalues (in the
                 // non-redundant space) are replaced by their magnitude; the most negative direction
                 // is kept, to leave a saddle point along it if the gradient there vanishes.

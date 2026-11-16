@@ -345,11 +345,10 @@ Amp rotate_amplitudes(const Amp& x, const Matrix& Ro, const Matrix& Rv) {
     return y;
 }
 
-// The CCSD(T) Lagrangian densities for the Hamiltonian H (MO integrals in the reference
-// orbitals, with any occupied-occupied and virtual-virtual Fock blocks): evaluated in the
-// semicanonical orbitals of H (where the (T) expression with diagonal denominators applies; the
-// (T) functional is invariant to these rotations) and transformed back. The CCSD part does not
-// depend on H.
+// The (T) part of the CCSD(T) Lagrangian densities for the Hamiltonian H (MO integrals in the
+// reference orbitals, with any occupied-occupied and virtual-virtual Fock blocks): evaluated in
+// the semicanonical orbitals of H (where the (T) expression with diagonal denominators applies;
+// the (T) functional is invariant to these rotations) and transformed back.
 CorrelatedDensity triples_lagrangian_density(const MOIntegrals& H, int oi, const Amp& t, const Amp& l, int nt) {
     const std::size_t o = static_cast<std::size_t>(oi), n = static_cast<std::size_t>(H.n), v = n - o;
     const CCIntegrals I = cc_integrals_from_mo(H, oi);
@@ -367,7 +366,13 @@ CorrelatedDensity triples_lagrangian_density(const MOIntegrals& H, int oi, const
     const MOIntegrals Hr = rotate_integrals(H, R, nt);
     const CCIntegrals Ir = cc_integrals_from_mo(Hr, oi);
     const Amp tr = rotate_amplitudes(t, eo.vectors, ev.vectors), lr = rotate_amplitudes(l, eo.vectors, ev.vectors);
-    const CorrelatedDensity dr = ccsd_lagrangian_densities(oi, static_cast<int>(v), tr.a, tr.b, lr.a, lr.b, nt, &Ir);
+    CorrelatedDensity dr = ccsd_lagrangian_densities(oi, static_cast<int>(v), tr.a, tr.b, lr.a, lr.b, nt, &Ir);
+    {
+        const CorrelatedDensity dc = ccsd_lagrangian_densities(oi, static_cast<int>(v), tr.a, tr.b, lr.a, lr.b, nt);
+        for (std::size_t p = 0; p < n; ++p)
+            for (std::size_t q = 0; q < n; ++q) dr.D(p, q) -= dc.D(p, q);
+        for (std::size_t k = 0; k < dr.G.v.size(); ++k) dr.G.v[k] -= dc.G.v[k];
+    }
     // back: D = R D' R', G_pqrs = sum R_pa R_qb R_rc R_sd G'_abcd
     CorrelatedDensity d;
     d.D = Matrix(n, n);
@@ -420,10 +425,8 @@ CorrelatedHessianResult ccsd_hessian(const Molecule& mol, const BasisSet& basis,
         ccsd_amplitude_residual(I, lad, t.a, t.b, r.a, r.b, nt);
         return r;
     };
-    // Lagrangian densities at the reference Hamiltonian (with the (T) terms for CCSD(T))
-    auto dens = [&](const Amp& t) {
-        return ccsd_lagrangian_densities(o, v, t.a, t.b, L.a, L.b, nt, triples ? &ints0 : nullptr);
-    };
+    // Lagrangian densities at the reference Hamiltonian: CCSD part (the (T) part separately)
+    auto dens = [&](const Amp& t) { return ccsd_lagrangian_densities(o, v, t.a, t.b, L.a, L.b, nt); };
     // The Lagrangian with the reference Hamiltonian and the fixed multipliers, without the
     // reference energy: <D(t, l), H> - E_ref = E_corr(t) + 2 l1 . Omega1 + lt . Omega2, with
     // lt_ijab = 2 l2_ijab - l2_ijba. The ladder part of lt . Omega2 is Z(lt) . tau(t) ((ac|bd) =
@@ -454,7 +457,7 @@ CorrelatedHessianResult ccsd_hessian(const Molecule& mol, const BasisSet& basis,
                     }
         return e;
     };
-    const CorrelatedDensity D0 = dens(T);
+    const CorrelatedDensity D0 = ccsd_lagrangian_densities(o, v, T.a, T.b, L.a, L.b, nt, triples ? &ints0 : nullptr);
     const double L0 = lagrangian(T);
 
     DensityResponse dr;
@@ -509,26 +512,27 @@ CorrelatedHessianResult ccsd_hessian(const Molecule& mol, const BasisSet& basis,
         // amplitude part of the density response, dD(t + s t^q)/ds
         CorrelatedDensity dT = poly_derivative<CorrelatedDensity>(dens, T, ts.x, density_comb);
         if (triples) {
-            // CCSD(T): the (T) Lagrangian is not linear in H (orbital-energy denominators); its
-            // second derivative L_HH[H^(k), H^(l)] = <dD_H[k], H^(l)>, dD_H[k] = dD(t, l; H + a H^(k))/da,
-            // enters the symmetric response term through dD[t^k] + dD_H[k] / 2. The derivative with
-            // respect to a is by the five-point formula with a small step (a |F^(k)| = 1e-3; the
-            // dependence is rational, the error of order 1e-12).
-            double fmax = 0.0;
+            // CCSD(T): the (T) Lagrangian density D_T(t; H) is quadratic in t and not linear in H
+            // (orbital-energy denominators). Besides its amplitude derivative dD_T[t^q], the
+            // second derivative of the (T) functional with respect to H, L_HH[H^(q), H^(p)] =
+            // <dD_H[q], H^(p)> with dD_H[q] = dD_T(t; H + a H^(q))/da, enters the symmetric response
+            // term through dD[t^q] + dD_H[q] / 2: both from one directional derivative,
+            // d/ds D_T(t + s t^q; H + (s/2) H^(q)), by a central difference with a small step
+            // (s |t^q|, s |F^(q)| <= 1e-4: the t dependence is quadratic, the H dependence rational,
+            // the relative error of order 1e-8, i.e. ~1e-10 E_h/bohr^2 in the Hessian).
+            double fmax = max_abs(ts.x);
             for (std::size_t p = 0; p < intsQ.fock.rows(); ++p)
                 for (std::size_t q = 0; q < intsQ.fock.cols(); ++q) fmax = std::max(fmax, std::fabs(intsQ.fock(p, q)));
-            const double a = fmax > 0.0 ? 1.0e-3 / fmax : 1.0e-3;
+            const double a = fmax > 0.0 ? 1.0e-4 / fmax : 1.0e-4;
             auto shifted = [&](double s) {
                 MOIntegrals Hs = mo;
                 for (std::size_t p = 0; p < Hs.h.rows(); ++p)
-                    for (std::size_t q = 0; q < Hs.h.cols(); ++q) Hs.h(p, q) += s * Hq.h(p, q);
-                for (std::size_t x = 0; x < Hs.eri.size(); ++x) Hs.eri[x] += s * Hq.eri[x];
-                return triples_lagrangian_density(Hs, o, T, L, nt);
+                    for (std::size_t q = 0; q < Hs.h.cols(); ++q) Hs.h(p, q) += 0.5 * s * Hq.h(p, q);
+                for (std::size_t x = 0; x < Hs.eri.size(); ++x) Hs.eri[x] += 0.5 * s * Hq.eri[x];
+                return triples_lagrangian_density(Hs, o, combine(T, 1.0, ts.x, s), L, nt);
             };
-            const CorrelatedDensity p1 = shifted(a), m1 = shifted(-a), p2 = shifted(2.0 * a), m2 = shifted(-2.0 * a);
-            const double w = 1.0 / (12.0 * a);
-            const CorrelatedDensity dH = density_comb({&p1, &m1, &p2, &m2}, {8.0 * w, -8.0 * w, -w, w});
-            dT = density_comb({&dT, &dH}, {1.0, 0.5});
+            const CorrelatedDensity p1 = shifted(a), m1 = shifted(-a);
+            dT = density_comb({&dT, &p1, &m1}, {1.0, 0.5 / a, -0.5 / a});
         }
         dr.D[k] = dT.D;
         dr.G[k] = dT.G;
@@ -562,20 +566,14 @@ CorrelatedHessianResult ccsd_hessian(const Molecule& mol, const BasisSet& basis,
         }
     if (triples) {
         // the (T) energy is a homogeneous quadratic function of the amplitudes: its part of
-        // t^k L_tt t^l is E_T(t^k + t^l) - E_T(t^k) - E_T(t^l) (2 E_T(t^k) for k = l)
-        std::vector<double> et(mr);
-        for (std::size_t k = 0; k < mr; ++k) {
-            et[k] = ccsd_triples_energy(ints0, *ladder0, tq[k].a, tq[k].b, nt);
-            dr.pair(k, k) += 2.0 * et[k];
-        }
+        // t^k L_tt t^l is E_T(t^k + t^l) - E_T(t^k) - E_T(t^l) = B(k, l) + B(l, k) (2 E_T(t^k) for
+        // k = l), B the bilinear form of the (T) expression, all pairs in one pass
+        std::vector<std::pair<Vec, Vec>> sets(mr);
+        for (std::size_t k = 0; k < mr; ++k) sets[k] = {tq[k].a, tq[k].b};
+        const Matrix Bt = ccsd_triples_pairs(ints0, *ladder0, sets, nt);
         for (std::size_t k = 0; k < mr; ++k)
-            for (std::size_t l = 0; l < k; ++l) {
-                if (k >= m && l >= m) continue;
-                const Amp s2 = combine(tq[k], 1.0, tq[l], 1.0);
-                const double c = ccsd_triples_energy(ints0, *ladder0, s2.a, s2.b, nt) - et[k] - et[l];
-                dr.pair(k, l) += c;
-                dr.pair(l, k) += c;
-            }
+            for (std::size_t l = 0; l < mr; ++l)
+                if (k < m || l < m) dr.pair(k, l) += Bt(k, l) + Bt(l, k);
     }
     const double method_seconds = seconds_since(t1s);
     CorrelatedHessianResult r = correlated_hessian(mol, basis, rhf, mo, D0, resp, dr, nt, memory_mb);

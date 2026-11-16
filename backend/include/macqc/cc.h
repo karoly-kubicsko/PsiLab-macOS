@@ -184,6 +184,11 @@ double ccsd_correlation_energy(const CCIntegrals& ints, LadderOperator& ladder, 
 // quadratic function of (t1, t2) (ΨLab 10.0, analytic CCSD(T) Hessian).
 double ccsd_triples_energy(const CCIntegrals& ints, LadderOperator& ladder, const std::vector<double>& t1,
                            const std::vector<double>& t2, int threads = 0);
+// The bilinear form B(k, l) of the (T) expression for several amplitude sets (t1, t2): the (T)
+// energy of set k is B(k, k), and E(t_k + t_l) - E(t_k) - E(t_l) = B(k, l) + B(l, k).
+Matrix ccsd_triples_pairs(const CCIntegrals& ints, LadderOperator& ladder,
+                          const std::vector<std::pair<std::vector<double>, std::vector<double>>>& amplitudes,
+                          int threads = 0);
 
 // Energy of the reference determinant from MO integrals (electronic + nuclear repulsion).
 double reference_energy_from_mo(const MOIntegrals& mo, int nocc, double nuclear_repulsion);

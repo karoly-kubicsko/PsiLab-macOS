@@ -90,7 +90,9 @@ json input_json_general(const Input& in) {
                 {"scan", in.scan.empty() ? json(nullptr) : json(in.scan)},
                 {"scanStart", in.scanStart ? json(*in.scanStart) : json(nullptr)},
                 {"tsHessian", in.tsHessian},
-                {"eigenTest", in.eigenTest}};
+                {"eigenTest", in.eigenTest},
+                {"hessian", in.hessian},
+                {"initialHessian", in.initialHessian}};
     }
 }
 
@@ -916,6 +918,10 @@ Input parse_input_json(const std::string& text) {
     in.tsHessian = get_string(j, "tsHessian", in.tsHessian);
     for (char& c : in.tsHessian) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
     in.eigenTest = get_bool(j, "eigenTest", in.eigenTest);
+    in.hessian = get_string(j, "hessian", in.hessian);
+    in.initialHessian = get_string(j, "initialHessian", in.initialHessian);
+    for (char& c : in.initialHessian) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+    for (char& c : in.hessian) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
     if (auto it = j.find("scanStart"); it != j.end() && !it->is_null()) in.scanStart = get_number(j, "scanStart", 0.0);
     return in;
 }

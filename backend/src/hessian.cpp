@@ -6,7 +6,11 @@
 #include <cstdio>
 #include <stdexcept>
 
+#include "macqc/cc.h"
+#include "macqc/cc_gradient.h"
+#include "macqc/ci.h"
 #include "macqc/constants.h"
+#include "macqc/correlated_hessian.h"
 #include "macqc/gto_derivatives.h"
 #include "macqc/internal_coordinates.h"
 #include "macqc/job.h"
@@ -245,6 +249,31 @@ NumericalHessianCost numerical_hessian_cost(const Molecule& mol, bool analytic_g
     return c;
 }
 
+bool analytic_hessian_method(const std::string& m) { return m == "RHF" || m == "FCI" || m == "CCSD" || m == "CCSD(T)"; }
+
+double analytic_hessian_bytes(const std::string& m, int nocc, int nmo, int nbasis, int natoms) {
+    if (m == "RHF" || !analytic_hessian_method(m)) return 0.0;
+    const double n = nmo, N = nbasis, o = nocc, v = nmo - nocc;
+    const double np = n * (n + 1) / 2.0, NP = N * (N + 1) / 2.0;
+    const double packed = np * (np + 1) / 2.0;   // a two-particle density or derivative integral (MO)
+    const double mr = std::max(0, 3 * natoms - 6) + 3.0;  // responses: internal directions and fields
+    double d = 0.0;
+    d += 4.0 * np * np;                          // MO integrals, perturbed Hamiltonians (full squares)
+    d += (mr + 6.0) * packed;                    // density responses and difference-formula terms
+    d += NP * (NP + 1) / 2.0;                    // AO back-transformed two-particle density
+    double b = 8.0 * d + orbital_response_bytes(static_cast<std::size_t>(nmo), static_cast<std::size_t>(nbasis), natoms);
+    if (m == "FCI") {
+        double det = 1.0;  // binomial(n, o)^2 determinants
+        for (int k = 0; k < nocc; ++k) det *= (n - k) / (k + 1.0);
+        det *= det;
+        b += 8.0 * (mr + 6.0) * det + fci_density_bytes(nmo, nocc);
+    } else {
+        b += 8.0 * (40.0 + mr) * o * o * v * v + 8.0 * 2.0 * (v * (v + 1) / 2.0) * (v * (v + 1) / 2.0);
+        b += ccsd_density_bytes(nocc, nmo - nocc, m == "CCSD(T)");
+    }
+    return b;
+}
+
 HessianResult run_hessian(const Molecule& mol, const BasisSet& basis, const std::string& method,
                           const ElectronicOptions& eo, const HessianOptions& ho, const ElectronicCallbacks& cb,
                           const Matrix* guess, const DisplacementProgress& progress) {
@@ -273,7 +302,98 @@ HessianResult run_hessian(const Molecule& mol, const BasisSet& basis, const std:
         r.seconds = seconds_since(t0);
         return r;
     }
-    if (method == "RHF" && ref.point.rhf.removed_functions > 0)
+    // ---- 10.0: analytic Full CI, CCSD and CCSD(T) Hessians
+    std::string correlated_reason;
+    if ((method == "FCI" || method == "CCSD" || method == "CCSD(T)") && !ho.force_numerical && !ho.from_energies) {
+        const RHFResult& rhf = ref.point.rhf;
+        const int nocc = rhf.n_occupied, nmo = static_cast<int>(rhf.C.cols()), nbf = static_cast<int>(rhf.C.rows());
+        const double need = analytic_hessian_bytes(method, nocc, nmo, nbf, static_cast<int>(mol.atoms.size())) / 1048576.0;
+        if (!ref.analytic)
+            correlated_reason = "the gradient at the geometry is numerical (" + ref.numerical_reason + ")";
+        else if (rhf.removed_functions > 0)
+            correlated_reason = format("%d near-linear dependencies were removed; the analytic %s Hessian does not "
+                                       "contain the rotation of the kept orbital space",
+                                       rhf.removed_functions, method.c_str());
+        else if (mol.atoms.size() < 2)
+            correlated_reason = "a single atom";
+        else if (need > eo.fci_memory_mb)
+            correlated_reason = format("the analytic Hessian would need about %.1f GB (limit %.1f GB)", need / 1024.0,
+                                       eo.fci_memory_mb / 1024.0);
+        if (correlated_reason.empty()) {
+            report_progress(JobStage::Hessian, 1);
+            report_progress(JobStage::Transformation);
+            const MOIntegrals mo = transform_to_mo(basis, rhf.H, rhf.C, eo.threads);
+            CorrelatedHessianResult ch;
+            std::string what;
+            if (method == "FCI") {
+                FCIOptions fo;
+                fo.threads = eo.threads;
+                fo.memory_limit_mb = eo.fci_memory_mb;
+                fo.residual_tol = std::min(eo.fci_residual_tol, 1.0e-9);
+                fo.energy_tol = 1.0e-12;
+                fo.max_iter = 200;
+                fo.keep_vector = true;
+                const FCIResultGeneral f = run_fci_determinants(mo, nocc, nocc, rhf.nuclear_repulsion, rhf.total_energy, fo, cb.fci);
+                if (!f.converged) correlated_reason = "the Full CI vector at the geometry did not converge";
+                else ch = fci_hessian(mol, basis, rhf, mo, f.vector, f.electronic_energy, eo.threads, eo.memory_mb,
+                                      eo.fci_memory_mb, ho.dipoles);
+                what = "Full CI vector";
+            } else {
+                const bool triples = method == "CCSD(T)";
+                std::vector<double> t1, t2, l1 = ref.l1, l2 = ref.l2;
+                if (ref.point.cc && !ref.point.cc->t1.empty()) {
+                    t1 = ref.point.cc->t1;
+                    t2 = ref.point.cc->t2;
+                }
+                if (t1.empty() || l1.empty()) {
+                    // amplitudes and multipliers again (e.g. a reference without them)
+                    const CCIntegrals ints = cc_integrals_from_mo(mo, nocc);
+                    auto ladder = make_mo_ladder(mo, nocc);
+                    CCOptions co;
+                    co.threads = eo.threads;
+                    co.memory_limit_mb = eo.fci_memory_mb;
+                    co.eri_memory_mb = eo.memory_mb;
+                    co.max_iter = eo.cc_max_iter;
+                    co.energy_tol = eo.cc_energy_tol;
+                    co.amplitude_tol = eo.cc_amplitude_tol;
+                    const CCResult cc = run_ccsd_closed_shell(ints, *ladder, rhf.total_energy, triples, co, cb.cc);
+                    const CCDensityResult d = ccsd_densities(ints, *ladder, cc.t1, cc.t2, triples, co, cb.lambda);
+                    if (!cc.converged || !d.lambda_converged) correlated_reason = "the amplitudes or multipliers did not converge";
+                    t1 = cc.t1;
+                    t2 = cc.t2;
+                    l1 = d.l1;
+                    l2 = d.l2;
+                }
+                if (correlated_reason.empty())
+                    ch = ccsd_hessian(mol, basis, rhf, mo, t1, t2, l1, l2, triples, eo.threads, eo.memory_mb,
+                                      ho.response_tol, ho.dipoles);
+                what = "amplitude";
+            }
+            if (correlated_reason.empty() && !(ch.method_converged && ch.cphf_converged && ch.zvector_converged))
+                correlated_reason = "the response equations of the analytic Hessian did not converge";
+            if (correlated_reason.empty()) {
+                const std::size_t m = ch.perturbations;
+                r.hessian = ch.hessian;
+                r.analytic = true;
+                r.description = format("analytic (%s responses along %zu internal direction%s, CPHF orbital response of "
+                                       "all %zu coordinates, Z-vector; translations and rotations by invariance)",
+                                       what.c_str(), m, m == 1 ? "" : "s", n3);
+                r.has_dipole_derivatives = ho.dipoles && ch.has_dipole_derivatives;
+                if (r.has_dipole_derivatives) {
+                    r.dipole_derivatives = ch.dipole_derivatives;
+                    r.dipole_description = "analytic (electric-field perturbations: CPHF and " + what + " responses)";
+                }
+                r.cphf_iterations = ch.cphf_iterations;
+                r.cphf_converged = ch.cphf_converged;
+                r.seconds = seconds_since(t0);
+                return r;
+            }
+        }
+    }
+
+    if (!correlated_reason.empty())
+        r.numerical_reason = correlated_reason;
+    else if (method == "RHF" && ref.point.rhf.removed_functions > 0)
         r.numerical_reason = format("%d near-linear dependencies were removed; the analytic RHF Hessian does not contain "
                                     "the second-order rotation of the kept orbital space",
                                     ref.point.rhf.removed_functions);

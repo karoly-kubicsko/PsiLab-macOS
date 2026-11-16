@@ -1,6 +1,6 @@
 # ΨLab — a native macOS quantum-chemistry app
 
-**Current version: 9.0** — see [Versions](#versions).
+**Current version: 10.0** — see [Versions](#versions).
 
 ΨLab computes small molecules with restricted Hartree–Fock, coupled cluster and Full CI:
 
@@ -19,8 +19,9 @@ For these molecules it **optimises geometries** (redundant internal coordinates,
 for HF, CCSD, CCSD(T) and Full CI), finds **transition states** (Gaussian's Opt=TS: partitioned RFO
 with a computed Hessian, CalcFC or CalcAll), runs **relaxed potential-energy scans** of a bond, an
 angle or a dihedral angle (Gaussian's Opt=ModRedundant), computes **harmonic frequencies, IR
-intensities and thermochemistry** (analytic RHF Hessian; numerical Hessians from analytic
-gradients or energies for the correlated methods; point groups up to D₃ₕ) and runs nine job types,
+intensities and thermochemistry** (analytic Hessians and dipole derivatives for HF, CCSD,
+CCSD(T) and Full CI; numerical Hessians from energies for CCSDT and CCSDTQ; point groups up to
+D₃ₕ) and runs nine job types,
 from *energy* to *TS optimisation + frequencies + single-point energy*, each with a complete
 output file that is written while the job runs.
 
@@ -161,6 +162,21 @@ same calculations run in the terminal on Linux and macOS
   `xcode/project.yml`).
 
 ## Versions
+
+### 10.0
+**Analytic Hessians of CCSD, CCSD(T) and Full CI.** Frequency jobs and transition-state searches
+(CalcFC, CalcAll) with these methods compute exact second derivatives instead of differences of
+analytic gradients, with analytic dipole derivatives (IR intensities) and the relaxed dipole
+moment. The sidebar of a frequency or TS job has a *Hessian* section (*Analytic* by default,
+*Numerical* for the central differences of analytic gradients of earlier versions; terminal:
+`hessian = analytic | numerical`); the analytic Hessian falls back to the numerical one when it
+would not fit into the memory limit. A minimisation may start from the analytic correlated
+Hessian (*Analytic initial Hessian* in the Optimisation section; terminal:
+`initial_hessian = analytic`); the default stays Lindh's model Hessian for the correlated methods,
+since an analytic Hessian costs several gradients. The analytic Hessians agree with 4-point differences of
+analytic gradients within 1e-10–1e-8 Eₕ/bohr² (the accuracy of the differences), including
+HOF without symmetry and NH₃ with degenerate orbitals; the central differences of earlier versions
+were accurate to about 3e-5. See [Analytic Hessians](#analytic-hessians-version-100).
 
 ### 9.0
 **Custom molecules** from structure files: *Custom molecule…* in the molecule menu (or *File ▸ Open
@@ -344,6 +360,8 @@ scan     = D 3 1 2 4 S 18 10 # Gaussian ModRedundant: [B|A|D] N1 N2 [N3 [N4]] S 
 scan_start = 0               # first value (Å, bohr or degrees); default: the value of the input geometry
 ts_hessian = calcfc          # ts jobs: calcfc (Hessian at the first step) or calcall (at every step)
 eigen_test = yes             # ts jobs: stop unless the Hessian has exactly one negative eigenvalue
+hessian  = analytic          # 10.0, freq and ts jobs with FCI, CCSD, CCSD(T): analytic or numerical
+initial_hessian = auto       # 10.0, minimisations: auto (HF analytic, else Lindh), analytic or model
 ```
 
 `molecule = HeH+` with a correlation-consistent `basis` runs the general calculation (all methods
@@ -690,6 +708,72 @@ Verification (`backend/tests/test_correlated_gradients.cpp`; PySCF values from
 Timings with 4 threads: H₂O CCSD(T) gradient in aug-cc-pVDZ 1.5 s, aug-cc-pVTZ 24 s; LiH Full CI
 gradient in aug-cc-pVTZ 89 s.
 
+### Analytic Hessians (version 10.0)
+
+`correlated_hessian.cpp` (general part, Full CI), `cc_hessian.cpp` (CCSD, CCSD(T)),
+`gto_derivatives.cpp` (first-derivative two-electron integrals of all coordinates in packed form),
+`ci.cpp` (CI vector responses), `cc_closed_shell.cpp` and `cc_gradient.cpp` (residuals of the
+amplitude and Λ equations, Lagrangian densities, the bilinear form of the (T) expression).
+
+- **Framework**: the Hessian is the derivative of the relaxed-density gradient,
+  E^xy = Σ D h^(xy) + Σ G g^(xy) + Σ D^(y) h^(x) + Σ G^(y) g^(x) + V_nn^xy, with D, G the
+  Lagrangian densities of the method in the RHF orbitals and h^(x), g^(x) the MO integrals
+  differentiated together with the orbitals (C(x) = C U(x)). U^x solves the coupled-perturbed HF
+  equations of all 3N coordinates (U_oo = U_vv = −S/2: the methods are invariant to those
+  rotations). The second-order response U^xy enters only through the orbital Lagrangian of the
+  gradient: its symmetric part follows from orthonormality, its occupied–virtual part from the
+  Z-vector of the gradient (Handy–Schaefer interchange, no second-order CPHF). The explicit
+  second-derivative integrals are contracted with the relaxed densities (one-particle, two-particle
+  with its separable Z-vector term, energy-weighted). With the RHF densities this reproduces the
+  analytic RHF Hessian to 6e-12 Eₕ/bohr² — a test of the orbital part alone.
+- **Internal directions**: the responses of the method are solved only along the 3N − 6 (3N − 5)
+  Cartesian directions orthogonal to the translations and rotations; the other columns of the
+  Hessian follow exactly from the invariance (H u = 0 for a translation, the rotated gradient for a
+  rotation), with the gradient ⟨D, H^(x)⟩ + V_nn^x from the same quantities.
+- **Full CI**: the CI vector responses (H − E) c^q = −(H^(q) − E^(q)) c by projected
+  preconditioned conjugate gradients; the density responses are the bilinear densities
+  [D(c + c^q) − D(c − c^q)] / 2 (exact, the densities are quadratic).
+- **CCSD**: only the amplitude responses J t^q = −Ω(t; H^(q)) are solved: with the derivative of
+  the Λ equations the multiplier responses drop out (2n + 2 rule),
+  ⟨D^(q), H^(p)⟩ = L_t(H^(p))·t^q + L_t(H^(q))·t^p + t^p L_tt t^q. The Jacobian products are exact:
+  the residual is a polynomial of degree 4 in the amplitudes, so the symmetric five-point formula
+  has no truncation error; the iterations use a central difference corrected by exact residuals
+  (defect correction), and the (vv|vv) ladder, linear in τ, is applied once per product. The pair
+  terms t^p L_tt t^q are second derivatives of the scalar Lagrangian
+  E_corr + 2 l₁·Ω₁ + (2 l₂ − l₂ᵀ)·Ω₂ (with the ladder part Z(λ)·τ).
+- **CCSD(T)**: the (T) functional is homogeneous of degree one in the Hamiltonian but rational
+  through the orbital-energy denominators, so the response term gains its curvature
+  L_HH[H^(p), H^(q)]. It comes from the (T) Lagrangian density along H + a H^(q), evaluated in the
+  semicanonical orbitals of the perturbed Fock matrix (the (T) functional is invariant to
+  occupied–occupied and virtual–virtual rotations; degenerate orbitals need no special care), in
+  one directional derivative together with the amplitude part. The (T) energy is a homogeneous
+  quadratic function of the amplitudes: the (T) pair terms come from its bilinear form, all pairs
+  in one pass over the triples.
+- **Dipole derivatives**: the three components of a uniform field are further perturbations
+  (CPHF with the dipole integrals, h~^F = r, no overlap or two-electron derivative); the mixed
+  derivatives d²E/dq dF give dμ/dq (Full CI from the existing CI responses, CC with three more
+  amplitude responses), completed with the translations and rotations; the relaxed dipole moment
+  comes with them.
+
+Verification (`backend/tests/test_correlated_hessian.cpp`, against 4-point differences, step 0.005
+bohr, of analytic gradients and their relaxed dipoles; aug-cc-pVDZ):
+
+| | Hessian (Eₕ/bohr²) | dipole derivatives (e) |
+|---|---|---|
+| Full CI: H₂, HeH⁺, H₃⁺ (C1), LiH | ≤ 1.4e-9 | ≤ 2.3e-10 |
+| CCSD: LiH, H₂O, HOF (C1) | 1.2e-10, 9.3e-9, 1.6e-9 | 3.8e-10, 6.5e-8, – |
+| CCSD(T): LiH, H₂O, HOF (C1), NH₃ (C₃ᵥ) | 1.2e-10, 1.1e-8, 1.5e-9, 4.8e-9 | 8.3e-10, 6.6e-8, –, – |
+
+Without the (T) curvature term the CCSD(T) errors would be 6e-5 (LiH) and 2e-2 (H₂O). The
+relaxed dipole moments agree with those of the analytic gradients within 2e-10 e bohr.
+
+Timings (4 threads), analytic vs the numerical route of earlier versions: Full CI LiH 3.3 s vs
+62 s (4-point differences); H₂O/aug-cc-pVDZ CCSD 13 s vs 8 s, CCSD(T) 21 s vs 11 s (2-point
+differences along the 3 internal directions; the analytic Hessian also solves 3 field responses
+for the IR intensities). For molecules this small the differences are cheaper but about 10⁴ times
+less accurate; the cost of the analytic route grows with 3N − 3 responses instead of
+2(3N − 6) gradients.
+
 ### Geometry optimisation (version 5.0)
 
 `internal_coordinates.cpp`, `optimizer.cpp`: minimisation in redundant internal coordinates
@@ -745,7 +829,9 @@ Verification (`backend/tests/test_optimizer.cpp`; references from
 `hessian.cpp`, `frequencies.cpp`, `constants.cpp`.
 
 - **Hessian**: RHF analytic (stage 1: second-derivative integrals and CPHF, with analytic dipole
-  derivatives). CCSD, CCSD(T) and Full CI: central differences of analytic gradients along internal
+  derivatives). 10.0: CCSD, CCSD(T) and Full CI analytic as well (see
+  [Analytic Hessians](#analytic-hessians-version-100)); with `hessian = numerical`, as in
+  versions 5–9, central differences of analytic gradients along internal
   coordinates (step 0.005 bohr / rad); for C₂ᵥ H₂O the symmetry-adapted S1 (A1, symmetric stretch),
   S2 (A1, bend) and S3 (B2, antisymmetric stretch), 6 gradients; for H₂ and LiH the bond, 2
   gradients. The Cartesian Hessian is Bᵀ H_q B + Σ g_q ∂²q/∂x², exact also away from a stationary
