@@ -5,6 +5,7 @@
 #include <chrono>
 #include <cmath>
 #include <cstdio>
+#include <functional>
 #include <limits>
 #include <stdexcept>
 
@@ -868,6 +869,80 @@ CorrelatedDensity fci_densities(int n_orbitals, int na, int nb, const std::vecto
         add_block(Gaa, 2.0, false);  // alpha-alpha + beta-beta
     }
     return d;
+}
+
+FCIResponse fci_vector_responses(const MOIntegrals& mo, int na, int nb, const std::vector<double>& c,
+                                 double E, std::size_t count, const std::function<MOIntegrals(std::size_t)>& perturbation,
+                                 int threads, double memory_limit_mb, double tol, int max_iter) {
+    const int nt = resolve_threads(threads);
+    const FCIHamiltonian H(mo, na, nb, nt, memory_limit_mb * 1048576.0);
+    const std::size_t Nd = H.size(), Na = H.alpha_strings();
+    if (c.size() != Nd) throw std::invalid_argument("fci_vector_responses: CI vector has the wrong length");
+    const bool symmetric = H.same_spin_strings();
+    const std::vector<double>& hd = H.diagonal();
+    std::vector<double> prec(Nd);
+    for (std::size_t i = 0; i < Nd; ++i) {
+        double d = hd[i] - E;
+        if (d < 1.0e-4) d = 1.0e-4;  // the ground state lies below every diagonal element
+        prec[i] = 1.0 / d;
+    }
+    auto project = [&](std::vector<double>& w) {
+        if (symmetric) symmetrize(w, Na);
+        axpy(-dot(c, w), c, w);
+    };
+    FCIResponse out;
+    out.vectors.resize(count);
+    out.energy_derivatives.assign(count, 0.0);
+    std::vector<double> s, r(Nd), z(Nd), p(Nd), Ap;
+    for (std::size_t x = 0; x < count; ++x) {
+        check_cancelled();
+        report_progress(JobStage::Hessian, 7, 0.0, static_cast<double>(x + 1));
+        {
+            const MOIntegrals Hx_ints = perturbation(x);
+            const FCIHamiltonian Hx(Hx_ints, na, nb, nt, memory_limit_mb * 1048576.0);
+            Hx.apply(c, s, symmetric);
+        }
+        const double Ex = dot(c, s);
+        out.energy_derivatives[x] = Ex;
+        for (std::size_t i = 0; i < Nd; ++i) r[i] = -(s[i] - Ex * c[i]);
+        project(r);
+        std::vector<double> y(Nd, 0.0);
+        double bn = std::sqrt(dot(r, r));
+        if (bn < 1.0e-14) {
+            out.vectors[x] = y;
+            continue;
+        }
+        for (std::size_t i = 0; i < Nd; ++i) z[i] = prec[i] * r[i];
+        project(z);
+        p = z;
+        double rz = dot(r, z), rn = bn;
+        int it = 0;
+        for (it = 1; it <= max_iter; ++it) {
+            check_cancelled();
+            H.apply(p, Ap, symmetric);
+            axpy(-E, p, Ap);
+            project(Ap);
+            const double pAp = dot(p, Ap);
+            if (!(pAp > 0.0)) throw std::runtime_error("Full CI response: H - E is not positive in the complement of the ground state");
+            const double alpha = rz / pAp;
+            axpy(alpha, p, y);
+            axpy(-alpha, Ap, r);
+            rn = std::sqrt(dot(r, r));
+            if (rn < tol) break;
+            for (std::size_t i = 0; i < Nd; ++i) z[i] = prec[i] * r[i];
+            project(z);
+            const double rz_new = dot(r, z);
+            const double beta = rz_new / rz;
+            rz = rz_new;
+            for (std::size_t i = 0; i < Nd; ++i) p[i] = z[i] + beta * p[i];
+        }
+        project(y);
+        out.vectors[x] = std::move(y);
+        out.iterations = std::max(out.iterations, std::min(it, max_iter));
+        out.residual = std::max(out.residual, rn);
+        if (!(rn < tol)) out.converged = false;
+    }
+    return out;
 }
 
 }  // namespace macqc

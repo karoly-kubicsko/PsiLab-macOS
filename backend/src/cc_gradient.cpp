@@ -487,8 +487,11 @@ TriplesTerms triples_terms_blocked(const Ints& e, const Tensor& t1, const Tensor
 // Lambda update (PySCF ccsd_lambda.update_lambda)
 // ---------------------------------------------------------------------------------------
 
+// `divide` false: the numerators of the Jacobi step (l1new = n1, l2new = n2 + n2'), without the
+// division by the Fock-diagonal denominators (ΨLab 10.0: the residual R = n - D l).
 void update_lambda(const Ints& e, LadderOperator& ladder, const Tensor& t1, const Tensor& t2, const Tensor& l1,
-                   const Tensor& l2, const Imds& m, const TriplesTerms* triples, Tensor& l1new, Tensor& l2new) {
+                   const Tensor& l2, const Imds& m, const TriplesTerms* triples, Tensor& l1new, Tensor& l2new,
+                   bool divide = true) {
     const std::size_t o = e.o, v = e.v;
     const Tensor theta = t2 * 2.0 - t2.transpose({0, 1, 3, 2});
     const Tensor mba = einsum("klca,klcb->ba", l2, theta);
@@ -576,6 +579,11 @@ void update_lambda(const Ints& e, LadderOperator& ladder, const Tensor& t1, cons
         l2new.axpy(0.5, m3);
         l1new += einsum("ijab,jb->ia", m3, t1, 2.0);
         l1new -= einsum("ijba,jb->ia", m3, t1);
+    }
+    if (!divide) {
+        l2new = l2new + l2new.transpose({1, 0, 3, 2});
+        if (triples) throw std::logic_error("update_lambda: numerators with (T) terms are not available");
+        return;
     }
     for (std::size_t i = 0; i < o; ++i)
         for (std::size_t a = 0; a < v; ++a) l1new(i, a) /= e.eo[i] - e.ev[a];
@@ -859,11 +867,52 @@ CCDensityResult ccsd_densities(const CCIntegrals& ints, LadderOperator& ladder, 
         std::copy(y.begin() + static_cast<std::ptrdiff_t>(n1.size()), y.end(), l2.data());
     }
     res.lambda_seconds = seconds_since(t0);
+    res.l1 = l1.vec();
+    res.l2 = l2.vec();
     const auto t1s = Clock::now();
     res.density.G = Packed4(o + v);
     build_densities(e, t1, t2, l1, l2, tt.get(), res.density);
     res.density_seconds = seconds_since(t1s);
     return res;
+}
+
+void ccsd_lambda_residual(const CCIntegrals& ints, LadderOperator& ladder, const std::vector<double>& t1v,
+                          const std::vector<double>& t2v, const std::vector<double>& l1v,
+                          const std::vector<double>& l2v, std::vector<double>& r1, std::vector<double>& r2,
+                          int threads) {
+    set_tensor_threads(threads);
+    const Ints e = make_ints(ints);
+    const std::size_t o = e.o, v = e.v;
+    const Tensor t1 = from(t1v, {o, v}), t2 = from(t2v, {o, o, v, v});
+    const Tensor l1 = from(l1v, {o, v}), l2 = from(l2v, {o, o, v, v});
+    const Imds m = make_intermediates(e, t1, t2);
+    Tensor n1, n2;
+    update_lambda(e, ladder, t1, t2, l1, l2, m, nullptr, n1, n2, false);
+    r1 = n1.vec();
+    r2 = n2.vec();
+    for (std::size_t i = 0; i < o; ++i)
+        for (std::size_t a = 0; a < v; ++a) r1[i * v + a] -= (e.eo[i] - e.ev[a]) * l1v[i * v + a];
+    for (std::size_t i = 0; i < o; ++i)
+        for (std::size_t j = 0; j < o; ++j)
+            for (std::size_t a = 0; a < v; ++a)
+                for (std::size_t b = 0; b < v; ++b) {
+                    const std::size_t k = ((i * o + j) * v + a) * v + b;
+                    r2[k] -= (e.eo[i] - e.ev[a] + e.eo[j] - e.ev[b]) * l2v[k];
+                }
+}
+
+CorrelatedDensity ccsd_lagrangian_densities(int oi, int vi, const std::vector<double>& t1v,
+                                            const std::vector<double>& t2v, const std::vector<double>& l1v,
+                                            const std::vector<double>& l2v, int threads) {
+    set_tensor_threads(threads);
+    Ints e;
+    e.o = static_cast<std::size_t>(oi);
+    e.v = static_cast<std::size_t>(vi);
+    const std::size_t o = e.o, v = e.v;
+    CorrelatedDensity d;
+    d.G = Packed4(o + v);
+    build_densities(e, from(t1v, {o, v}), from(t2v, {o, o, v, v}), from(l1v, {o, v}), from(l2v, {o, o, v, v}), nullptr, d);
+    return d;
 }
 
 }  // namespace macqc

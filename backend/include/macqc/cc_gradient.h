@@ -30,6 +30,7 @@ struct CCDensityResult {
     int lambda_iterations = 0;
     double lambda_residual = 0.0;
     std::vector<LambdaIteration> history;
+    std::vector<double> l1, l2;          // the converged multipliers [i][a], [i][j][a][b] (10.0)
     double lambda_seconds = 0.0, density_seconds = 0.0, triples_seconds = 0.0;
 };
 
@@ -39,6 +40,19 @@ using LambdaProgress = std::function<void(const LambdaIteration&)>;
 CCDensityResult ccsd_densities(const CCIntegrals& ints, LadderOperator& ladder, const std::vector<double>& t1,
                                const std::vector<double>& t2, bool triples, const CCOptions& options,
                                const LambdaProgress& progress = LambdaProgress());
+
+// ΨLab 10.0 (analytic Hessians, CCSD): the residual of the Lambda equations, R = n(l; t) - D l
+// (n: the numerators of the Jacobi step, D: Fock-diagonal denominators of `ints`; zero at the
+// solution). R is affine in l, linear in the integrals and a polynomial in t.
+void ccsd_lambda_residual(const CCIntegrals& ints, LadderOperator& ladder, const std::vector<double>& t1,
+                          const std::vector<double>& t2, const std::vector<double>& l1,
+                          const std::vector<double>& l2, std::vector<double>& r1, std::vector<double>& r2,
+                          int threads = 0);
+// The CCSD Lagrangian densities (as ccsd_densities, without (T)) for any amplitudes and
+// multipliers; linear in l, polynomial in t, independent of the integrals.
+CorrelatedDensity ccsd_lagrangian_densities(int o, int v, const std::vector<double>& t1, const std::vector<double>& t2,
+                                            const std::vector<double>& l1, const std::vector<double>& l2,
+                                            int threads = 0);
 
 // Largest difference between the (T) Lambda sources and density terms on full o^3 v^3 arrays
 // (PySCF's formulation) and the blocked implementation used (tests).

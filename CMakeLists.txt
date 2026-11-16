@@ -29,6 +29,8 @@ add_library(macqc STATIC
   backend/src/rhf_derivatives.cpp
   backend/src/tensor.cpp
   backend/src/correlated_gradient.cpp
+  backend/src/correlated_hessian.cpp
+  backend/src/cc_hessian.cpp
   backend/src/cc_gradient.cpp
   backend/src/gradient.cpp
   backend/src/internal_coordinates.cpp
@@ -230,4 +232,12 @@ target_compile_definitions(macqc_custom_tests PRIVATE
   MACQC_TEST_DATA_DIR="${CMAKE_CURRENT_SOURCE_DIR}/backend/tests/data")
 add_test(NAME macqc_custom_tests COMMAND macqc_custom_tests)
 set_tests_properties(macqc_custom_tests PROPERTIES
+  ENVIRONMENT "PSILAB_BASIS_DIR=${CMAKE_CURRENT_SOURCE_DIR}/basis" TIMEOUT 3600)
+
+# ΨLab 10.0: analytic Hessians of the correlated methods (general framework, Full CI, CCSD, CCSD(T)).
+add_executable(macqc_correlated_hessian_tests backend/tests/test_correlated_hessian.cpp)
+target_link_libraries(macqc_correlated_hessian_tests PRIVATE macqc)
+target_include_directories(macqc_correlated_hessian_tests PRIVATE third_party)
+add_test(NAME macqc_correlated_hessian_tests COMMAND macqc_correlated_hessian_tests)
+set_tests_properties(macqc_correlated_hessian_tests PROPERTIES
   ENVIRONMENT "PSILAB_BASIS_DIR=${CMAKE_CURRENT_SOURCE_DIR}/basis" TIMEOUT 3600)

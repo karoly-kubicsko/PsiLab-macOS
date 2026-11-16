@@ -95,6 +95,14 @@ Matrix eri_hessian(const BasisSet& basis, int n_atoms, const TwoParticleDensity&
 // the explicit derivative of the two-electron part of the Fock matrix.
 std::vector<Matrix> eri_derivative_fock(const BasisSet& basis, int n_atoms, const Matrix& D, int threads = 0);
 
+// 10.0: the first-derivative electron-repulsion integrals themselves, (mn|ls)^x for every
+// nuclear coordinate x, each stored once per symmetry class in the packed layout of
+// FockBuilder::packed() (index pair(pair(m,n), pair(l,s)); N(N+1)/2 (N(N+1)/2 + 1)/2 values per
+// coordinate). Quartets below the Schwarz threshold of the gradient code are zero.
+std::vector<std::vector<double>> eri_derivative_packed(const BasisSet& basis, int n_atoms, int threads = 0);
+// Memory (bytes) of eri_derivative_packed.
+double eri_derivative_packed_bytes(std::size_t n_basis, int n_atoms);
+
 // Value of the energy-like contraction sum Gamma (mn|ls) (for tests).
 double eri_contract(const BasisSet& basis, const TwoParticleDensity& gamma, int threads = 0);
 

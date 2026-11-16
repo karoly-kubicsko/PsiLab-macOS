@@ -170,6 +170,17 @@ std::unique_ptr<LadderOperator> make_ao_ladder(const BasisSet& basis, const Matr
 CCResult run_ccsd_closed_shell(const CCIntegrals& ints, LadderOperator& ladder, double reference_energy,
                                bool triples, const CCOptions& options, const CCProgress& progress = CCProgress());
 
+// ΨLab 10.0 (analytic Hessians): the residual of the closed-shell CCSD amplitude equations,
+// Omega(t) = r(t) - D t (D: Fock-diagonal denominators of `ints`), zero at the solution. It is
+// linear in the integrals (so Omega with perturbed integrals is its derivative) and a polynomial
+// of degree 4 in the amplitudes. t1 [i][a], t2 [i][j][a][b].
+void ccsd_amplitude_residual(const CCIntegrals& ints, LadderOperator& ladder, const std::vector<double>& t1,
+                             const std::vector<double>& t2, std::vector<double>& r1, std::vector<double>& r2,
+                             int threads = 0);
+// The CCSD correlation energy expression for given amplitudes (any integrals).
+double ccsd_correlation_energy(const CCIntegrals& ints, LadderOperator& ladder, const std::vector<double>& t1,
+                               const std::vector<double>& t2);
+
 // Energy of the reference determinant from MO integrals (electronic + nuclear repulsion).
 double reference_energy_from_mo(const MOIntegrals& mo, int nocc, double nuclear_repulsion);
 

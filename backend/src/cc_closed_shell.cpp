@@ -384,6 +384,37 @@ public:
 
     // New amplitudes (Jacobi step) from the current ones.
     Amplitudes update(const Amplitudes& t) {
+        std::vector<double> r1, r2;
+        numerators(t, r1, r2);
+        const std::size_t ov = o * v, vv = v * v;
+        Amplitudes out;
+        out.t1.resize(ov);
+        out.t2.resize(o * o * vv);
+        for (std::size_t i = 0; i < o; ++i)
+            for (std::size_t a = 0; a < v; ++a) out.t1[T1(i, a)] = r1[T1(i, a)] / (eo[i] - ev[a]);
+        for (std::size_t i = 0; i < o; ++i)
+            for (std::size_t j = 0; j < o; ++j)
+                for (std::size_t a = 0; a < v; ++a)
+                    for (std::size_t b = 0; b < v; ++b)
+                        out.t2[T2(i, j, a, b)] = r2[T2(i, j, a, b)] / (eo[i] + eo[j] - ev[a] - ev[b]);
+        return out;
+    }
+
+    // ΨLab 10.0: the residual Omega(t) = r(t) - D t of the amplitude equations (zero at the
+    // solution), D the Fock-diagonal denominators; linear in the integrals.
+    void residual(const Amplitudes& t, std::vector<double>& w1, std::vector<double>& w2) {
+        numerators(t, w1, w2);
+        for (std::size_t i = 0; i < o; ++i)
+            for (std::size_t a = 0; a < v; ++a) w1[T1(i, a)] -= (eo[i] - ev[a]) * t.t1[T1(i, a)];
+        for (std::size_t i = 0; i < o; ++i)
+            for (std::size_t j = 0; j < o; ++j)
+                for (std::size_t a = 0; a < v; ++a)
+                    for (std::size_t b = 0; b < v; ++b)
+                        w2[T2(i, j, a, b)] -= (eo[i] + eo[j] - ev[a] - ev[b]) * t.t2[T2(i, j, a, b)];
+    }
+
+    // Numerators r(t) of the Jacobi step t_new = r(t) / D (the diagonal Fock terms removed).
+    void numerators(const Amplitudes& t, std::vector<double>& r1_out, std::vector<double>& r2_out) {
         const std::vector<double>& t1 = t.t1;
         const std::vector<double>& t2 = t.t2;
         const std::size_t ov = o * v, vv = v * v;
@@ -715,17 +746,8 @@ public:
             add_sym(-1.0);
         }
 
-        Amplitudes out;
-        out.t1.resize(ov);
-        out.t2.resize(o * o * vv);
-        for (std::size_t i = 0; i < o; ++i)
-            for (std::size_t a = 0; a < v; ++a) out.t1[T1(i, a)] = r1[T1(i, a)] / (eo[i] - ev[a]);
-        for (std::size_t i = 0; i < o; ++i)
-            for (std::size_t j = 0; j < o; ++j)
-                for (std::size_t a = 0; a < v; ++a)
-                    for (std::size_t b = 0; b < v; ++b)
-                        out.t2[T2(i, j, a, b)] = r2[T2(i, j, a, b)] / (eo[i] + eo[j] - ev[a] - ev[b]);
-        return out;
+        r1_out = std::move(r1);
+        r2_out = std::move(r2);
     }
 
     // (T) correction.
@@ -1031,6 +1053,25 @@ CCIntegrals cc_integrals_from_ao(const BasisSet& basis, const Matrix& h_ao, cons
     allocate_blocks(I);
     fill_blocks(I, eri);
     return I;
+}
+
+void ccsd_amplitude_residual(const CCIntegrals& ints, LadderOperator& ladder, const std::vector<double>& t1,
+                             const std::vector<double>& t2, std::vector<double>& r1, std::vector<double>& r2,
+                             int threads) {
+    ClosedShellCCSD cc(ints, ladder, resolve_threads(threads));
+    Amplitudes t;
+    t.t1 = t1;
+    t.t2 = t2;
+    cc.residual(t, r1, r2);
+}
+
+double ccsd_correlation_energy(const CCIntegrals& ints, LadderOperator& ladder, const std::vector<double>& t1,
+                               const std::vector<double>& t2) {
+    ClosedShellCCSD cc(ints, ladder, 1);
+    Amplitudes t;
+    t.t1 = t1;
+    t.t2 = t2;
+    return cc.energy(t);
 }
 
 CCResult run_ccsd_closed_shell(const CCIntegrals& ints, LadderOperator& ladder, double reference_energy, bool triples,

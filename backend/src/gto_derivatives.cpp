@@ -925,6 +925,76 @@ std::vector<Matrix> eri_derivative_fock(const BasisSet& basis, int n_atoms, cons
     return out;
 }
 
+double eri_derivative_packed_bytes(std::size_t N, int n_atoms) {
+    const double np = static_cast<double>(N) * (N + 1) / 2.0;
+    return 8.0 * np * (np + 1) / 2.0 * 3.0 * n_atoms;
+}
+
+std::vector<std::vector<double>> eri_derivative_packed(const BasisSet& basis, int n_atoms, int threads) {
+    const int nt = resolve_threads(threads);
+    const DerivativePairs dp(basis, 1, nt);
+    const std::size_t N = static_cast<std::size_t>(basis.n_functions);
+    const std::size_t NP = N * (N + 1) / 2, total = NP * (NP + 1) / 2;
+    const std::size_t nx = static_cast<std::size_t>(3 * n_atoms);
+    std::vector<std::vector<double>> out(nx, std::vector<double>(total, 0.0));
+    auto pair = [](std::size_t a, std::size_t b) { return a >= b ? a * (a + 1) / 2 + b : b * (b + 1) / 2 + a; };
+    // Every unique function quartet belongs to exactly one unique shell quartet, so the threads
+    // write disjoint elements (values within a quartet block that map to the same element are equal).
+    for_unique_quartets(dp, nt, [&](int, EriEngine& engine, const UniquePair& bra, const UniquePair& ket, bool) {
+        thread_local std::vector<double> acc, dX[4], I;
+        const Shell& A = basis.shells[static_cast<std::size_t>(bra.i)];
+        const Shell& B = basis.shells[static_cast<std::size_t>(bra.j)];
+        const Shell& C = basis.shells[static_cast<std::size_t>(ket.i)];
+        const Shell& D = basis.shells[static_cast<std::size_t>(ket.j)];
+        const int na = A.size(), nb = B.size(), nc = C.size(), nd = D.size();
+        const std::size_t nq = static_cast<std::size_t>(na) * nb * nc * nd;
+        const int dims[4] = {na, nb, nc, nd};
+        auto to_k_outer = [&](const double* src, int pos, std::vector<double>& outv) {
+            std::size_t pre = 1, post = 1;
+            for (int q = 0; q < pos; ++q) pre *= static_cast<std::size_t>(dims[q]);
+            for (int q = pos; q < 4; ++q) post *= static_cast<std::size_t>(dims[q]);
+            outv.assign(3 * nq, 0.0);
+            for (int k = 0; k < 3; ++k)
+                for (std::size_t pp = 0; pp < pre; ++pp)
+                    for (std::size_t q = 0; q < post; ++q)
+                        outv[static_cast<std::size_t>(k) * nq + pp * post + q] =
+                            src[(pp * 3 + static_cast<std::size_t>(k)) * post + q];
+        };
+        sum_components(engine, bra.p10, ket.p00, acc, 3 * nq, [&](const double* v) { to_k_outer(v, 0, dX[0]); });
+        sum_components(engine, bra.p01, ket.p00, acc, 3 * nq, [&](const double* v) { to_k_outer(v, 1, dX[1]); });
+        sum_components(engine, bra.p00, ket.p10, acc, 3 * nq, [&](const double* v) { to_k_outer(v, 2, dX[2]); });
+        dX[3].assign(3 * nq, 0.0);
+        for (std::size_t x = 0; x < 3 * nq; ++x) dX[3][x] = -(dX[0][x] + dX[1][x] + dX[2][x]);
+        const int atom[4] = {A.atom, B.atom, C.atom, D.atom};
+        for (int X = 0; X < 4; ++X) {
+            bool first = true;
+            for (int Y = 0; Y < X; ++Y)
+                if (atom[Y] == atom[X]) first = false;
+            if (!first) continue;  // atom already handled
+            for (int k = 0; k < 3; ++k) {
+                I.assign(nq, 0.0);
+                for (int Y = X; Y < 4; ++Y)
+                    if (atom[Y] == atom[X])
+                        for (std::size_t q = 0; q < nq; ++q) I[q] += dX[Y][static_cast<std::size_t>(k) * nq + q];
+                std::vector<double>& T = out[static_cast<std::size_t>(3 * atom[X] + k)];
+                const double* v = I.data();
+                for (int a = 0; a < na; ++a) {
+                    const std::size_t p = static_cast<std::size_t>(A.first_function + a);
+                    for (int b = 0; b < nb; ++b) {
+                        const std::size_t pq = pair(p, static_cast<std::size_t>(B.first_function + b));
+                        for (int c = 0; c < nc; ++c) {
+                            const std::size_t r = static_cast<std::size_t>(C.first_function + c);
+                            for (int d = 0; d < nd; ++d, ++v)
+                                T[pair(pq, pair(r, static_cast<std::size_t>(D.first_function + d)))] = *v;
+                        }
+                    }
+                }
+            }
+        }
+    });
+    return out;
+}
+
 // ---------------------------------------------------------------------------------------
 // geometry helpers
 // ---------------------------------------------------------------------------------------
