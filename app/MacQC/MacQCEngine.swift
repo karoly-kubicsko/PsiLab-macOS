@@ -55,6 +55,9 @@ nonisolated struct MacQCInput: Codable, Sendable, Equatable {
     var scanStart: Double? = nil    // Å or degrees (nil: the value at the input geometry)
     var tsHessian: String = "calcfc" // "calcfc" (first step) or "calcall" (every step)
     var eigenTest: Bool = true      // the TS search needs exactly one negative eigenvalue
+    // ΨLab 10.0: Hessians of Full CI, CCSD and CCSD(T): "analytic" or "numerical"
+    var hessian: String = "analytic"
+    var initialHessian: String = "auto"   // minimisations: "auto", "analytic" or "model"
     // ΨLab 9.0: molecule "custom" (a structure file): atoms in Å, charge, multiplicity, name (LaTeX)
     var atoms: [CustomAtom]? = nil
     var charge: Int? = nil
@@ -67,7 +70,7 @@ nonisolated struct MacQCInput: Codable, Sendable, Equatable {
         case molecule, R, zeta1, zeta2, ZA, ZB, nGaussians, exactErf, maxIter, convergence, printLevel
         case basis, angle, method, basisDirectory, threads, memoryMB, fciMemoryMB, estimateOnly
         case job, spMethod, spBasis, temperature, pressure, optConvergence, maxSteps
-        case ROO, dihedral, scan, scanStart, tsHessian, eigenTest
+        case ROO, dihedral, scan, scanStart, tsHessian, eigenTest, hessian, initialHessian
         case atoms, charge, multiplicity, title
     }
 
@@ -106,6 +109,8 @@ nonisolated struct MacQCInput: Codable, Sendable, Equatable {
         scanStart = try c.decodeIfPresent(Double.self, forKey: .scanStart)
         tsHessian = try c.decodeIfPresent(String.self, forKey: .tsHessian) ?? d.tsHessian
         eigenTest = try c.decodeIfPresent(Bool.self, forKey: .eigenTest) ?? d.eigenTest
+        hessian = try c.decodeIfPresent(String.self, forKey: .hessian) ?? d.hessian
+        initialHessian = try c.decodeIfPresent(String.self, forKey: .initialHessian) ?? d.initialHessian
         atoms = try c.decodeIfPresent([CustomAtom].self, forKey: .atoms)
         charge = try c.decodeIfPresent(Int.self, forKey: .charge)
         multiplicity = try c.decodeIfPresent(Int.self, forKey: .multiplicity)
@@ -865,7 +870,18 @@ nonisolated struct MacQCProgress: Sendable, Equatable {
         case 8:
             return "Gradient…"
         case 9:
-            return "Hessian…"
+            // ΨLab 10.0: the parts of an analytic Hessian (residual: perturbation number)
+            let k = Int(residual)
+            switch iteration {
+            case 1: return k > 0 ? "Hessian · derivative integrals (coordinate \(k))" : "Hessian · derivative integrals…"
+            case 2: return "Hessian · orbital Lagrangian and Z-vector…"
+            case 3: return "Hessian · second-derivative integrals…"
+            case 4: return "Hessian · orbital response terms (perturbation \(k))"
+            case 5: return "Hessian · Z-vector integral terms (perturbation \(k))"
+            case 6: return "Hessian · response contractions (perturbation \(k))"
+            case 7: return "Hessian · amplitude responses (perturbation \(k))"
+            default: return "Hessian…"
+            }
         case 10:
             return String(format: "Orbital response · iteration %ld · residual %.1e", iteration, residual)
         case 11:

@@ -170,6 +170,26 @@ std::unique_ptr<LadderOperator> make_ao_ladder(const BasisSet& basis, const Matr
 CCResult run_ccsd_closed_shell(const CCIntegrals& ints, LadderOperator& ladder, double reference_energy,
                                bool triples, const CCOptions& options, const CCProgress& progress = CCProgress());
 
+// ΨLab 10.0 (analytic Hessians): the residual of the closed-shell CCSD amplitude equations,
+// Omega(t) = r(t) - D t (D: Fock-diagonal denominators of `ints`), zero at the solution. It is
+// linear in the integrals (so Omega with perturbed integrals is its derivative) and a polynomial
+// of degree 4 in the amplitudes. t1 [i][a], t2 [i][j][a][b].
+void ccsd_amplitude_residual(const CCIntegrals& ints, LadderOperator& ladder, const std::vector<double>& t1,
+                             const std::vector<double>& t2, std::vector<double>& r1, std::vector<double>& r2,
+                             int threads = 0);
+// The CCSD correlation energy expression for given amplitudes (any integrals).
+double ccsd_correlation_energy(const CCIntegrals& ints, LadderOperator& ladder, const std::vector<double>& t1,
+                               const std::vector<double>& t2);
+// The (T) energy expression for given amplitudes (canonical orbitals of `ints`): a homogeneous
+// quadratic function of (t1, t2) (ΨLab 10.0, analytic CCSD(T) Hessian).
+double ccsd_triples_energy(const CCIntegrals& ints, LadderOperator& ladder, const std::vector<double>& t1,
+                           const std::vector<double>& t2, int threads = 0);
+// The bilinear form B(k, l) of the (T) expression for several amplitude sets (t1, t2): the (T)
+// energy of set k is B(k, k), and E(t_k + t_l) - E(t_k) - E(t_l) = B(k, l) + B(l, k).
+Matrix ccsd_triples_pairs(const CCIntegrals& ints, LadderOperator& ladder,
+                          const std::vector<std::pair<std::vector<double>, std::vector<double>>>& amplitudes,
+                          int threads = 0);
+
 // Energy of the reference determinant from MO integrals (electronic + nuclear repulsion).
 double reference_energy_from_mo(const MOIntegrals& mo, int nocc, double nuclear_repulsion);
 

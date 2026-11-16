@@ -122,4 +122,22 @@ CorrelatedDensity fci_densities(int n_orbitals, int n_alpha, int n_beta, const s
 // Memory (bytes) of fci_densities.
 double fci_density_bytes(int n_orbitals, int n_alpha);
 
+// ΨLab 10.0: first-order response of the Full CI ground state (normalised vector c, electronic
+// energy E) to perturbed Hamiltonians H^(x) (the electronic part, e.g. perturbed_hamiltonian):
+//   (H - E) c^x = -(H^(x) - E^(x)) c,  c' c^x = 0,  E^(x) = c' H^(x) c,
+// solved by preconditioned conjugate gradients in the orthogonal complement of c (where H - E
+// is positive definite for the ground state), with the diagonal preconditioner; the vectors
+// stay singlets (C = C^T).
+struct FCIResponse {
+    std::vector<std::vector<double>> vectors;  // c^x
+    std::vector<double> energy_derivatives;    // E^(x) (electronic)
+    bool converged = true;
+    int iterations = 0;                        // largest number of iterations
+    double residual = 0.0;                     // largest final residual norm
+};
+FCIResponse fci_vector_responses(const MOIntegrals& mo, int n_alpha, int n_beta, const std::vector<double>& c,
+                                 double electronic_energy, std::size_t count,
+                                 const std::function<MOIntegrals(std::size_t)>& perturbation, int threads = 0,
+                                 double memory_limit_mb = 4096.0, double tol = 1.0e-9, int max_iter = 200);
+
 }  // namespace macqc

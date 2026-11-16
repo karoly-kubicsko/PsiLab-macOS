@@ -480,6 +480,8 @@ GradientResult run_gradient(const Molecule& mol, const BasisSet& basis, const st
                     g.lambda_converged = d.lambda_converged;
                     g.lambda_iterations = d.lambda_iterations;
                     g.lambda_residual = d.lambda_residual;
+                    g.l1 = std::move(d.l1);
+                    g.l2 = std::move(d.l2);
                     if (!d.lambda_converged)
                         sp.warnings.push_back(format("The %s Lambda equations did not converge in %d iterations.",
                                                      method.c_str(), d.lambda_iterations));

@@ -384,6 +384,37 @@ public:
 
     // New amplitudes (Jacobi step) from the current ones.
     Amplitudes update(const Amplitudes& t) {
+        std::vector<double> r1, r2;
+        numerators(t, r1, r2);
+        const std::size_t ov = o * v, vv = v * v;
+        Amplitudes out;
+        out.t1.resize(ov);
+        out.t2.resize(o * o * vv);
+        for (std::size_t i = 0; i < o; ++i)
+            for (std::size_t a = 0; a < v; ++a) out.t1[T1(i, a)] = r1[T1(i, a)] / (eo[i] - ev[a]);
+        for (std::size_t i = 0; i < o; ++i)
+            for (std::size_t j = 0; j < o; ++j)
+                for (std::size_t a = 0; a < v; ++a)
+                    for (std::size_t b = 0; b < v; ++b)
+                        out.t2[T2(i, j, a, b)] = r2[T2(i, j, a, b)] / (eo[i] + eo[j] - ev[a] - ev[b]);
+        return out;
+    }
+
+    // ΨLab 10.0: the residual Omega(t) = r(t) - D t of the amplitude equations (zero at the
+    // solution), D the Fock-diagonal denominators; linear in the integrals.
+    void residual(const Amplitudes& t, std::vector<double>& w1, std::vector<double>& w2) {
+        numerators(t, w1, w2);
+        for (std::size_t i = 0; i < o; ++i)
+            for (std::size_t a = 0; a < v; ++a) w1[T1(i, a)] -= (eo[i] - ev[a]) * t.t1[T1(i, a)];
+        for (std::size_t i = 0; i < o; ++i)
+            for (std::size_t j = 0; j < o; ++j)
+                for (std::size_t a = 0; a < v; ++a)
+                    for (std::size_t b = 0; b < v; ++b)
+                        w2[T2(i, j, a, b)] -= (eo[i] + eo[j] - ev[a] - ev[b]) * t.t2[T2(i, j, a, b)];
+    }
+
+    // Numerators r(t) of the Jacobi step t_new = r(t) / D (the diagonal Fock terms removed).
+    void numerators(const Amplitudes& t, std::vector<double>& r1_out, std::vector<double>& r2_out) {
         const std::vector<double>& t1 = t.t1;
         const std::vector<double>& t2 = t.t2;
         const std::size_t ov = o * v, vv = v * v;
@@ -715,16 +746,103 @@ public:
             add_sym(-1.0);
         }
 
-        Amplitudes out;
-        out.t1.resize(ov);
-        out.t2.resize(o * o * vv);
+        r1_out = std::move(r1);
+        r2_out = std::move(r2);
+    }
+
+    // ΨLab 10.0: the bilinear form of the (T) expression for several amplitude sets t_k (canonical
+    // orbitals): B(k, l) = sum x(W_k) y(V_l) / D, with W, V linear in the amplitudes, so that the
+    // (T) energy of t_k is B(k, k) and E(t_k + t_l) - E(t_k) - E(t_l) = B(k, l) + B(l, k). One pass
+    // builds W and V once per set (instead of one (T) calculation per pair).
+    Matrix triples_pairs(const std::vector<Amplitudes>& ts) {
+        const std::size_t K = ts.size();
+        const std::size_t vv = v * v, vvv = vv * v;
+        std::vector<std::vector<double>> Ws(K, std::vector<double>(vvv)), Vs(K, std::vector<double>(vvv));
+        std::vector<std::vector<double>> Xs(K, std::vector<double>(vvv)), Ys(K, std::vector<double>(vvv));
+        std::vector<double> w(vvv), A(v * o), Bm(o * vv);
+        Matrix out(K, K);
+        auto compute_w = [&](const std::vector<double>& t2, std::size_t x, std::size_t y, std::size_t z) {
+            gemm(false, false, vv, v, v, 1.0, I.ovvv.data() + x * v * vv, v, t2.data() + T2(y, z, 0, 0), v, 0.0, w.data(),
+                 v, threads_);
+            for (std::size_t a = 0; a < v; ++a)
+                for (std::size_t m = 0; m < o; ++m) A[a * o + m] = ovoo(x, a, y, m);
+            for (std::size_t m = 0; m < o; ++m) std::copy_n(t2.data() + T2(m, z, 0, 0), vv, Bm.data() + m * vv);
+            gemm(false, false, v, vv, o, -1.0, A.data(), o, Bm.data(), vv, 1.0, w.data(), vv, threads_);
+        };
+        static const int perms[6][3] = {{0, 1, 2}, {0, 2, 1}, {1, 0, 2}, {1, 2, 0}, {2, 0, 1}, {2, 1, 0}};
         for (std::size_t i = 0; i < o; ++i)
-            for (std::size_t a = 0; a < v; ++a) out.t1[T1(i, a)] = r1[T1(i, a)] / (eo[i] - ev[a]);
-        for (std::size_t i = 0; i < o; ++i)
-            for (std::size_t j = 0; j < o; ++j)
-                for (std::size_t a = 0; a < v; ++a)
-                    for (std::size_t b = 0; b < v; ++b)
-                        out.t2[T2(i, j, a, b)] = r2[T2(i, j, a, b)] / (eo[i] + eo[j] - ev[a] - ev[b]);
+            for (std::size_t j = 0; j <= i; ++j)
+                for (std::size_t k = 0; k <= j; ++k) {
+                    check_cancelled();
+                    const std::size_t ijk[3] = {i, j, k};
+                    for (std::size_t s = 0; s < K; ++s) {
+                        const std::vector<double>& t1 = ts[s].t1;
+                        const std::vector<double>& t2 = ts[s].t2;
+                        std::vector<double>& W = Ws[s];
+                        std::vector<double>& V = Vs[s];
+                        std::fill(W.begin(), W.end(), 0.0);
+                        for (const auto& p : perms) {
+                            compute_w(t2, ijk[p[0]], ijk[p[1]], ijk[p[2]]);
+                            run_parallel(v > 32 ? threads_ : 1, [&](int th) {
+                                const int nt = v > 32 ? threads_ : 1;
+                                std::size_t idx[3];
+                                for (std::size_t a = static_cast<std::size_t>(th); a < v; a += static_cast<std::size_t>(nt))
+                                    for (std::size_t b = 0; b < v; ++b)
+                                        for (std::size_t c = 0; c < v; ++c) {
+                                            const std::size_t abc[3] = {a, b, c};
+                                            idx[0] = abc[p[0]];
+                                            idx[1] = abc[p[1]];
+                                            idx[2] = abc[p[2]];
+                                            W[(a * v + b) * v + c] += w[(idx[0] * v + idx[1]) * v + idx[2]];
+                                        }
+                            });
+                        }
+                        for (std::size_t a = 0; a < v; ++a)
+                            for (std::size_t b = 0; b < v; ++b)
+                                for (std::size_t c = 0; c < v; ++c) {
+                                    const std::size_t x = (a * v + b) * v + c;
+                                    V[x] = W[x] + ovov(i, a, j, b) * t1[T1(k, c)] + ovov(i, a, k, c) * t1[T1(j, b)] +
+                                           ovov(j, b, k, c) * t1[T1(i, a)] + t2[T2(i, j, a, b)] * I.fock(o + c, k) +
+                                           t2[T2(i, k, a, c)] * I.fock(o + b, j) + t2[T2(j, k, b, c)] * I.fock(o + a, i);
+                                }
+                    }
+                    const double eijk = eo[i] + eo[j] + eo[k];
+                    std::vector<std::array<std::size_t, 3>> seen;
+                    for (const auto& p : perms) {
+                        const std::array<std::size_t, 3> trip{ijk[p[0]], ijk[p[1]], ijk[p[2]]};
+                        if (std::find(seen.begin(), seen.end(), trip) != seen.end()) continue;
+                        seen.push_back(trip);
+                        auto at = [&](const std::vector<double>& M, std::size_t x0, std::size_t x1, std::size_t x2) {
+                            std::size_t y[3];
+                            const std::size_t xs[3] = {x0, x1, x2};
+                            y[p[0]] = xs[0];
+                            y[p[1]] = xs[1];
+                            y[p[2]] = xs[2];
+                            return M[(y[0] * v + y[1]) * v + y[2]];
+                        };
+                        for (std::size_t s = 0; s < K; ++s) {
+                            const std::vector<double>& W = Ws[s];
+                            const std::vector<double>& V = Vs[s];
+                            std::vector<double>& X = Xs[s];
+                            std::vector<double>& Y = Ys[s];
+                            for (std::size_t a = 0; a < v; ++a)
+                                for (std::size_t b = 0; b < v; ++b)
+                                    for (std::size_t c = 0; c < v; ++c) {
+                                        const std::size_t x = (a * v + b) * v + c;
+                                        X[x] = 4.0 * at(W, a, b, c) + at(W, b, c, a) + at(W, c, a, b);
+                                        Y[x] = (at(V, a, b, c) - at(V, c, b, a)) / (eijk - ev[a] - ev[b] - ev[c]);
+                                    }
+                        }
+                        for (std::size_t s = 0; s < K; ++s)
+                            for (std::size_t r = 0; r < K; ++r) {
+                                double sum = 0.0;
+                                const double* X = Xs[s].data();
+                                const double* Y = Ys[r].data();
+                                for (std::size_t x = 0; x < vvv; ++x) sum += X[x] * Y[x];
+                                out(s, r) += sum / 3.0;
+                            }
+                    }
+                }
         return out;
     }
 
@@ -1031,6 +1149,45 @@ CCIntegrals cc_integrals_from_ao(const BasisSet& basis, const Matrix& h_ao, cons
     allocate_blocks(I);
     fill_blocks(I, eri);
     return I;
+}
+
+void ccsd_amplitude_residual(const CCIntegrals& ints, LadderOperator& ladder, const std::vector<double>& t1,
+                             const std::vector<double>& t2, std::vector<double>& r1, std::vector<double>& r2,
+                             int threads) {
+    ClosedShellCCSD cc(ints, ladder, resolve_threads(threads));
+    Amplitudes t;
+    t.t1 = t1;
+    t.t2 = t2;
+    cc.residual(t, r1, r2);
+}
+
+double ccsd_correlation_energy(const CCIntegrals& ints, LadderOperator& ladder, const std::vector<double>& t1,
+                               const std::vector<double>& t2) {
+    ClosedShellCCSD cc(ints, ladder, 1);
+    Amplitudes t;
+    t.t1 = t1;
+    t.t2 = t2;
+    return cc.energy(t);
+}
+
+Matrix ccsd_triples_pairs(const CCIntegrals& ints, LadderOperator& ladder,
+                          const std::vector<std::pair<std::vector<double>, std::vector<double>>>& amplitudes, int threads) {
+    ClosedShellCCSD cc(ints, ladder, resolve_threads(threads));
+    std::vector<Amplitudes> ts(amplitudes.size());
+    for (std::size_t k = 0; k < ts.size(); ++k) {
+        ts[k].t1 = amplitudes[k].first;
+        ts[k].t2 = amplitudes[k].second;
+    }
+    return cc.triples_pairs(ts);
+}
+
+double ccsd_triples_energy(const CCIntegrals& ints, LadderOperator& ladder, const std::vector<double>& t1,
+                           const std::vector<double>& t2, int threads) {
+    ClosedShellCCSD cc(ints, ladder, resolve_threads(threads));
+    Amplitudes t;
+    t.t1 = t1;
+    t.t2 = t2;
+    return cc.triples(t);
 }
 
 CCResult run_ccsd_closed_shell(const CCIntegrals& ints, LadderOperator& ladder, double reference_energy, bool triples,

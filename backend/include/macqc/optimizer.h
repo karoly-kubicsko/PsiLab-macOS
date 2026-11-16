@@ -67,7 +67,9 @@ struct OptimizationOptions {
     int max_steps = 50;
     double trust_radius = 0.3;   // initial (bohr, rad)
     double max_trust = 0.5, min_trust = 1.0e-3;
-    std::string initial_hessian = "auto";  // auto | analytic | lindh | schlegel
+    // auto (10.0: the analytic Hessian of RHF up to analytic_hessian_max_functions, of Full CI,
+    // CCSD and CCSD(T) where it fits into memory; otherwise Lindh) | analytic | lindh | schlegel
+    std::string initial_hessian = "auto";
     int analytic_hessian_max_functions = 100;  // "auto": analytic RHF Hessian up to this size
     // Called before the energy and gradient of each step (for the output file).
     std::function<void(int, const Molecule&)> on_step_start;
@@ -83,6 +85,7 @@ struct OptimizationOptions {
     bool transition_state = false;
     std::string ts_hessian = "calcfc";   // calcfc (computed at the first point) | calcall (every point)
     bool eigen_test = true;              // stop unless the Hessian has exactly one negative eigenvalue
+    bool numerical_hessian = false;      // 10.0: computed Hessians by differences even where analytic
 };
 
 struct ConvergenceItem {

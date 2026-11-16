@@ -70,6 +70,12 @@ struct Input {
     // ΨLab 7.0 transition states (jobs "ts", "ts+freq")
     std::string tsHessian = "calcfc";   // calcfc (Hessian at the first point) | calcall (at every point)
     bool eigenTest = true;              // exactly one negative Hessian eigenvalue (Gaussian: EigenTest)
+    // ΨLab 10.0: the Hessian of frequency jobs and transition-state searches with Full CI, CCSD and
+    // CCSD(T): "analytic" (where it fits in memory) or "numerical" (differences of analytic gradients)
+    std::string hessian = "analytic";
+    // 10.0: the initial Hessian of minimisations: "auto" (analytic for HF, Lindh's model Hessian
+    // otherwise), "analytic" (also for Full CI, CCSD, CCSD(T)) or "model" (Lindh)
+    std::string initialHessian = "auto";
     std::string echo;                   // input text for the output file ("": generated from the keys)
 };
 

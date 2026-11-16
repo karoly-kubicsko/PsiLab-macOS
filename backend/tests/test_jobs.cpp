@@ -296,10 +296,11 @@ int main() {
                 const json r = run_logged(mol + " " + m + "/aug-cc-pVDZ " + in["job"].get<std::string>(), in);
                 CHECK(r["error"].is_null());
                 CHECK(r["frequencies"]["modes"].size() == 1);
-                CHECK(r["frequencies"]["analytic"].get<bool>() == false);
-                // 2 displaced energies or gradients; LiH from energies also 4 finite-field energies (dipole)
-                CHECK(r["frequencies"][numerical ? "energyEvaluations" : "gradientEvaluations"].get<int>() ==
-                      (numerical && mol == "LiH" ? 6 : 2));
+                // 10.0: CCSD, CCSD(T) and Full CI analytic; CCSDT and CCSDTQ from 2 displaced energies
+                // (LiH also 4 finite-field energies for the dipole)
+                CHECK(r["frequencies"]["analytic"].get<bool>() == !numerical);
+                if (numerical) CHECK(r["frequencies"]["energyEvaluations"].get<int>() == (mol == "LiH" ? 6 : 2));
+                else CHECK(r["frequencies"]["gradientEvaluations"].get<int>() == 0);
                 if (in["job"] == "opt+freq") {
                     CHECK(r["optimization"]["converged"].get<bool>());
                     CHECK(contains(r["optimization"]["gradient"].get<std::string>(), numerical ? "numerical" : "analytic"));
@@ -343,7 +344,7 @@ int main() {
     }
 
     // ---- H2O with CCSD and CCSD(T)
-    std::printf("H2O opt+freq with CCSD and CCSD(T)/aug-cc-pVDZ (analytic gradients, Hessian from 6 gradients)\n");
+    std::printf("H2O opt+freq with CCSD and CCSD(T)/aug-cc-pVDZ (analytic gradients and Hessians)\n");
     for (const std::string m : {"CCSD", "CCSD(T)"}) {
         const json r = run_logged("H2O " + m + "/aug-cc-pVDZ opt+freq",
                                   {{"molecule", "H2O"}, {"basis", "aug-cc-pVDZ"}, {"method", m}, {"job", "opt+freq"},
@@ -357,11 +358,52 @@ int main() {
             check_max("  H2O " + m + ": angle vs PySCF + geomeTRIC (deg)", std::fabs(g["angle"].get<double>() - (*ref)["angle"].get<double>()),
                       2e-3);
         }
-        CHECK(r["frequencies"]["gradientEvaluations"].get<int>() == 6);
+        CHECK(r["frequencies"]["analytic"].get<bool>());
+        CHECK(contains(r["optimization"]["initialHessian"].get<std::string>(), "analytic " + m + " Hessian"));
+        CHECK(contains(r["frequencies"]["intensityDescription"].get<std::string>(), "analytic"));
         CHECK(r["frequencies"]["intensities"].get<bool>());
         CHECK(r["frequencies"]["modes"].size() == 3);
         const auto& est = r["job"]["estimate"]["steps"];
-        CHECK(est.size() == 2 && est[1]["evaluations"].get<int>() == 6 && est[1]["evaluationKind"] == "gradients");
+        // 3 internal directions and 3 field components
+        CHECK(est.size() == 2 && est[1]["evaluations"].get<int>() == 6 && est[1]["evaluationKind"] == "responses");
+    }
+
+    // ---- 10.0: analytic vs numerical Hessians of the same job, the analytic initial Hessian
+    std::printf("H2O CCSD/aug-cc-pVDZ frequencies: analytic and numerical Hessian; analytic initial Hessian\n");
+    {
+        const json in = {{"molecule", "H2O"}, {"basis", "aug-cc-pVDZ"}, {"method", "CCSD"}, {"job", "freq"}};
+        json inn = in;
+        inn["hessian"] = "numerical";
+        const json a = run_logged("H2O CCSD/aug-cc-pVDZ freq, analytic Hessian", in);
+        const json n = run_logged("H2O CCSD/aug-cc-pVDZ freq, numerical Hessian", inn);
+        CHECK(a["error"].is_null() && n["error"].is_null());
+        CHECK(a["frequencies"]["analytic"].get<bool>() && !n["frequencies"]["analytic"].get<bool>());
+        CHECK(n["frequencies"]["gradientEvaluations"].get<int>() == 6);
+        double dw = 0.0, di = 0.0;
+        for (std::size_t k = 0; k < 3; ++k) {
+            const auto& ma = a["frequencies"]["modes"][k];
+            const auto& mn = n["frequencies"]["modes"][k];
+            dw = std::max(dw, std::fabs(ma["wavenumber"].get<double>() - mn["wavenumber"].get<double>()));
+            di = std::max(di, std::fabs(ma["irIntensity"].get<double>() - mn["irIntensity"].get<double>()));
+        }
+        // the numerical Hessian (central differences, 0.005 bohr) is accurate to about 3e-5 E_h/bohr^2
+        check_max("  analytic vs numerical CCSD Hessian: wavenumbers (cm-1)", dw, 0.5);
+        check_max("  analytic vs numerical CCSD Hessian: IR intensities (km/mol)", di, 0.05);
+        const json bad = run({{"molecule", "H2"}, {"job", "freq"}, {"hessian", "exact"}});
+        CHECK(contains(bad["error"].get<std::string>(), "hessian must be analytic or numerical"));
+        const json bad2 = run({{"molecule", "H2"}, {"job", "opt"}, {"initialHessian", "unit"}});
+        CHECK(contains(bad2["error"].get<std::string>(), "initialHessian must be auto, analytic or model"));
+        const json o = run_logged("H2O CCSD/aug-cc-pVDZ opt, analytic initial Hessian",
+                                  {{"molecule", "H2O"}, {"basis", "aug-cc-pVDZ"}, {"method", "CCSD"}, {"job", "opt"},
+                                   {"R", 1.9}, {"angle", 112.0}, {"initialHessian", "analytic"}});
+        CHECK(o["error"].is_null() && o["optimization"]["converged"].get<bool>());
+        CHECK(contains(o["optimization"]["initialHessian"].get<std::string>(), "analytic CCSD Hessian"));
+        const json om = run_logged("H2O CCSD/aug-cc-pVDZ opt, model initial Hessian",
+                                   {{"molecule", "H2O"}, {"basis", "aug-cc-pVDZ"}, {"method", "CCSD"}, {"job", "opt"},
+                                    {"R", 1.9}, {"angle", 112.0}, {"initialHessian", "model"}});
+        CHECK(om["error"].is_null() && om["optimization"]["converged"].get<bool>());
+        CHECK(contains(om["optimization"]["initialHessian"].get<std::string>(), "Lindh"));
+        std::printf("     optimisation from the analytic CCSD Hessian: %s steps\n", o["optimization"]["steps"].dump().substr(0, 40).c_str());
     }
 
     // ---- refusals and estimates
@@ -390,7 +432,11 @@ int main() {
         auto st = r["job"]["estimate"]["steps"][0];
         CHECK(st["evaluationKind"] == "energies" && st["evaluations"].get<int>() == 19 && !st["analytic"].get<bool>());
         CHECK(contains(st["how"].get<std::string>(), "9 CCSDT energies") && contains(st["how"].get<std::string>(), "10 finite-field"));
+        // 10.0: LiH CCSD(T) analytic (1 internal direction and 3 field components); numerical on request
         r = run({{"molecule", "LiH"}, {"method", "CCSD(T)"}, {"job", "freq"}, {"estimateOnly", true}});
+        st = r["job"]["estimate"]["steps"][0];
+        CHECK(st["analytic"].get<bool>() && st["evaluationKind"] == "responses" && st["evaluations"].get<int>() == 4);
+        r = run({{"molecule", "LiH"}, {"method", "CCSD(T)"}, {"job", "freq"}, {"estimateOnly", true}, {"hessian", "numerical"}});
         st = r["job"]["estimate"]["steps"][0];
         CHECK(st["evaluationKind"] == "gradients" && st["evaluations"].get<int>() == 2);
         r = run({{"molecule", "H2O"}, {"method", "HF"}, {"job", "opt+freq"}, {"estimateOnly", true}});

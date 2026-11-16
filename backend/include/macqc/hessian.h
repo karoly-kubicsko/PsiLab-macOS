@@ -33,6 +33,10 @@ struct HessianOptions {
     // Energy and gradient already computed at this geometry (e.g. the last optimisation step),
     // used instead of computing them again; nullptr: computed here.
     const GradientResult* reference = nullptr;
+    double response_tol = 1.0e-9;  // 10.0: residual of the response equations of the analytic correlated Hessians
+    // 10.0: only the analytic correlated Hessian: if it is not possible, return an empty Hessian
+    // (numerical_reason says why) instead of computing a numerical one (initial Hessians)
+    bool analytic_only = false;
 };
 
 struct HessianResult {
@@ -61,6 +65,12 @@ HessianResult run_hessian(const Molecule& mol, const BasisSet& basis, const std:
                           const ElectronicCallbacks& callbacks = ElectronicCallbacks(),
                           const Matrix* guess_orbitals = nullptr,
                           const DisplacementProgress& progress = DisplacementProgress());
+
+// ΨLab 10.0: the methods with an analytic Hessian (RHF, FCI, CCSD, CCSD(T)), and the memory
+// (bytes) of an analytic correlated Hessian (0 for RHF) for n_occupied, n_mo orbitals, n_basis
+// functions and n_atoms atoms.
+bool analytic_hessian_method(const std::string& canonical_method);
+double analytic_hessian_bytes(const std::string& canonical_method, int n_occupied, int n_mo, int n_basis, int n_atoms);
 
 // Number of gradient (analytic-gradient methods) or energy (CCSDT, CCSDTQ) evaluations of a
 // numerical Hessian of this molecule, without the reference point (for the estimates).

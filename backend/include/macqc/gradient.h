@@ -79,6 +79,7 @@ struct GradientResult {
     bool lambda_converged = false;
     int lambda_iterations = 0;
     double lambda_residual = 0.0;
+    std::vector<double> l1, l2;   // 10.0: the CCSD / CCSD(T) multipliers (for the analytic Hessian)
     double seconds = 0.0;
 };
 

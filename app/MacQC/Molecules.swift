@@ -319,6 +319,14 @@ nonisolated enum MethodChoice: String, CaseIterable, Identifiable, Sendable {
         }
     }
 
+    /// ΨLab 10.0: an analytic Hessian beyond RHF (Full CI, CCSD, CCSD(T)).
+    var hasAnalyticCorrelatedHessian: Bool {
+        switch self {
+        case .ccsd, .ccsdT, .fci: return true
+        case .hf, .ccsdt, .ccsdtq: return false
+        }
+    }
+
     var isCoupledCluster: Bool {
         switch self {
         case .ccsd, .ccsdT, .ccsdt, .ccsdtq: return true
