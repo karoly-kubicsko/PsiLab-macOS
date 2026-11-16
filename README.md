@@ -62,7 +62,7 @@ same calculations run in the terminal on Linux and macOS
     (editable); H₂O the H–O–H angle; H₂O₂ R(O–O), the O–O–H angle and the H–O–O–H
     dihedral angle (C₂; 0° cis, 180° trans); NH₃ the H–N–H angle (C₃ᵥ; 120° planar). The reset
     button restores 0.74144 Å (H₂), 1.5949 Å (LiH), 0.9572 Å and 104.52° (H₂O), 1.4556 Å, 0.9670 Å,
-    102.32° and 113.70° (H₂O₂), 1.012 Å and 106.7° (NH₃), 1.4632 bohr (HeH⁺); after an optimisation
+    102.32° and 113.70° (H₂O₂), 1.012 Å and 106.7° (NH₃), 0.7743 Å (HeH⁺, Szabo–Ostlund's 1.4632 bohr); after an optimisation
     the optimised values (or the transition state) are shown with **Use optimised geometry**, which
     copies them into the inputs;
   - job 6, the **scanned coordinate**: suggested scans of the molecule (H₂O₂ torsion 0–180°, NH₃
@@ -88,9 +88,9 @@ same calculations run in the terminal on Linux and macOS
     red explanation when the calculation is not possible (then **Run** is disabled); the run bar and,
     before the first result, the detail area repeat the refusal or the long-calculation warning.
 
-  For HeH⁺ in STO-nG: R in Å and bohr, the basis set (STO-1G/2G/3G or a correlation-consistent
+  For HeH⁺ in STO-nG: R in Å, the basis set (STO-1G/2G/3G or a correlation-consistent
   set, which switches to the general calculation above), Slater exponents ζ(He) and ζ(H), the
-  exact-erf option; *Reset to Szabo–Ostlund defaults* restores R = 1.4632 bohr, ζ = 2.0925 / 1.24,
+  exact-erf option; *Reset to Szabo–Ostlund defaults* restores R = 0.7743 Å (1.4632 bohr), ζ = 2.0925 / 1.24,
   STO-3G. Below: the appearance (System / Light / Dark).
 - **Run** (⌘R) calculates on all processor cores. A job estimated to take longer than 30 s asks
   for confirmation first; while it runs, the sidebar shows one progress line (for example
@@ -167,7 +167,8 @@ same calculations run in the terminal on Linux and macOS
 **Enthalpy**: the thermochemistry tables (app, output file) give the definition of the enthalpy,
 H = U + pV, instead of "H = U + kT"; for the ideal gas pV = RT per mole (k_BT per molecule), so the
 values are unchanged. The *Starting geometry* (*Geometry*) section of the sidebar gives the bond
-length in Å only (no longer also in bohr). The README gives the measured timings of the analytic
+length in Å only (no longer also in bohr), and so does the Geometry section of HeH⁺ in the
+Szabo–Ostlund STO-nG basis (R = 0.7743 Å, the book's 1.4632 bohr). The README gives the measured timings of the analytic
 Full CI Hessian of LiH against the numerical route of earlier versions (6.0 s vs 4.1 s).
 
 ### 10.0

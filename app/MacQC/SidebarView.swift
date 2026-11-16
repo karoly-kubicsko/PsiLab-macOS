@@ -106,9 +106,6 @@ struct SidebarView: View {
             LabeledContent("R (Å)") {
                 numberField("R angstrom", value: $model.rAngstrom)
             }
-            LabeledContent("R (bohr)") {
-                numberField("R bohr", value: $model.R)
-            }
         }
 
         Section("Basis") {
@@ -181,7 +178,7 @@ struct SidebarView: View {
     private var resetTitle: String {
         switch model.molecule {
         case .h2, .lih, .h2o: return "Experimental geometry"
-        case .heh: return "Szabo–Ostlund R = 1.4632 bohr"
+        case .heh: return "Szabo–Ostlund R = 0.7743 Å"
         case .h2o2, .nh3, .custom: return "Default geometry"
         }
     }
