@@ -5,11 +5,13 @@ name: releases
 # merged) or by hand. The app workflow publishes each new version (a new MARKETING_VERSION) once
 # and does not change existing releases.
 #
-# The job never creates, moves or deletes a tag. The workflow token is refused (HTTP 403) when a
-# tag would point at one of these older commits - by the REST API, by git push and when a release
-# creates its tag (v6.0, run 43775442184; v1.0 ... v4.0 were still created that way). A tag that
-# is missing or at another commit is reported; a person sets it (README, "Releases"), and the job
-# goes on with the other versions and fails at the end. For a tag at its commit:
+# The job never creates, moves or deletes a tag. The workflow token may set a tag at an older
+# commit only while a branch points at a commit with the same workflow files (tags do not count);
+# otherwise it is refused (HTTP 403) - by the REST API, by git push and when a release creates
+# its tag. v6.0 (9904c29) was refused in run 43775442184 and created by the one-off run
+# 43783518143 (commit 5033893) once the branch claude/release-6.0 pointed at 9904c29. A tag that
+# is missing or at another commit is reported (README, "Tags at older commits"), and the job goes
+# on with the other versions and fails at the end. For a tag at its commit:
 # - no release: the release is created on the tag, with the build and the notes;
 # - a release without this build (other notes, other or no assets): its assets are replaced by
 #   the build, and its title and notes are set;
@@ -21,8 +23,8 @@ name: releases
 # stage. So the builds of the 7.0 stages replaced v6.0, and the build of the orbital viewer (8.0,
 # merged while still numbered 7.0) became v7.0. v6.0 is the build of 9904c29 (merge of #28); v7.0
 # is ΨLab 6.0 with the changes of stages 7.1-7.4 (the merge of #32, b54ac0e) and the version 7.0
-# (commit c11b1d7, the tip of the branch claude/fervent-thompson-voh6gk), without the orbital
-# viewer.
+# (commit c11b1d7), without the orbital viewer. Both tags were set by run 43783518143 (v7.0 moved
+# from d0b5770), and run 43783621017 attached their builds.
 
 on:
   push:
@@ -56,7 +58,7 @@ jobs:
             NOTES="ΨLab $VERSION: $SUMMARY $BUILT (macOS 14 and later, Apple Silicon and Intel). Unzip $ASSET; the app is not notarized: right-click ΨLab.app ▸ Open the first time, or run xattr -dr com.apple.quarantine ΨLab.app."
             # the commit of the tag (lightweight or annotated)
             if ! OBJECT=$(gh api "repos/$GH_REPO/git/ref/tags/$TAG" --jq '.object.type + " " + .object.sha' 2> /dev/null); then
-              echo "::error::$TAG: the tag does not exist; create it at $SHA (README, Releases)"
+              echo "::error::$TAG: the tag does not exist; create it at $SHA (README, \"Tags at older commits\")"
               PROBLEMS=$((PROBLEMS + 1))
               continue
             fi
@@ -65,7 +67,7 @@ jobs:
               AT=$(gh api "repos/$GH_REPO/git/tags/$AT" --jq .object.sha)
             fi
             if [ "$AT" != "$SHA" ]; then
-              echo "::error::$TAG: the tag is at $AT, not at $SHA; set it there (README, Releases)"
+              echo "::error::$TAG: the tag is at $AT, not at $SHA; set it there (README, \"Tags at older commits\")"
               PROBLEMS=$((PROBLEMS + 1))
               continue
             fi
@@ -114,6 +116,6 @@ jobs:
           fi
           gh release list --limit 20
           if [ "$PROBLEMS" -gt 0 ]; then
-            echo "::error::$PROBLEMS tag(s) missing or at another commit: set them by hand (README, Releases), then run this workflow again"
+            echo "::error::$PROBLEMS tag(s) missing or at another commit: set them (README, \"Tags at older commits\"), then run this workflow again"
             exit 1
           fi
