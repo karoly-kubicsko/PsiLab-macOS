@@ -432,7 +432,11 @@ int main() {
         auto st = r["job"]["estimate"]["steps"][0];
         CHECK(st["evaluationKind"] == "energies" && st["evaluations"].get<int>() == 19 && !st["analytic"].get<bool>());
         CHECK(contains(st["how"].get<std::string>(), "9 CCSDT energies") && contains(st["how"].get<std::string>(), "10 finite-field"));
+        // 10.0: LiH CCSD(T) analytic (1 internal direction and 3 field components); numerical on request
         r = run({{"molecule", "LiH"}, {"method", "CCSD(T)"}, {"job", "freq"}, {"estimateOnly", true}});
+        st = r["job"]["estimate"]["steps"][0];
+        CHECK(st["analytic"].get<bool>() && st["evaluationKind"] == "responses" && st["evaluations"].get<int>() == 4);
+        r = run({{"molecule", "LiH"}, {"method", "CCSD(T)"}, {"job", "freq"}, {"estimateOnly", true}, {"hessian", "numerical"}});
         st = r["job"]["estimate"]["steps"][0];
         CHECK(st["evaluationKind"] == "gradients" && st["evaluations"].get<int>() == 2);
         r = run({{"molecule", "H2O"}, {"method", "HF"}, {"job", "opt+freq"}, {"estimateOnly", true}});
