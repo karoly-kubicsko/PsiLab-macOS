@@ -1376,13 +1376,28 @@ XcodeGen project spec in `xcode/project.yml`. See [`app/SETUP.md`](app/SETUP.md)
 - `.github/workflows/releases.yml` lists the builds of versions 1.0 to 4.0, 6.0 and 7.0 (CI
   artifacts) and makes their releases hold them. For a tag at the version's commit it creates a
   missing release on the tag, or attaches the build and sets the notes of a release that lacks
-  them. It never creates, moves or deletes a tag: the workflow token is refused (HTTP 403) for
-  tags at these older commits. A missing tag is set by hand on github.com: open
-  `…/tree/<commit>`, create a branch there with the branch menu, then *Releases* ▸ *Draft a new
-  release*, tag `v<version>` (*Create new tag on publish*) with that branch as target, publish it
-  without assets and without *Set as the latest release*, and run the workflow, which fills in
-  the build and the notes. It runs when the file
-  changes on `main` or by hand. Until 8.0 every build of `main` replaced the release of its
+  them. It never creates, moves or deletes a tag; a tag that is missing or at another commit is
+  reported, and the run fails. It runs when the file changes on `main` or by hand.
+- **Tags at older commits.** The workflow token (`GITHUB_TOKEN`) may create or move a tag at an
+  older commit only while a *branch* points at a commit with the same workflow files
+  (`.github/workflows/`); tags do not count. Otherwise GitHub refuses it with HTTP 403
+  (*Resource not accessible by integration*; with `git push`: *refusing to allow a GitHub App to
+  create or update workflow … without `workflows` permission*). GitHub does not document this;
+  it is what the runs of November 2026 show: v1.0, v2.0 and v4.0 were created while branches
+  pointed at commits with their workflow files, v6.0 (`9904c29`) was refused three times although
+  the tag v5.0 has the same workflow files and was created at the first try once the branch
+  `claude/release-6.0` pointed at `9904c29`, and v7.0 was moved to `c11b1d7`, the tip of
+  `claude/fervent-thompson-voh6gk`. To set such a tag:
+  1. a branch at the commit: `git push origin <commit>:refs/heads/<name>`, or on github.com open
+     `…/tree/<commit>` and create it with the branch menu;
+  2. the tag, either by a workflow run (`gh api -X POST repos/<owner>/<repo>/git/refs -f
+     ref=refs/tags/v<version> -f sha=<commit>`; to move a tag, `-X PATCH
+     …/git/refs/tags/v<version> -f sha=<commit> -F force=true`; the one-off workflow of commit
+     `5033893`, run with *Run workflow* on its branch, did this for v6.0 and v7.0) or on
+     github.com: *Releases* ▸ *Draft a new release*, tag `v<version>` (*Create new tag on
+     publish*), that branch as target, no assets, without *Set as the latest release*;
+  3. run `releases.yml`, which attaches the build and the notes. The branch can then be deleted.
+- Until 8.0 every build of `main` replaced the release of its
   version: the builds of the 7.0 stages had replaced `v6.0`, and the orbital viewer, merged while
   numbered 7.0, had become `v7.0`. `v6.0` is again the build of 6.0, and `v7.0` is 6.0 with the
   scans, transition states, H₂O₂, NH₃ and HeH⁺ of stages 7.1–7.4 (commit `c11b1d7`), without
