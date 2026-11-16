@@ -903,15 +903,24 @@ void ccsd_lambda_residual(const CCIntegrals& ints, LadderOperator& ladder, const
 
 CorrelatedDensity ccsd_lagrangian_densities(int oi, int vi, const std::vector<double>& t1v,
                                             const std::vector<double>& t2v, const std::vector<double>& l1v,
-                                            const std::vector<double>& l2v, int threads) {
+                                            const std::vector<double>& l2v, int threads, const CCIntegrals* triples_ints) {
     set_tensor_threads(threads);
     Ints e;
-    e.o = static_cast<std::size_t>(oi);
-    e.v = static_cast<std::size_t>(vi);
+    if (triples_ints) {
+        e = make_ints(*triples_ints);
+    } else {
+        e.o = static_cast<std::size_t>(oi);
+        e.v = static_cast<std::size_t>(vi);
+    }
     const std::size_t o = e.o, v = e.v;
+    if (o != static_cast<std::size_t>(oi) || v != static_cast<std::size_t>(vi))
+        throw std::invalid_argument("ccsd_lagrangian_densities: integrals of another orbital space");
+    const Tensor t1 = from(t1v, {o, v}), t2 = from(t2v, {o, o, v, v});
+    std::unique_ptr<TriplesTerms> tt;
+    if (triples_ints) tt = std::make_unique<TriplesTerms>(triples_terms_blocked(e, t1, t2, resolve_threads(threads)));
     CorrelatedDensity d;
     d.G = Packed4(o + v);
-    build_densities(e, from(t1v, {o, v}), from(t2v, {o, o, v, v}), from(l1v, {o, v}), from(l2v, {o, o, v, v}), nullptr, d);
+    build_densities(e, t1, t2, from(l1v, {o, v}), from(l2v, {o, o, v, v}), tt.get(), d);
     return d;
 }
 

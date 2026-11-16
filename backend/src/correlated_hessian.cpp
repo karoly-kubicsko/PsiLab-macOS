@@ -142,7 +142,7 @@ double orbital_response_bytes(std::size_t n, std::size_t N, int n_atoms) {
 }
 
 OrbitalResponse rhf_orbital_response(const Molecule& mol, const BasisSet& basis, const RHFResult& rhf, int threads,
-                                     double memory_mb, double cphf_tol, const CPHFCallback& progress) {
+                                     double memory_mb, double cphf_tol, const CPHFCallback& progress, bool fields) {
     if (rhf.removed_functions > 0)
         throw std::runtime_error("analytic Hessian with removed near-linear dependencies");
     const auto t0 = Clock::now();
@@ -159,13 +159,15 @@ OrbitalResponse rhf_orbital_response(const Molecule& mol, const BasisSet& basis,
 
     OrbitalResponse r;
     r.n3 = n3;
+    r.n_fields = fields ? 3 : 0;
+    const std::size_t nt3 = n3 + r.n_fields;  // perturbations: coordinates, then the field components
     report_progress(JobStage::Hessian, 1);
     const std::vector<Matrix> Sx = overlap_derivative_matrices(basis, nat, nt);
     const std::vector<Matrix> hx = core_hamiltonian_derivative_matrices(basis, mol, nt);
     const std::vector<Matrix> GxP = eri_derivative_fock(basis, nat, P, nt);
-    std::vector<Matrix> Fexpl(n3);
-    r.S.resize(n3);
-    r.h.resize(n3);
+    std::vector<Matrix> Fexpl(nt3);
+    r.S.resize(nt3);
+    r.h.resize(nt3);
     for (std::size_t x = 0; x < n3; ++x) {
         r.S[x] = transform_matrix(C, Sx[x], C, nt);
         r.h[x] = transform_matrix(C, hx[x], C, nt);
@@ -173,9 +175,19 @@ OrbitalResponse rhf_orbital_response(const Molecule& mol, const BasisSet& basis,
         add(F, 1.0, GxP[x]);
         Fexpl[x] = transform_matrix(C, F, C, nt);
     }
+    if (fields) {
+        // a uniform field F adds F . r to the one-electron Hamiltonian (origin 0): h~^F = r (MO),
+        // no overlap or two-electron derivative
+        const std::vector<Matrix> rd = dipole_matrices(basis, {0.0, 0.0, 0.0});
+        for (std::size_t f = 0; f < 3; ++f) {
+            r.S[n3 + f] = Matrix(n, n);
+            r.h[n3 + f] = transform_matrix(C, rd[f], C, nt);
+            Fexpl[n3 + f] = r.h[n3 + f];
+        }
+    }
     {
         std::vector<std::vector<double>> gao = eri_derivative_packed(basis, nat, nt);
-        r.g.resize(n3);
+        r.g.resize(nt3);  // the field components: empty (zero)
         for (std::size_t x = 0; x < n3; ++x) {
             report_progress(JobStage::Hessian, 1, 0.0, static_cast<double>(x + 1));
             Packed4 g;
@@ -190,9 +202,16 @@ OrbitalResponse rhf_orbital_response(const Molecule& mol, const BasisSet& basis,
     // ---- coupled-perturbed HF for every coordinate (as rhf_hessian)
     const auto t1 = Clock::now();
     FockBuilder fock(basis, nt, memory_mb);
-    std::vector<Matrix> rhs(n3);
-    for (std::size_t x = 0; x < n3; ++x) {
+    std::vector<Matrix> rhs(nt3);
+    for (std::size_t x = 0; x < nt3; ++x) {
         check_cancelled();
+        if (x >= n3) {
+            Matrix B(v, o);
+            for (std::size_t a = 0; a < v; ++a)
+                for (std::size_t i = 0; i < o; ++i) B(a, i) = -Fexpl[x](o + a, i);
+            rhs[x] = B;
+            continue;
+        }
         Matrix Soo(o, o);
         for (std::size_t i = 0; i < o; ++i)
             for (std::size_t j = 0; j < o; ++j) Soo(i, j) = r.S[x](i, j);
@@ -210,10 +229,10 @@ OrbitalResponse rhf_orbital_response(const Molecule& mol, const BasisSet& basis,
     r.cphf_iterations = sol.iterations;
     r.cphf_residual = sol.residual;
 
-    r.U.resize(n3);
-    r.P.resize(n3);
-    r.F.resize(n3);
-    for (std::size_t x = 0; x < n3; ++x) {
+    r.U.resize(nt3);
+    r.P.resize(nt3);
+    r.F.resize(nt3);
+    for (std::size_t x = 0; x < nt3; ++x) {
         check_cancelled();
         const Matrix& S = r.S[x];
         Matrix U(n, n);
@@ -272,7 +291,8 @@ MOIntegrals perturbed_from(const MOIntegrals& mo, const Matrix& U, const Matrix&
         for (std::size_t q = 0; q <= p; ++q, ++pq)
             for (std::size_t r_ = 0, rs = 0; r_ < n; ++r_)
                 for (std::size_t s = 0; s <= r_; ++s, ++rs)
-                    out.eri[pq * out.npair + rs] = gx.get(p, q, r_, s) + M[pq * out.npair + rs] + M[rs * out.npair + pq];
+                    out.eri[pq * out.npair + rs] =
+                        (gx.v.empty() ? 0.0 : gx.get(p, q, r_, s)) + M[pq * out.npair + rs] + M[rs * out.npair + pq];
     return out;
 }
 
@@ -309,13 +329,18 @@ CorrelatedHessianResult correlated_hessian(const Molecule& mol, const BasisSet& 
     const Matrix& C = rhf.C;
     const std::size_t N = C.rows(), n = C.cols(), o = static_cast<std::size_t>(rhf.n_occupied), v = n - o;
     const std::vector<double>& eps = rhf.orbital_energies;
-    if (resp.n3 != n3 || resp.U.size() != n3) throw std::invalid_argument("correlated_hessian: orbital response of another molecule");
+    if (resp.n3 != n3 || resp.U.size() != n3 + resp.n_fields)
+        throw std::invalid_argument("correlated_hessian: orbital response of another molecule");
     const bool internal = dresp.internal;
     const bool has_response = internal || !dresp.D.empty();
     const std::size_t m = internal ? dresp.directions.size() : (has_response ? n3 : 0);
-    if (has_response && (dresp.D.size() != m || dresp.G.size() != m))
+    // the field components (dipole derivatives): internal form only; in the 2n+2 form the method
+    // supplies their responses after those of the directions
+    const std::size_t nf = internal ? resp.n_fields : 0;
+    const std::size_t mr = dresp.symmetric ? m + nf : m;  // responses supplied
+    if (has_response && (dresp.D.size() != mr || dresp.G.size() != mr))
         throw std::invalid_argument("correlated_hessian: density responses for every coordinate or direction needed");
-    if (dresp.symmetric && (!internal || dresp.pair.rows() != m || dresp.pair.cols() != m))
+    if (dresp.symmetric && (!internal || dresp.pair.rows() != mr || dresp.pair.cols() != mr))
         throw std::invalid_argument("correlated_hessian: the 2n+2 form needs internal directions and the pair terms");
     for (const auto& d : dresp.directions)
         if (d.size() != n3) throw std::invalid_argument("correlated_hessian: direction of another molecule");
@@ -362,6 +387,7 @@ CorrelatedHessianResult correlated_hessian(const Molecule& mol, const BasisSet& 
         }
 
     // ---- explicit second derivatives with the relaxed densities
+    std::vector<std::array<double, 3>> dip_expl(n3, {0.0, 0.0, 0.0});  // d2/dx dF of the explicit terms
     {
         const auto te = Clock::now();
         Matrix D1 = mul(mul(C, false, Ds, false, nt), false, C, true, nt);
@@ -382,6 +408,15 @@ CorrelatedHessianResult correlated_hessian(const Molecule& mol, const BasisSet& 
         const Matrix Wao = symmetrized(mul(mul(C, false, W, false, nt), false, C, true, nt));
         add(res.hessian, -1.0, overlap_hessian(basis, nat, Wao, nt));
         add(res.hessian, 1.0, nuclear_repulsion_hessian(mol));
+        if (nf > 0) {
+            // field: h(F) = h + F . r, V_nn(F) = V_nn - F . sum Z R
+            const std::vector<std::vector<Matrix>> rx = dipole_derivative_matrices(basis, nat, {0.0, 0.0, 0.0}, nt);
+            for (std::size_t x = 0; x < n3; ++x)
+                for (std::size_t f = 0; f < 3; ++f) {
+                    dip_expl[x][f] = dot(D1, rx[x][f]);
+                    if (x % 3 == f) dip_expl[x][f] -= mol.atoms[x / 3].Z;
+                }
+        }
         res.explicit_seconds = seconds_since(te);
     }
     Matrix& H = res.hessian;
@@ -390,13 +425,15 @@ CorrelatedHessianResult correlated_hessian(const Molecule& mol, const BasisSet& 
     // Cartesian coordinates, or (internal) the directions q = sum_x Q_xq x, with the
     // first-order quantities combined accordingly
     const auto tr = Clock::now();
-    const std::size_t np = internal ? m : n3;
-    std::vector<std::vector<double>> dir(np, std::vector<double>(n3, 0.0));
-    for (std::size_t p = 0; p < np; ++p) {
+    const std::size_t ng = internal ? m : n3;  // geometric perturbations, then the field components
+    const std::size_t np = ng + nf;
+    std::vector<std::vector<double>> dir(np, std::vector<double>(n3, 0.0));  // zero for a field
+    for (std::size_t p = 0; p < ng; ++p) {
         if (internal) dir[p] = dresp.directions[p];
         else dir[p][p] = 1.0;
     }
     auto combo = [&](const std::vector<Matrix>& v, std::size_t p) {
+        if (p >= ng) return v[n3 + (p - ng)];
         if (!internal) return v[p];
         Matrix out(v[0].rows(), v[0].cols());
         for (std::size_t x = 0; x < n3; ++x)
@@ -415,8 +452,8 @@ CorrelatedHessianResult correlated_hessian(const Molecule& mol, const BasisSet& 
     std::vector<Matrix> Xs(np);
     for (std::size_t p = 0; p < np; ++p) {
         report_progress(JobStage::Hessian, 4, 0.0, static_cast<double>(p + 1));
-        Packed4 combined;
-        if (internal) {
+        Packed4 combined;  // empty for a field (no two-electron part)
+        if (internal && p < ng) {
             combined = Packed4(n);
             for (std::size_t x = 0; x < n3; ++x) {
                 if (dir[p][x] == 0.0) continue;
@@ -424,9 +461,10 @@ CorrelatedHessianResult correlated_hessian(const Molecule& mol, const BasisSet& 
                 for (std::size_t k = 0; k < g.size(); ++k) combined.v[k] += dir[p][x] * g[k];
             }
         }
-        const Packed4& gx = internal ? combined : resp.g[p];
-        Xs[p] = orbital_lagrangian(hs[p], [&](std::size_t a, std::size_t b, std::size_t c, std::size_t d) { return gx.get(a, b, c, d); },
-                                   Ds, G, nt);
+        const Packed4& gx = (internal || p >= ng) ? combined : resp.g[p];
+        Xs[p] = orbital_lagrangian(
+            hs[p], [&](std::size_t a, std::size_t b, std::size_t c, std::size_t d) { return gx.v.empty() ? 0.0 : gx.get(a, b, c, d); },
+            Ds, G, nt);
     }
     // (ii) M^p_tp = 4 sum U^p_uq g_turs G_pqrs + 8 sum U^p_ur g_tqus G_pqrs (double one-index
     // transformations of the two-electron term) and 2 sum D (U^p' h U^p')
@@ -519,16 +557,26 @@ CorrelatedHessianResult correlated_hessian(const Molecule& mol, const BasisSet& 
         res.gradient[x] += dot(Ds, resp.h[x]) + dot(resp.U[x], X) +
                            contract_full(G, [&](std::size_t a, std::size_t b, std::size_t c, std::size_t d) { return gx.get(a, b, c, d); });
     }
+    // the relaxed dipole moment -dE/dF = sum Z R - <D, H^(F)> (origin 0)
+    if (nf > 0) {
+        for (std::size_t f = 0; f < 3; ++f) {
+            double mu = -(dot(Ds, resp.h[n3 + f]) + dot(resp.U[n3 + f], X));
+            for (const Atom& a : mol.atoms) mu += a.Z * a.position[f];
+            res.dipole[f] = mu;
+        }
+    }
     // (vii) the response of the method's densities, A(p, k) = <D^(k), H^(p)>
-    Matrix A(np, m);
+    Matrix A(np, mr);
     {
-        std::vector<Matrix> Dk(m);
-        for (std::size_t k = 0; k < m; ++k) Dk[k] = symmetrized(dresp.D[k]);
-        if (m > 0)
+        std::vector<Matrix> Dk(mr);
+        for (std::size_t k = 0; k < mr; ++k) Dk[k] = symmetrized(dresp.D[k]);
+        if (mr > 0)
             for (std::size_t p = 0; p < np; ++p) {
                 report_progress(JobStage::Hessian, 6, 0.0, static_cast<double>(p + 1));
-                const MOIntegrals Hp = internal ? perturbed_hamiltonian(mo, resp, dir[p], nt) : perturbed_hamiltonian(mo, resp, p, nt);
-                for (std::size_t k = 0; k < m; ++k) A(p, k) = dot(Dk[k], Hp.h) + contract_full(dresp.G[k], Hp);
+                const MOIntegrals Hp = p >= ng ? perturbed_hamiltonian(mo, resp, n3 + (p - ng), nt)
+                                       : internal ? perturbed_hamiltonian(mo, resp, dir[p], nt)
+                                                  : perturbed_hamiltonian(mo, resp, p, nt);
+                for (std::size_t k = 0; k < mr; ++k) A(p, k) = dot(Dk[k], Hp.h) + contract_full(dresp.G[k], Hp);
             }
     }
     res.perturbations = m;
@@ -583,20 +631,43 @@ CorrelatedHessianResult correlated_hessian(const Molecule& mol, const BasisSet& 
     for (std::size_t x = 0; x < n3; ++x)
         for (std::size_t y = 0; y < x; ++y) Hf(x, y) = Hf(y, x) = 0.5 * (Hf(x, y) + Hf(y, x));
     res.hessian = Hf;
+    // atomic polar tensor: d mu / dq = -d2E/dq dF for the internal directions, completed with the
+    // translations and rotations (from the dipole moment)
+    if (nf > 0) {
+        std::vector<std::array<double, 3>> dq(m, {0.0, 0.0, 0.0});
+        for (std::size_t k = 0; k < m; ++k)
+            for (std::size_t f = 0; f < 3; ++f) {
+                const std::size_t pf = ng + f;
+                double e = 0.5 * (Hb(k, pf) + Hb(pf, k));
+                for (std::size_t x = 0; x < n3; ++x) e += Q[k][x] * dip_expl[x][f];
+                e += dresp.symmetric ? A(k, pf) + A(pf, k) + dresp.pair(k, pf) : A(pf, k);
+                dq[k][f] = -e;
+            }
+        const RigidMotion rd = rigid_motions(mol, res.dipole, &res.gradient);
+        res.dipole_derivatives.assign(n3, {0.0, 0.0, 0.0});
+        for (std::size_t x = 0; x < n3; ++x)
+            for (std::size_t f = 0; f < 3; ++f) {
+                double s = 0.0;
+                for (std::size_t k = 0; k < m; ++k) s += Q[k][x] * dq[k][f];
+                for (std::size_t r = 0; r < rd.directions.size(); ++r) s += rd.directions[r][x] * rd.dipole_derivatives[r][f];
+                res.dipole_derivatives[x][f] = s;
+            }
+        res.has_dipole_derivatives = true;
+    }
     res.seconds = seconds_since(t0);
     return res;
 }
 
 CorrelatedHessianResult fci_hessian(const Molecule& mol, const BasisSet& basis, const RHFResult& rhf,
                                     const MOIntegrals& mo, const std::vector<double>& c, double E, int threads,
-                                    double memory_mb, double fci_memory_mb) {
+                                    double memory_mb, double fci_memory_mb, bool dipoles) {
     const int nt = resolve_threads(threads);
     const int nel = mol.electrons();
     if (nel % 2 != 0) throw std::invalid_argument("fci_hessian: closed shell only");
     const int na = nel / 2;
     const std::size_t n = static_cast<std::size_t>(mo.n);
     const auto t0 = Clock::now();
-    const OrbitalResponse resp = rhf_orbital_response(mol, basis, rhf, nt, memory_mb, 1.0e-10);
+    const OrbitalResponse resp = rhf_orbital_response(mol, basis, rhf, nt, memory_mb, 1.0e-10, CPHFCallback(), dipoles);
     const double orbital_seconds = seconds_since(t0);
     const auto t1 = Clock::now();
     DensityResponse dr;

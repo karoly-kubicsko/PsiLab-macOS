@@ -1074,6 +1074,15 @@ double ccsd_correlation_energy(const CCIntegrals& ints, LadderOperator& ladder, 
     return cc.energy(t);
 }
 
+double ccsd_triples_energy(const CCIntegrals& ints, LadderOperator& ladder, const std::vector<double>& t1,
+                           const std::vector<double>& t2, int threads) {
+    ClosedShellCCSD cc(ints, ladder, resolve_threads(threads));
+    Amplitudes t;
+    t.t1 = t1;
+    t.t2 = t2;
+    return cc.triples(t);
+}
+
 CCResult run_ccsd_closed_shell(const CCIntegrals& ints, LadderOperator& ladder, double reference_energy, bool triples,
                                const CCOptions& opt, const CCProgress& progress) {
     const auto t0 = Clock::now();

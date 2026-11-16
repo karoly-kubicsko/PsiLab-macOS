@@ -180,6 +180,10 @@ void ccsd_amplitude_residual(const CCIntegrals& ints, LadderOperator& ladder, co
 // The CCSD correlation energy expression for given amplitudes (any integrals).
 double ccsd_correlation_energy(const CCIntegrals& ints, LadderOperator& ladder, const std::vector<double>& t1,
                                const std::vector<double>& t2);
+// The (T) energy expression for given amplitudes (canonical orbitals of `ints`): a homogeneous
+// quadratic function of (t1, t2) (ΨLab 10.0, analytic CCSD(T) Hessian).
+double ccsd_triples_energy(const CCIntegrals& ints, LadderOperator& ladder, const std::vector<double>& t1,
+                           const std::vector<double>& t2, int threads = 0);
 
 // Energy of the reference determinant from MO integrals (electronic + nuclear repulsion).
 double reference_energy_from_mo(const MOIntegrals& mo, int nocc, double nuclear_repulsion);

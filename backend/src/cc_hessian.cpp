@@ -28,6 +28,7 @@
 #include "macqc/gradient.h"
 #include "macqc/gto_integrals.h"
 #include "macqc/job.h"
+#include "macqc/linalg.h"
 #include "macqc/parallel.h"
 
 namespace macqc {
@@ -281,17 +282,118 @@ LinearSolve solve_defect_corrected(Exact exact, Approx approx, const Amp& b, con
     return total;
 }
 
+// MO integrals in rotated orbitals (columns of R): h' = R' h R, (pq|rs)' = sum R_ap R_bq R_cr R_ds (ab|cd).
+MOIntegrals rotate_integrals(const MOIntegrals& H, const Matrix& R, int nt) {
+    const std::size_t n = static_cast<std::size_t>(H.n), np = n * (n + 1) / 2;
+    std::vector<double> packed(Packed4::size_for(n));
+    for (std::size_t pq = 0; pq < np; ++pq)
+        for (std::size_t rs = 0; rs <= pq; ++rs) packed[Packed4::pair(pq, rs)] = H.eri[pq * H.stride + rs];
+    const std::vector<double> g = transform_packed(packed, n, R, nt);
+    MOIntegrals out;
+    out.n = H.n;
+    out.h = Matrix(n, n);
+    for (std::size_t p = 0; p < n; ++p)
+        for (std::size_t q = 0; q < n; ++q) {
+            double sum = 0.0;
+            for (std::size_t a = 0; a < n; ++a)
+                for (std::size_t b = 0; b < n; ++b) sum += R(a, p) * H.h(a, b) * R(b, q);
+            out.h(p, q) = sum;
+        }
+    out.npair = np;
+    out.stride = np;
+    out.eri.assign(np * np, 0.0);
+    for (std::size_t pq = 0; pq < np; ++pq)
+        for (std::size_t rs = 0; rs < np; ++rs) out.eri[pq * np + rs] = g[Packed4::pair(pq, rs)];
+    return out;
+}
+
+// Amplitudes (or multipliers) in rotated occupied (Ro) and virtual (Rv) orbitals:
+// x1'_ia = sum Ro_ji Rv_ba x1_jb, and the same for each index of x2.
+Amp rotate_amplitudes(const Amp& x, const Matrix& Ro, const Matrix& Rv) {
+    const std::size_t o = Ro.rows(), v = Rv.rows();
+    Amp y;
+    y.a.assign(o * v, 0.0);
+    for (std::size_t i = 0; i < o; ++i)
+        for (std::size_t a = 0; a < v; ++a) {
+            double sum = 0.0;
+            for (std::size_t j = 0; j < o; ++j)
+                for (std::size_t b = 0; b < v; ++b) sum += Ro(j, i) * Rv(b, a) * x.a[j * v + b];
+            y.a[i * v + a] = sum;
+        }
+    // x2 [i][j][a][b]: transform one index at a time
+    Vec cur = x.b, nxt(cur.size());
+    const std::size_t dims[4] = {o, o, v, v};
+    for (int idx = 0; idx < 4; ++idx) {
+        const Matrix& M = idx < 2 ? Ro : Rv;
+        const std::size_t len = dims[idx];
+        std::size_t inner = 1;
+        for (int k = idx + 1; k < 4; ++k) inner *= dims[k];
+        const std::size_t outer = cur.size() / (len * inner);
+        std::fill(nxt.begin(), nxt.end(), 0.0);
+        for (std::size_t a = 0; a < outer; ++a)
+            for (std::size_t p = 0; p < len; ++p)
+                for (std::size_t q = 0; q < len; ++q) {
+                    const double r = M(q, p);
+                    if (r == 0.0) continue;
+                    const double* src = cur.data() + (a * len + q) * inner;
+                    double* dst = nxt.data() + (a * len + p) * inner;
+                    for (std::size_t k = 0; k < inner; ++k) dst[k] += r * src[k];
+                }
+        std::swap(cur, nxt);
+    }
+    y.b = std::move(cur);
+    return y;
+}
+
+// The CCSD(T) Lagrangian densities for the Hamiltonian H (MO integrals in the reference
+// orbitals, with any occupied-occupied and virtual-virtual Fock blocks): evaluated in the
+// semicanonical orbitals of H (where the (T) expression with diagonal denominators applies; the
+// (T) functional is invariant to these rotations) and transformed back. The CCSD part does not
+// depend on H.
+CorrelatedDensity triples_lagrangian_density(const MOIntegrals& H, int oi, const Amp& t, const Amp& l, int nt) {
+    const std::size_t o = static_cast<std::size_t>(oi), n = static_cast<std::size_t>(H.n), v = n - o;
+    const CCIntegrals I = cc_integrals_from_mo(H, oi);
+    Matrix Foo(o, o), Fvv(v, v);
+    for (std::size_t i = 0; i < o; ++i)
+        for (std::size_t j = 0; j < o; ++j) Foo(i, j) = 0.5 * (I.fock(i, j) + I.fock(j, i));
+    for (std::size_t a = 0; a < v; ++a)
+        for (std::size_t b = 0; b < v; ++b) Fvv(a, b) = 0.5 * (I.fock(o + a, o + b) + I.fock(o + b, o + a));
+    const EigenResult eo = symmetric_eigen(Foo), ev = symmetric_eigen(Fvv);
+    Matrix R(n, n);
+    for (std::size_t i = 0; i < o; ++i)
+        for (std::size_t j = 0; j < o; ++j) R(i, j) = eo.vectors(i, j);
+    for (std::size_t a = 0; a < v; ++a)
+        for (std::size_t b = 0; b < v; ++b) R(o + a, o + b) = ev.vectors(a, b);
+    const MOIntegrals Hr = rotate_integrals(H, R, nt);
+    const CCIntegrals Ir = cc_integrals_from_mo(Hr, oi);
+    const Amp tr = rotate_amplitudes(t, eo.vectors, ev.vectors), lr = rotate_amplitudes(l, eo.vectors, ev.vectors);
+    const CorrelatedDensity dr = ccsd_lagrangian_densities(oi, static_cast<int>(v), tr.a, tr.b, lr.a, lr.b, nt, &Ir);
+    // back: D = R D' R', G_pqrs = sum R_pa R_qb R_rc R_sd G'_abcd
+    CorrelatedDensity d;
+    d.D = Matrix(n, n);
+    for (std::size_t p = 0; p < n; ++p)
+        for (std::size_t q = 0; q < n; ++q) {
+            double sum = 0.0;
+            for (std::size_t a = 0; a < n; ++a)
+                for (std::size_t b = 0; b < n; ++b) sum += R(p, a) * dr.D(a, b) * R(q, b);
+            d.D(p, q) = sum;
+        }
+    d.G = Packed4(n);
+    d.G.v = transform_packed(dr.G.v, n, R.transposed(), nt);
+    return d;
+}
+
 }  // namespace
 
 CorrelatedHessianResult ccsd_hessian(const Molecule& mol, const BasisSet& basis, const RHFResult& rhf,
                                      const MOIntegrals& mo, const std::vector<double>& t1, const std::vector<double>& t2,
-                                     const std::vector<double>& l1, const std::vector<double>& l2, int threads,
-                                     double memory_mb, double tol) {
+                                     const std::vector<double>& l1, const std::vector<double>& l2, bool triples,
+                                     int threads, double memory_mb, double tol, bool dipoles) {
     const auto t0 = Clock::now();
     const int nt = resolve_threads(threads);
     const int o = rhf.n_occupied;
     const int v = static_cast<int>(rhf.C.cols()) - o;
-    const OrbitalResponse resp = rhf_orbital_response(mol, basis, rhf, nt, memory_mb, 1.0e-10);
+    const OrbitalResponse resp = rhf_orbital_response(mol, basis, rhf, nt, memory_mb, 1.0e-10, CPHFCallback(), dipoles);
     const double orbital_seconds = seconds_since(t0);
     const auto t1s = Clock::now();
 
@@ -318,7 +420,10 @@ CorrelatedHessianResult ccsd_hessian(const Molecule& mol, const BasisSet& basis,
         ccsd_amplitude_residual(I, lad, t.a, t.b, r.a, r.b, nt);
         return r;
     };
-    auto dens = [&](const Amp& t) { return ccsd_lagrangian_densities(o, v, t.a, t.b, L.a, L.b, nt); };
+    // Lagrangian densities at the reference Hamiltonian (with the (T) terms for CCSD(T))
+    auto dens = [&](const Amp& t) {
+        return ccsd_lagrangian_densities(o, v, t.a, t.b, L.a, L.b, nt, triples ? &ints0 : nullptr);
+    };
     // The Lagrangian with the reference Hamiltonian and the fixed multipliers, without the
     // reference energy: <D(t, l), H> - E_ref = E_corr(t) + 2 l1 . Omega1 + lt . Omega2, with
     // lt_ijab = 2 l2_ijab - l2_ijba. The ladder part of lt . Omega2 is Z(lt) . tau(t) ((ac|bd) =
@@ -357,8 +462,10 @@ CorrelatedHessianResult ccsd_hessian(const Molecule& mol, const BasisSet& basis,
     dr.symmetric = true;
     dr.directions = vibrational_directions(mol);
     const std::size_t m = dr.directions.size();
-    dr.D.resize(m);
-    dr.G.resize(m);
+    // responses: the internal directions, then the field components (dipole derivatives)
+    const std::size_t mr = m + resp.n_fields;
+    dr.D.resize(mr);
+    dr.G.resize(mr);
     // Jacobian products along d: exact (five-point formula, four residuals) and approximate
     // (central difference with a small step, two residuals, relative error ~1e-6), both with the
     // ladder term applied once along the direction
@@ -385,13 +492,14 @@ CorrelatedHessianResult ccsd_hessian(const Molecule& mol, const BasisSet& basis,
         const Amp q = omega(ints0, dl, combine(T, 1.0, d, -h));
         return combine(p, 0.5 / h, q, -0.5 / h);
     };
-    std::vector<Amp> tq(m);
+    std::vector<Amp> tq(mr);
     bool all_converged = true;
     int max_it = 0;
     double worst = 0.0;
-    for (std::size_t k = 0; k < m; ++k) {
+    for (std::size_t k = 0; k < mr; ++k) {
         report_progress(JobStage::Hessian, 7, 0.0, static_cast<double>(k + 1));
-        const MOIntegrals Hq = perturbed_hamiltonian(mo, resp, dr.directions[k], nt);
+        const MOIntegrals Hq = k < m ? perturbed_hamiltonian(mo, resp, dr.directions[k], nt)
+                                     : perturbed_hamiltonian(mo, resp, resp.n3 + (k - m), nt);
         const CCIntegrals intsQ = cc_integrals_from_mo(Hq, o);
         const std::unique_ptr<LadderOperator> ladderQ = make_mo_ladder(Hq, o);
         // amplitude response: J t^q = -Omega(t; H^(q))
@@ -399,7 +507,29 @@ CorrelatedHessianResult ccsd_hessian(const Molecule& mol, const BasisSet& basis,
         const LinearSolve ts = solve_defect_corrected(jacobian, central, b, D, tol, 200);
         tq[k] = ts.x;
         // amplitude part of the density response, dD(t + s t^q)/ds
-        const CorrelatedDensity dT = poly_derivative<CorrelatedDensity>(dens, T, ts.x, density_comb);
+        CorrelatedDensity dT = poly_derivative<CorrelatedDensity>(dens, T, ts.x, density_comb);
+        if (triples) {
+            // CCSD(T): the (T) Lagrangian is not linear in H (orbital-energy denominators); its
+            // second derivative L_HH[H^(k), H^(l)] = <dD_H[k], H^(l)>, dD_H[k] = dD(t, l; H + a H^(k))/da,
+            // enters the symmetric response term through dD[t^k] + dD_H[k] / 2. The derivative with
+            // respect to a is by the five-point formula with a small step (a |F^(k)| = 1e-3; the
+            // dependence is rational, the error of order 1e-12).
+            double fmax = 0.0;
+            for (std::size_t p = 0; p < intsQ.fock.rows(); ++p)
+                for (std::size_t q = 0; q < intsQ.fock.cols(); ++q) fmax = std::max(fmax, std::fabs(intsQ.fock(p, q)));
+            const double a = fmax > 0.0 ? 1.0e-3 / fmax : 1.0e-3;
+            auto shifted = [&](double s) {
+                MOIntegrals Hs = mo;
+                for (std::size_t p = 0; p < Hs.h.rows(); ++p)
+                    for (std::size_t q = 0; q < Hs.h.cols(); ++q) Hs.h(p, q) += s * Hq.h(p, q);
+                for (std::size_t x = 0; x < Hs.eri.size(); ++x) Hs.eri[x] += s * Hq.eri[x];
+                return triples_lagrangian_density(Hs, o, T, L, nt);
+            };
+            const CorrelatedDensity p1 = shifted(a), m1 = shifted(-a), p2 = shifted(2.0 * a), m2 = shifted(-2.0 * a);
+            const double w = 1.0 / (12.0 * a);
+            const CorrelatedDensity dH = density_comb({&p1, &m1, &p2, &m2}, {8.0 * w, -8.0 * w, -w, w});
+            dT = density_comb({&dT, &dH}, {1.0, 0.5});
+        }
         dr.D[k] = dT.D;
         dr.G[k] = dT.G;
         all_converged = all_converged && ts.converged;
@@ -416,19 +546,37 @@ CorrelatedHessianResult ccsd_hessian(const Molecule& mol, const BasisSet& basis,
         const double p2 = lagrangian(combine(T, 1.0, w, 2.0 * h)), m2 = lagrangian(combine(T, 1.0, w, -2.0 * h));
         return (-(p2 + m2) + 16.0 * (p1 + m1) - 30.0 * L0) / (12.0 * h * h);
     };
-    dr.pair = Matrix(m, m);
-    std::vector<double> diag(m);
-    for (std::size_t k = 0; k < m; ++k) {
+    dr.pair = Matrix(mr, mr);
+    std::vector<double> diag(mr);
+    for (std::size_t k = 0; k < mr; ++k) {
         check_cancelled();
         diag[k] = second(tq[k]);
         dr.pair(k, k) = diag[k];
     }
-    for (std::size_t k = 0; k < m; ++k)
+    for (std::size_t k = 0; k < mr; ++k)
         for (std::size_t l = 0; l < k; ++l) {
+            if (k >= m && l >= m) continue;  // field-field (polarisability): not needed
             check_cancelled();
             const double c = 0.5 * (second(combine(tq[k], 1.0, tq[l], 1.0)) - diag[k] - diag[l]);
             dr.pair(k, l) = dr.pair(l, k) = c;
         }
+    if (triples) {
+        // the (T) energy is a homogeneous quadratic function of the amplitudes: its part of
+        // t^k L_tt t^l is E_T(t^k + t^l) - E_T(t^k) - E_T(t^l) (2 E_T(t^k) for k = l)
+        std::vector<double> et(mr);
+        for (std::size_t k = 0; k < mr; ++k) {
+            et[k] = ccsd_triples_energy(ints0, *ladder0, tq[k].a, tq[k].b, nt);
+            dr.pair(k, k) += 2.0 * et[k];
+        }
+        for (std::size_t k = 0; k < mr; ++k)
+            for (std::size_t l = 0; l < k; ++l) {
+                if (k >= m && l >= m) continue;
+                const Amp s2 = combine(tq[k], 1.0, tq[l], 1.0);
+                const double c = ccsd_triples_energy(ints0, *ladder0, s2.a, s2.b, nt) - et[k] - et[l];
+                dr.pair(k, l) += c;
+                dr.pair(l, k) += c;
+            }
+    }
     const double method_seconds = seconds_since(t1s);
     CorrelatedHessianResult r = correlated_hessian(mol, basis, rhf, mo, D0, resp, dr, nt, memory_mb);
     r.cphf_converged = resp.cphf_converged;

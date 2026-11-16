@@ -26,6 +26,7 @@
 // tests the orbital part independently of any correlated method.
 #pragma once
 
+#include <array>
 #include <cstddef>
 #include <vector>
 
@@ -41,8 +42,12 @@ namespace macqc {
 
 // The first-order orbital response of the RHF reference to every nuclear coordinate and the
 // skeleton derivative integrals in the reference MOs.
+// With `fields`, three more perturbations follow the 3 n_atoms coordinates (index 3 n_atoms + k):
+// the components k of a uniform electric field, H(F) = H + F . r (origin 0), for the dipole
+// derivatives (S~ = 0, h~ = r, no two-electron part: g~ empty).
 struct OrbitalResponse {
     std::size_t n3 = 0;                 // 3 n_atoms
+    std::size_t n_fields = 0;           // 0 or 3
     std::vector<Matrix> S;              // S~^x = C' S^x C (n x n)
     std::vector<Matrix> U;              // U^x (n x n), columns = perturbed orbitals
     std::vector<Matrix> h;              // h~^x = C' h^x C
@@ -62,10 +67,11 @@ double orbital_response_bytes(std::size_t n_mo, std::size_t n_basis, int n_atoms
 
 OrbitalResponse rhf_orbital_response(const Molecule& mol, const BasisSet& basis, const RHFResult& rhf, int threads = 0,
                                      double memory_mb = 1024.0, double cphf_tol = 1.0e-9,
-                                     const CPHFCallback& progress = CPHFCallback());
+                                     const CPHFCallback& progress = CPHFCallback(), bool fields = false);
 
 // The perturbed MO Hamiltonian H^(x) (h^(x) and g^(x), with the orbital response) of one
-// coordinate, as MO integrals (the constant V_nn^x is not included).
+// coordinate (or field component, x >= 3 n_atoms), as MO integrals (the constant V_nn^x is not
+// included).
 MOIntegrals perturbed_hamiltonian(const MOIntegrals& mo, const OrbitalResponse& r, std::size_t x, int threads = 0);
 
 // The same for a perturbation along a direction of the nuclear coordinates (3 n_atoms
@@ -80,6 +86,10 @@ MOIntegrals perturbed_hamiltonian(const MOIntegrals& mo, const OrbitalResponse& 
 //    then computes the internal block q' H q and completes the Hessian exactly from the
 //    translational and rotational invariance (H u = 0 for a translation, the rotated gradient
 //    for a rotation; the gradient is <D, H^(x)> + V_nn^x, from the same densities).
+//  - with field perturbations in the orbital response (dipole derivatives), the mixed block
+//    d2E/dq dF uses <D^(q), H^(F)> (no field responses needed), or in the symmetric form the
+//    responses of the field components, supplied after those of the directions (D, G, pair of
+//    size m + 3).
 //  - `symmetric` (with `internal`; coupled cluster, 2n+2 rule): D, G are only the amplitude
 //    parts dD[t^q] = dD(t + s t^q, l)/ds of the density responses and `pair` holds
 //    t^q' L_tt t^q (second derivatives of the Lagrangian with the fixed multipliers); the
@@ -101,6 +111,11 @@ struct CorrelatedHessianResult {
     double zvector_residual = 0.0;
     double asymmetry = 0.0;           // largest |H_xy - H_yx| before symmetrisation
     std::vector<double> gradient;     // <D, H^(x)> + V_nn^x (E_h/bohr)
+    // with the field perturbations (OrbitalResponse::n_fields): the relaxed dipole moment (e bohr,
+    // origin 0) and its derivatives, -d2E/dx dF ([3 n_atoms][xyz], e)
+    bool has_dipole_derivatives = false;
+    std::array<double, 3> dipole{};
+    std::vector<std::array<double, 3>> dipole_derivatives;
     std::size_t perturbations = 0;    // directions (or coordinates) with a method response
     double seconds = 0.0, explicit_seconds = 0.0, response_seconds = 0.0;
     // the drivers below: the orbital response and the method's own response equations
@@ -127,16 +142,21 @@ CorrelatedHessianResult correlated_hessian(const Molecule& mol, const BasisSet& 
 // Responses along the 3 n_atoms - 6 (- 5) internal directions only.
 CorrelatedHessianResult fci_hessian(const Molecule& mol, const BasisSet& basis, const RHFResult& rhf,
                                     const MOIntegrals& mo, const std::vector<double>& c, double fci_electronic_energy,
-                                    int threads = 0, double memory_mb = 1024.0, double fci_memory_mb = 4096.0);
+                                    int threads = 0, double memory_mb = 1024.0, double fci_memory_mb = 4096.0,
+                                    bool dipoles = true);
 
 // CCSD (stage 10.3): the Hessian of the closed-shell CCSD energy with the converged amplitudes
 // t1 [i][a], t2 [i][j][a][b] and Lambda multipliers l1, l2 (cc_gradient.h). Only the amplitude
 // responses J t^q = -Omega(t; H^(q)) along the internal directions are solved (2n+2 rule, see
 // DensityResponse and cc_hessian.cpp); `tol` is the largest residual element of these equations.
+// `triples`: CCSD(T) (stage 10.4), with the CCSD(T) Lambda multipliers; the (T) terms add to the
+// densities and the pair terms, and the second derivative of the (T) functional with respect to
+// the Hamiltonian (its orbital-energy denominators) is evaluated in semicanonical orbitals.
 CorrelatedHessianResult ccsd_hessian(const Molecule& mol, const BasisSet& basis, const RHFResult& rhf,
                                      const MOIntegrals& mo, const std::vector<double>& t1, const std::vector<double>& t2,
-                                     const std::vector<double>& l1, const std::vector<double>& l2, int threads = 0,
-                                     double memory_mb = 1024.0, double tol = 1.0e-9);
+                                     const std::vector<double>& l1, const std::vector<double>& l2, bool triples = false,
+                                     int threads = 0, double memory_mb = 1024.0, double tol = 1.0e-9,
+                                     bool dipoles = true);
 
 // Packed 4-index transformation out_pqrs = sum M_ap M_bq M_cr M_ds in_abcd of an 8-fold
 // symmetric array in the layout pair(pair(a,b), pair(c,d)) over ns indices; M is ns x nd.

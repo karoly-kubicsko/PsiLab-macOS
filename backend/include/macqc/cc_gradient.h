@@ -50,9 +50,13 @@ void ccsd_lambda_residual(const CCIntegrals& ints, LadderOperator& ladder, const
                           int threads = 0);
 // The CCSD Lagrangian densities (as ccsd_densities, without (T)) for any amplitudes and
 // multipliers; linear in l, polynomial in t, independent of the integrals.
+// `triples_ints`: with the (T) terms of the CCSD(T) Lagrangian for these integrals (canonical or
+// not in the occupied-occupied and virtual-virtual blocks: the terms use the diagonal Fock
+// elements, i.e. they are the derivatives at semicanonical orbitals); the (T) terms depend on
+// t1, t2 and the integrals only.
 CorrelatedDensity ccsd_lagrangian_densities(int o, int v, const std::vector<double>& t1, const std::vector<double>& t2,
                                             const std::vector<double>& l1, const std::vector<double>& l2,
-                                            int threads = 0);
+                                            int threads = 0, const CCIntegrals* triples_ints = nullptr);
 
 // Largest difference between the (T) Lambda sources and density terms on full o^3 v^3 arrays
 // (PySCF's formulation) and the blocked implementation used (tests).
