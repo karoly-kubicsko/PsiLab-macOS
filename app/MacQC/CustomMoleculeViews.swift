@@ -23,12 +23,11 @@ struct CustomMoleculeHeader: View {
             LaTeXText(m.nameSource, size: 17, weight: .semibold)
                 .textSelection(.enabled)
             if let level = m.levelText {
-                Text("Geometry " + (m.transitionState ? "of the transition state at " : "optimised at ") + level
-                     + (m.energy.map { String(format: ", E = %.8f Eₕ", $0) } ?? ""))
+                Text(levelLine(m, level: level))
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
-            Text("\(Fmt.formula(m.formula)) · \(m.atoms.count) atom\(m.atoms.count == 1 ? "" : "s") · \(m.electrons) electrons · from \(m.source)")
+            Text(sizeLine(m))
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }
@@ -66,6 +65,23 @@ struct CustomMoleculeHeader: View {
         }
         .controlSize(.small)
         .disabled(model.isRunning || model.isScanning)
+    }
+}
+
+extension CustomMoleculeHeader {
+    fileprivate func levelLine(_ m: SavedMolecule, level: String) -> String {
+        var text = "Geometry "
+        text += m.transitionState ? "of the transition state at " : "optimised at "
+        text += level
+        if let e = m.energy {
+            text += String(format: ", E = %.8f Eₕ", e)
+        }
+        return text
+    }
+
+    fileprivate func sizeLine(_ m: SavedMolecule) -> String {
+        let atoms = m.atoms.count == 1 ? "1 atom" : "\(m.atoms.count) atoms"
+        return "\(Fmt.formula(m.formula)) · \(atoms) · \(m.electrons) electrons · from \(m.source)"
     }
 }
 
@@ -118,9 +134,7 @@ struct SaveOptimizedGeometryBox: View {
     var body: some View {
         if model.resultMatchesSelection, let m = model.optimizedMolecule {
             VStack(alignment: .leading, spacing: 6) {
-                Text((m.transitionState ? "Transition state" : "Optimised geometry") + " at " + (m.level ?? "")
-                     + (m.energy.map { String(format: " (E = %.8f Eₕ)", $0) } ?? "")
-                     + ": save the coordinates to compute with them later.")
+                Text(offerText(m))
                     .font(.caption)
                     .foregroundStyle(.secondary)
                 HStack {
@@ -149,5 +163,15 @@ struct SaveOptimizedGeometryBox: View {
                 }
             }
         }
+    }
+
+    private func offerText(_ m: SavedMolecule) -> String {
+        var text = m.transitionState ? "Transition state" : "Optimised geometry"
+        text += " at " + (m.level ?? "")
+        if let e = m.energy {
+            text += String(format: " (E = %.8f Eₕ)", e)
+        }
+        text += ": save the coordinates to compute with them later."
+        return text
     }
 }

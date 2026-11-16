@@ -110,9 +110,11 @@ struct GeneralSummaryView: View {
             let method = finalMethod == "RHF" ? "RHF" : "RHF and \(MethodChoice.title(of: finalMethod))"
             let job = JobChoice(rawValue: out.input.job).map { $0 == .energy ? "" : " · " + $0.shortTitle } ?? ""
             // the name drawn from its LaTeX source (custom molecules: the structure file's name line)
-            (LaTeX.text(out.moleculeNameSource, size: 17, weight: .semibold)
-                + Text(verbatim: " · \(out.basis?.name ?? out.input.basis) · \(method)\(job)").font(.system(size: 17, weight: .semibold)))
-                .accessibilityLabel("\(out.moleculeTitle) · \(out.basis?.name ?? out.input.basis) · \(method)\(job)")
+            let rest: String = " · " + (out.basis?.name ?? out.input.basis) + " · " + method + job
+            let name: Text = LaTeX.text(out.moleculeNameSource, size: 17, weight: .semibold)
+            let tail: Text = Text(verbatim: rest).font(.system(size: 17, weight: .semibold))
+            (name + tail)
+                .accessibilityLabel(out.moleculeTitle + rest)
             if let mol = out.molecule {
                 Text(geometryText(mol))
                     .foregroundStyle(.secondary)
