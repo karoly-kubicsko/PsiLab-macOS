@@ -426,9 +426,10 @@ std::string thermochemistry_block(const ThermoResult& t) {
     s += "\n                                         E_h          kcal/mol      kJ/mol\n";
     s += row("Zero-point energy", t.zero_point_energy);
     s += row("Thermal correction to U", t.thermal_energy);
-    s += row("Thermal correction to H = U + kT", t.enthalpy);
+    s += row("Thermal correction to H = U + pV", t.enthalpy);
     s += row("Thermal correction to A = U - TS", t.helmholtz);
     s += row("Thermal correction to G = H - TS", t.gibbs);
+    s += "    (ideal gas: pV = RT per mole, k_B T per molecule)\n";
     s += strprintf("\n    Electronic energy E_el              %20.10f E_h\n", t.electronic_energy);
     s += strprintf("    E_el + ZPE                          %20.10f E_h\n", t.total_zpe);
     s += strprintf("    U = E_el + thermal energy           %20.10f E_h\n", t.total_u);

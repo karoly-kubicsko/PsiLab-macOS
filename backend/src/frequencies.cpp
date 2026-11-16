@@ -343,7 +343,9 @@ ThermoResult thermochemistry(const Molecule& mol, const HarmonicAnalysis& h, dou
     r.total.cv = r.translation.cv + r.rotation.cv + r.vibration.cv + r.electronic.cv;
     r.total.q = r.translation.q * r.rotation.q * r.vibration.q * r.electronic.q;
     r.thermal_energy = r.total.energy;
-    r.enthalpy = r.thermal_energy + R * T;
+    // H = U + pV; for one mole of an ideal gas pV = RT (k_B T per molecule), at any pressure
+    const double pV = R * T;
+    r.enthalpy = r.thermal_energy + pV;
     r.gibbs = r.enthalpy - T * r.total.entropy;
     r.helmholtz = r.thermal_energy - T * r.total.entropy;
     r.total_zpe = electronic_energy + joule_per_mol_to_hartree(r.zero_point_energy);

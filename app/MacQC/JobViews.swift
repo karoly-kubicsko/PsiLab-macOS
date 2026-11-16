@@ -972,7 +972,7 @@ struct ThermochemistryPage: View {
         let rows: [(label: String, value: Double)] = [
             ("Zero-point energy", t.corrections.zeroPoint),
             ("Thermal correction to U", t.corrections.thermalEnergy),
-            ("Thermal correction to H = U + kT", t.corrections.enthalpy),
+            ("Thermal correction to H = U + pV", t.corrections.enthalpy),
             ("Thermal correction to A = U − TS", t.corrections.helmholtz),
             ("Thermal correction to G = H − TS", t.corrections.gibbs),
         ]
@@ -984,7 +984,8 @@ struct ThermochemistryPage: View {
             ("A", t.totals.helmholtz),
             ("G", t.totals.gibbs),
         ]
-        return HStack(alignment: .top, spacing: 16) {
+        return VStack(alignment: .leading, spacing: 6) {
+        HStack(alignment: .top, spacing: 16) {
             Grid(alignment: .trailing, horizontalSpacing: 18, verticalSpacing: 4) {
                 GridRow {
                     Text("Correction").gridColumnAlignment(.leading)
@@ -1023,6 +1024,10 @@ struct ThermochemistryPage: View {
             .monospacedDigit()
             .textSelection(.enabled)
             .dataPanel()
+        }
+        Text("H = U + pV; for the ideal gas pV = RT per mole (k_BT per molecule).")
+            .font(.caption)
+            .foregroundStyle(.secondary)
         }
     }
 
