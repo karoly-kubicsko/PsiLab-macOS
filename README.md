@@ -1374,9 +1374,14 @@ XcodeGen project spec in `xcode/project.yml`. See [`app/SETUP.md`](app/SETUP.md)
   `v<version>`, asset `PsiLab-<version>.app.zip`). A published release is not changed by later
   builds: a new release needs a new `MARKETING_VERSION`.
 - `.github/workflows/releases.yml` lists the builds of versions 1.0 to 4.0, 6.0 and 7.0 (CI
-  artifacts) and makes their releases hold them: it creates a missing release, and re-creates one
-  whose tag points at another commit (deleted with its tag, then created at the version's commit
-  from its build; the workflow token may not move a tag onto a commit with other workflow files). It runs when the file
+  artifacts) and makes their releases hold them. For a tag at the version's commit it creates a
+  missing release on the tag, or attaches the build and sets the notes of a release that lacks
+  them. It never creates, moves or deletes a tag: the workflow token is refused (HTTP 403) for
+  tags at these older commits. A missing tag is set by hand on github.com: open
+  `…/tree/<commit>`, create a branch there with the branch menu, then *Releases* ▸ *Draft a new
+  release*, tag `v<version>` (*Create new tag on publish*) with that branch as target, publish it
+  without assets and without *Set as the latest release*, and run the workflow, which fills in
+  the build and the notes. It runs when the file
   changes on `main` or by hand. Until 8.0 every build of `main` replaced the release of its
   version: the builds of the 7.0 stages had replaced `v6.0`, and the orbital viewer, merged while
   numbered 7.0, had become `v7.0`. `v6.0` is again the build of 6.0, and `v7.0` is 6.0 with the
