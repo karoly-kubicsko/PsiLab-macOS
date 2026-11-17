@@ -157,6 +157,23 @@ static void test_structure_files() {
         const StructureFile f = parse_structure_file("#p B3LYP\n\noxygen\n\n0 3\nO 0 0 0\nO 0 0 1.21\n", "o2.com");
         CHECK(f.multiplicity == 3);
     }
+    {
+        // 13.0: Gaussian's comments ("!" anywhere on a line; comment-only lines anywhere, also
+        // before the route and inside a section), as in the Gaussian input that ΨLab writes,
+        // with the general basis input after the coordinates
+        const std::string commented =
+            "! CO2: geometry optimised at CCSD(T)/aug-cc-pCVDZ with PsiLab, E = -188.1 E_h\n"
+            "! all electrons correlated, as in PsiLab (Full: no frozen core)\n"
+            "#p CCSD(T,Full)/Gen 5D 7F\n\nCO2   ! the title\n! a comment line inside the title section\n\n0 1\n"
+            "C   0.0 0.0 0.0\n! a comment line between atoms\nO   0.0 0.0 1.16   ! oxygen\nO 0.0 0.0 -1.16\n\n"
+            "C 0\nS   2 1.00\n  1.0E+03  5.0E-01\n  1.0E+02  5.0E-01\n****\n\n";
+        const StructureFile f = parse_structure_file(commented, "co2.gjf");
+        CHECK(f.format == "gaussian" && f.title == "CO2" && f.charge == 0 && f.multiplicity == 1);
+        CHECK(f.atoms.size() == 3 && f.atoms[0].Z == 6 && f.atoms[1].Z == 8 && f.atoms[2].Z == 8);
+        CHECK(parse_structure_file(commented).format == "gaussian");  // recognised from the text
+        // messages give the line of the file (line 8: the Z-matrix line after two comment lines)
+        CHECK(contains(parse_error("! one\n! two\n# HF\n\nz\n\n0 1\nO\n", "x.gjf"), "line 8:"));
+    }
     CHECK(contains(parse_error("# HF\n\nzmat\n\n0 1\nO\nH 1 0.96\nH 1 0.96 2 104.5\n", "x.gjf"), "Z-matrix"));
     CHECK(contains(parse_error("# HF\n\nghost\n\n0 1\nO 0 0 0\nBq 0 0 1\n", "x.gjf"), "ghost atoms"));
     CHECK(contains(parse_error("# HF\n\ndummy\n\n0 1\nX 0 0 0\nO 0 0 1\n", "x.gjf"), "dummy atoms"));

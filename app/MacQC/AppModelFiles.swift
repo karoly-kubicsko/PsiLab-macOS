@@ -27,15 +27,14 @@ nonisolated enum OutputArchive {
         guard let begin = text.range(of: beginMarker, options: .backwards) else { return nil }
         var data = ""
         var first = true
-        for line in text[begin.upperBound...].split(separator: "\n", omittingEmptySubsequences: false) {
+        // Character.isNewline: "\n", "\r" and "\r\n" (one Character in Swift) end a line
+        for line in text[begin.upperBound...].split(omittingEmptySubsequences: false, whereSeparator: \.isNewline) {
             if first {   // the rest of the marker line (" 1")
                 first = false
                 continue
             }
-            var l = Substring(line)
-            if l.hasSuffix("\r") { l = l.dropLast() }
-            if l.hasPrefix(endMarker) { return data }
-            data += l
+            if line.hasPrefix(endMarker) { return data }
+            data += line
         }
         return nil
     }
@@ -47,7 +46,17 @@ nonisolated enum OutputArchive {
         copy.output = nil
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
-        guard let data = try? encoder.encode(copy), let json = String(data: data, encoding: .utf8) else { return nil }
+        guard let data = try? encoder.encode(copy), var json = String(data: data, encoding: .utf8),
+              json.hasPrefix("{") else { return nil }
+        // the "archive" object of the backend's archives: format, program and time
+        let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? ""
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.dateFormat = "yyyy-MM-dd HH:mm:ss"
+        let header = ["format": "1", "program": "\"ΨLab \(version) (app)\"", "written": "\"\(formatter.string(from: Date()))\""]
+        let archive = "\"archive\":{" + ["format", "program", "written"].map { "\"\($0)\":\(header[$0]!)" }.joined(separator: ",") + "}"
+        let body = String(json.dropFirst())   // without the opening brace
+        json = "{" + archive + (body == "}" ? "" : ",") + body
         var lines = [
             "",
             "---- ΨLab archive: the complete results, read by File > Open Output File… of the app ------",
@@ -154,9 +163,10 @@ extension AppModel {
 
     // MARK: Gaussian input
 
-    /// Saves a molecule as a Gaussian input file (.gjf): the route for `method`/`basis` (ΨLab's
-    /// names), the name and level as title, charge and multiplicity, Cartesian coordinates in Å.
-    func exportGaussianInput(_ m: SavedMolecule, method: String, basis: String) {
+    /// Saves a molecule as a Gaussian input file (.gjf): see SavedMolecule.gaussianInputText.
+    /// `method`/`basis`: ΨLab's names of the level for the route; `orbitals`: the basis functions
+    /// ΨLab used (written out where Gaussian has no such basis set), if known.
+    func exportGaussianInput(_ m: SavedMolecule, method: String, basis: String, orbitals: MacQCOrbitals?) {
         let panel = NSSavePanel()
         panel.title = "Save Coordinates as Gaussian Input"
         panel.allowedContentTypes = [UTType(filenameExtension: "gjf") ?? .plainText]
@@ -169,56 +179,151 @@ extension AppModel {
         panel.nameFieldStringValue = stem + ".gjf"
         guard panel.runModal() == .OK, let url = panel.url else { return }
         do {
-            try m.gaussianInputText(method: method, basis: basis).write(to: url, atomically: true, encoding: .utf8)
+            try m.gaussianInputText(method: method, basis: basis, orbitals: orbitals)
+                .write(to: url, atomically: true, encoding: .utf8)
         } catch {
             errorMessage = "Could not write the file: \(error.localizedDescription)"
         }
     }
 
-    /// Method and basis set of the optimised geometry of the displayed result (for its Gaussian
-    /// input), else those of the sidebar.
-    var gaussianLevel: (method: String, basis: String) {
+    /// The level of the optimised geometry of the displayed result (for its Gaussian input) with
+    /// its basis functions, else the level of the sidebar.
+    var gaussianLevel: (method: String, basis: String, orbitals: MacQCOrbitals?) {
         if let out = result, out.isGeneral, out.optimization != nil {
-            return (out.input.method, out.input.basis)
+            return (out.input.method, out.input.basis, out.orbitals)
         }
-        return (method.rawValue, currentBasis)
+        return (method.rawValue, currentBasis, orbitalsForBasis(currentBasis))
+    }
+
+    /// The basis functions of the displayed result if it used `basis` (the functions of an element
+    /// do not depend on the geometry).
+    func orbitalsForBasis(_ basis: String) -> MacQCOrbitals? {
+        guard let out = result, out.isGeneral, out.input.basis.lowercased() == basis.lowercased() else { return nil }
+        return out.orbitals
     }
 }
 
 extension SavedMolecule {
-    /// Gaussian's keyword for a ΨLab method (backend name or title); nil where Gaussian has none
-    /// (CCSDT, CCSDTQ and Full CI are not methods of Gaussian).
+    /// Gaussian's keyword for a ΨLab method; nil where Gaussian has none (CCSDT, CCSDTQ, Full CI).
+    /// ΨLab correlates all electrons: Gaussian's coupled cluster freezes the core unless asked
+    /// for Full.
     static func gaussianMethod(_ method: String) -> String? {
         switch method.uppercased() {
         case "RHF", "HF": return "HF"
-        case "CCSD": return "CCSD"
-        case "CCSD(T)": return "CCSD(T)"
+        case "CCSD": return "CCSD(Full)"
+        case "CCSD(T)": return "CCSD(T,Full)"
         default: return nil
         }
     }
 
-    /// The molecule as a Gaussian input file: route "#p method/basis" (HF where Gaussian has no
-    /// such method; the title says so), title (name; level and energy of an optimised geometry),
-    /// charge and multiplicity, Cartesian coordinates in Å, and the closing blank line. ΨLab reads
-    /// it back as a custom molecule (File ▸ Open Structure File…).
-    func gaussianInputText(method: String, basis: String) -> String {
+    /// Text for Gaussian's title section: ASCII without the characters it must not contain
+    /// (@ # ! – _ \, and the hyphen as well) and without LaTeX markup.
+    static func gaussianTitle(_ text: String) -> String {
+        var out = ""
+        for c in text.unicodeScalars {
+            switch c {
+            case "$", "{", "}", "^", "_", "\\", "@", "#", "!": continue
+            case "-", "\u{2013}", "\u{2212}": out.append(" ")
+            default:
+                if c.isASCII && c.value >= 32 { out.unicodeScalars.append(c) }
+            }
+        }
+        return out.split(separator: " ").joined(separator: " ")
+    }
+
+    /// The molecule as a Gaussian input file:
+    ///  - comment lines ("!") with the name, the level and energy of an optimised geometry, and
+    ///    what the route cannot say;
+    ///  - route "#p method/basis": HF, CCSD(Full) or CCSD(T,Full) (all electrons correlated, as in
+    ///    ΨLab; HF where Gaussian has no such method); aug-cc-pVXZ by name; aug-cc-pCVXZ, which
+    ///    Gaussian does not have built in, as "Gen 5D 7F" with ΨLab's functions written out
+    ///    (H and He with the aug-cc-pVXZ functions, as ΨLab uses them), or by name per element
+    ///    when the functions are not known;
+    ///  - title (the name, ASCII without the characters the title section must not contain);
+    ///  - charge and multiplicity, Cartesian coordinates in Å, and the basis section if any.
+    /// ΨLab reads it back as a custom molecule (comments are skipped).
+    func gaussianInputText(method: String, basis: String, orbitals: MacQCOrbitals?) -> String {
         let keyword = SavedMolecule.gaussianMethod(method)
-        var title = title.trimmingCharacters(in: .whitespaces)
-        if title.isEmpty { title = formula }
+        let name = SavedMolecule.gaussianTitle(title).isEmpty ? SavedMolecule.gaussianTitle(formula)
+                                                              : SavedMolecule.gaussianTitle(title)
+        var lines: [String] = []
         if let l = levelText {
-            title += " (" + (transitionState ? "transition state at " : "optimised at ") + l
-            if let e = energy { title += String(format: ", E = %.10f E_h", e) }
-            title += ", ΨLab)"
+            var line = "! \(name): " + (transitionState ? "transition state at " : "geometry optimised at ") + l + " with PsiLab"
+            if let e = energy { line += String(format: ", E = %.10f E_h", e) }
+            lines.append(line)
+        } else {
+            lines.append("! \(name): coordinates from " + source)
         }
         if keyword == nil {
-            title += " Gaussian has no \(MethodChoice.title(of: method)): the route asks for HF."
+            lines.append("! Gaussian has no \(MethodChoice.title(of: method)): the route asks for HF")
+        } else if keyword != "HF" {
+            lines.append("! all electrons correlated, as in PsiLab (Full: no frozen core)")
         }
-        var lines = ["#p \(keyword ?? "HF")/\(basis)", "", title, "", "\(charge) \(multiplicity)"]
+        // the basis set
+        var route = basis
+        var basisSection: [String] = []
+        if basis.lowercased().hasPrefix("aug-cc-pcv") {
+            route = "Gen 5D 7F"
+            let partner = "aug-cc-pV" + basis.dropFirst("aug-cc-pCV".count)
+            if let section = SavedMolecule.gaussianBasisSection(for: atoms.map(\.Z), orbitals: orbitals) {
+                lines.append("! basis set \(basis) as used by PsiLab (\(partner) for H and He), written out below")
+                basisSection = section
+            } else {
+                lines.append("! basis set \(basis) (\(partner) for H and He), by name: if your Gaussian does not have it,")
+                lines.append("! replace the names by its functions (e.g. from basissetexchange.org)")
+                var seen: [Int] = []
+                for Z in atoms.map(\.Z) where !seen.contains(Z) {
+                    seen.append(Z)
+                    basisSection += ["\(Elements.symbol(Z)) 0", Z <= 2 ? partner : basis, "****"]
+                }
+            }
+        }
+        lines += ["#p \(keyword ?? "HF")/\(route)", "", name.isEmpty ? "molecule" : name, "", "\(charge) \(multiplicity)"]
         for a in atoms {
             let symbol = a.symbol.padding(toLength: max(2, a.symbol.count), withPad: " ", startingAt: 0)
             lines.append(symbol + String(format: " %16.10f %16.10f %16.10f", a.x, a.y, a.z))
         }
         lines.append("")
+        if !basisSection.isEmpty {
+            lines += basisSection
+            lines.append("")
+        }
         return lines.joined(separator: "\n") + "\n"
+    }
+
+    /// Gaussian's general basis input for the elements `Z` from the shells of `orbitals` (one atom
+    /// of each element): shell type, number of primitives, exponents and the contraction
+    /// coefficients of normalised primitives (ΨLab stores them with the primitive normalisation).
+    /// nil if an element is missing.
+    static func gaussianBasisSection(for Z: [Int], orbitals: MacQCOrbitals?) -> [String]? {
+        guard let orbitals else { return nil }
+        let letters = ["S", "P", "D", "F", "G", "H", "I"]
+        var section: [String] = []
+        var seen: [Int] = []
+        for z in Z where !seen.contains(z) {
+            seen.append(z)
+            guard let atom = orbitals.atoms.firstIndex(where: { $0.Z == z }) else { return nil }
+            section.append("\(Elements.symbol(z)) 0")
+            for shell in orbitals.shells where shell.atom == atom {
+                guard shell.l < letters.count, shell.exponents.count == shell.coefficients.count else { return nil }
+                section.append(String(format: "%@ %3ld 1.00", letters[shell.l], shell.exponents.count))
+                for (a, c) in zip(shell.exponents, shell.coefficients) {
+                    section.append(String(format: "  %20.10E  %20.10E", a, c / primitiveNorm(l: shell.l, exponent: a)))
+                }
+            }
+            section.append("****")
+        }
+        return section
+    }
+
+    /// Normalisation of the primitive x^l exp(-a r^2): (2a/π)^(3/4) (4a)^(l/2) / √((2l−1)!!).
+    static func primitiveNorm(l: Int, exponent a: Double) -> Double {
+        var doubleFactorial = 1.0
+        var k = 2 * l - 1
+        while k > 1 {
+            doubleFactorial *= Double(k)
+            k -= 2
+        }
+        return pow(2 * a / Double.pi, 0.75) * pow(4 * a, Double(l) / 2) / doubleFactorial.squareRoot()
     }
 }

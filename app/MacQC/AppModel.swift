@@ -600,7 +600,6 @@ final class AppModel {
         isRunning = true
         errorMessage = nil
         savedMessage = nil
-        openedFile = nil
         progress = MacQCProgress()
         progressLine = ""
         runStarted = Date()
@@ -649,6 +648,7 @@ final class AppModel {
                 return
             }
             result = output
+            openedFile = nil   // 13.0: a result of this session (a cancelled or failed run keeps the file's)
             errorMessage = output.error
             // UI smoke test (-psilabSaveOptimized YES): keep the optimised geometry
             if UserDefaults.standard.bool(forKey: "psilabSaveOptimized") && optimizedMolecule != nil {

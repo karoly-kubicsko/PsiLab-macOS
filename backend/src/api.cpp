@@ -5,6 +5,7 @@
 #include <cstring>
 #include <exception>
 #include <new>
+#include <optional>
 #include <stdexcept>
 #include <string>
 
@@ -930,7 +931,7 @@ Input parse_input_json(const std::string& text) {
 
 namespace {
 
-json output_json(const Output& out) {
+json output_json(const Output& out, const OrbitalData* orbitals = nullptr) {
     json j;
     j["input"] = input_json(out.input);
     j["error"] = out.error.empty() ? json(nullptr) : json(out.error);
@@ -955,7 +956,9 @@ json output_json(const Output& out) {
         }
         add_job_json(j, out);
         j["orbitals"] = nullptr;
-        if (out.molecular && out.molecular->rhf && out.molecular->rhf->C.rows() > 0) {
+        if (orbitals) {
+            j["orbitals"] = orbitals_json(*orbitals);  // 13.0: built once for the appendix
+        } else if (out.molecular && out.molecular->rhf && out.molecular->rhf->C.rows() > 0) {
             try {
                 const MolecularResult& m = *out.molecular;
                 const OrbitalData d = make_orbital_data(m.molecule, m.basis, *m.rhf, m.fci ? &*m.fci : nullptr);
@@ -1044,12 +1047,9 @@ json output_json(const Output& out) {
 
 // ---- 13.0: the appendix of the output file ------------------------------------------------
 
-// Normalisation of the primitive x^l exp(-a r^2): (2a/pi)^(3/4) (4a)^(l/2) / sqrt((2l-1)!!).
-double primitive_norm(int l, double a) {
-    double dfact = 1.0;
-    for (int k = 2 * l - 1; k > 1; k -= 2) dfact *= k;
-    return std::pow(2.0 * a / M_PI, 0.75) * std::pow(4.0 * a, 0.5 * l) / std::sqrt(dfact);
-}
+// Normalisation of the primitive x^l exp(-a r^2), as the basis set applies it (a contraction of
+// one primitive with coefficient 1 is that primitive, normalised).
+double primitive_norm(int l, double a) { return normalized_coefficients(l, {a}, {1.0})[0]; }
 
 std::string atom_label(const OrbitalData& d, int atom) {
     const Atom& a = d.atoms[static_cast<std::size_t>(atom)];
@@ -1079,8 +1079,6 @@ std::vector<std::string> basis_function_labels(const OrbitalData& d) {
 std::string basis_set_text(const OrbitalData& d) {
     OutputWriter w;
     w.section("Basis set in full");
-    int max_l = 0;
-    for (const Shell& sh : d.shells) max_l = std::max(max_l, sh.l);
     w.line(strprintf("    %s: %d spherical basis functions in %zu shells (real solid harmonics, m = -l ... l)",
                      d.basis_name.c_str(), d.n_basis, d.shells.size()));
     w.line("    exponents in bohr^-2; contraction coefficients of normalised primitives, every contracted");
@@ -1122,7 +1120,6 @@ std::string basis_set_text(const OrbitalData& d) {
             }
         }
     }
-    (void)max_l;
     return w.text();
 }
 
@@ -1191,17 +1188,18 @@ std::string output_to_json(const Output& out, int indent) {
 
 std::string output_appendix(const Output& out) {
     std::string text;
+    std::optional<OrbitalData> d;
     if (out.molecular && out.molecular->rhf && out.molecular->rhf->C.rows() > 0) {
         try {
             const MolecularResult& m = *out.molecular;
-            const OrbitalData d = make_orbital_data(m.molecule, m.basis, *m.rhf, m.fci ? &*m.fci : nullptr);
-            text += basis_set_text(d);
-            text += orbitals_text(d);
+            d = make_orbital_data(m.molecule, m.basis, *m.rhf, m.fci ? &*m.fci : nullptr);
+            text += basis_set_text(*d);
+            text += orbitals_text(*d);
         } catch (const std::exception& e) {
             text += std::string("\n    (the molecular orbitals could not be written: ") + e.what() + ")\n";
         }
     }
-    text += archive_text(output_json(out));
+    text += archive_text(output_json(out, d ? &*d : nullptr));
     return text;
 }
 

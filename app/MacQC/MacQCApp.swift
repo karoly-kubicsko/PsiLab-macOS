@@ -50,7 +50,8 @@ struct MacQCApp: App {
 
                 Button("Save Optimised Geometry as Gaussian Input…") {
                     if let m = model.optimizedMolecule {
-                        model.exportGaussianInput(m, method: model.gaussianLevel.method, basis: model.gaussianLevel.basis)
+                        let level = model.gaussianLevel
+                        model.exportGaussianInput(m, method: level.method, basis: level.basis, orbitals: level.orbitals)
                     }
                 }
                 .disabled(model.optimizedMolecule == nil)

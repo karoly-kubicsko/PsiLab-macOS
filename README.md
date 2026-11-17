@@ -184,10 +184,16 @@ same calculations run in the terminal on Linux and macOS
   isosurfaces, contour plots, level diagram), optimisation steps, frequencies and normal modes,
   thermochemistry, scans and the output text. A banner names the file; the sidebar keeps its inputs
   (*Run* calculates them). *File ▸ Save Optimised Geometry as XYZ… / as Gaussian Input…* write the
-  optimised coordinates as an .xyz file or a Gaussian input file (.gjf: route `#p method/basis` for the
-  level of the optimisation — HF where Gaussian has no such method (CCSDT, CCSDTQ, Full CI), which the
-  title notes —, the name, level and energy as title, charge and multiplicity, Cartesian coordinates
-  in Å); ΨLab reads both back as custom molecules.
+  optimised coordinates as an .xyz file or a Gaussian input file (.gjf): comment lines (`!`) with
+  the name, the level and the energy and what the route cannot say; the route `#p method/basis`
+  for the level of the optimisation — `HF`, `CCSD(Full)` or `CCSD(T,Full)` (all electrons
+  correlated, as in ΨLab; Gaussian freezes the core by default), `HF` where Gaussian has no such
+  method (CCSDT, CCSDTQ, Full CI); aug-cc-pVXZ by name; aug-cc-pCVXZ as `Gen 5D 7F` with the
+  functions ΨLab used written out after the coordinates (H and He with aug-cc-pVXZ), or by name per
+  element when they are not known —; the name as title (ASCII, without the characters Gaussian's
+  title section must not contain: @ # ! – _ \ and the hyphen); charge and multiplicity; Cartesian
+  coordinates in Å. ΨLab reads both back as custom molecules (13.0: Gaussian's `!` comments are
+  skipped).
 - **Build from source**: see [`app/SETUP.md`](app/SETUP.md) (Xcode 26, or XcodeGen with
   `xcode/project.yml`).
 
@@ -1017,7 +1023,8 @@ The **output file** is written while the job runs and is identical in the app's 
     characters escaped, 100 columns per line between the lines `@@PSILAB-ARCHIVE-BEGIN 1` and
     `@@PSILAB-ARCHIVE-END`; joined without the line breaks it equals the JSON (tested). The app reads
     it with *File ▸ Open Output File…*; it is written for every job that was not cancelled (also
-    for a refusal or an error, with what exists);
+    for a refusal or an error, with what exists), not for the points of the app's potential curve,
+    whose output is not kept;
 13. "Normal termination" with the total time, or "Error termination" with the reason
     (refusal, non-converged optimisation, failed SCF) or "Calculation cancelled".
 

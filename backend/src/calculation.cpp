@@ -165,24 +165,40 @@ Output run_molecular_calculation(const Input& in0, const OutputSink& sink) {
         }
         const std::string echo = in.echo.empty() ? input_echo(out.input) : in.echo;
         // 13.0: the appendix of the output file (basis set, orbitals, archive) describes the
-        // results exactly as they are returned: it is made from `out` filled as below
+        // results exactly as they are returned: the appendix writer fills `out` as it is returned
+        // (after the appendix the job only adds the termination banner to its output text). Not
+        // for print level 0 (the points of the app's potential curve, whose output is not kept).
+        const bool with_appendix = in.printLevel > 0;
+        bool filled = false;
         if (js.type != "energy") {
             const MolecularResult prepared = *out.molecular;
             const MolecularInput mi = molecular_input(in);
-            const AppendixWriter appendix = [&](const JobResult& r) {
-                set_job_result(out, r, mi, prepared);
-                return output_appendix(out);
-            };
+            AppendixWriter appendix;
+            if (with_appendix)
+                appendix = [&](const JobResult& r) {
+                    set_job_result(out, r, mi, prepared);
+                    filled = true;
+                    return output_appendix(out);
+                };
             JobResult jr = run_job(mi, js, sink, echo, appendix);
-            set_job_result(out, std::move(jr), mi, prepared);
+            if (filled)
+                out.job->output = std::move(jr.output);
+            else
+                set_job_result(out, std::move(jr), mi, prepared);
             return out;
         }
-        const AppendixWriter appendix = [&](const JobResult& r) {
-            set_energy_result(out, r);
-            return output_appendix(out);
-        };
+        AppendixWriter appendix;
+        if (with_appendix)
+            appendix = [&](const JobResult& r) {
+                set_energy_result(out, r);
+                filled = true;
+                return output_appendix(out);
+            };
         JobResult jr = run_energy_job(*out.molecular, js, sink, echo, appendix);
-        set_energy_result(out, std::move(jr));
+        if (filled)
+            out.job->output = std::move(jr.output);
+        else
+            set_energy_result(out, std::move(jr));
     } catch (const std::exception& e) {
         out.error = e.what();
     } catch (...) {
