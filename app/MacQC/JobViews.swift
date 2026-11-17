@@ -3,11 +3,11 @@
 //  MacQC
 //
 //  ΨLab 5.0 job results: the Optimisation tab (the molecule of every step, drawn and played step
-//  by step (6.0), the steps table, energy and force charts, the geometry and internal coordinates
+//  by step (6.0; 12.0: in the 3D viewer), the steps table, energy and force charts, the geometry and internal coordinates
 //  of each step, the optimised geometry with a button that copies it into the inputs; 7.0: the
 //  transition-state search with the Hessian's eigenvalues and the followed mode of every step),
 //  the Frequencies tab with its Frequencies and Thermochemistry pages (every normal mode animated
-//  (6.0), the table of modes, the IR spectrum; 7.0: the point group and the transition-state
+//  (6.0; 12.0: the selected mode in the 3D viewer), the table of modes, the IR spectrum; 7.0: the point group and the transition-state
 //  check), and the job panel of the Summary tab.
 //
 
@@ -99,15 +99,16 @@ struct OptimizationView: View {
         // The start and every step, rotated onto each other (the backend's coordinates may turn).
         let aligned = alignedSequence(([opt.initialGeometry.atoms] + history.map { $0.geometry.atoms }).map { atomCoordinates($0) },
                                       atoms: step.geometry.atoms)
-        let frame = MoleculeFrame(geometries: aligned, heavyAtom: heaviestAtom(step.geometry.atoms))
         let shown = atomsMoved(step.geometry.atoms, to: aligned[min(index + 1, aligned.count - 1)])
         let start = atomsMoved(opt.initialGeometry.atoms, to: aligned[0])
         return VStack(alignment: .leading, spacing: 10) {
             HStack(alignment: .top, spacing: 16) {
-                OptimizationGeometryCanvas(atoms: shown,
-                                           start: showStart && index > 0 ? start : nil,
-                                           frame: frame)
-                    .frame(minWidth: 240, maxWidth: .infinity, minHeight: 230, maxHeight: 230)
+                // ΨLab 12.0: the 3D viewer (turn with the mouse, click atoms to measure)
+                Molecule3DView(atoms: shown,
+                               reference: showStart && index > 0 ? start : nil,
+                               framing: aligned,
+                               accessibilityText: "Molecule at this optimisation step")
+                    .frame(minWidth: 260, maxWidth: .infinity, minHeight: 300, maxHeight: 300)
                 VStack(alignment: .leading, spacing: 6) {
                     Text("Step \(step.step) of \(history.count)")
                         .font(.headline)
@@ -192,9 +193,9 @@ struct OptimizationView: View {
                     .accessibilityLabel("Optimisation step")
                 Toggle("Starting geometry", isOn: $showStart)
                     .toggleStyle(.checkbox)
-                    .help("Show the geometry of step 1 as dashed outlines")
+                    .help("Show the geometry of step 1 as a translucent molecule")
             }
-            Text("The molecule of each optimisation step, to the same scale for all steps: bond lengths in Å and, for H₂O, the H–O–H angle; dashed: the starting geometry. H₂O₂ and NH₃ are drawn in a tilted view, the nearer atoms larger. Choose a step with the buttons, the slider or a step number in the table, or press Play steps.")
+            Text("The molecule of each optimisation step in 3D, the steps turned onto each other so that the molecule keeps its place: bond lengths in Å; translucent: the starting geometry. Drag to turn the molecule, pinch or ⌥-scroll to zoom; click two, three or four atoms to measure a distance, an angle or a dihedral angle. Choose a step with the buttons, the slider or a step number in the table, or press Play steps.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }
@@ -758,10 +759,22 @@ struct FrequencyPage: View {
             }
     }
 
-    /// Every normal mode as an animation (three at most per row), with Play/Pause, the amplitude
-    /// and the displacement arrows; clicking a mode selects it in the table and the spectrum.
+    /// ΨLab 12.0: the selected normal mode animated in the 3D viewer (turn it with the mouse), with
+    /// Play/Pause, the amplitude and the displacement arrows, and a chooser of all modes; clicking
+    /// a mode here, in the table or in the spectrum shows it.
     private var modeAnimations: some View {
-        let rows = stride(from: 0, to: f.modes.count, by: 3).map { Array($0..<min($0 + 3, f.modes.count)) }
+        let index = min(max(selectedMode, 0), f.modes.count - 1)
+        let m = f.modes[index]
+        let atoms = f.geometry.atoms
+        let equilibrium = atomCoordinates(atoms)
+        let shortest = moleculeBonds(atoms).map { vectorDistance(equilibrium[$0.0], equilibrium[$0.1]) }.min() ?? 1.8
+        let largest = m.displacement.map { vectorNorm($0) }.max() ?? 1
+        // at amplitude 1 the largest atomic displacement is a quarter of the shortest bond
+        let a = amplitude * 0.25 * shortest / max(largest, 1e-6)
+        // 2 s per vibration at 1600 cm⁻¹, proportionally faster for higher wavenumbers
+        let period = min(2.4, max(0.6, 2.0 * 1600.0 / max(abs(m.wavenumber), 1.0)))
+        let vibration = Molecule3DVibration(displacement: m.displacement, amplitude: a, period: period,
+                                            playing: animate, arrows: arrows)
         return VStack(alignment: .leading, spacing: 10) {
             HStack(spacing: 14) {
                 Button {
@@ -769,10 +782,10 @@ struct FrequencyPage: View {
                 } label: {
                     Label(animate ? "Pause" : "Play", systemImage: animate ? "pause.fill" : "play.fill")
                 }
-                .help(animate ? "Stop the vibrations" : "Animate the vibrations")
+                .help(animate ? "Stop the vibration" : "Animate the vibration")
                 Toggle("Arrows", isOn: $arrows)
                     .toggleStyle(.checkbox)
-                    .help("Arrows from the equilibrium position to the turning points")
+                    .help("Arrows from the atoms towards the turning points")
                 Text("Amplitude")
                     .foregroundStyle(.secondary)
                 Slider(value: $amplitude, in: 0.4...2.0)
@@ -780,58 +793,88 @@ struct FrequencyPage: View {
                     .accessibilityLabel("Amplitude")
                 Spacer()
             }
-            ForEach(rows, id: \.self) { row in
-                HStack(alignment: .top, spacing: 12) {
-                    ForEach(row, id: \.self) { index in
-                        modeCard(index)
+            HStack(alignment: .top, spacing: 14) {
+                VStack(alignment: .leading, spacing: 6) {
+                    HStack(alignment: .firstTextBaseline, spacing: 8) {
+                        Text("Mode \(index + 1)")
+                            .font(.headline)
+                        if !m.symmetry.isEmpty {
+                            Text(m.symmetry)
+                                .foregroundStyle(.secondary)
+                        }
+                        Spacer(minLength: 4)
+                        Text(Fmt.wavenumber(m) + " cm⁻¹")
+                            .font(.headline.monospacedDigit())
+                            .foregroundStyle(m.imaginary ? Color.red : Color.primary)
                     }
-                    if f.modes.count > 1 && row.count < 3 {
-                        Spacer(minLength: 0)
-                    }
+                    Molecule3DView(atoms: atoms,
+                                   reference: atoms,
+                                   framing: [equilibrium,
+                                             displacedCoordinates(equilibrium, m.displacement, a),
+                                             displacedCoordinates(equilibrium, m.displacement, -a)],
+                                   vibration: vibration,
+                                   accessibilityText: "Animation of normal mode \(index + 1)")
+                        .frame(minWidth: 300, maxWidth: .infinity, minHeight: 320, maxHeight: 320)
+                    Text(m.irIntensity.map { String(format: "IR intensity %.2f km/mol", $0) } ?? "IR intensity –")
+                        .font(.caption)
+                        .monospacedDigit()
+                        .foregroundStyle(.secondary)
                 }
+                modeChooser
+                    .frame(width: 236)
             }
-            Text("The atoms vibrate about the equilibrium geometry (dashed) along each normal mode, at a speed proportional to its wavenumber; the amplitude is exaggerated (at 1, the largest atomic displacement is a quarter of the shortest bond). Click a mode to select it in the table and in the IR spectrum.")
+            Text("The atoms vibrate about the equilibrium geometry (translucent) along the selected normal mode, at a speed proportional to its wavenumber; the amplitude is exaggerated (at 1, the largest atomic displacement is a quarter of the shortest bond). Drag to turn the molecule, pinch or ⌥-scroll to zoom, click atoms to measure them at the equilibrium geometry. Choose a mode on the right, in the table or in the IR spectrum.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }
         .dataPanel()
     }
 
-    private func modeCard(_ index: Int) -> some View {
+    /// All modes, two per row: number, symmetry, wavenumber and IR intensity.
+    private var modeChooser: some View {
+        ScrollView {
+            LazyVGrid(columns: [GridItem(.flexible(), spacing: 6), GridItem(.flexible(), spacing: 6)], spacing: 6) {
+                ForEach(f.modes.indices, id: \.self) { index in
+                    modeTile(index)
+                }
+            }
+            .padding(2)
+        }
+        .frame(maxHeight: 350)
+    }
+
+    private func modeTile(_ index: Int) -> some View {
         let m = f.modes[index]
         let selected = index == selectedMode
-        return VStack(alignment: .leading, spacing: 6) {
-            HStack(alignment: .firstTextBaseline, spacing: 6) {
+        return VStack(alignment: .leading, spacing: 2) {
+            HStack(spacing: 4) {
                 Text("Mode \(index + 1)")
-                    .font(.subheadline.weight(.semibold))
+                    .font(.caption.weight(.semibold))
                 if !m.symmetry.isEmpty {
                     Text(m.symmetry)
+                        .font(.caption)
                         .foregroundStyle(.secondary)
                 }
-                Spacer(minLength: 4)
-                Text(Fmt.wavenumber(m) + " cm⁻¹")
-                    .monospacedDigit()
-                    .foregroundStyle(m.imaginary ? Color.red : Color.primary)
             }
-            NormalModeCanvas(atoms: f.geometry.atoms, displacement: m.displacement, wavenumber: m.wavenumber,
-                             animate: animate, amplitude: amplitude, arrows: arrows)
-                .frame(height: 170)
-                .accessibilityLabel("Animation of normal mode \(index + 1)")
-            Text(m.irIntensity.map { String(format: "IR intensity %.2f km/mol", $0) } ?? "IR intensity –")
-                .font(.caption)
-                .monospacedDigit()
+            Text(Fmt.wavenumber(m) + " cm⁻¹")
+                .font(.callout.monospacedDigit())
+                .foregroundStyle(m.imaginary ? Color.red : Color.primary)
+            Text(m.irIntensity.map { String(format: "%.1f km/mol", $0) } ?? "–")
+                .font(.caption2.monospacedDigit())
                 .foregroundStyle(.secondary)
         }
-        .padding(10)
-        .frame(maxWidth: f.modes.count == 1 ? 460 : CGFloat.infinity, alignment: .leading)
-        .background(RoundedRectangle(cornerRadius: 10).fill(selected ? Color.accentColor.opacity(0.08) : Color.clear))
-        .overlay(RoundedRectangle(cornerRadius: 10)
+        .padding(7)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(RoundedRectangle(cornerRadius: 8).fill(selected ? Color.accentColor.opacity(0.12) : Color.clear))
+        .overlay(RoundedRectangle(cornerRadius: 8)
             .strokeBorder(selected ? Color.accentColor : Color.secondary.opacity(0.25), lineWidth: selected ? 2 : 1))
         .contentShape(Rectangle())
         .onTapGesture {
             selectedMode = index
         }
+        .accessibilityElement(children: .combine)
         .accessibilityAddTraits(.isButton)
+        .accessibilityLabel("Normal mode \(index + 1), \(Fmt.wavenumber(m)) per centimetre")
     }
 
     private var modesTable: some View {

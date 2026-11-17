@@ -4,7 +4,7 @@
 //
 //  ΨLab 7.0: the Scan tab. Its Relaxed scan page shows the result of the job "Relaxed scan"
 //  (Gaussian's Opt=ModRedundant with S): the energy along the scanned coordinate, the molecule at
-//  every point (played point by point), the table of points with their constrained optimisations,
+//  every point (played point by point; 12.0: in the 3D viewer), the table of points with their constrained optimisations,
 //  the minima and maxima, and a button that starts a transition-state search from a point. Its
 //  Potential curve page is the curve of single-point energies along the bond length (versions
 //  1–6, PotentialCurveView.swift).
@@ -134,13 +134,13 @@ struct RelaxedScanView: View {
         let point = points[index]
         let atoms = point.geometry.atoms
         let aligned = alignedSequence(points.map { atomCoordinates($0.geometry.atoms) }, atoms: atoms)
-        let frame = MoleculeFrame(geometries: aligned, heavyAtom: heaviestAtom(atoms))
         let lowest = points.first(where: { $0.index == scan.lowest })?.energy ?? point.energy
         return VStack(alignment: .leading, spacing: 10) {
             HStack(alignment: .top, spacing: 16) {
-                OptimizationGeometryCanvas(atoms: atomsMoved(atoms, to: aligned[index]), start: nil, frame: frame,
-                                           label: "Molecule at this scan point")
-                    .frame(minWidth: 240, maxWidth: .infinity, minHeight: 230, maxHeight: 230)
+                // ΨLab 12.0: the 3D viewer
+                Molecule3DView(atoms: atomsMoved(atoms, to: aligned[index]), framing: aligned,
+                               accessibilityText: "Molecule at this scan point")
+                    .frame(minWidth: 260, maxWidth: .infinity, minHeight: 300, maxHeight: 300)
                 VStack(alignment: .leading, spacing: 6) {
                     Text("Point \(index + 1) of \(points.count)")
                         .font(.headline)
@@ -230,7 +230,7 @@ struct RelaxedScanView: View {
                     .disabled(points.count < 2)
                     .accessibilityLabel("Scan point")
             }
-            Text("The optimised molecule at each scan point, to the same scale for all points (bond lengths in Å; H₂O₂ and NH₃ in a tilted view, the nearer atoms larger). The highest point is shown first. Choose a point with the buttons, the slider, the chart or the table, or press Play points.")
+            Text("The optimised molecule at each scan point in 3D, the points turned onto each other (bond lengths in Å). Drag to turn the molecule, pinch or ⌥-scroll to zoom; click two, three or four atoms to measure a distance, an angle or a dihedral angle. The highest point is shown first. Choose a point with the buttons, the slider, the chart or the table, or press Play points.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }

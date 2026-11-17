@@ -516,19 +516,19 @@ public:
                         }
                 r1[T1(i, a)] = s;
             }
-        // + sum_kcd (2 (kd|ac) - (kc|ad)) t2(i,k,c,d): for each (k,d) a [a][c] x [c][i] product
+        // + sum_kcd (2 (kd|ac) - (kc|ad)) t2(i,k,c,d): one product per k (12.0),
+        //   r1[i][a] += sum_(c,d) t2[i][k][(c,d)] W[(c,d)][a],  W[(c,d)][a] = 2 (kd|ac) - (kc|ad)
         {
-            std::vector<double> U(v * o), Y(v * o), M(vv);
-            for (std::size_t k = 0; k < o; ++k)
-                for (std::size_t d = 0; d < v; ++d) {
-                    for (std::size_t a = 0; a < v; ++a)
-                        for (std::size_t c = 0; c < v; ++c) M[a * v + c] = 2.0 * ovvv(k, d, a, c) - ovvv(k, c, a, d);
-                    for (std::size_t c = 0; c < v; ++c)
-                        for (std::size_t i = 0; i < o; ++i) U[c * o + i] = t2[T2(i, k, c, d)];
-                    gemm(false, false, v, o, v, 1.0, M.data(), v, U.data(), o, 0.0, Y.data(), o);
-                    for (std::size_t a = 0; a < v; ++a)
-                        for (std::size_t i = 0; i < o; ++i) r1[T1(i, a)] += Y[a * o + i];
-                }
+            std::vector<double> W(vv * v);
+            for (std::size_t k = 0; k < o; ++k) {
+                for (std::size_t c = 0; c < v; ++c)
+                    for (std::size_t d = 0; d < v; ++d) {
+                        double* w = W.data() + (c * v + d) * v;
+                        for (std::size_t a = 0; a < v; ++a) w[a] = 2.0 * ovvv(k, d, a, c) - ovvv(k, c, a, d);
+                    }
+                gemm(false, false, o, v, vv, 1.0, t2.data() + T2(0, k, 0, 0), o * vv, W.data(), v, 1.0, r1.data(), v,
+                     threads_);
+            }
         }
 
         // ---- T2 equation ----
@@ -603,6 +603,15 @@ public:
         // Woooo and its product with tau
         {
             std::vector<double> W(o * o * o * o);  // [k][l][i][j]
+            // sum_cd (kc|ld) tau(i,j,c,d) as one product (12.0): KL[(k,l)][(c,d)] = (kc|ld)
+            {
+                std::vector<double> KL(o * o * vv);
+                for (std::size_t k = 0; k < o; ++k)
+                    for (std::size_t l = 0; l < o; ++l)
+                        for (std::size_t c = 0; c < v; ++c)
+                            for (std::size_t d = 0; d < v; ++d) KL[((k * o + l) * v + c) * v + d] = ovov(k, c, l, d);
+                gemm(false, true, o * o, o * o, vv, 1.0, KL.data(), vv, tau.data(), vv, 0.0, W.data(), o * o, threads_);
+            }
             for (std::size_t k = 0; k < o; ++k)
                 for (std::size_t l = 0; l < o; ++l)
                     for (std::size_t i = 0; i < o; ++i)
@@ -610,9 +619,7 @@ public:
                             double s = oooo(k, i, l, j);
                             for (std::size_t c = 0; c < v; ++c)
                                 s += ovoo(l, c, k, i) * t1[T1(j, c)] + ovoo(k, c, l, j) * t1[T1(i, c)];
-                            for (std::size_t c = 0; c < v; ++c)
-                                for (std::size_t d = 0; d < v; ++d) s += ovov(k, c, l, d) * tau[T2(i, j, c, d)];
-                            W[((k * o + l) * o + i) * o + j] = s;
+                            W[((k * o + l) * o + i) * o + j] += s;
                         }
             // r2[ij][ab] += sum_kl W[kl][ij] tau[kl][ab]
             gemm(true, false, o * o, vv, o * o, 1.0, W.data(), o * o, tau.data(), vv, 1.0, r2.data(), vv, threads_);
@@ -623,17 +630,19 @@ public:
             L.apply(tau, z);
             for (std::size_t x = 0; x < r2.size(); ++x) r2[x] += z[x];
             // X[k][a][(i,j)] = sum_cd (kd|ac) tau(i,j,c,d)
-            std::vector<double> X(o * v * o * o, 0.0), Td(v * o * o), Y(v * o * o);
-            for (std::size_t d = 0; d < v; ++d) {
-                for (std::size_t c = 0; c < v; ++c)
-                    for (std::size_t i = 0; i < o; ++i)
-                        for (std::size_t j = 0; j < o; ++j) Td[(c * o + i) * o + j] = tau[T2(i, j, c, d)];
-                for (std::size_t k = 0; k < o; ++k) {
-                    gemm(false, false, v, o * o, v, 1.0, I.ovvv.data() + (k * v + d) * vv, v, Td.data(), o * o, 0.0,
-                         Y.data(), o * o);
-                    double* xk = X.data() + k * v * o * o;
-                    for (std::size_t x = 0; x < v * o * o; ++x) xk[x] += Y[x];
-                }
+            // one product per k (12.0): X[k][a][(ij)] = sum_(c,d) A_k[a][(c,d)] tauT[(c,d)][(ij)],
+            // A_k[a][(c,d)] = (kd|ac), tauT the transpose of tau[(ij)][(c,d)]
+            std::vector<double> X(o * v * o * o, 0.0), tauT(vv * o * o), Ak(v * vv);
+            const std::size_t oo = o * o;
+            for (std::size_t ij = 0; ij < oo; ++ij)
+                for (std::size_t cd = 0; cd < vv; ++cd) tauT[cd * oo + ij] = tau[ij * vv + cd];
+            for (std::size_t k = 0; k < o; ++k) {
+                for (std::size_t d = 0; d < v; ++d)
+                    for (std::size_t a = 0; a < v; ++a) {
+                        const double* src = I.ovvv.data() + ((k * v + d) * v + a) * v;  // (kd|ac), c = 0..v-1
+                        for (std::size_t c = 0; c < v; ++c) Ak[(a * v + c) * v + d] = src[c];
+                    }
+                gemm(false, false, v, oo, vv, 1.0, Ak.data(), vv, tauT.data(), oo, 0.0, X.data() + k * v * oo, oo, threads_);
             }
             for (std::size_t i = 0; i < o; ++i)
                 for (std::size_t j = 0; j < o; ++j)
@@ -649,10 +658,19 @@ public:
         // Lvv and Loo terms (diagonal Fock removed)
         for (std::size_t a = 0; a < v; ++a) Lvv[a * v + a] -= ev[a];
         for (std::size_t i = 0; i < o; ++i) Loo[i * o + i] -= eo[i];
-        for (std::size_t i = 0; i < o; ++i)
-            for (std::size_t j = 0; j < o; ++j)
-                gemm(false, false, v, v, v, 1.0, Lvv.data(), v, t2.data() + T2(i, j, 0, 0), v, 0.0,
-                     tmp.data() + T2(i, j, 0, 0), v);
+        // tmp[ij][a][b] = sum_c Lvv[a][c] t2[ij][c][b]: one product (12.0) on t2 permuted to
+        // [c][(ij, b)], R[a][(ij, b)]
+        {
+            std::vector<double> tp(o * o * vv), R(o * o * vv);
+            const std::size_t oo = o * o;
+            for (std::size_t ij = 0; ij < oo; ++ij)
+                for (std::size_t c = 0; c < v; ++c)
+                    for (std::size_t b = 0; b < v; ++b) tp[(c * oo + ij) * v + b] = t2[(ij * v + c) * v + b];
+            gemm(false, false, v, oo * v, v, 1.0, Lvv.data(), v, tp.data(), oo * v, 0.0, R.data(), oo * v, threads_);
+            for (std::size_t a = 0; a < v; ++a)
+                for (std::size_t ij = 0; ij < oo; ++ij)
+                    for (std::size_t b = 0; b < v; ++b) tmp[(ij * v + a) * v + b] = R[(a * oo + ij) * v + b];
+        }
         add_sym(1.0);
         std::fill(tmp.begin(), tmp.end(), 0.0);
         for (std::size_t i = 0; i < o; ++i)
@@ -669,17 +687,15 @@ public:
         std::vector<double> Wvoov(ov * ov, 0.0), Wvovo(ov * ov, 0.0);
         {
             // ovvv x t1: Wvoov += sum_d (kc|ad) t1(i,d);  Wvovo += sum_d (kd|ac) t1(i,d)
-            std::vector<double> Y(v * o), t1T(v * o), Z(o * vv);
-            for (std::size_t d = 0; d < v; ++d)
-                for (std::size_t i = 0; i < o; ++i) t1T[d * o + i] = t1[T1(i, d)];
+            std::vector<double> Z(o * vv), Yk(vv * o);
             for (std::size_t k = 0; k < o; ++k) {
-                for (std::size_t c = 0; c < v; ++c) {
-                    gemm(false, false, v, o, v, 1.0, I.ovvv.data() + (k * v + c) * vv, v, t1T.data(), o, 0.0, Y.data(), o);
+                // Yk[(c,a)][i] = sum_d (kc|ad) t1(i,d): one product per k (12.0)
+                gemm(false, true, vv, o, v, 1.0, I.ovvv.data() + k * v * vv, v, t1.data(), v, 0.0, Yk.data(), o, threads_);
+                for (std::size_t c = 0; c < v; ++c)
                     for (std::size_t a = 0; a < v; ++a)
-                        for (std::size_t i = 0; i < o; ++i) Wvoov[(i * v + a) * ov + k * v + c] += Y[a * o + i];
-                }
+                        for (std::size_t i = 0; i < o; ++i) Wvoov[(i * v + a) * ov + k * v + c] += Yk[(c * v + a) * o + i];
                 // Z[i][(a,c)] = sum_d t1(i,d) (kd|ac)
-                gemm(false, false, o, vv, v, 1.0, t1.data(), v, I.ovvv.data() + k * v * vv, vv, 0.0, Z.data(), vv);
+                gemm(false, false, o, vv, v, 1.0, t1.data(), v, I.ovvv.data() + k * v * vv, vv, 0.0, Z.data(), vv, threads_);
                 for (std::size_t i = 0; i < o; ++i)
                     for (std::size_t a = 0; a < v; ++a)
                         for (std::size_t c = 0; c < v; ++c) Wvovo[(i * v + a) * ov + k * v + c] += Z[i * vv + a * v + c];

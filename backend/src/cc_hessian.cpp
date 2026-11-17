@@ -251,9 +251,9 @@ LinearSolve solve_preconditioned(Apply apply, const Amp& b, const Amp& D, double
 }
 
 // Solves J x = -b with the exact operator `exact` (four evaluations of the residual) by defect
-// correction: the inner iterations use the cheap approximation `approx` (central difference, two
-// evaluations, relative error ~1e-6) plus the correction c = J x_ref - approx(x_ref) of the
-// last outer point, so that the inner equations approach the exact ones as x converges.
+// correction: the inner iterations use the cheap approximation `approx` (12.0: forward
+// difference, one evaluation, relative error ~1e-5) plus the correction c = J x_ref - approx(x_ref)
+// of the last outer point, so that the inner equations approach the exact ones as x converges.
 template <class Exact, class Approx>
 LinearSolve solve_defect_corrected(Exact exact, Approx approx, const Amp& b, const Amp& D, double tol, int max_iter) {
     LinearSolve total;
@@ -345,10 +345,10 @@ Amp rotate_amplitudes(const Amp& x, const Matrix& Ro, const Matrix& Rv) {
     return y;
 }
 
-// The (T) part of the CCSD(T) Lagrangian densities for the Hamiltonian H (MO integrals in the
-// reference orbitals, with any occupied-occupied and virtual-virtual Fock blocks): evaluated in
-// the semicanonical orbitals of H (where the (T) expression with diagonal denominators applies;
-// the (T) functional is invariant to these rotations) and transformed back.
+// The CCSD(T) Lagrangian densities for the Hamiltonian H (MO integrals in the reference orbitals,
+// with any occupied-occupied and virtual-virtual Fock blocks): evaluated in the semicanonical
+// orbitals of H (where the (T) expression with diagonal denominators applies; the (T) functional
+// is invariant to these rotations, the CCSD part covariant) and transformed back.
 CorrelatedDensity triples_lagrangian_density(const MOIntegrals& H, int oi, const Amp& t, const Amp& l, int nt) {
     const std::size_t o = static_cast<std::size_t>(oi), n = static_cast<std::size_t>(H.n), v = n - o;
     const CCIntegrals I = cc_integrals_from_mo(H, oi);
@@ -366,13 +366,7 @@ CorrelatedDensity triples_lagrangian_density(const MOIntegrals& H, int oi, const
     const MOIntegrals Hr = rotate_integrals(H, R, nt);
     const CCIntegrals Ir = cc_integrals_from_mo(Hr, oi);
     const Amp tr = rotate_amplitudes(t, eo.vectors, ev.vectors), lr = rotate_amplitudes(l, eo.vectors, ev.vectors);
-    CorrelatedDensity dr = ccsd_lagrangian_densities(oi, static_cast<int>(v), tr.a, tr.b, lr.a, lr.b, nt, &Ir);
-    {
-        const CorrelatedDensity dc = ccsd_lagrangian_densities(oi, static_cast<int>(v), tr.a, tr.b, lr.a, lr.b, nt);
-        for (std::size_t p = 0; p < n; ++p)
-            for (std::size_t q = 0; q < n; ++q) dr.D(p, q) -= dc.D(p, q);
-        for (std::size_t k = 0; k < dr.G.v.size(); ++k) dr.G.v[k] -= dc.G.v[k];
-    }
+    const CorrelatedDensity dr = ccsd_lagrangian_densities(oi, static_cast<int>(v), tr.a, tr.b, lr.a, lr.b, nt, &Ir);
     // back: D = R D' R', G_pqrs = sum R_pa R_qb R_rc R_sd G'_abcd
     CorrelatedDensity d;
     d.D = Matrix(n, n);
@@ -470,8 +464,9 @@ CorrelatedHessianResult ccsd_hessian(const Molecule& mol, const BasisSet& basis,
     dr.D.resize(mr);
     dr.G.resize(mr);
     // Jacobian products along d: exact (five-point formula, four residuals) and approximate
-    // (central difference with a small step, two residuals, relative error ~1e-6), both with the
-    // ladder term applied once along the direction
+    // (12.0: forward difference with a small step against the residual at t, computed once: one
+    // residual per product instead of two, relative error ~1e-5, removed by the defect
+    // correction), both with the ladder term applied once along the direction
     DirectionalLadder dl(*ladder0, static_cast<std::size_t>(o), static_cast<std::size_t>(v));
     auto jacobian = [&](const Amp& d) {
         dl.set_direction(T, d);
@@ -485,15 +480,17 @@ CorrelatedHessianResult ccsd_hessian(const Molecule& mol, const BasisSet& basis,
         const double w = 1.0 / (12.0 * h);
         return amp_comb({&p1, &m1, &p2, &m2}, {8.0 * w, -8.0 * w, -w, w});
     };
-    auto central = [&](const Amp& d) {
+    // [Omega(t + h d) - Omega(t)] / h with the ladder part exact (h Z(a) in the first residual,
+    // none in the second): h |d| = 1e-5 keeps the truncation error near 1e-5 and the rounding
+    // error (~1e-16 / h) far below the convergence threshold
+    const Amp omega_t = omega(ints0, no_ladder, T);
+    auto forward = [&](const Amp& d) {
         dl.set_direction(T, d);
         const double dm = max_abs(d);
-        const double h = dm > 0.0 ? 1.0e-3 / dm : 1.0;
+        const double h = dm > 0.0 ? 1.0e-5 / dm : 1.0;
         dl.set_step(h);
         const Amp p = omega(ints0, dl, combine(T, 1.0, d, h));
-        dl.set_step(-h);
-        const Amp q = omega(ints0, dl, combine(T, 1.0, d, -h));
-        return combine(p, 0.5 / h, q, -0.5 / h);
+        return combine(p, 1.0 / h, omega_t, -1.0 / h);
     };
     std::vector<Amp> tq(mr);
     bool all_converged = true;
@@ -507,19 +504,21 @@ CorrelatedHessianResult ccsd_hessian(const Molecule& mol, const BasisSet& basis,
         const std::unique_ptr<LadderOperator> ladderQ = make_mo_ladder(Hq, o);
         // amplitude response: J t^q = -Omega(t; H^(q))
         const Amp b = omega(intsQ, *ladderQ, T);
-        const LinearSolve ts = solve_defect_corrected(jacobian, central, b, D, tol, 200);
+        const LinearSolve ts = solve_defect_corrected(jacobian, forward, b, D, tol, 200);
         tq[k] = ts.x;
         // amplitude part of the density response, dD(t + s t^q)/ds
-        CorrelatedDensity dT = poly_derivative<CorrelatedDensity>(dens, T, ts.x, density_comb);
+        CorrelatedDensity dT;
+        if (!triples) dT = poly_derivative<CorrelatedDensity>(dens, T, ts.x, density_comb);
         if (triples) {
-            // CCSD(T): the (T) Lagrangian density D_T(t; H) is quadratic in t and not linear in H
-            // (orbital-energy denominators). Besides its amplitude derivative dD_T[t^q], the
-            // second derivative of the (T) functional with respect to H, L_HH[H^(q), H^(p)] =
-            // <dD_H[q], H^(p)> with dD_H[q] = dD_T(t; H + a H^(q))/da, enters the symmetric response
-            // term through dD[t^q] + dD_H[q] / 2: both from one directional derivative,
-            // d/ds D_T(t + s t^q; H + (s/2) H^(q)), by a central difference with a small step
-            // (s |t^q|, s |F^(q)| <= 1e-4: the t dependence is quadratic, the H dependence rational,
-            // the relative error of order 1e-8, i.e. ~1e-10 E_h/bohr^2 in the Hessian).
+            // CCSD(T): the (T) Lagrangian density is quadratic in t and not linear in H
+            // (orbital-energy denominators). Besides the amplitude derivative dD[t^q], the second
+            // derivative of the (T) functional with respect to H, L_HH[H^(q), H^(p)] =
+            // <dD_H[q], H^(p)> with dD_H[q] = dD(t; H + a H^(q))/da, enters the symmetric response
+            // term through dD[t^q] + dD_H[q] / 2: both from one directional derivative of the whole
+            // CCSD(T) density, d/ds D(t + s t^q; H + (s/2) H^(q)), by a central difference with a
+            // small step (s |t^q|, s |F^(q)| <= 1e-4: the dependence on t is polynomial (degree 4),
+            // on H rational; the relative error of order 1e-8, i.e. ~1e-10 E_h/bohr^2 in the
+            // Hessian; 12.0: one difference for the CCSD and (T) parts together).
             double fmax = max_abs(ts.x);
             for (std::size_t p = 0; p < intsQ.fock.rows(); ++p)
                 for (std::size_t q = 0; q < intsQ.fock.cols(); ++q) fmax = std::max(fmax, std::fabs(intsQ.fock(p, q)));
@@ -532,7 +531,7 @@ CorrelatedHessianResult ccsd_hessian(const Molecule& mol, const BasisSet& basis,
                 return triples_lagrangian_density(Hs, o, combine(T, 1.0, ts.x, s), L, nt);
             };
             const CorrelatedDensity p1 = shifted(a), m1 = shifted(-a);
-            dT = density_comb({&dT, &p1, &m1}, {1.0, 0.5 / a, -0.5 / a});
+            dT = density_comb({&p1, &m1}, {0.5 / a, -0.5 / a});
         }
         dr.D[k] = dT.D;
         dr.G[k] = dT.G;
