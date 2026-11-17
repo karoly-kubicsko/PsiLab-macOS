@@ -325,10 +325,14 @@ struct MoleculeSceneRepresentable: NSViewRepresentable {
     }
 
     func makeNSView(context: Context) -> MoleculeSCNView {
-        let view = MoleculeSCNView(frame: NSRect(x: 0, y: 0, width: 400, height: 260), options: nil)
+        let view = MoleculeSCNView(frame: .zero, options: nil)
         controller.attach(view)
         controller.onPick = onPick
         controller.apply(configuration)
+        // the view has its size only after SwiftUI's layout: fit the molecule again then
+        Task { @MainActor [weak view] in
+            view?.onResize?()
+        }
         return view
     }
 
@@ -346,8 +350,10 @@ struct MoleculeSceneRepresentable: NSViewRepresentable {
 /// pages: a plain scroll scrolls the page, ⌥-scroll (or a pinch) zooms the molecule.
 final class MoleculeSCNView: SCNView {
     var onClick: ((CGPoint) -> Void)?
-    /// Called when the view gets another size (the first layout replaces the placeholder size).
+    /// Called when the view gets another size (its first layout, a resized window).
     var onResize: (() -> Void)?
+    /// Whether the mouse or trackpad moved the camera since the last Reset view.
+    var cameraTouched = false
 
     override func setFrameSize(_ newSize: NSSize) {
         let old = frame.size
@@ -357,8 +363,34 @@ final class MoleculeSCNView: SCNView {
         }
     }
 
+    override func layout() {
+        super.layout()
+        onResize?()
+    }
+
+    override func mouseDragged(with event: NSEvent) {
+        cameraTouched = true
+        super.mouseDragged(with: event)
+    }
+
+    override func rightMouseDragged(with event: NSEvent) {
+        cameraTouched = true
+        super.rightMouseDragged(with: event)
+    }
+
+    override func otherMouseDragged(with event: NSEvent) {
+        cameraTouched = true
+        super.otherMouseDragged(with: event)
+    }
+
+    override func magnify(with event: NSEvent) {
+        cameraTouched = true
+        super.magnify(with: event)
+    }
+
     override func scrollWheel(with event: NSEvent) {
         if event.modifierFlags.contains(.option) || event.modifierFlags.contains(.command) {
+            cameraTouched = true
             super.scrollWheel(with: event)
         } else {
             nextResponder?.scrollWheel(with: event)
@@ -397,9 +429,8 @@ final class Molecule3DController {
     /// Centre and radius (bohr) of the region the starting view shows.
     private var center = SIMD3<Float>(0, 0, 0)
     private var radius: Float = 4
-    /// The camera transform of the last Reset view: while the camera is still there, a new size of
-    /// the view fits the molecule again.
-    private var resetTransform: simd_float4x4?
+    /// The size of the view at the last fit.
+    private var fittedSize = CGSize.zero
     private var depthTimer: Timer?
     private var depthCueDistance: Float = -1
     private var materials: [String: SCNMaterial] = [:]
@@ -762,7 +793,8 @@ final class Molecule3DController {
         cameraNode.simdPosition = center + distance * toward
         cameraNode.simdLook(at: center, up: up, localFront: SIMD3<Float>(0, 0, -1))
         view.defaultCameraController.target = scnVector(center)
-        resetTransform = cameraNode.simdTransform
+        fittedSize = bounds
+        view.cameraTouched = false
         depthCueDistance = -1
         updateDepthCue(force: true)
     }
@@ -770,7 +802,10 @@ final class Molecule3DController {
     /// A new size of the view (its first layout, a resized window): fit the molecule again unless
     /// the camera was moved since the last reset.
     private func refitIfUntouched() {
-        guard let r = resetTransform, cameraNode.simdTransform == r else { return }
+        guard let view, last != nil, !view.cameraTouched else { return }
+        let size = view.bounds.size
+        guard size.width > 20, size.height > 20,
+              abs(size.width - fittedSize.width) > 0.5 || abs(size.height - fittedSize.height) > 0.5 else { return }
         SCNTransaction.begin()
         SCNTransaction.animationDuration = 0
         resetView()
