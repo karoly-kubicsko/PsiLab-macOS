@@ -1,0 +1,10 @@
+# ΨLab input file: water, CCSD/aug-cc-pVDZ geometry optimisation and harmonic frequencies.
+# Its output file h2o-ccsd-opt-freq.out (psilab 13.0) can be opened in the app:
+# File > Open Output File… shows every tab, the orbitals included.
+
+molecule = H2O
+basis    = aug-cc-pVDZ
+method   = CCSD
+job      = opt+freq
+R        = 1.0 angstrom       # starting O-H bond length
+angle    = 110                # starting H-O-H angle in degrees

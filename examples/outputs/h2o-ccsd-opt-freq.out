@@ -1,0 +1,1416 @@
+========================================================================================
+                                ΨLab 13.0
+  restricted Hartree-Fock, coupled cluster and Full CI for closed-shell molecules
+========================================================================================
+  Program      ΨLab 13.0 (C++17 backend; integrals, SCF, CC, CI, derivatives)
+  Started      2026-11-17 17:21:40
+  Job          Optimisation + frequencies (opt+freq)
+  Threads      4
+  Matrices     portable blocked GEMM
+
+---- Input ----------------------------------------------------------------------------
+    molecule         = H2O
+    job              = opt+freq
+    method           = CCSD
+    basis            = aug-cc-pVDZ
+    R                = 1.8897261259 bohr (1.00000000 angstrom)
+    angle            = 110.000000 degrees
+    temperature      = 298.15 K
+    pressure         = 101325.00 Pa
+    hessian          = analytic (numerical if it does not fit in memory)
+    opt_convergence  = normal
+    max_steps        = 50
+    threads          = all cores
+    memory           = 1024 MB (two-electron integrals in memory up to this size)
+    fci_memory       = 4096 MB (limit of Full CI, coupled cluster and correlated gradients)
+
+    Input file as given:
+    | # ΨLab input file: water, CCSD/aug-cc-pVDZ geometry optimisation and harmonic frequencies.
+    | # Its output file h2o-ccsd-opt-freq.out (psilab 13.0) can be opened in the app:
+    | # File > Open Output File… shows every tab, the orbitals included.
+    | 
+    | molecule = H2O
+    | basis    = aug-cc-pVDZ
+    | method   = CCSD
+    | job      = opt+freq
+    | R        = 1.0 angstrom       # starting O-H bond length
+    | angle    = 110                # starting H-O-H angle in degrees
+
+---- Molecule -------------------------------------------------------------------------
+    H2O, 10 electrons, charge 0, closed-shell singlet
+    Starting geometry
+    Atom   Z          x (Å)          y (Å)          z (Å)      x (bohr)      y (bohr)      z (bohr)
+    O1     8     0.00000000     0.00000000     0.00000000    0.00000000    0.00000000    0.00000000
+    H2     1     0.81915204     0.00000000     0.57357644    1.54797302    0.00000000    1.08390238
+    H3     1    -0.81915204     0.00000000     0.57357644   -1.54797302    0.00000000    1.08390238
+    R(O1-H2)       =   1.00000000 Å   (1.88972613 bohr)
+    R(O1-H3)       =   1.00000000 Å   (1.88972613 bohr)
+    A(H2-O1-H3)    =   110.000000 deg
+    Nuclear repulsion energy         8.7898384145 E_h
+
+---- Basis set ------------------------------------------------------------------------
+    aug-cc-pVDZ: spherical harmonics, Gaussian94 files from basissetexchange.org
+    O   aug-cc-pVDZ   (10s5p2d)        -> [4s3p2d]           23 functions
+    H   aug-cc-pVDZ   (5s2p)           -> [3s2p]              9 functions
+    41 basis functions, 19 shells, highest angular momentum d (l = 2)
+    two-electron integrals: 371091 unique, kept in memory (2.8 MB)
+
+---- Size, memory and time (estimates) ------------------------------------------------
+    CCSD: 5 occupied, 36 virtual orbitals, 32580 amplitudes, about 16 MB
+    Geometry optimisation: analytic gradient (CCSD Lambda equations, relaxed densities, Z-vector); typically 6 steps (at most 50); analytic initial Hessian — about 13 s
+    Hessian: analytic Hessian: amplitude responses along the 3 internal directions and the 3 electric-field components (IR intensities), CPHF orbital response of all 9 coordinates, Z-vector — about 12 s
+    memory of the derivative steps: about 27 MB
+    total: about 25 s on 4 threads
+
+---- Geometry optimisation: CCSD/aug-cc-pVDZ ------------------------------------------
+    Redundant internal coordinates, RFO steps with a trust radius, BFGS updates; normal convergence, at most 50 steps
+    thresholds: max force 4.5e-04, RMS force 3.0e-04 E_h/bohr; max step 1.8e-03, RMS step 1.2e-03 bohr; energy change 1e-06 E_h
+
+  Optimisation step 1
+    Atom   Z          x (Å)          y (Å)          z (Å)      x (bohr)      y (bohr)      z (bohr)
+    O1     8     0.00000000     0.00000000     0.00000000    0.00000000    0.00000000    0.00000000
+    H2     1     0.81915204     0.00000000     0.57357644    1.54797302    0.00000000    1.08390238
+    H3     1    -0.81915204     0.00000000     0.57357644   -1.54797302    0.00000000    1.08390238
+
+    SCF (restricted Hartree-Fock, DIIS)
+    iter        total energy (E_h)        dE (E_h)   orbital gradient
+       1          -68.612770724745       0.000e+00     1.325e+00
+       2          -66.511001816089       2.102e+00     1.522e+00  DIIS
+       3          -75.292864120517      -8.782e+00     6.760e-01  DIIS
+       4          -75.876908695966      -5.840e-01     2.718e-01  DIIS
+       5          -76.033610483909      -1.567e-01     1.967e-02  DIIS
+       6          -76.034443876705      -8.334e-04     1.584e-02  DIIS
+       7          -76.034794339701      -3.505e-04     2.999e-03  DIIS
+       8          -76.034809974374      -1.563e-05     3.400e-04  DIIS
+       9          -76.034810464930      -4.906e-07     8.634e-05  DIIS
+      10          -76.034810486432      -2.150e-08     1.402e-05  DIIS
+      11          -76.034810487124      -6.915e-10     1.941e-06  DIIS
+      12          -76.034810487133      -9.152e-12     2.882e-07  DIIS
+      13          -76.034810487133      -4.263e-14     3.585e-08  DIIS
+      14          -76.034810487133      -2.416e-13     7.753e-09  DIIS
+      15          -76.034810487133       1.279e-13     6.682e-10
+    SCF converged: E(RHF) = -76.0348104871 E_h after 15 iterations
+
+    CCSD iterations
+    iter        total energy (E_h)     correlation (E_h)        dE (E_h)   max |dt|
+       1          -76.034810487133        0.000000000000       0.000e+00   3.33e-02
+       2          -76.260055281612       -0.225244794479      -2.252e-01   1.83e-02
+       3          -76.261258732954       -0.226448245821      -1.203e-03   3.19e-03
+       4          -76.266279006069       -0.231468518936      -5.020e-03   2.38e-03
+       5          -76.267438175643       -0.232627688510      -1.159e-03   3.94e-04
+       6          -76.267392621107       -0.232582133974       4.555e-05   1.41e-04
+       7          -76.267387524035       -0.232577036902       5.097e-06   5.39e-05
+       8          -76.267393786570       -0.232583299437      -6.263e-06   1.70e-05
+       9          -76.267392895528       -0.232582408395       8.910e-07   5.83e-06
+      10          -76.267392370527       -0.232581883394       5.250e-07   2.43e-06
+      11          -76.267392530047       -0.232582042914      -1.595e-07   8.26e-07
+      12          -76.267392361975       -0.232581874842       1.681e-07   2.16e-07
+      13          -76.267392381627       -0.232581894494      -1.965e-08   7.76e-08
+      14          -76.267392385277       -0.232581898144      -3.649e-09   2.58e-08
+      15          -76.267392390403       -0.232581903270      -5.126e-09   6.03e-09
+      16          -76.267392391693       -0.232581904560      -1.290e-09   9.69e-10
+      17          -76.267392392008       -0.232581904875      -3.148e-10   3.79e-10
+      18          -76.267392391984       -0.232581904851       2.420e-11   9.83e-11
+
+    CCSD Lambda equations (Jacobi updates with DIIS)
+    iter   max |d lambda|
+       1      6.911e-03
+       2      8.818e-04
+       3      9.589e-04
+       4      2.036e-04
+       5      4.813e-05
+       6      1.026e-05
+       7      5.884e-06
+       8      1.889e-06
+       9      6.861e-07
+      10      1.973e-07
+      11      5.922e-08
+      12      1.463e-08
+      13      5.271e-09
+      14      1.781e-09
+      15      4.164e-10
+
+    Orbital response (coupled-perturbed HF / Z-vector, Krylov subspace)
+    iter   largest residual
+       1      8.861e-03
+       2      1.429e-03
+       3      2.805e-04
+       4      4.267e-05
+       5      1.026e-05
+       6      1.713e-06
+       7      4.665e-07
+       8      7.658e-08
+       9      1.093e-08
+      10      9.487e-10
+
+    Energy -76.2673923920 E_h
+    Cartesian gradient (E_h/bohr), analytic (CCSD Lambda equations, relaxed one- and two-particle densities, orbital response by Z-vector)
+    Atom            dE/dx            dE/dy            dE/dz
+    O1       -0.0000000000    -0.0000000000    -0.0231046576
+    H2        0.0341847042    -0.0000000000     0.0115523288
+    H3       -0.0341847042     0.0000000000     0.0115523288
+    largest component 3.418e-02, RMS 1.867e-02 E_h/bohr
+
+    Internal coordinates (bohr, radians; force = -dE/dq)
+    Name  Definition               Value (bohr/rad)    Value (Å/deg)       Force     Step
+    R1    R(O1-H2)                     1.88972613       1.00000000   -0.034629 -0.07766
+    R2    R(O1-H3)                     1.88972613       1.00000000   -0.034629 -0.07766
+    A3    A(H2-O1-H3)                  1.91986218     110.00000000   -0.019170 -0.10352
+    initial Hessian: analytic CCSD Hessian in internal coordinates
+    RFO step: lambda = -7.363210e-03, |step| = 0.150931, trust radius 0.3000, predicted energy change -3.765e-03 E_h
+
+    Convergence             Value      Threshold   Converged?
+    Maximum force            3.46e-02     4.50e-04   NO
+    RMS force                3.04e-02     3.00e-04   NO
+    Maximum displacement     1.04e-01     1.80e-03   NO
+    RMS displacement         8.71e-02     1.20e-03   NO
+    Energy change                  --     1.00e-06   --
+
+  Optimisation step 2
+    Atom   Z          x (Å)          y (Å)          z (Å)      x (bohr)      y (bohr)      z (bohr)
+    O1     8     0.00000000     0.00000000    -0.01088793    0.00000000    0.00000000   -0.02057520
+    H2     1     0.75597868     0.00000000     0.57902040    1.42859266    0.00000000    1.09418998
+    H3     1    -0.75597868     0.00000000     0.57902040   -1.42859266    0.00000000    1.09418998
+
+    SCF (restricted Hartree-Fock, DIIS)
+    iter        total energy (E_h)        dE (E_h)   orbital gradient
+       1          -76.039648859311       0.000e+00     3.643e-02
+       2          -76.041218828188      -1.570e-03     7.366e-03  DIIS
+       3          -76.041283970363      -6.514e-05     2.963e-03  DIIS
+       4          -76.041300589629      -1.662e-05     3.803e-04  DIIS
+       5          -76.041301454119      -8.645e-07     1.375e-04  DIIS
+       6          -76.041301541033      -8.691e-08     2.557e-05  DIIS
+       7          -76.041301547037      -6.004e-09     3.942e-06  DIIS
+       8          -76.041301547107      -6.946e-11     3.709e-07  DIIS
+       9          -76.041301547108      -8.811e-13     8.860e-08  DIIS
+      10          -76.041301547108       1.137e-13     1.919e-08  DIIS
+      11          -76.041301547108       2.842e-14     2.369e-09  DIIS
+      12          -76.041301547107       5.684e-14     1.870e-10
+    SCF converged: E(RHF) = -76.0413015471 E_h after 12 iterations
+
+    CCSD iterations
+    iter        total energy (E_h)     correlation (E_h)        dE (E_h)   max |dt|
+       1          -76.041301547107        0.000000000000       0.000e+00   3.29e-02
+       2          -76.263304782063       -0.222003234956      -2.220e-01   1.70e-02
+       3          -76.265200940159       -0.223899393052      -1.896e-03   2.96e-03
+       4          -76.269833824577       -0.228532277470      -4.633e-03   2.20e-03
+       5          -76.270857915611       -0.229556368504      -1.024e-03   3.80e-04
+       6          -76.270812209315       -0.229510662208       4.571e-05   1.36e-04
+       7          -76.270805489988       -0.229503942881       6.719e-06   5.24e-05
+       8          -76.270810188512       -0.229508641405      -4.699e-06   1.12e-05
+       9          -76.270809381865       -0.229507834757       8.066e-07   3.38e-06
+      10          -76.270808952839       -0.229507405732       4.290e-07   1.18e-06
+      11          -76.270809021297       -0.229507474190      -6.846e-08   4.87e-07
+      12          -76.270808922438       -0.229507375330       9.886e-08   1.39e-07
+      13          -76.270808926132       -0.229507379025      -3.694e-09   6.95e-08
+      14          -76.270808925843       -0.229507378736       2.891e-10   1.74e-08
+      15          -76.270808928712       -0.229507381604      -2.869e-09   4.74e-09
+      16          -76.270808929506       -0.229507382399      -7.945e-10   7.07e-10
+      17          -76.270808929711       -0.229507382603      -2.042e-10   3.31e-10
+      18          -76.270808929702       -0.229507382594       9.022e-12   8.89e-11
+
+    CCSD Lambda equations (Jacobi updates with DIIS)
+    iter   max |d lambda|
+       1      6.412e-03
+       2      7.997e-04
+       3      8.731e-04
+       4      1.832e-04
+       5      4.426e-05
+       6      9.382e-06
+       7      4.295e-06
+       8      1.324e-06
+       9      4.984e-07
+      10      1.603e-07
+      11      4.255e-08
+      12      1.153e-08
+      13      3.991e-09
+      14      1.375e-09
+      15      3.158e-10
+
+    Orbital response (coupled-perturbed HF / Z-vector, Krylov subspace)
+    iter   largest residual
+       1      8.371e-03
+       2      1.273e-03
+       3      2.583e-04
+       4      4.001e-05
+       5      7.298e-06
+       6      1.712e-06
+       7      4.741e-07
+       8      6.066e-08
+       9      8.308e-09
+      10      7.200e-10
+
+    Energy -76.2708089297 E_h (change -3.417e-03 E_h)
+    Cartesian gradient (E_h/bohr), analytic (CCSD Lambda equations, relaxed one- and two-particle densities, orbital response by Z-vector)
+    Atom            dE/dx            dE/dy            dE/dz
+    O1        0.0000000000    -0.0000000000     0.0056825665
+    H2       -0.0044172133    -0.0000000000    -0.0028412833
+    H3        0.0044172133     0.0000000000    -0.0028412833
+    largest component 5.683e-03, RMS 3.117e-03 E_h/bohr
+
+    Internal coordinates (bohr, radians; force = -dE/dq)
+    Name  Definition               Value (bohr/rad)    Value (Å/deg)       Force     Step
+    R1    R(O1-H2)                     1.81206468       0.95890333    0.005230  0.01109
+    R2    R(O1-H3)                     1.81206468       0.95890333    0.005230  0.01109
+    A3    A(H2-O1-H3)                  1.81633720     104.06845598    0.000865  0.00088
+    BFGS update (s.y = 8.265e-03)
+    previous step: energy change / predicted = 0.907
+    RFO step: lambda = -1.167679e-04, |step| = 0.015708, trust radius 0.3000, predicted energy change -5.840e-05 E_h
+
+    Convergence             Value      Threshold   Converged?
+    Maximum force            5.23e-03     4.50e-04   NO
+    RMS force                4.30e-03     3.00e-04   NO
+    Maximum displacement     1.11e-02     1.80e-03   NO
+    RMS displacement         9.07e-03     1.20e-03   NO
+    Energy change            3.42e-03     1.00e-06   NO
+
+  Optimisation step 3
+    Atom   Z          x (Å)          y (Å)          z (Å)      x (bohr)      y (bohr)      z (bohr)
+    O1     8    -0.00000000     0.00000000    -0.01307028   -0.00000000    0.00000000   -0.02469925
+    H2     1     0.76086755     0.00000000     0.58011158    1.43783129    0.00000000    1.09625200
+    H3     1    -0.76086755     0.00000000     0.58011158   -1.43783129    0.00000000    1.09625200
+
+    SCF (restricted Hartree-Fock, DIIS)
+    iter        total energy (E_h)        dE (E_h)   orbital gradient
+       1          -76.040851333891       0.000e+00     4.778e-03
+       2          -76.040875292596      -2.396e-05     9.395e-04  DIIS
+       3          -76.040876562670      -1.270e-06     4.195e-04  DIIS
+       4          -76.040876858787      -2.961e-07     7.533e-05  DIIS
+       5          -76.040876886909      -2.812e-08     2.034e-05  DIIS
+       6          -76.040876890066      -3.157e-09     4.802e-06  DIIS
+       7          -76.040876890219      -1.536e-10     5.860e-07  DIIS
+       8          -76.040876890221      -1.648e-12     8.183e-08  DIIS
+       9          -76.040876890221      -2.842e-14     1.029e-08  DIIS
+      10          -76.040876890221       1.847e-13     1.470e-09  DIIS
+      11          -76.040876890221      -1.137e-13     3.027e-10
+    SCF converged: E(RHF) = -76.0408768902 E_h after 11 iterations
+
+    CCSD iterations
+    iter        total energy (E_h)     correlation (E_h)        dE (E_h)   max |dt|
+       1          -76.040876890221        0.000000000000       0.000e+00   3.30e-02
+       2          -76.263383318393       -0.222506428172      -2.225e-01   1.72e-02
+       3          -76.265172246662       -0.224295356441      -1.789e-03   2.99e-03
+       4          -76.269863383531       -0.228986493310      -4.691e-03   2.23e-03
+       5          -76.270906526054       -0.230029635834      -1.043e-03   3.83e-04
+       6          -76.270860757206       -0.229983866985       4.577e-05   1.37e-04
+       7          -76.270854282357       -0.229977392136       6.475e-06   5.29e-05
+       8          -76.270859162601       -0.229982272380      -4.880e-06   1.12e-05
+       9          -76.270858342047       -0.229981451826       8.206e-07   3.34e-06
+      10          -76.270857904371       -0.229981014151       4.377e-07   1.29e-06
+      11          -76.270857978405       -0.229981088184      -7.403e-08   5.25e-07
+      12          -76.270857873052       -0.229980982831       1.054e-07   1.44e-07
+      13          -76.270857877937       -0.229980987716      -4.885e-09   7.18e-08
+      14          -76.270857877949       -0.229980987728      -1.197e-11   1.84e-08
+      15          -76.270857881072       -0.229980990851      -3.122e-09   4.84e-09
+      16          -76.270857881924       -0.229980991703      -8.519e-10   6.86e-10
+      17          -76.270857882140       -0.229980991919      -2.161e-10   3.30e-10
+      18          -76.270857882130       -0.229980991909       9.505e-12   8.78e-11
+
+    CCSD Lambda equations (Jacobi updates with DIIS)
+    iter   max |d lambda|
+       1      6.470e-03
+       2      8.092e-04
+       3      8.832e-04
+       4      1.856e-04
+       5      4.469e-05
+       6      9.461e-06
+       7      4.430e-06
+       8      1.369e-06
+       9      5.129e-07
+      10      1.642e-07
+      11      4.419e-08
+      12      1.177e-08
+      13      4.087e-09
+      14      1.401e-09
+      15      3.228e-10
+
+    Orbital response (coupled-perturbed HF / Z-vector, Krylov subspace)
+    iter   largest residual
+       1      8.438e-03
+       2      1.297e-03
+       3      2.620e-04
+       4      4.024e-05
+       5      7.688e-06
+       6      1.559e-06
+       7      4.767e-07
+       8      6.250e-08
+       9      8.618e-09
+      10      7.455e-10
+
+    Energy -76.2708578821 E_h (change -4.895e-05 E_h)
+    Cartesian gradient (E_h/bohr), analytic (CCSD Lambda equations, relaxed one- and two-particle densities, orbital response by Z-vector)
+    Atom            dE/dx            dE/dy            dE/dz
+    O1       -0.0000000000    -0.0000000000    -0.0010348068
+    H2        0.0006239104     0.0000000000     0.0005174034
+    H3       -0.0006239104     0.0000000000     0.0005174034
+    largest component 1.035e-03, RMS 5.148e-04 E_h/bohr
+
+    Internal coordinates (bohr, radians; force = -dE/dq)
+    Name  Definition               Value (bohr/rad)    Value (Å/deg)       Force     Step
+    R1    R(O1-H2)                     1.82315400       0.96477155   -0.000810 -0.00155
+    R2    R(O1-H3)                     1.82315400       0.96477155   -0.000810 -0.00155
+    A3    A(H2-O1-H3)                  1.81722199     104.11915074    0.000045  0.00100
+    BFGS update (s.y = 1.347e-04)
+    previous step: energy change / predicted = 0.838
+    RFO step: lambda = -2.558827e-06, |step| = 0.002410, trust radius 0.3000, predicted energy change -1.279e-06 E_h
+
+    Convergence             Value      Threshold   Converged?
+    Maximum force            8.10e-04     4.50e-04   NO
+    RMS force                6.62e-04     3.00e-04   NO
+    Maximum displacement     1.55e-03     1.80e-03   YES
+    RMS displacement         1.39e-03     1.20e-03   NO
+    Energy change            4.90e-05     1.00e-06   NO
+
+  Optimisation step 4
+    Atom   Z          x (Å)          y (Å)          z (Å)      x (bohr)      y (bohr)      z (bohr)
+    O1     8     0.00000000     0.00000000    -0.01248098    0.00000000    0.00000000   -0.02358564
+    H2     1     0.76051531     0.00000000     0.57981693    1.43716565    0.00000000    1.09569519
+    H3     1    -0.76051531     0.00000000     0.57981693   -1.43716565    0.00000000    1.09569519
+
+    SCF (restricted Hartree-Fock, DIIS)
+    iter        total energy (E_h)        dE (E_h)   orbital gradient
+       1          -76.040947620606       0.000e+00     6.109e-04
+       2          -76.040948160569      -5.400e-07     1.223e-04  DIIS
+       3          -76.040948193978      -3.341e-08     6.505e-05  DIIS
+       4          -76.040948200961      -6.983e-09     1.305e-05  DIIS
+       5          -76.040948201720      -7.591e-10     2.954e-06  DIIS
+       6          -76.040948201801      -8.076e-11     8.475e-07  DIIS
+       7          -76.040948201805      -4.135e-12     1.249e-07  DIIS
+       8          -76.040948201805       1.421e-14     1.912e-08  DIIS
+       9          -76.040948201805      -8.527e-14     1.417e-09  DIIS
+      10          -76.040948201805       9.948e-14     2.374e-10
+    SCF converged: E(RHF) = -76.0409482018 E_h after 10 iterations
+
+    CCSD iterations
+    iter        total energy (E_h)     correlation (E_h)        dE (E_h)   max |dt|
+       1          -76.040948201805        0.000000000000       0.000e+00   3.30e-02
+       2          -76.263379833850       -0.222431632045      -2.224e-01   1.72e-02
+       3          -76.265184936743       -0.224236734938      -1.805e-03   2.98e-03
+       4          -76.269867476759       -0.228919274954      -4.683e-03   2.22e-03
+       5          -76.270907861439       -0.229959659635      -1.040e-03   3.83e-04
+       6          -76.270862108298       -0.229913906494       4.575e-05   1.37e-04
+       7          -76.270855594452       -0.229907392648       6.514e-06   5.28e-05
+       8          -76.270860449215       -0.229912247410      -4.855e-06   1.12e-05
+       9          -76.270859631049       -0.229911429244       8.182e-07   3.35e-06
+      10          -76.270859194445       -0.229910992640       4.366e-07   1.28e-06
+      11          -76.270859267853       -0.229911066049      -7.341e-08   5.21e-07
+      12          -76.270859163335       -0.229910961530       1.045e-07   1.43e-07
+      13          -76.270859168084       -0.229910966279      -4.749e-09   7.15e-08
+      14          -76.270859168073       -0.229910966268       1.062e-11   1.83e-08
+      15          -76.270859171168       -0.229910969364      -3.095e-09   4.83e-09
+      16          -76.270859172013       -0.229910970209      -8.451e-10   6.90e-10
+      17          -76.270859172228       -0.229910970423      -2.147e-10   3.30e-10
+      18          -76.270859172219       -0.229910970414       9.495e-12   8.81e-11
+
+    CCSD Lambda equations (Jacobi updates with DIIS)
+    iter   max |d lambda|
+       1      6.462e-03
+       2      8.080e-04
+       3      8.819e-04
+       4      1.853e-04
+       5      4.464e-05
+       6      9.450e-06
+       7      4.415e-06
+       8      1.364e-06
+       9      5.116e-07
+      10      1.638e-07
+      11      4.400e-08
+      12      1.173e-08
+      13      4.079e-09
+      14      1.399e-09
+      15      3.222e-10
+
+    Orbital response (coupled-perturbed HF / Z-vector, Krylov subspace)
+    iter   largest residual
+       1      8.428e-03
+       2      1.293e-03
+       3      2.614e-04
+       4      4.019e-05
+       5      7.647e-06
+       6      1.580e-06
+       7      4.765e-07
+       8      6.226e-08
+       9      8.576e-09
+      10      7.422e-10
+
+    Energy -76.2708591722 E_h (change -1.290e-06 E_h)
+    Cartesian gradient (E_h/bohr), analytic (CCSD Lambda equations, relaxed one- and two-particle densities, orbital response by Z-vector)
+    Atom            dE/dx            dE/dy            dE/dz
+    O1        0.0000000000    -0.0000000000     0.0000039772
+    H2        0.0000191753     0.0000000000    -0.0000019886
+    H3       -0.0000191753     0.0000000000    -0.0000019886
+    largest component 1.918e-05, RMS 9.184e-06 E_h/bohr
+
+    Internal coordinates (bohr, radians; force = -dE/dq)
+    Name  Definition               Value (bohr/rad)    Value (Å/deg)       Force     Step
+    R1    R(O1-H2)                     1.82160223       0.96395039   -0.000014 -0.00002
+    R2    R(O1-H3)                     1.82160223       0.96395039   -0.000014 -0.00002
+    A3    A(H2-O1-H3)                  1.81821905     104.17627770   -0.000024 -0.00016
+    BFGS update (s.y = 2.540e-06)
+    previous step: energy change / predicted = 1.008
+    RFO step: lambda = -4.501424e-09, |step| = 0.000166, trust radius 0.3000, predicted energy change -2.251e-09 E_h
+
+    Convergence             Value      Threshold   Converged?
+    Maximum force            2.43e-05     4.50e-04   YES
+    RMS force                1.81e-05     3.00e-04   YES
+    Maximum displacement     1.63e-04     1.80e-03   YES
+    RMS displacement         9.56e-05     1.20e-03   YES
+    Energy change            1.29e-06     1.00e-06   NO
+
+  Optimisation step 5
+    Atom   Z          x (Å)          y (Å)          z (Å)      x (bohr)      y (bohr)      z (bohr)
+    O1     8     0.00000000     0.00000000    -0.01251830    0.00000000    0.00000000   -0.02365616
+    H2     1     0.76045900     0.00000000     0.57983559    1.43705924    0.00000000    1.09573046
+    H3     1    -0.76045900     0.00000000     0.57983559   -1.43705924    0.00000000    1.09573046
+
+    SCF (restricted Hartree-Fock, DIIS)
+    iter        total energy (E_h)        dE (E_h)   orbital gradient
+       1          -76.040948490821       0.000e+00     2.454e-05
+       2          -76.040948492555      -1.734e-09     4.732e-06  DIIS
+       3          -76.040948492636      -8.167e-11     8.742e-07  DIIS
+       4          -76.040948492639      -2.856e-12     5.707e-07  DIIS
+       5          -76.040948492639      -1.421e-13     5.852e-08  DIIS
+       6          -76.040948492640      -2.700e-13     1.613e-08  DIIS
+       7          -76.040948492640      -1.563e-13     4.674e-09  DIIS
+       8          -76.040948492640       8.527e-14     8.402e-10
+    SCF converged: E(RHF) = -76.0409484926 E_h after 8 iterations
+
+    CCSD iterations
+    iter        total energy (E_h)     correlation (E_h)        dE (E_h)   max |dt|
+       1          -76.040948492640        0.000000000000       0.000e+00   3.30e-02
+       2          -76.263379876989       -0.222431384349      -2.224e-01   1.72e-02
+       3          -76.265185005242       -0.224236512603      -1.805e-03   2.98e-03
+       4          -76.269867502381       -0.228919009742      -4.682e-03   2.22e-03
+       5          -76.270907864545       -0.229959371905      -1.040e-03   3.83e-04
+       6          -76.270862110496       -0.229913617856       4.575e-05   1.37e-04
+       7          -76.270855596786       -0.229907104146       6.514e-06   5.28e-05
+       8          -76.270860451182       -0.229911958542      -4.854e-06   1.12e-05
+       9          -76.270859632979       -0.229911140340       8.182e-07   3.35e-06
+      10          -76.270859196413       -0.229910703773       4.366e-07   1.28e-06
+      11          -76.270859269784       -0.229910777144      -7.337e-08   5.21e-07
+      12          -76.270859165291       -0.229910672651       1.045e-07   1.43e-07
+      13          -76.270859170032       -0.229910677392      -4.741e-09   7.15e-08
+      14          -76.270859170018       -0.229910677378       1.404e-11   1.83e-08
+      15          -76.270859173111       -0.229910680472      -3.094e-09   4.83e-09
+      16          -76.270859173956       -0.229910681317      -8.448e-10   6.90e-10
+      17          -76.270859174171       -0.229910681531      -2.146e-10   3.30e-10
+      18          -76.270859174161       -0.229910681522       9.482e-12   8.81e-11
+
+    CCSD Lambda equations (Jacobi updates with DIIS)
+    iter   max |d lambda|
+       1      6.462e-03
+       2      8.079e-04
+       3      8.819e-04
+       4      1.853e-04
+       5      4.463e-05
+       6      9.450e-06
+       7      4.414e-06
+       8      1.364e-06
+       9      5.114e-07
+      10      1.637e-07
+      11      4.399e-08
+      12      1.173e-08
+      13      4.078e-09
+      14      1.399e-09
+      15      3.222e-10
+
+    Orbital response (coupled-perturbed HF / Z-vector, Krylov subspace)
+    iter   largest residual
+       1      8.428e-03
+       2      1.293e-03
+       3      2.614e-04
+       4      4.019e-05
+       5      7.644e-06
+       6      1.580e-06
+       7      4.766e-07
+       8      6.226e-08
+       9      8.575e-09
+      10      7.421e-10
+
+    Energy -76.2708591742 E_h (change -1.943e-09 E_h)
+    Cartesian gradient (E_h/bohr), analytic (CCSD Lambda equations, relaxed one- and two-particle densities, orbital response by Z-vector)
+    Atom            dE/dx            dE/dy            dE/dz
+    O1       -0.0000000000     0.0000000000    -0.0000016023
+    H2       -0.0000020837    -0.0000000000     0.0000008012
+    H3        0.0000020837    -0.0000000000     0.0000008012
+    largest component 2.084e-06, RMS 1.180e-06 E_h/bohr
+
+    Internal coordinates (bohr, radians; force = -dE/dq)
+    Name  Definition               Value (bohr/rad)    Value (Å/deg)       Force     Step
+    R1    R(O1-H2)                     1.82158329       0.96394036    0.000001  0.00000
+    R2    R(O1-H3)                     1.82158329       0.96394036    0.000001  0.00000
+    A3    A(H2-O1-H3)                  1.81805562     104.16691421    0.000003  0.00000
+    BFGS update (s.y = 5.114e-09)
+    previous step: energy change / predicted = 0.863
+
+    Convergence             Value      Threshold   Converged?
+    Maximum force            3.48e-06     4.50e-04   YES
+    RMS force                2.22e-06     3.00e-04   YES
+    Maximum displacement     2.10e-05     1.80e-03   YES
+    RMS displacement         1.22e-05     1.20e-03   YES
+    Energy change            1.94e-09     1.00e-06   YES
+
+    *** Stationary point found after 5 steps ***
+
+    Step      Energy (E_h)        dE (E_h)    Max force    RMS force    Max step
+       1      -76.2673923920              --    3.463e-02    3.036e-02   1.035e-01
+       2      -76.2708089297      -3.417e-03    5.230e-03    4.300e-03   1.109e-02
+       3      -76.2708578821      -4.895e-05    8.102e-04    6.620e-04   1.552e-03
+       4      -76.2708591722      -1.290e-06    2.432e-05    1.806e-05   1.634e-04
+       5      -76.2708591742      -1.943e-09    3.484e-06    2.220e-06   2.101e-05
+
+    Optimised geometry, energy -76.2708591742 E_h (-0.0034667822 E_h relative to the start)
+    Atom   Z          x (Å)          y (Å)          z (Å)      x (bohr)      y (bohr)      z (bohr)
+    O1     8     0.00000000     0.00000000    -0.01251830    0.00000000    0.00000000   -0.02365616
+    H2     1     0.76045900     0.00000000     0.57983559    1.43705924    0.00000000    1.09573046
+    H3     1    -0.76045900     0.00000000     0.57983559   -1.43705924    0.00000000    1.09573046
+
+    Optimised parameters (start in parentheses)
+    R(O1-H2)       =   0.96394036 Å   1.82158329 bohr   (1.000000 Å)
+    R(O1-H3)       =   0.96394036 Å   1.82158329 bohr   (1.000000 Å)
+    A(H2-O1-H3)    =   104.166914 deg            (110.000000 deg)
+    C2v symmetry kept: |R(O1-H2) - R(O1-H3)| = 1.85e-13 bohr
+    Initial Hessian: analytic CCSD Hessian; total time 11.6 s
+
+  Electronic structure at the optimised geometry
+
+    SCF converged in 8 iterations (integrals 0.02 s, SCF 0.01 s, 4 threads)
+    overlap matrix: smallest eigenvalue 2.972e-03; no functions removed
+
+    Energy components (E_h)
+      total energy (RHF)              -76.0409484926
+      electronic energy               -85.1724488982
+      nuclear repulsion                 9.1315004056
+      kinetic energy                   75.9014320565
+      nuclear attraction             -198.7643923512
+      electron repulsion               37.6905113965
+      virial ratio -V/T                 2.0018381265
+
+    Orbital energies (E_h), 5 doubly occupied (*)
+      1*   -20.57854455      2*    -1.35343838      3*    -0.71495827      4*    -0.58503824
+      5*    -0.50898931      6      0.03529298      7      0.05792384      8      0.17409255
+      9      0.19704518     10      0.22220137     11      0.23175292     12      0.28869215
+     13      0.33108297     14      0.38550128     15      0.40244204     16      0.43229742
+     17      0.53855943     18      0.64681103     19      0.65796365     20      0.80784173
+     21      0.92881020     22      1.10201542     23      1.11610154     24      1.14826567
+     25      1.30371851     26      1.46455060     27      1.48072854     28      1.58201379
+     29      1.99931748     30      2.00677904     31      2.10582314     32      2.36145339
+     33      2.47024991     34      2.61421841     35      2.71185159     36      2.96785429
+     37      3.67288572     38      3.68926782     39      3.70139722     40      4.01659514
+     41      4.29551659
+    HOMO -0.50898931 E_h, LUMO 0.03529298 E_h, gap 0.54428228 E_h (14.8107 eV)
+
+    Atomic charges (SCF density)      Mulliken        Löwdin
+      O1                              -0.311861     -0.286040
+      H2                               0.155931      0.143020
+      H3                               0.155931      0.143020
+      sum                             -0.000000     -0.000000
+
+    Dipole moment (SCF density, origin at 0)
+      x  -0.00000000   y  -0.00000000   z   0.79064386   |mu|   0.79064386 e bohr   (2.009616 D)
+
+Coupled cluster CCSD, all electrons correlated
+    5 occupied and 36 virtual orbitals (10 electrons); closed-shell, spin-adapted implementation
+    amplitudes: T1 180, T2 32,400 (spatial)
+    (vv|vv) ladder: AO integrals in memory
+    integral transformation: 0.00 s; Jacobi updates with DIIS, converged when
+    max |t_new - t| < 1.0e-09 and |dE| < 1.0e-10 E_h
+    converged in 18 iterations (0.29 s)
+
+CCSD energies (E_h)
+    RHF energy                      -76.0409484926
+    CCSD correlation energy          -0.2299106815
+    CCSD energy                     -76.2708591742
+    T1 diagnostic                         0.011048
+    amplitude norms: |T1| = 0.034937, |T2| = 0.230527
+
+Largest amplitudes (occupied -> virtual MOs, spin a = alpha, b = beta)
+    T2   -0.03475021   5 5          -> 27 27        ab
+    T2   -0.02573274   3 3          -> 20 20        ab
+    T1   -0.02164553   5            -> 9            a
+    T2   -0.02081041   4 4          -> 20 20        ab
+    T2   -0.02049285   4 4          -> 28 28        ab
+    T2   -0.02009451   3 3          -> 12 12        ab
+    T2   +0.01898069   3 3          -> 20 12        ab
+    T2   -0.01851730   5 5          -> 27 9         ab
+    T2   -0.01824294   5 5          -> 9 9          ab
+    T2   -0.01765148   4 4          -> 15 15        ab
+    T2   +0.01698981   5 4          -> 27 28        ab
+    T2   -0.01690927   4 4          -> 23 23        ab
+
+    Dipole moment (relaxed CCSD density, origin at 0)
+      x  -0.00000000   y  -0.00000000   z   0.73790157   |mu|   0.73790157 e bohr   (1.875559 D)
+
+---- Harmonic frequencies: CCSD/aug-cc-pVDZ -------------------------------------------
+    at the optimised geometry
+    Atom   Z          x (Å)          y (Å)          z (Å)      x (bohr)      y (bohr)      z (bohr)
+    O1     8     0.00000000     0.00000000    -0.01251830    0.00000000    0.00000000   -0.02365616
+    H2     1     0.76045900     0.00000000     0.57983559    1.43705924    0.00000000    1.09573046
+    H3     1    -0.76045900     0.00000000     0.57983559   -1.43705924    0.00000000    1.09573046
+    energy, gradient and orbitals at this geometry: from the last optimisation step
+
+    Hessian: analytic (amplitude responses along 3 internal directions, CPHF orbital response of all 9 coordinates, Z-vector; translations and rotations by invariance)
+    CPHF: 14 iterations
+    Dipole derivatives: analytic (electric-field perturbations: CPHF and amplitude responses)
+
+    Isotopes (AME 2020 masses):  16O 15.994914619 u  1H 1.007825032 u  1H 1.007825032 u
+    Nonlinear molecule: 3 vibrations (3N - 6); translations and rotations projected out (Eckart)
+    Residual curvature of translations and rotations (cm-1): -6.17 -4.16 -0.00 -0.00 0.00 4.60
+
+    Mode  Symmetry   Wavenumber (cm-1)   Reduced mass (u)   Force const. (mdyn/Å)   IR intensity (km/mol)
+       1  A1                   1649.84           1.082320               1.735760                68.1823
+       2  A1                   3824.01           1.045498               9.007653                 2.9443
+       3  B2                   3939.59           1.081524               9.889823                50.7024
+
+    Normal modes: normalised Cartesian displacements
+    Atom      mode 1                       mode 2                       mode 3                     
+              A1                           A1                           B2                         
+              1649.84 cm-1                 3824.01 cm-1                 3939.59 cm-1               
+                    x        y        z          x        y        z          x        y        z  
+    O1          0.0000  -0.0000  -0.0705    -0.0000   0.0000  -0.0501    -0.0701   0.0000   0.0000 
+    H2         -0.4296  -0.0000   0.5595     0.5835   0.0000   0.3979     0.5565   0.0000   0.4335 
+    H3          0.4296  -0.0000   0.5595    -0.5835   0.0000   0.3979     0.5565   0.0000  -0.4335 
+    Hessian time 9.3 s
+
+---- Thermochemistry (ideal gas, rigid rotor, harmonic oscillators) -------------------
+    Temperature 298.15 K, pressure 101325.00 Pa (1.000000 atm, 1.01325 bar)
+    Molecular mass 18.010565 u; symmetry number 2; nonlinear rigid rotor; closed-shell singlet (q_el = 1)
+    Principal moments of inertia (u bohr^2): 2.243004  4.162598  6.405602
+    Rotational constants (GHz):  804.609170  433.561243  281.744216
+    Rotational constants (cm-1):  26.838873  14.462046  9.397975
+    Rotational temperatures (K):  38.61515  20.80766  13.52159
+    Vibrational temperatures (K):  2373.75  5501.90  5668.19
+
+                                         E_h          kcal/mol      kJ/mol
+    Zero-point energy                      0.02144539      13.4572      56.3049
+    Thermal correction to U                0.02428057      15.2363      63.7486
+    Thermal correction to H = U + pV       0.02522475      15.8288      66.2276
+    Thermal correction to A = U - TS       0.00284977       1.7883       7.4821
+    Thermal correction to G = H - TS       0.00379396       2.3807       9.9610
+    (ideal gas: pV = RT per mole, k_B T per molecule)
+
+    Electronic energy E_el                    -76.2708591742 E_h
+    E_el + ZPE                                -76.2494137812 E_h
+    U = E_el + thermal energy                 -76.2465786049 E_h
+    H = E_el + thermal enthalpy               -76.2456344201 E_h
+    A = E_el + thermal Helmholtz energy       -76.2680094019 E_h
+    G = E_el + thermal Gibbs energy           -76.2670652171 E_h
+
+                        E (kcal/mol)  Cv (cal/mol K)   S (cal/mol K)   S (J/mol K)    q
+    Electronic               0.0000          0.0000          0.0000        0.0000   1.000000e+00
+    Translational            0.8887          2.9808         34.6083      144.8010   3.004312e+06
+    Rotational               0.8887          2.9808         10.4904       43.8919   4.377164e+01
+    Vibrational             13.4588          0.0440          0.0062        0.0260   1.367618e-10
+    Total                   15.2363          6.0056         45.1049      188.7189   1.798467e-02
+    (vibrational energy including the zero-point energy; vibrational q from the bottom of the well)
+
+---- Summary --------------------------------------------------------------------------
+    Hartree-Fock (RHF) total energy:  -76.0409484926 E_h (8 iterations)
+    CCSD total energy:  -76.2708591742 E_h
+    Job: Optimisation + frequencies
+    Final geometry:
+      R(O1-H2)       =   0.96394036 Å   (1.82158329 bohr)
+      R(O1-H3)       =   0.96394036 Å   (1.82158329 bohr)
+      A(H2-O1-H3)    =   104.166914 deg
+    Final energy (CCSD/aug-cc-pVDZ): -76.2708591742 E_h
+    Optimisation: converged, 5 steps
+    Harmonic wavenumbers (cm-1): 1649.84 3824.01 3939.59
+    Thermochemistry at 298.15 K and 101325 Pa (corrections from CCSD/aug-cc-pVDZ):
+      E + ZPE       -76.2494137812 E_h
+      U             -76.2465786049 E_h
+      H             -76.2456344201 E_h
+      G             -76.2670652171 E_h
+      S                   188.7189 J/(mol K)
+
+---- Basis set in full ----------------------------------------------------------------
+    aug-cc-pVDZ: 41 spherical basis functions in 19 shells (real solid harmonics, m = -l ... l)
+    exponents in bohr^-2; contraction coefficients of normalised primitives, every contracted
+    function normalised; the functions are numbered as in the molecular orbitals below
+
+    O1    functions 1-23
+      shell  functions          exponent        coefficient
+      1s     1           11720.0000000000       0.0007100003
+                          1759.0000000000       0.0054700019
+                           400.8000000000       0.0278370098
+                           113.7000000000       0.1048000369
+                            37.0300000000       0.2830620998
+                            13.2700000000       0.4487191582
+                             5.0250000000       0.2709520955
+                             1.0130000000       0.0154580054
+                             0.3023000000      -0.0025850009
+      2s     2           11720.0000000000      -0.0001600000
+                          1759.0000000000      -0.0012630001
+                           400.8000000000      -0.0062670006
+                           113.7000000000      -0.0257160025
+                            37.0300000000      -0.0709240068
+                            13.2700000000      -0.1654110159
+                             5.0250000000      -0.1169550112
+                             1.0130000000       0.5573680536
+                             0.3023000000       0.5727590551
+      3s     3               0.3023000000       1.0000000000
+      4s     4               0.0789600000       1.0000000000
+      2p     5-7            17.7000000000       0.0430179924
+                             3.8540000000       0.2289129597
+                             1.0460000000       0.5087279104
+                             0.2753000000       0.4605309189
+      3p     8-10            0.2753000000       1.0000000000
+      4p     11-13           0.0685600000       1.0000000000
+      3d     14-18           1.1850000000       1.0000000000
+      4d     19-23           0.3320000000       1.0000000000
+
+    H2    functions 24-32
+      shell  functions          exponent        coefficient
+      1s     24             13.0100000000       0.0196849900
+                             1.9620000000       0.1379769298
+                             0.4446000000       0.4781477569
+                             0.1220000000       0.5012397451
+      2s     25              0.1220000000       1.0000000000
+      3s     26              0.0297400000       1.0000000000
+      2p     27-29           0.7270000000       1.0000000000
+      3p     30-32           0.1410000000       1.0000000000
+
+    H3    functions 33-41: the same as H2
+
+---- Molecular orbitals (the orbitals of the Orbitals tab) ----------------------------
+    AO coefficients of the spherical basis functions of the basis set above
+
+  RHF canonical orbitals (15 orbitals)
+
+                                1           2           3           4           5
+                           HOMO-4      HOMO-3      HOMO-2      HOMO-1        HOMO
+    Energy (E_h)       -20.578545   -1.353438   -0.714958   -0.585038   -0.508989
+    Occupation           2.000000    2.000000    2.000000    2.000000    2.000000
+       1  O1    1s        -1.000949   -0.005757   -0.000000   -0.001366    0.000000
+       2  O1    2s        -0.004257    0.882265   -0.000000   -0.298336    0.000000
+       3  O1    3s         0.007094   -0.125584    0.000000   -0.145803   -0.000000
+       4  O1    4s         0.004491    0.058678    0.000000   -0.076189   -0.000000
+       5  O1    2p-1       0.000000    0.000000    0.000000    0.000000    0.916053
+       6  O1    2p0       -0.002378    0.112932   -0.000000    0.798332   -0.000000
+       7  O1    2p+1       0.000000   -0.000000   -0.727063   -0.000000    0.000000
+       8  O1    3p-1      -0.000000   -0.000000    0.000000   -0.000000    0.028565
+       9  O1    3p0        0.002630   -0.069349    0.000000   -0.043322   -0.000000
+      10  O1    3p+1      -0.000000    0.000000    0.138491   -0.000000    0.000000
+      11  O1    4p-1      -0.000000   -0.000000    0.000000   -0.000000    0.068931
+      12  O1    4p0        0.000670    0.011444    0.000000    0.038981   -0.000000
+      13  O1    4p+1      -0.000000    0.000000   -0.019554   -0.000000    0.000000
+      14  O1    3d-2       0.000000   -0.000000   -0.000000    0.000000   -0.000000
+      15  O1    3d-1       0.000000    0.000000   -0.000000    0.000000    0.013808
+      16  O1    3d0       -0.000002    0.002781   -0.000000    0.014560   -0.000000
+      17  O1    3d+1      -0.000000    0.000000   -0.028460   -0.000000    0.000000
+      18  O1    3d+2      -0.000097    0.006700    0.000000    0.004383   -0.000000
+      19  O1    4d-2      -0.000000    0.000000    0.000000    0.000000   -0.000000
+      20  O1    4d-1      -0.000000   -0.000000   -0.000000   -0.000000    0.019321
+      21  O1    4d0       -0.000013   -0.005786    0.000000    0.016078   -0.000000
+      22  O1    4d+1      -0.000000    0.000000    0.030452   -0.000000   -0.000000
+      23  O1    4d+2       0.000276   -0.019166    0.000000   -0.011278   -0.000000
+      24  H2    1s        -0.000587    0.345908   -0.591905    0.361121    0.000000
+      25  H2    2s        -0.003282   -0.199486    0.216078   -0.122107   -0.000000
+      26  H2    3s        -0.000318   -0.002026    0.004719    0.003586   -0.000000
+      27  H2    2p-1       0.000000   -0.000000    0.000000    0.000000    0.025936
+      28  H2    2p0       -0.000281   -0.022350    0.034679   -0.001146    0.000000
+      29  H2    2p+1      -0.000343   -0.036713    0.025909   -0.030828   -0.000000
+      30  H2    3p-1       0.000000   -0.000000   -0.000000    0.000000    0.015957
+      31  H2    3p0        0.001014    0.008002    0.001038    0.013273    0.000000
+      32  H2    3p+1       0.001182    0.005057    0.003803   -0.001984    0.000000
+      33  H3    1s        -0.000587    0.345908    0.591905    0.361121    0.000000
+      34  H3    2s        -0.003282   -0.199486   -0.216078   -0.122107    0.000000
+      35  H3    3s        -0.000318   -0.002026   -0.004719    0.003586    0.000000
+      36  H3    2p-1       0.000000    0.000000   -0.000000   -0.000000    0.025936
+      37  H3    2p0       -0.000281   -0.022350   -0.034679   -0.001146   -0.000000
+      38  H3    2p+1       0.000343    0.036713    0.025909    0.030828    0.000000
+      39  H3    3p-1      -0.000000    0.000000    0.000000    0.000000    0.015957
+      40  H3    3p0        0.001014    0.008002   -0.001038    0.013273   -0.000000
+      41  H3    3p+1      -0.001182   -0.005057    0.003803    0.001984    0.000000
+
+                                6           7           8           9          10
+                             LUMO      LUMO+1      LUMO+2      LUMO+3      LUMO+4
+    Energy (E_h)         0.035293    0.057924    0.174093    0.197045    0.222201
+    Occupation           0.000000    0.000000    0.000000    0.000000    0.000000
+       1  O1    1s         0.003831   -0.000000    0.030081   -0.000000   -0.022545
+       2  O1    2s        -0.104697   -0.000000    0.162774    0.000000   -0.359694
+       3  O1    3s        -0.159535    0.000000   -0.455852    0.000000    0.192737
+       4  O1    4s        -1.550901    0.000000   -4.102363    0.000000    2.781670
+       5  O1    2p-1      -0.000000   -0.000000    0.000000    0.254649    0.000000
+       6  O1    2p0       -0.088169   -0.000000    0.260762   -0.000000   -0.079214
+       7  O1    2p+1       0.000000   -0.097469    0.000000   -0.000000   -0.000000
+       8  O1    3p-1      -0.000000    0.000000    0.000000    0.131559    0.000000
+       9  O1    3p0       -0.092286    0.000000   -0.111644   -0.000000    0.204065
+      10  O1    3p+1      -0.000000   -0.093280   -0.000000    0.000000    0.000000
+      11  O1    4p-1       0.000000    0.000000   -0.000000   -1.439092   -0.000000
+      12  O1    4p0       -0.215122   -0.000000   -1.916527    0.000000   -0.517795
+      13  O1    4p+1      -0.000000   -0.825130   -0.000000    0.000000    0.000000
+      14  O1    3d-2      -0.000000    0.000000    0.000000   -0.000000   -0.000000
+      15  O1    3d-1       0.000000    0.000000    0.000000    0.017052    0.000000
+      16  O1    3d0       -0.002580    0.000000    0.011371   -0.000000    0.007498
+      17  O1    3d+1      -0.000000   -0.001030   -0.000000    0.000000   -0.000000
+      18  O1    3d+2      -0.000077    0.000000    0.003066   -0.000000    0.003597
+      19  O1    4d-2      -0.000000    0.000000   -0.000000    0.000000    0.000000
+      20  O1    4d-1      -0.000000    0.000000   -0.000000   -0.057900   -0.000000
+      21  O1    4d0        0.001498   -0.000000   -0.039109    0.000000   -0.042071
+      22  O1    4d+1      -0.000000   -0.018896   -0.000000    0.000000    0.000000
+      23  O1    4d+2      -0.010431    0.000000   -0.048848    0.000000    0.030848
+      24  H2    1s         0.033267   -0.001161    0.021085   -0.000000    0.075479
+      25  H2    2s         0.458219    0.542939    1.757428   -0.000000   -0.452936
+      26  H2    3s         0.834897    2.951190    0.627081   -0.000000   -0.670939
+      27  H2    2p-1       0.000000   -0.000000   -0.000000   -0.009363   -0.000000
+      28  H2    2p0        0.002301    0.004203   -0.023796    0.000000    0.010935
+      29  H2    2p+1       0.004619    0.000674   -0.033696    0.000000    0.019229
+      30  H2    3p-1      -0.000000   -0.000000    0.000000    0.280101    0.000000
+      31  H2    3p0       -0.077128   -0.128192   -0.158357    0.000000    0.476701
+      32  H2    3p+1      -0.082422   -0.101807   -0.332312    0.000000    0.424341
+      33  H3    1s         0.033267    0.001161    0.021085    0.000000    0.075479
+      34  H3    2s         0.458219   -0.542939    1.757428    0.000000   -0.452936
+      35  H3    3s         0.834897   -2.951190    0.627081    0.000000   -0.670939
+      36  H3    2p-1      -0.000000   -0.000000   -0.000000   -0.009363    0.000000
+      37  H3    2p0        0.002301   -0.004203   -0.023796   -0.000000    0.010935
+      38  H3    2p+1      -0.004619    0.000674    0.033696    0.000000   -0.019229
+      39  H3    3p-1      -0.000000    0.000000   -0.000000    0.280101    0.000000
+      40  H3    3p0       -0.077128    0.128192   -0.158357   -0.000000    0.476701
+      41  H3    3p+1       0.082422   -0.101807    0.332312    0.000000   -0.424341
+
+                               11          12          13          14          15
+                           LUMO+5      LUMO+6      LUMO+7      LUMO+8      LUMO+9
+    Energy (E_h)         0.231753    0.288692    0.331083    0.385501    0.402442
+    Occupation           0.000000    0.000000    0.000000    0.000000    0.000000
+       1  O1    1s         0.000000    0.000000    0.012882   -0.000000   -0.000810
+       2  O1    2s        -0.000000    0.000000    0.016123   -0.000000   -0.030420
+       3  O1    3s        -0.000000   -0.000000   -0.233740    0.000000    0.000113
+       4  O1    4s         0.000000   -0.000000   -4.356296    0.000000    4.395451
+       5  O1    2p-1       0.000000    0.000000    0.000000    0.000000   -0.000000
+       6  O1    2p0       -0.000000   -0.000000   -0.132155    0.000000    0.274413
+       7  O1    2p+1       0.246689   -0.326903    0.000000   -0.000000   -0.000000
+       8  O1    3p-1       0.000000   -0.000000    0.000000    0.000000   -0.000000
+       9  O1    3p0       -0.000000   -0.000000   -0.178693    0.000000    0.646090
+      10  O1    3p+1      -0.369241   -0.120557   -0.000000   -0.000000    0.000000
+      11  O1    4p-1      -0.000000    0.000000    0.000000    0.000000   -0.000000
+      12  O1    4p0       -0.000000   -0.000000   -0.596434    0.000000    1.822622
+      13  O1    4p+1      -3.095576   -0.906641    0.000000   -0.000000   -0.000000
+      14  O1    3d-2      -0.000000    0.000000    0.000000   -0.039158    0.000000
+      15  O1    3d-1       0.000000    0.000000   -0.000000   -0.000000    0.000000
+      16  O1    3d0       -0.000000   -0.000000   -0.024764   -0.000000   -0.019779
+      17  O1    3d+1       0.008875    0.016033   -0.000000   -0.000000    0.000000
+      18  O1    3d+2      -0.000000    0.000000    0.024943    0.000000    0.009988
+      19  O1    4d-2       0.000000   -0.000000   -0.000000    0.129030   -0.000000
+      20  O1    4d-1      -0.000000   -0.000000    0.000000    0.000000   -0.000000
+      21  O1    4d0       -0.000000    0.000000    0.085509    0.000000    0.103787
+      22  O1    4d+1      -0.099629   -0.069972   -0.000000   -0.000000    0.000000
+      23  O1    4d+2      -0.000000   -0.000000   -0.103940   -0.000000   -0.020215
+      24  H2    1s         0.132477    0.220021    0.191363   -0.000000   -0.104242
+      25  H2    2s         2.575178    0.864655    2.255572   -0.000000   -2.286308
+      26  H2    3s         2.683842   -0.301124    0.256571   -0.000000   -0.286340
+      27  H2    2p-1      -0.000000    0.000000    0.000000   -0.002106    0.000000
+      28  H2    2p0       -0.022269    0.000367   -0.029297   -0.000000    0.004664
+      29  H2    2p+1      -0.038724   -0.013557   -0.009790    0.000000    0.048269
+      30  H2    3p-1       0.000000    0.000000    0.000000   -1.136274    0.000000
+      31  H2    3p0       -0.559075    0.474856   -0.469380   -0.000000   -0.692788
+      32  H2    3p+1      -0.590420    0.430462    0.368022    0.000000    0.351168
+      33  H3    1s        -0.132477   -0.220021    0.191363   -0.000000   -0.104242
+      34  H3    2s        -2.575178   -0.864655    2.255572   -0.000000   -2.286308
+      35  H3    3s        -2.683842    0.301124    0.256571   -0.000000   -0.286340
+      36  H3    2p-1       0.000000    0.000000   -0.000000    0.002106    0.000000
+      37  H3    2p0        0.022269   -0.000367   -0.029297    0.000000    0.004664
+      38  H3    2p+1      -0.038724   -0.013557    0.009790   -0.000000   -0.048269
+      39  H3    3p-1       0.000000   -0.000000   -0.000000    1.136274   -0.000000
+      40  H3    3p0        0.559075   -0.474856   -0.469380   -0.000000   -0.692788
+      41  H3    3p+1      -0.590420    0.430462   -0.368022   -0.000000   -0.351168
+
+---- ΨLab archive: the complete results, read by File > Open Output File… of the app --
+    JSON (format 1); the lines between the markers are joined without line breaks
+@@PSILAB-ARCHIVE-BEGIN 1
+{"archive":{"format":1,"program":"\u03a8Lab 13.0","written":"2026-11-17 17:22:00"},"basis":{"atoms":
+[{"basis":"aug-cc-pVDZ","contraction":"[4s3p2d]","functions":23,"primitives":"(10s5p2d)","symbol":"O
+"},{"basis":"aug-cc-pVDZ","contraction":"[3s2p]","functions":9,"primitives":"(5s2p)","symbol":"H"},{
+"basis":"aug-cc-pVDZ","contraction":"[3s2p]","functions":9,"primitives":"(5s2p)","symbol":"H"}],"fun
+ctions":41,"maxL":2,"name":"aug-cc-pVDZ","shells":19},"coupledCluster":{"amplitudeCounts":[0.0,180.0
+,32400.0],"amplitudeNorms":[0.0,0.034937144065173294,0.23052690256445632],"ccEnergy":-76.27085917416
+142,"ccSeconds":0.29334883,"converged":true,"correlationEnergy":-0.22991068152178365,"engine":"close
+d-shell, spin-adapted","history":[{"correlationEnergy":0.0,"deltaE":0.0,"iteration":1,"residual":0.0
+32991469485991715,"totalEnergy":-76.04094849263963},{"correlationEnergy":-0.22243138434945955,"delta
+E":-0.22243138434945955,"iteration":2,"residual":0.01718662885553765,"totalEnergy":-76.2633798769890
+9},{"correlationEnergy":-0.22423651260257155,"deltaE":-0.0018051282531119928,"iteration":3,"residual
+":0.0029836580144952697,"totalEnergy":-76.2651850052422},{"correlationEnergy":-0.22891900974164411,"
+deltaE":-0.004682497139072567,"iteration":4,"residual":0.002224349992429913,"totalEnergy":-76.269867
+50238127},{"correlationEnergy":-0.2299593719049463,"deltaE":-0.0010403621633021942,"iteration":5,"re
+sidual":0.0003827618901374834,"totalEnergy":-76.27090786454457},{"correlationEnergy":-0.229913617855
+95735,"deltaE":4.575404898896074e-05,"iteration":6,"residual":0.00013717325052492457,"totalEnergy":-
+76.27086211049559},{"correlationEnergy":-0.22990710414597307,"deltaE":6.513709984279359e-06,"iterati
+on":7,"residual":5.2821892585184355e-05,"totalEnergy":-76.27085559678561},{"correlationEnergy":-0.22
+99119585421487,"deltaE":-4.854396175618669e-06,"iteration":8,"residual":1.1216775674630086e-05,"tota
+lEnergy":-76.27086045118178},{"correlationEnergy":-0.22991114033977555,"deltaE":8.182023731317933e-0
+7,"iteration":9,"residual":3.3479738968597572e-06,"totalEnergy":-76.27085963297941},{"correlationEne
+rgy":-0.22991070377313771,"deltaE":4.365666378403077e-07,"iteration":10,"residual":1.277423963439924
+8e-06,"totalEnergy":-76.27085919641277},{"correlationEnergy":-0.2299107771440579,"deltaE":-7.3370920
+17278835e-08,"iteration":11,"residual":5.209322251229984e-07,"totalEnergy":-76.27085926978368},{"cor
+relationEnergy":-0.22991067265116844,"deltaE":1.0449288945224566e-07,"iteration":12,"residual":1.432
+2974625606555e-07,"totalEnergy":-76.2708591652908},{"correlationEnergy":-0.22991067739222434,"deltaE
+":-4.741055908974445e-09,"iteration":13,"residual":7.151138104507376e-08,"totalEnergy":-76.270859170
+03186},{"correlationEnergy":-0.2299106773781874,"deltaE":1.4036938278394473e-11,"iteration":14,"resi
+dual":1.8266374180592182e-08,"totalEnergy":-76.27085917001781},{"correlationEnergy":-0.2299106804718
+186,"deltaE":-3.0936311845586317e-09,"iteration":15,"residual":4.8316818792443206e-09,"totalEnergy":
+-76.27085917311145},{"correlationEnergy":-0.22991068131665368,"deltaE":-8.448350907741542e-10,"itera
+tion":16,"residual":6.899506018592794e-10,"totalEnergy":-76.27085917395628},{"correlationEnergy":-0.
+22991068153126612,"deltaE":-2.1461243893128312e-10,"iteration":17,"residual":3.3024917349411265e-10,
+"totalEnergy":-76.2708591741709},{"correlationEnergy":-0.22991068152178365,"deltaE":9.48247036447469
+3e-12,"iteration":18,"residual":8.809692732258956e-11,"totalEnergy":-76.27085917416142}],"iterations
+":18,"ladder":"AO integrals in memory","leadingAmplitudes":[{"occupied":[5,5],"rank":2,"spins":"ab",
+"value":-0.03475020558487052,"virtuals":[27,27]},{"occupied":[3,3],"rank":2,"spins":"ab","value":-0.
+025732737984992003,"virtuals":[20,20]},{"occupied":[5],"rank":1,"spins":"a","value":-0.0216455256457
+33143,"virtuals":[9]},{"occupied":[4,4],"rank":2,"spins":"ab","value":-0.020810411535584626,"virtual
+s":[20,20]},{"occupied":[4,4],"rank":2,"spins":"ab","value":-0.020492854203670734,"virtuals":[28,28]
+},{"occupied":[3,3],"rank":2,"spins":"ab","value":-0.020094508605232014,"virtuals":[12,12]},{"occupi
+ed":[3,3],"rank":2,"spins":"ab","value":0.018980687817026567,"virtuals":[20,12]},{"occupied":[5,5],"
+rank":2,"spins":"ab","value":-0.018517296255783473,"virtuals":[27,9]},{"occupied":[5,5],"rank":2,"sp
+ins":"ab","value":-0.018242941301452126,"virtuals":[9,9]},{"occupied":[4,4],"rank":2,"spins":"ab","v
+alue":-0.017651482148600076,"virtuals":[15,15]},{"occupied":[5,4],"rank":2,"spins":"ab","value":0.01
+6989811441066194,"virtuals":[27,28]},{"occupied":[4,4],"rank":2,"spins":"ab","value":-0.016909269214
+984233,"virtuals":[23,23]}],"method":"CCSD","occupied":5,"referenceEnergy":-76.04094849263963,"t1Dia
+gnostic":0.011048095018738179,"totalEnergy":-76.27085917416142,"transformSeconds":0.0,"triplesCorrec
+tion":null,"triplesSeconds":null,"virtuals":36},"error":null,"estimate":{"basisFunctions":41,"couple
+dCluster":{"amplitudes":32580.0,"engine":"closed-shell, spin-adapted","feasible":true,"iterationSeco
+nds":0.01355440625,"iterations":18,"ladderIntegralsStored":true,"memoryMB":16.321701049804688,"metho
+d":"CCSD","occupied":5,"reason":null,"seconds":0.25672000594375,"triplesSeconds":0.0,"virtuals":36},
+"fci":null,"integralMemoryMB":2.8311996459960938,"integralsStored":true,"longCalculation":false,"rhf
+Seconds":0.0141958821,"threads":4,"totalSeconds":0.27091588804375,"uniqueIntegrals":371091},"fci":nu
+ll,"frequencies":{"analytic":true,"coordinates":[],"description":"analytic (amplitude responses alon
+g 3 internal directions, CPHF orbital response of all 9 coordinates, Z-vector; translations and rota
+tions by invariance)","dipole":[-8.43769498715119e-14,-1.355122059517239e-16,0.7379015713701411],"en
+ergy":-76.27085917416142,"energyEvaluations":0,"geometry":{"R":1.821583286029108,"R1":1.821583286029
+2003,"R2":1.8215832860290153,"angle":104.16691420538876,"atoms":[{"Z":8,"position":[5.25127597881605
+6e-14,0.0,-0.02365616153861068],"symbol":"O"},{"Z":1,"position":[1.4370592418216266,0.0,1.0957304577
+472113],"symbol":"H"},{"Z":1,"position":[-1.4370592418216797,0.0,1.0957304577467075],"symbol":"H"}]}
+,"gradientEvaluations":0,"intensities":true,"intensityDescription":"analytic (electric-field perturb
+ations: CPHF and amplitude responses)","isotopes":["16O","1H","1H"],"linear":false,"lowFrequencies":
+[-6.165789231060351,-4.1600231077504315,-1.3085627991157944e-05,-7.533667762418673e-08,8.99558850801
+5508e-06,4.596768849243894],"masses":[15.994914619257,1.007825031898,1.007825031898],"modes":[{"disp
+lacement":[[8.682056357553232e-13,-0.0,-0.0705027590582978],[-0.42955048921727135,-0.0,0.55946497450
+30075],[0.42955048920349226,-0.0,0.5594649745138296]],"forceConstant":1.735760094016859,"imaginary":
+false,"irIntensity":68.18232859935071,"reducedMass":1.0823204444194574,"symmetry":"A1","wavenumber":
+1649.8398857073744},{"displacement":[[-3.1941310137616554e-11,0.0,-0.05013701555078358],[0.583484543
+6575725,0.0,0.3978554104213385],[-0.5834845431506408,0.0,0.39785541002621944]],"forceConstant":9.007
+65308850787,"imaginary":false,"irIntensity":2.9442890321636597,"reducedMass":1.04549838365639,"symme
+try":"A1","wavenumber":3824.0100328771027},{"displacement":[[-0.070125083311646,0.0,2.27542843194046
+07e-11],[0.5564679801416932,0.0,0.4334565986967789],[0.5564679807023332,0.0,-0.43345659905790596]],"
+forceConstant":9.889823229238866,"imaginary":false,"irIntensity":50.702389967991266,"reducedMass":1.
+081524454233241,"symmetry":"B2","wavenumber":3939.589512822889}],"numericalReason":null,"pointGroup"
+:null,"seconds":9.331924928,"vibrations":3},"fullCI":null,"hf":null,"input":{"R":1.8897261259077822,
+"ROO":null,"angle":110.0,"basis":"aug-cc-pVDZ","basisDirectory":"","dihedral":null,"eigenTest":true,
+"energyConvergence":1e-10,"estimateOnly":false,"fciMemoryMB":4096.0,"gradientConvergence":1e-07,"hes
+sian":"analytic","initialHessian":"auto","job":"opt+freq","maxSteps":50,"memoryMB":1024.0,"method":"
+CCSD","molecule":"H2O","optConvergence":"normal","pressure":101325.0,"printLevel":2,"scan":null,"sca
+nStart":null,"scfMaxIter":100,"spBasis":"","spMethod":"","temperature":298.15,"threads":0,"tsHessian
+":"calcfc"},"job":{"completed":true,"estimate":{"longCalculation":false,"memoryMB":26.92058563232422
+,"notes":["Geometry optimisation: analytic gradient (CCSD Lambda equations, relaxed densities, Z-vec
+tor); typically 6 steps (at most 50); analytic initial Hessian \u2014 about 13 s","Hessian: analytic
+ Hessian: amplitude responses along the 3 internal directions and the 3 electric-field components (I
+R intensities), CPHF orbital response of all 9 coordinates, Z-vector \u2014 about 12 s"],"refusal":n
+ull,"steps":[{"analytic":true,"basis":"aug-cc-pVDZ","evaluationKind":"steps","evaluations":6,"how":"
+analytic gradient (CCSD Lambda equations, relaxed densities, Z-vector); typically 6 steps (at most 5
+0); analytic initial Hessian","memoryMB":26.92058563232422,"method":"CCSD","name":"Geometry optimisa
+tion","seconds":13.121733719511562},{"analytic":true,"basis":"aug-cc-pVDZ","evaluationKind":"respons
+es","evaluations":6,"how":"analytic Hessian: amplitude responses along the 3 internal directions and
+ the 3 electric-field components (IR intensities), CPHF orbital response of all 9 coordinates, Z-vec
+tor","memoryMB":146.8347930908203,"method":"CCSD","name":"Hessian","seconds":11.6637633062325}],"tot
+alSeconds":24.785497025744064,"warnings":[]},"finalEnergy":-76.27085917416142,"finalEnergyLabel":"CC
+SD/aug-cc-pVDZ","finalGeometry":{"R":1.821583286029108,"R1":1.8215832860292003,"R2":1.82158328602901
+53,"angle":104.16691420538876,"atoms":[{"Z":8,"position":[5.251275978816056e-14,0.0,-0.0236561615386
+1068],"symbol":"O"},{"Z":1,"position":[1.4370592418216266,0.0,1.0957304577472113],"symbol":"H"},{"Z"
+:1,"position":[-1.4370592418216797,0.0,1.0957304577467075],"symbol":"H"}]},"initialGeometry":{"R":1.
+8897261259077822,"R1":1.8897261259077822,"R2":1.8897261259077822,"angle":109.99999999999999,"atoms":
+[{"Z":8,"position":[0.0,0.0,0.0],"symbol":"O"},{"Z":1,"position":[1.5479730191836765,0.0,1.083902376
+9776541],"symbol":"H"},{"Z":1,"position":[-1.5479730191836765,0.0,1.0839023769776541],"symbol":"H"}]
+},"message":null,"seconds":20.89410667,"singlePointBasis":null,"singlePointMethod":null,"termination
+":"normal","title":"Optimisation + frequencies","type":"opt+freq","warnings":[]},"molecule":{"R":1.8
+215832860292003,"ROO":null,"angle":104.16691420538875,"atoms":[{"Z":8,"position":[5.251275978816056e
+-14,0.0,-0.02365616153861068],"symbol":"O"},{"Z":1,"position":[1.4370592418216266,0.0,1.095730457747
+2113],"symbol":"H"},{"Z":1,"position":[-1.4370592418216797,0.0,1.0957304577467075],"symbol":"H"}],"c
+harge":0,"custom":false,"dihedral":null,"electrons":10,"formula":"H2O","name":"H2O","nuclearRepulsio
+n":9.13150040555151,"title":null},"notes":[],"optimization":{"converged":true,"criteria":{"energy":1
+e-06,"maxDisplacement":0.0018,"maxForce":0.00045,"rmsDisplacement":0.0012,"rmsForce":0.0003},"eigenT
+estFailed":false,"finalEnergy":-76.27085917416142,"finalGeometry":{"R":1.821583286029108,"R1":1.8215
+832860292003,"R2":1.8215832860290153,"angle":104.16691420538876,"atoms":[{"Z":8,"position":[5.251275
+978816056e-14,0.0,-0.02365616153861068],"symbol":"O"},{"Z":1,"position":[1.4370592418216266,0.0,1.09
+57304577472113],"symbol":"H"},{"Z":1,"position":[-1.4370592418216797,0.0,1.0957304577467075],"symbol
+":"H"}]},"finalParameters":[{"angle":false,"name":"R(O1-H2)","value":1.8215832860292003},{"angle":fa
+lse,"name":"R(O1-H3)","value":1.8215832860290153},{"angle":true,"name":"A(H2-O1-H3)","value":104.166
+91420538876}],"gradient":"analytic (CCSD Lambda equations, relaxed one- and two-particle densities, 
+orbital response by Z-vector)","hessianEvaluations":1,"history":[{"converged":false,"convergence":[{
+"applicable":true,"met":false,"name":"Maximum force","threshold":0.00045,"value":0.03462861388015297
+4},{"applicable":true,"met":false,"name":"RMS force","threshold":0.0003,"value":0.03036323400687148}
+,{"applicable":true,"met":false,"name":"Maximum displacement","threshold":0.0018,"value":0.103524972
+87035903},{"applicable":true,"met":false,"name":"RMS displacement","threshold":0.0012,"value":0.0871
+3977453176815},{"applicable":false,"met":false,"name":"Energy change","threshold":1e-06,"value":null
+}],"coordinates":[{"definition":"R(O1-H2)","gradient":0.03462861388015297,"name":"R","step":-0.07766
+144768058711,"value":1.8897261259077822},{"definition":"R(O1-H3)","gradient":0.03462861388015298,"na
+me":"R","step":-0.07766144766027108,"value":1.8897261259077822},{"definition":"A(H2-O1-H3)","gradien
+t":0.019170188823969956,"name":"A","step":-0.10352497287035903,"value":1.9198621771937623}],"deltaE"
+:null,"energy":-76.26739239198359,"geometry":{"R":1.8897261259077822,"R1":1.8897261259077822,"R2":1.
+8897261259077822,"angle":109.99999999999999,"atoms":[{"Z":8,"position":[0.0,0.0,0.0],"symbol":"O"},{
+"Z":1,"position":[1.5479730191836765,0.0,1.0839023769776541],"symbol":"H"},{"Z":1,"position":[-1.547
+9730191836765,0.0,1.0839023769776541],"symbol":"H"}]},"hessianUpdate":"initial Hessian: analytic CCS
+D Hessian in internal coordinates","predictedChange":-0.0037654719608774738,"ratio":null,"seconds":7
+.194812119,"step":1,"stepNorm":0.1509305168491189,"stepScaled":false,"trustRadius":0.3,"ts":null,"wa
+rnings":[]},{"converged":false,"convergence":[{"applicable":true,"met":false,"name":"Maximum force",
+"threshold":0.00045,"value":0.005230366356435636},{"applicable":true,"met":false,"name":"RMS force",
+"threshold":0.0003,"value":0.004299685859643562},{"applicable":true,"met":false,"name":"Maximum disp
+lacement","threshold":0.0018,"value":0.011089323009225787},{"applicable":true,"met":false,"name":"RM
+S displacement","threshold":0.0012,"value":0.009068793070387896},{"applicable":true,"met":false,"nam
+e":"Energy change","threshold":1e-06,"value":0.0034165377179675716}],"coordinates":[{"definition":"R
+(O1-H2)","gradient":-0.005230366356435636,"name":"R","step":0.011089323009225787,"value":1.812064678
+227195},{"definition":"R(O1-H3)","gradient":-0.005230366344902676,"name":"R","step":0.01108932298254
+7436,"value":1.8120646782475112},{"definition":"A(H2-O1-H3)","gradient":-0.0008651191538927006,"name
+":"A","step":0.0008847905098650356,"value":1.8163372043234034}],"deltaE":-0.0034165377179675716,"ene
+rgy":-76.27080892970156,"geometry":{"R":1.812064678237353,"R1":1.812064678227195,"R2":1.812064678247
+5112,"angle":104.06845598032208,"atoms":[{"Z":8,"position":[7.2581435816562865e-12,0.0,-0.0205752044
+0261439],"symbol":"O"},{"Z":1,"position":[1.4285926583807607,0.0,1.0941899791764014],"symbol":"H"},{
+"Z":1,"position":[-1.4285926583880189,0.0,1.0941899791815213],"symbol":"H"}]},"hessianUpdate":"BFGS 
+update (s.y = 8.265e-03)","predictedChange":-5.8398351472115605e-05,"ratio":0.9073331984581849,"seco
+nds":1.184547661,"step":2,"stepNorm":0.015707610361240392,"stepScaled":false,"trustRadius":0.3,"ts":
+null,"warnings":[]},{"converged":false,"convergence":[{"applicable":true,"met":false,"name":"Maximum
+ force","threshold":0.00045,"value":0.00081016846543584},{"applicable":true,"met":false,"name":"RMS 
+force","threshold":0.0003,"value":0.0006619999944175031},{"applicable":true,"met":true,"name":"Maxim
+um displacement","threshold":0.0018,"value":0.0015517713948062623},{"applicable":true,"met":false,"n
+ame":"RMS displacement","threshold":0.0012,"value":0.001391654252399337},{"applicable":true,"met":fa
+lse,"name":"Energy change","threshold":1e-06,"value":4.895242869906724e-05}],"coordinates":[{"defini
+tion":"R(O1-H2)","gradient":0.0008101684654358403,"name":"R","step":-0.0015517713948062623,"value":1
+.8231540012364205},{"definition":"R(O1-H3)","gradient":0.0008101684619497083,"name":"R","step":-0.00
+15517713877643354,"value":1.8231540012300587},{"definition":"A(H2-O1-H3)","gradient":-4.456566729786
+628e-05,"name":"A","step":0.0009970535457238235,"value":1.8172219948332684}],"deltaE":-4.89524286990
+6724e-05,"energy":-76.27085788213026,"geometry":{"R":1.8231540012332395,"R1":1.8231540012364205,"R2"
+:1.8231540012300587,"angle":104.11915074229057,"atoms":[{"Z":8,"position":[-2.1185735907522952e-12,0
+.0,-0.024699249341069787],"symbol":"O"},{"Z":1,"position":[1.4378312853465922,0.0,1.0962520016492865
+],"symbol":"H"},{"Z":1,"position":[-1.4378312853444737,0.0,1.0962520016470914],"symbol":"H"}]},"hess
+ianUpdate":"BFGS update (s.y = 1.347e-04)","predictedChange":-1.2794208559059828e-06,"ratio":0.83825
+01811278241,"seconds":1.07225423,"step":3,"stepNorm":0.002410415871724934,"stepScaled":false,"trustR
+adius":0.3,"ts":null,"warnings":[]},{"converged":false,"convergence":[{"applicable":true,"met":true,
+"name":"Maximum force","threshold":0.00045,"value":2.4320424591317896e-05},{"applicable":true,"met":
+true,"name":"RMS force","threshold":0.0003,"value":1.8057943206609225e-05},{"applicable":true,"met":
+true,"name":"Maximum displacement","threshold":0.0018,"value":0.00016342385250568234},{"applicable":
+true,"met":true,"name":"RMS displacement","threshold":0.0012,"value":9.561222316929415e-05},{"applic
+able":true,"met":false,"name":"Energy change","threshold":1e-06,"value":1.290088334826578e-06}],"coo
+rdinates":[{"definition":"R(O1-H2)","gradient":1.3906560972334496e-05,"name":"R","step":-1.894381241
+361094e-05,"value":1.821602229841614},{"definition":"R(O1-H3)","gradient":1.3906561335575929e-05,"na
+me":"R","step":-1.894381327936984e-05,"value":1.8216022298422947},{"definition":"A(H2-O1-H3)","gradi
+ent":2.4320424591317896e-05,"name":"A","step":-0.00016342385250568234,"value":1.8182190483789922}],"
+deltaE":-1.290088334826578e-06,"energy":-76.27085917221859,"geometry":{"R":1.8216022298419543,"R1":1
+.821602229841614,"R2":1.8216022298422947,"angle":104.1762777024091,"atoms":[{"Z":8,"position":[3.567
+4903110207146e-13,0.0,-0.023585635793614845],"symbol":"O"},{"Z":1,"position":[1.4371656501126262,0.0
+,1.095695194874595],"symbol":"H"},{"Z":1,"position":[-1.4371656501129833,0.0,1.095695194874328],"sym
+bol":"H"}]},"hessianUpdate":"BFGS update (s.y = 2.540e-06)","predictedChange":-2.2507120942086296e-0
+9,"ratio":1.0083377403700686,"seconds":1.058650867,"step":4,"stepNorm":0.00016560522835383165,"stepS
+caled":false,"trustRadius":0.3,"ts":null,"warnings":[]},{"converged":true,"convergence":[{"applicabl
+e":true,"met":true,"name":"Maximum force","threshold":0.00045,"value":3.483739415792305e-06},{"appli
+cable":true,"met":true,"name":"RMS force","threshold":0.0003,"value":2.220230387532728e-06},{"applic
+able":true,"met":true,"name":"Maximum displacement","threshold":0.0018,"value":2.100667644482625e-05
+},{"applicable":true,"met":true,"name":"RMS displacement","threshold":0.0012,"value":1.2153458354191
+731e-05},{"applicable":true,"met":true,"name":"Energy change","threshold":1e-06,"value":1.9428227915
+341267e-09}],"coordinates":[{"definition":"R(O1-H2)","gradient":-1.1514834810123559e-06,"name":"R","
+step":0.0,"value":1.8215832860292003},{"definition":"R(O1-H3)","gradient":-1.1514835634875305e-06,"n
+ame":"R","step":0.0,"value":1.8215832860290153},{"definition":"A(H2-O1-H3)","gradient":-3.4837394157
+923054e-06,"name":"A","step":0.0,"value":1.8180556245264865}],"deltaE":-1.9428227915341267e-09,"ener
+gy":-76.27085917416142,"geometry":{"R":1.821583286029108,"R1":1.8215832860292003,"R2":1.821583286029
+0153,"angle":104.16691420538876,"atoms":[{"Z":8,"position":[5.251275978816056e-14,0.0,-0.02365616153
+861068],"symbol":"O"},{"Z":1,"position":[1.4370592418216266,0.0,1.0957304577472113],"symbol":"H"},{"
+Z":1,"position":[-1.4370592418216797,0.0,1.0957304577467075],"symbol":"H"}]},"hessianUpdate":"BFGS u
+pdate (s.y = 5.114e-09)","predictedChange":-3.769511583950186e-11,"ratio":0.8632036041096764,"second
+s":1.043669586,"step":5,"stepNorm":2.1050407357132506e-05,"stepScaled":false,"trustRadius":0.3,"ts":
+null,"warnings":[]}],"initialEnergy":-76.26739239198359,"initialGeometry":{"R":1.8897261259077822,"R
+1":1.8897261259077822,"R2":1.8897261259077822,"angle":109.99999999999999,"atoms":[{"Z":8,"position":
+[0.0,0.0,0.0],"symbol":"O"},{"Z":1,"position":[1.5479730191836765,0.0,1.0839023769776541],"symbol":"
+H"},{"Z":1,"position":[-1.5479730191836765,0.0,1.0839023769776541],"symbol":"H"}]},"initialHessian":
+"analytic CCSD Hessian","initialParameters":[{"angle":false,"name":"R(O1-H2)","value":1.889726125907
+7822},{"angle":false,"name":"R(O1-H3)","value":1.8897261259077822},{"angle":true,"name":"A(H2-O1-H3)
+","value":109.99999999999999}],"message":"Stationary point found after 5 steps.","negativeEigenvalue
+s":null,"seconds":11.554425551,"steps":5,"symmetricEnd":true,"symmetricStart":true,"symmetryDeviatio
+n":1.8496315590255108e-13,"transitionState":false,"tsHessian":null},"orbitals":{"atoms":[{"Z":8,"pos
+ition":[5.251275978816056e-14,0.0,-0.02365616153861068],"symbol":"O"},{"Z":1,"position":[1.437059241
+8216266,0.0,1.0957304577472113],"symbol":"H"},{"Z":1,"position":[-1.4370592418216797,0.0,1.095730457
+7467075],"symbol":"H"}],"basis":"aug-cc-pVDZ","functions":41,"sets":[{"coefficients":[[-1.0009487138
+714996,-0.004257131647413377,0.0070937904300466675,0.004490935834768065,1.2265167283238718e-16,-0.00
+23781987808757735,2.8733007536670284e-15,-1.132672696674327e-16,0.0026295606244403176,-2.20806479535
+7462e-14,-7.369339357122407e-17,0.0006699121668992929,-1.6565752601011184e-14,1.4735648748679608e-16
+,2.1543988416139479e-16,-1.7726747554434505e-06,-5.956208967846576e-16,-9.690438342576654e-05,-1.746
+3580015795027e-16,-1.4003310750771288e-16,-1.2998102041496956e-05,-4.076905522135951e-15,0.000275518
+2511931315,-0.0005865792115948409,-0.0032815138197574527,-0.00031787111148175694,2.4982975432753617e
+-16,-0.0002809155967030128,-0.0003431086520809751,3.025263361838088e-16,0.00101354032014218,0.001182
+180774659142,-0.0005865792116123304,-0.0032815138198521113,-0.00031787111149898274,2.382518933151373
+2e-17,-0.00028091559669958586,0.000343108652078118,-1.700307377914974e-16,0.0010135403201614983,-0.0
+01182180774693749],[-0.005757184089164782,0.8822645050146555,-0.12558401728089508,0.0586778761358955
+2,1.9660961767903642e-16,0.11293237400211473,-5.798032047432017e-14,-4.762008693384816e-16,-0.069349
+02045016465,2.16499767158649e-13,-5.097498497829661e-16,0.011443945933365889,1.734192267274387e-13,-
+9.018101854995104e-17,4.8480208021174664e-17,0.0027806295441826583,4.285033903375881e-16,0.006699610
+495315186,5.269697428339182e-17,-1.9829295198652265e-16,-0.005785573268103947,3.8113058658164563e-14
+,-0.019165694084087477,0.3459081699469897,-0.19948606675850733,-0.002026472504245036,-5.222502837934
+2224e-17,-0.022349853570833165,-0.036713477617518725,-5.893850415338284e-17,0.008002228567825941,0.0
+05057398219553616,0.34590816994720736,-0.1994860667574663,-0.002026472504052773,1.7200069110959847e-
+16,-0.022349853570857125,0.03671347761754712,4.1836603015566366e-16,0.008002228567638258,-0.00505739
+82191323],[-1.0456530893963864e-14,-9.33630893747191e-14,1.0476687225373652e-13,4.589204379753833e-1
+3,7.49022214870713e-16,-3.939762539830637e-15,-0.7270631720251994,6.748459797145833e-18,5.6002263379
+12389e-14,0.1384909561094134,1.208245901268694e-16,1.1085825354524287e-13,-0.01955368406835578,-5.41
+5422772058552e-17,-2.88030006906582e-17,-5.31570617328041e-15,-0.02846031285355377,9.70434695408988e
+-15,3.907124049656124e-17,-2.114582489547624e-16,1.1308387289348849e-14,0.030451874789652007,4.53951
+3710807343e-16,-0.5919054438409866,0.21607769706696853,0.004718836047681299,1.8391157492498182e-16,0
+.03467941319386152,0.025908941285949724,-1.246517347307912e-16,0.0010382053526338528,0.0038025669457
+666866,0.5919054438410517,-0.21607769706752503,-0.004718836047771723,-3.278883592316398e-17,-0.03467
+941319384066,0.025908941285938177,2.2216629607580896e-16,-0.0010382053525616229,0.003802566945667087
+5],[-0.0013655112551385512,-0.2983362835463481,-0.14580268364967922,-0.0761894587575332,2.5907520931
+152012e-15,0.7983315116023659,-2.7926819420004814e-14,-3.662684119594389e-16,-0.043322366735014876,-
+2.0167299279971808e-13,-9.14418785024534e-16,0.03898139853683953,-1.9903072943195097e-13,3.945236370
+632736e-17,1.7807809159353325e-18,0.014559553775459054,-5.061592254388377e-15,0.004382636328313621,2
+.3929423563866733e-16,-1.14436855890455e-16,0.016077626973299234,-3.6965477172420974e-14,-0.01127801
+553146138,0.36112080373020494,-0.12210719025712748,0.0035861038274443667,1.4559079845872745e-16,-0.0
+011459000274800304,-0.03082755726762507,8.739121275677232e-17,0.01327325597070144,-0.001983821277422
+7724,0.3611208037300081,-0.12210719025852704,0.00358610382724062,-1.2970913129370038e-18,-0.00114590
+00274276795,0.030827557267605152,1.1595600566600488e-15,0.013273255970909654,0.001983821276835695],[
+5.414417660666103e-16,2.8490062716064415e-15,-6.342499207721046e-15,-1.465139488130824e-14,0.9160533
+19266382,-2.2969316035711285e-15,3.991954158840712e-16,0.028565091602074294,-2.3037681852560038e-15,
+2.3157234248491846e-15,0.06893106919818559,-3.6861788358489e-15,5.551896032387598e-15,-3.60966185053
+4219e-15,0.013807538186862707,-1.0813282854137087e-17,2.6903094741866004e-16,-1.4358492111420231e-16
+,-1.778449662911928e-15,0.01932106787217966,-2.669888296235562e-16,-1.4542695475417426e-16,-7.798053
+799975747e-16,2.102511843833887e-15,-5.308460976074998e-15,-2.2914968173082003e-15,0.025935845669009
+75,8.646831036671104e-17,-2.6556566791703697e-16,0.015956892008058582,3.8701421761930045e-16,2.54929
+29587091545e-15,4.786677003324827e-16,1.985324125273543e-14,5.774316624631712e-15,0.0259358456690118
+6,-5.410212710779761e-16,7.405470625727422e-16,0.01595689200806541,-2.6194459018614135e-15,5.8310224
+528552365e-15],[0.0038306123701980126,-0.10469674799316256,-0.15953508944862632,-1.550901466529696,-
+8.709409878537002e-16,-0.0881694701647465,1.6457203713408214e-14,-1.1602155738650587e-16,-0.09228615
+749521696,-2.818118055084091e-13,1.4330736338063864e-15,-0.2151219947756972,-1.2795718960897526e-13,
+-2.7231378768284685e-16,1.2066970187864116e-16,-0.002579648280574558,-3.561138171476231e-15,-7.66105
+5884778008e-05,-7.860973336852492e-17,-4.987069571310818e-18,0.0014982725728441854,-6.66707181914925
+2e-14,-0.010431151942349679,0.033266517474980536,0.45821854903621306,0.8348967319439279,8.1239737457
+20706e-17,0.002300980040308388,0.004619332731221056,-7.271774373757062e-17,-0.07712753231867758,-0.0
+8242249090106768,0.0332665174747648,0.4582185490342128,0.8348967319454436,-1.405009715589203e-16,0.0
+023009800403615017,-0.004619332731259553,-1.9095640362641664e-17,-0.07712753231844226,0.082422490900
+24945],[-2.5524433108534353e-14,-1.5287811657946098e-13,2.141379810648562e-13,6.954926826301683e-14,
+-1.2411447937409802e-15,-6.072963018355367e-14,-0.09746938222500778,5.809030745806221e-16,7.84819588
+8370138e-15,-0.09328024180949204,1.0175746793015227e-15,-1.4163266542791932e-13,-0.8251298601091368,
+1.4095174826691197e-16,1.7125821212214097e-17,1.5550743762632101e-15,-0.0010304398031522966,2.527251
+475891509e-15,1.8824472183583677e-16,1.405239562857651e-17,-1.2940665692779415e-14,-0.01889613805933
+8152,1.3226937174797278e-14,-0.0011609107510885993,0.5429387134147735,2.951189872243109,-1.329260263
+0943138e-17,0.004202827495895634,0.0006740800194698576,-7.832846859108985e-16,-0.12819200553784696,-
+0.10180664513523689,0.001160910751055215,-0.5429387134149336,-2.9511898722427437,-1.8705027463251116
+e-17,-0.004202827495877421,0.0006740800194449072,4.539083334043802e-16,0.12819200553792354,-0.101806
+64513534173],[0.030080963582036064,0.16277443220367135,-0.4558520171920902,-4.102363177859341,2.9557
+32991116568e-15,0.2607615487496375,3.849353002472708e-14,1.886424980084856e-15,-0.11164358391092041,
+-1.300428737427838e-12,-1.045020484490527e-14,-1.9165272445450627,-3.185249635264747e-12,5.171733392
+686103e-17,1.4247783434263616e-16,0.011371115016094257,-1.1214514071859331e-14,0.003066275017699268,
+-3.457007369135822e-16,-1.6719539609879876e-16,-0.03910930279931435,-2.955689866959402e-13,-0.048847
+78633260457,0.021084990548255217,1.757428307758264,0.6270809292098509,-4.50696439996989e-16,-0.02379
+6202776975584,-0.03369550399549649,2.07602673290422e-15,-0.1583567979132081,-0.3323121220438357,0.02
+108499054747818,1.7574283077468447,0.6270809292049434,-3.6934955584474564e-16,-0.02379620277677879,0
+.033695503995330466,-1.1016537754966293e-15,-0.15835679791141674,0.33231212204024196],[-5.1909751027
+71868e-17,1.900254918537976e-15,3.0961116716241268e-15,7.572614444098575e-15,0.2546492623987957,-1.6
+605379361775454e-15,-3.4174170770082947e-15,0.13155864641418968,-6.683705927174092e-17,7.82474162396
+4007e-15,-1.4390922673075521,2.3789849103579722e-14,4.2318876998878906e-14,-4.112651123750695e-15,0.
+01705167267991261,-2.558617178514379e-16,2.6589123883014563e-17,-3.27746164506638e-17,1.564616062418
+293e-14,-0.05790041303822733,1.1093935244700346e-15,1.200837652947252e-15,8.177050298334874e-17,-3.4
+096393720537604e-15,-5.3635755167901824e-14,-2.8088709200003757e-14,-0.009362506231390025,4.74696969
+135636e-16,9.58242156577063e-16,0.2801007862678927,5.3843219589884195e-15,9.711525309531521e-15,7.93
+0192859561213e-16,3.0359804889783674e-14,3.280497113134591e-14,-0.00936250623138963,-2.6408728293030
+71e-16,4.943834673921572e-16,0.2801007862679603,-1.4428884628099544e-14,1.0587668334855645e-14],[-0.
+022545283141377406,-0.35969422720714683,0.19273694760195115,2.781669876661253,2.1043910610054463e-15
+,-0.07921382027083926,-2.2190030917144185e-13,5.780538426993931e-16,0.20406463578168052,8.5324097498
+83925e-13,-1.7694856649181812e-14,-0.5177954548261929,3.9986681862587506e-12,-1.6567608968992936e-17
+,3.0754151649220287e-16,0.00749838941157949,-5.604503501959347e-15,0.0035974283098629705,5.289995053
+351672e-16,-7.41962598696715e-16,-0.04207149168340048,2.45062974846768e-13,0.030847506258096624,0.07
+547931757233226,-0.45293588215448166,-0.6709391118587548,-2.1556876850988471e-16,0.01093543592946115
+,0.019229427469786464,3.4663249986442066e-15,0.4767005480197428,0.4243413777819793,0.075479317572871
+03,-0.4529358821451294,-0.670939111852335,7.307079531356819e-17,0.010935435929324193,-0.019229427469
+647595,6.9955713964762545e-15,0.47670054801821027,-0.42434137777937864],[2.321753506254092e-14,-3.61
+0873162125404e-13,-6.982629580063844e-13,8.181786752639501e-13,4.010287563003873e-15,-3.942104873798
+0877e-13,0.24668936296916685,3.80344603089377e-15,-3.8169016511820067e-13,-0.36924136971653176,-1.86
+8216175816863e-14,-7.785190818145788e-13,-3.0955757405586457,-1.484578567739308e-16,1.17430178519120
+88e-16,-4.423872271579879e-15,0.008874650293990571,-3.939690717380266e-15,1.2394387152269878e-16,-3.
+1917029163667527e-16,-6.51073509661457e-14,-0.09962855306213844,-1.8868548676851333e-14,0.1324774104
+437555,2.5751782374580037,2.6838418883059894,-8.11309656141077e-17,-0.02226891782622667,-0.038723567
+62606915,5.7999930265006825e-16,-0.5590746690531888,-0.5904197640042012,-0.13247741044325897,-2.5751
+782374555763,-2.6838418883077684,1.399475473192574e-16,0.022268917826166138,-0.03872356762597906,1.7
+111685486028313e-15,0.5590746690535516,-0.5904197640050355],[8.371497929747273e-14,1.462587138225834
+6e-13,-1.3206939852478091e-12,-7.0299772164396624e-12,7.438849113859841e-16,-4.110085456131692e-13,-
+0.3269026772045432,-8.489316377640517e-16,-6.926492656594219e-13,-0.12055739525890721,4.909077282052
+54e-16,-1.321398128173364e-12,-0.9066409650984278,9.406796979279145e-17,8.275555814430127e-18,-2.286
+7058978366797e-14,0.016033115348247237,1.1661646002070715e-14,-4.225216575351899e-16,-3.371163993719
+689e-16,3.9168991081150175e-14,-0.06997220389973483,-1.3326971035372592e-13,0.2200208194043534,0.864
+6551584004696,-0.30112399910757165,2.560028687159895e-16,0.00036692011618063273,-0.01355662019122957
+6,4.743336214559283e-16,0.4748556321837107,0.43046246748904804,-0.22002081940364226,-0.8646551583921
+994,0.301123999108011,4.903830064271444e-16,-0.00036692011631248093,-0.013556620191088093,-5.4374915
+91675069e-16,-0.47485563218461796,0.4304624674890892],[0.012882253874169698,0.016122645487760608,-0.
+23374044672895294,-4.3562957272626495,9.831642702834507e-16,-0.1321545062417794,2.0027719513007106e-
+13,2.023391878282749e-15,-0.17869333593024195,-7.706068033186444e-13,6.773960955946138e-15,-0.596434
+409244985,1.4881529082706208e-12,4.3627057376887876e-16,-1.3765774469523692e-16,-0.02476353100646614
+,-3.2544503413696786e-14,0.024943351344563915,-1.982931602104606e-15,3.2021258115322936e-16,0.085508
+78481037641,-1.4469014491100824e-13,-0.10394040961357046,0.19136312649842568,2.2555720944277526,0.25
+657099651018556,3.711978706898213e-17,-0.029297045058070924,-0.009790186187713122,7.977832088121314e
+-15,-0.4693796771943237,0.36802217276952476,0.19136312649842793,2.255572094423637,0.2565709965108619
+6,-3.3939879734744655e-16,-0.029297045057936802,0.009790186187668252,-1.8668191810612008e-14,-0.4693
+7967719240586,-0.3680221727735319],[-5.817208234329089e-16,-9.049723249097448e-16,1.2887072896621379
+e-14,1.3541572560046436e-13,2.0156455795909977e-14,1.0836151792189923e-14,-1.3877858634266804e-15,1.
+4649965869333435e-13,2.804716721615494e-14,-6.082590103853856e-15,3.1447385874418494e-13,6.655889561
+223381e-14,-1.0970164512484513e-15,-0.039157579955993976,-1.2585352314780363e-14,-1.0314998237121169
+e-15,-1.9213553140624422e-16,9.306522761721787e-16,0.12903002298494384,4.4466057210267916e-14,5.2492
+63387849963e-15,-1.043858071511998e-15,-1.74014496046836e-15,-2.9791755783506922e-15,-4.653283390286
+457e-14,-1.2253588273504903e-14,-0.0021058493271911816,-2.408121425744435e-16,2.0724897445431674e-15
+,-1.1362741297296441,-3.35957613868312e-14,9.420464054469876e-15,-4.04904953214643e-15,-1.0835574139
+78588e-13,-2.4895237186722055e-16,0.0021058493271826927,4.303765925891642e-16,-2.4171152115406787e-1
+5,1.1362741297290093,-2.6519174928437603e-14,-3.8436620425825515e-14],[-0.0008100105926942006,-0.030
+42002801239224,0.00011256375823698387,4.39545090792789,-2.8206648738103763e-15,0.2744127602952663,-2
+.5588884459677003e-14,-6.566015512396204e-15,0.646090492711742,1.1114095750100913e-12,-1.15718141830
+06936e-14,1.8226223464086884,-5.100738699426292e-13,1.561313987901134e-15,4.88266084440051e-16,-0.01
+977895030845076,3.252571122199496e-14,0.009987628077419892,-5.020185704055643e-15,-8.41466799211625e
+-16,0.10378729256633437,1.8785228295782131e-13,-0.0202152437772556,-0.10424241444799821,-2.286307623
+157054,-0.2863395005167178,3.3925164439280123e-16,0.004664491705390378,0.0482690212119867,6.09100252
+9840469e-14,-0.6927884607930272,0.35116811823466054,-0.1042424144476434,-2.2863076231479984,-0.28633
+95005169671,4.1427041600093906e-16,0.004664491705194287,-0.04826902121190415,-3.4827474164750074e-14
+,-0.6927884607945776,-0.35116811822908817]],"kind":"canonical","orbitals":[{"energy":-20.57854454537
+5145,"label":"HOMO-4","number":1,"occupation":2.0},{"energy":-1.3534383842749111,"label":"HOMO-3","n
+umber":2,"occupation":2.0},{"energy":-0.7149582696035087,"label":"HOMO-2","number":3,"occupation":2.
+0},{"energy":-0.5850382441354838,"label":"HOMO-1","number":4,"occupation":2.0},{"energy":-0.50898930
+74533284,"label":"HOMO","number":5,"occupation":2.0},{"energy":0.035292975671694,"label":"LUMO","num
+ber":6,"occupation":0.0},{"energy":0.05792383604319975,"label":"LUMO+1","number":7,"occupation":0.0}
+,{"energy":0.174092549568105,"label":"LUMO+2","number":8,"occupation":0.0},{"energy":0.1970451812392
+7914,"label":"LUMO+3","number":9,"occupation":0.0},{"energy":0.2222013691024726,"label":"LUMO+4","nu
+mber":10,"occupation":0.0},{"energy":0.2317529156248002,"label":"LUMO+5","number":11,"occupation":0.
+0},{"energy":0.2886921479407247,"label":"LUMO+6","number":12,"occupation":0.0},{"energy":0.331082967
+68941425,"label":"LUMO+7","number":13,"occupation":0.0},{"energy":0.3855012835444285,"label":"LUMO+8
+","number":14,"occupation":0.0},{"energy":0.40244203613030893,"label":"LUMO+9","number":15,"occupati
+on":0.0}],"title":"RHF canonical orbitals"}],"shells":[{"atom":0,"center":[5.251275978816056e-14,0.0
+,-0.02365616153861068],"coefficients":[0.5699861497933141,1.058880501673631,1.777167896645388,2.6007
+096939590184,3.028357204192798,2.2235039055086396,0.6481188547796518,0.011124247231272933,-0.0007511
+028383196537],"exponents":[11720.0,1759.0,400.8,113.7,37.03,13.27,5.025,1.013,0.3023],"first":0,"l":
+0},{"atom":0,"center":[5.251275978816056e-14,0.0,-0.02365616153861068],"coefficients":[-0.1284475501
+2231768,-0.244490992825873,-0.40009729327831506,-0.6381663487030188,-0.7587848290723769,-0.819648622
+4662376,-0.27975700946278415,0.4011060836621272,0.1664219730305194],"exponents":[11720.0,1759.0,400.
+8,113.7,37.03,13.27,5.025,1.013,0.3023],"first":1,"l":0},{"atom":0,"center":[5.251275978816056e-14,0
+.0,-0.02365616153861068],"coefficients":[0.2905619240088511],"exponents":[0.3023],"first":2,"l":0},{
+"atom":0,"center":[5.251275978816056e-14,0.0,-0.02365616153861068],"coefficients":[0.106161109069760
+56],"exponents":[0.07896],"first":3,"l":0},{"atom":0,"center":[5.251275978816056e-14,0.0,-0.02365616
+153861068],"coefficients":[2.226162227432104,1.7619764776359819,0.7670792917006999,0.130905123592548
+36],"exponents":[17.7,3.854,1.046,0.2753],"first":4,"l":1},{"atom":0,"center":[5.251275978816056e-14
+,0.0,-0.02365616153861068],"coefficients":[0.2842482843865529],"exponents":[0.2753],"first":7,"l":1}
+,{"atom":0,"center":[5.251275978816056e-14,0.0,-0.02365616153861068],"coefficients":[0.0500067464191
+5475],"exponents":[0.06856],"first":10,"l":1},{"atom":0,"center":[5.251275978816056e-14,0.0,-0.02365
+616153861068],"coefficients":[2.2152184980418004],"exponents":[1.185],"first":13,"l":2},{"atom":0,"c
+enter":[5.251275978816056e-14,0.0,-0.02365616153861068],"coefficients":[0.23900176197531706],"expone
+nts":[0.332],"first":18,"l":2},{"atom":1,"center":[1.4370592418216266,0.0,1.0957304577472113],"coeff
+icients":[0.09610661098332268,0.16301997479104427,0.18554502268336198,0.07374379198350509],"exponent
+s":[13.01,1.962,0.4446,0.122],"first":23,"l":0},{"atom":1,"center":[1.4370592418216266,0.0,1.0957304
+577472113],"coefficients":[0.14712279442857357],"exponents":[0.122],"first":24,"l":0},{"atom":1,"cen
+ter":[1.4370592418216266,0.0,1.0957304577472113],"coefficients":[0.05104060521120047],"exponents":[0
+.02974],"first":25,"l":0},{"atom":1,"center":[1.4370592418216266,0.0,1.0957304577472113],"coefficien
+ts":[0.9568813750595656],"exponents":[0.727],"first":26,"l":1},{"atom":1,"center":[1.437059241821626
+6,0.0,1.0957304577472113],"coefficients":[0.12315838313703437],"exponents":[0.141],"first":29,"l":1}
+,{"atom":2,"center":[-1.4370592418216797,0.0,1.0957304577467075],"coefficients":[0.09610661098332268
+,0.16301997479104427,0.18554502268336198,0.07374379198350509],"exponents":[13.01,1.962,0.4446,0.122]
+,"first":32,"l":0},{"atom":2,"center":[-1.4370592418216797,0.0,1.0957304577467075],"coefficients":[0
+.14712279442857357],"exponents":[0.122],"first":33,"l":0},{"atom":2,"center":[-1.4370592418216797,0.
+0,1.0957304577467075],"coefficients":[0.05104060521120047],"exponents":[0.02974],"first":34,"l":0},{
+"atom":2,"center":[-1.4370592418216797,0.0,1.0957304577467075],"coefficients":[0.9568813750595656],"
+exponents":[0.727],"first":35,"l":1},{"atom":2,"center":[-1.4370592418216797,0.0,1.0957304577467075]
+,"coefficients":[0.12315838313703437],"exponents":[0.141],"first":38,"l":1}]},"refusal":null,"report
+":"\u03a8Lab \u2013 restricted Hartree-Fock and CCSD\n==============================================
+================================\nMolecule        H2O, 10 electrons, closed shell (charge 0, singlet
+)\nGeometry        R(O-H) = 0.963940 \u00c5 (1.821583 bohr), angle H-O-H = 104.1669 deg\nCartesian c
+oordinates (bohr)\n    O       0.0000000000      0.0000000000     -0.0236561615\n    H       1.43705
+92418      0.0000000000      1.0957304577\n    H      -1.4370592418      0.0000000000      1.0957304
+577\nNuclear repulsion energy          9.1315004056 E_h\n\nBasis set       aug-cc-pVDZ (spherical ha
+rmonics; basissetexchange.org, Gaussian94 format)\n    O   aug-cc-pVDZ   (10s5p2d)        -> [4s3p2d
+]           23 functions\n    H   aug-cc-pVDZ   (5s2p)           -> [3s2p]              9 functions\
+n    41 basis functions, 19 shells, highest angular momentum d (l = 2)\n    two-electron integrals: 
+0 unique, integral-direct (storing them would need 0.0 GB)\n    overlap matrix: smallest eigenvalue 
+2.972e-03; no functions removed\n\nSCF             core-Hamiltonian guess, DIIS (up to 8 Fock matric
+es)\n    converged when |dE| < 1.0e-10 E_h and max |X'(FPS - SPF)X| < 1.0e-07\n    iter        total
+ energy (E_h)        dE (E_h)      gradient\n       1          -76.040948490821       0.000e+00     
+2.454e-05\n       2          -76.040948492555      -1.734e-09     4.732e-06  DIIS\n       3         
+ -76.040948492636      -8.167e-11     8.742e-07  DIIS\n       4          -76.040948492639      -2.85
+6e-12     5.707e-07  DIIS\n       5          -76.040948492639      -1.421e-13     5.852e-08  DIIS\n 
+      6          -76.040948492640      -2.700e-13     1.613e-08  DIIS\n       7          -76.0409484
+92640      -1.563e-13     4.674e-09  DIIS\n       8          -76.040948492640       8.527e-14     8.
+402e-10\n    SCF converged in 8 iterations\n    time: integrals 0.02 s, SCF 0.01 s, 4 threads\n\nEne
+rgies (E_h)\n    total energy (RHF)              -76.0409484926\n    electronic energy              
+ -85.1724488982\n    nuclear repulsion                 9.1315004056\n    kinetic energy             
+      75.9014320565\n    nuclear attraction             -198.7643923512\n    electron repulsion     
+          37.6905113965\n    virial ratio -V/T                 2.0018381265\n\nOrbital energies (E_h
+), 5 occupied (*)\n     1*    -20.57854455     2*     -1.35343838     3*     -0.71495827     4*     
+-0.58503824\n     5*     -0.50898931     6       0.03529298     7       0.05792384     8       0.174
+09255\n     9       0.19704518    10       0.22220137    11       0.23175292    12       0.28869215\
+n    13       0.33108297    14       0.38550128    15       0.40244204    16       0.43229742\n    1
+7       0.53855943    18       0.64681103    19       0.65796365    20       0.80784173\n    21     
+  0.92881020    22       1.10201542    23       1.11610154    24       1.14826567\n    25       1.30
+371851    26       1.46455060    27       1.48072854    28       1.58201379\n    29       1.99931748
+    30       2.00677904    31       2.10582314    32       2.36145339\n    33       2.47024991    34
+       2.61421841    35       2.71185159    36       2.96785429\n    37       3.67288572    38      
+ 3.68926782    39       3.70139722    40       4.01659514\n    41       4.29551659\n    HOMO -0.5089
+8931 E_h, LUMO 0.03529298 E_h, gap 0.54428228 E_h\n\nCoupled cluster CCSD, all electrons correlated\
+n    5 occupied and 36 virtual orbitals (10 electrons); closed-shell, spin-adapted implementation\n 
+   amplitudes: T1 180, T2 32,400 (spatial)\n    (vv|vv) ladder: AO integrals in memory\n    integral
+ transformation: 0.00 s; Jacobi updates with DIIS, converged when\n    max |t_new - t| < 1.0e-09 and
+ |dE| < 1.0e-10 E_h\n    iter        total energy (E_h)     correlation (E_h)        dE (E_h)   max 
+|dt|\n       1          -76.040948492640        0.000000000000       0.000e+00   3.30e-02\n       2 
+         -76.263379876989       -0.222431384349      -2.224e-01   1.72e-02\n       3          -76.26
+5185005242       -0.224236512603      -1.805e-03   2.98e-03\n       4          -76.269867502381     
+  -0.228919009742      -4.682e-03   2.22e-03\n       5          -76.270907864545       -0.2299593719
+05      -1.040e-03   3.83e-04\n       6          -76.270862110496       -0.229913617856       4.575e
+-05   1.37e-04\n       7          -76.270855596786       -0.229907104146       6.514e-06   5.28e-05\
+n       8          -76.270860451182       -0.229911958542      -4.854e-06   1.12e-05\n       9      
+    -76.270859632979       -0.229911140340       8.182e-07   3.35e-06\n      10          -76.2708591
+96413       -0.229910703773       4.366e-07   1.28e-06\n      11          -76.270859269784       -0.
+229910777144      -7.337e-08   5.21e-07\n      12          -76.270859165291       -0.229910672651   
+    1.045e-07   1.43e-07\n      13          -76.270859170032       -0.229910677392      -4.741e-09  
+ 7.15e-08\n      14          -76.270859170018       -0.229910677378       1.404e-11   1.83e-08\n    
+  15          -76.270859173111       -0.229910680472      -3.094e-09   4.83e-09\n      16          -
+76.270859173956       -0.229910681317      -8.448e-10   6.90e-10\n      17          -76.270859174171
+       -0.229910681531      -2.146e-10   3.30e-10\n      18          -76.270859174161       -0.22991
+0681522       9.482e-12   8.81e-11\n    converged in 18 iterations (0.29 s)\n\nCCSD energies (E_h)\n
+    RHF energy                      -76.0409484926\n    CCSD correlation energy          -0.22991068
+15\n    CCSD energy                     -76.2708591742\n    T1 diagnostic                         0.
+011048\n    amplitude norms: |T1| = 0.034937, |T2| = 0.230527\n\nLargest amplitudes (occupied -> vir
+tual MOs, spin a = alpha, b = beta)\n    T2   -0.03475021   5 5          -> 27 27        ab\n    T2 
+  -0.02573274   3 3          -> 20 20        ab\n    T1   -0.02164553   5            -> 9           
+ a\n    T2   -0.02081041   4 4          -> 20 20        ab\n    T2   -0.02049285   4 4          -> 2
+8 28        ab\n    T2   -0.02009451   3 3          -> 12 12        ab\n    T2   +0.01898069   3 3  
+        -> 20 12        ab\n    T2   -0.01851730   5 5          -> 27 9         ab\n    T2   -0.0182
+4294   5 5          -> 9 9          ab\n    T2   -0.01765148   4 4          -> 15 15        ab\n    
+T2   +0.01698981   5 4          -> 27 28        ab\n    T2   -0.01690927   4 4          -> 23 23    
+    ab\n","rhf":{"converged":true,"electronRepulsionEnergy":37.690511396506544,"electronicEnergy":-8
+5.17244889819113,"homo":-0.5089893074533284,"integralSeconds":0.020458369,"integralsStored":true,"it
+erations":8,"kineticEnergy":75.90143205654935,"lumo":0.035292975671694,"nuclearAttractionEnergy":-19
+8.7643923512477,"nuclearRepulsion":9.13150040555151,"occupiedOrbitals":5,"orbitalEnergies":[-20.5785
+44545375145,-1.3534383842749111,-0.7149582696035087,-0.5850382441354838,-0.5089893074533284,0.035292
+975671694,0.05792383604319975,0.174092549568105,0.19704518123927914,0.2222013691024726,0.23175291562
+48002,0.2886921479407247,0.33108296768941425,0.3855012835444285,0.40244203613030893,0.43229742258719
+89,0.5385594332581892,0.6468110323807893,0.657963650658773,0.8078417286267926,0.928810200659254,1.10
+20154175486456,1.1161015433596078,1.1482656693352953,1.303718507443672,1.4645506039026757,1.48072854
+32092492,1.5820137885127254,1.9993174834990581,2.0067790421952645,2.1058231363387496,2.3614533945103
+34,2.4702499094100436,2.6142184135380657,2.711851588501669,2.967854287592945,3.672885723580085,3.689
+267818306509,3.7013972232338377,4.016595144010779,4.295516592963574],"removedFunctions":0,"scfHistor
+y":[{"deltaE":0.0,"diis":false,"gradient":2.4543022929854405e-05,"iteration":1,"totalEnergy":-76.040
+94849082081},{"deltaE":-1.7338095403829357e-09,"diis":true,"gradient":4.732440819269503e-06,"iterati
+on":2,"totalEnergy":-76.04094849255462},{"deltaE":-8.166978204826592e-11,"diis":true,"gradient":8.74
+1733362541621e-07,"iteration":3,"totalEnergy":-76.04094849263629},{"deltaE":-2.8563817977556027e-12,
+"diis":true,"gradient":5.707112662859672e-07,"iteration":4,"totalEnergy":-76.04094849263915},{"delta
+E":-1.4210854715202004e-13,"diis":true,"gradient":5.851737010528311e-08,"iteration":5,"totalEnergy":
+-76.04094849263929},{"deltaE":-2.7000623958883807e-13,"diis":true,"gradient":1.6134321257775337e-08,
+"iteration":6,"totalEnergy":-76.04094849263956},{"deltaE":-1.5631940186722204e-13,"diis":true,"gradi
+ent":4.6740876408326625e-09,"iteration":7,"totalEnergy":-76.04094849263971},{"deltaE":8.526512829121
+202e-14,"diis":false,"gradient":8.401847300209611e-10,"iteration":8,"totalEnergy":-76.04094849263963
+}],"scfSeconds":0.006487539,"smallestOverlapEigenvalue":0.0029722994392493594,"threads":4,"totalEner
+gy":-76.04094849263963,"uniqueIntegrals":371091,"virialRatio":2.001838126532136},"scan":null,"single
+Point":null,"thermochemistry":{"corrections":{"enthalpy":66227.58274506322,"gibbs":9961.033025015444
+,"helmholtz":7482.075995413055,"thermalEnergy":63748.62571546083,"zeroPoint":56304.871501357586},"el
+ectronicEnergy":-76.27085917416142,"excludedModes":0,"linear":false,"mass":18.010564683053,"moments"
+:[2.2430035234635266,4.162598090247178,6.405601613710704],"pressure":101325.0,"rotationalConstantsCm
+":[26.83887297895541,14.46204638363545,9.397975442109008],"rotationalConstantsGHz":[804.609170031082
+5,433.56124330600824,281.7442158013496],"rotationalTemperatures":[38.61514986038617,20.8076579381640
+66,13.521589761456248],"symmetryNumber":2,"temperature":298.15,"terms":{"electronic":{"cv":0.0,"ener
+gy":0.0,"entropy":0.0,"q":1.0},"rotation":{"cv":12.47169392722986,"energy":3718.4355444035823,"entro
+py":43.89193279754602,"q":43.77164025611939},"total":{"cv":25.127279648291,"energy":63748.6257154608
+3,"entropy":188.71893248380943,"q":0.01798467173979815},"translation":{"cv":12.47169392722986,"energ
+y":3718.4355444035823,"entropy":144.80101456391796,"q":3004311.6580720004},"vibration":{"cv":0.18389
+17938312843,"energy":56311.75462665367,"entropy":0.02598512234543306,"q":1.3676176943313215e-10}},"t
+otals":{"enthalpy":-76.24563442008063,"gibbs":-76.26706521705123,"helmholtz":-76.26800940191886,"the
+rmalEnergy":-76.24657860494828,"zeroPoint":-76.24941378119517},"vibrationalTemperatures":[2373.75147
+9139503,5501.897214646632,5668.19029790656],"warnings":[],"zeroPointEnergy":56304.871501357586},"war
+nings":[]}
+@@PSILAB-ARCHIVE-END
+
+========================================================================================
+  Normal termination of ΨLab 13.0 at 2026-11-17 17:22:00; total time 20.9 s.
+========================================================================================

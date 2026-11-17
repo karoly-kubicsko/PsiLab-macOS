@@ -589,7 +589,17 @@ void write_correlated(OutputWriter& w, const SinglePoint& sp) {
     if (sp.fci) w.write(fci_report_section(*sp.fci, sp.rhf.total_energy, 1));
 }
 
-void write_termination(OutputWriter& w, JobResult& r, double seconds) {
+void write_termination(OutputWriter& w, JobResult& r, double seconds, const AppendixWriter& appendix) {
+    // 13.0: the basis set in full, the molecular orbitals and the archive of the results
+    if (appendix && r.termination != "cancelled") {
+        std::string text;
+        try {
+            text = appendix(r);
+        } catch (const std::exception& e) {
+            text = std::string("\n    (the appendix could not be written: ") + e.what() + ")\n";
+        }
+        w.write(text);
+    }
     w.line();
     const std::string rule(88, '=');
     w.line(rule);
@@ -787,7 +797,8 @@ MolecularResult final_point_result(const JobResult& job, const MolecularInput& i
     return r;
 }
 
-JobResult run_energy_job(MolecularResult& p, const JobSettings& s, const OutputSink& sink, const std::string& echo) {
+JobResult run_energy_job(MolecularResult& p, const JobSettings& s, const OutputSink& sink, const std::string& echo,
+                         const AppendixWriter& appendix) {
     const auto t0 = Clock::now();
     JobResult r;
     r.settings = s;
@@ -800,7 +811,7 @@ JobResult run_energy_job(MolecularResult& p, const JobSettings& s, const OutputS
     if (!p.refusal.empty()) {
         r.termination = "refused";
         r.message = p.refusal;
-        write_termination(w, r, seconds_since(t0));
+        write_termination(w, r, seconds_since(t0), appendix);
         r.output = w.text();
         return r;
     }
@@ -833,7 +844,7 @@ JobResult run_energy_job(MolecularResult& p, const JobSettings& s, const OutputS
         if (!sp.converged) r.message = "the calculation did not converge";
     } catch (const Cancelled&) {
         r.termination = "cancelled";
-        write_termination(w, r, seconds_since(t0));
+        write_termination(w, r, seconds_since(t0), appendix);
         r.output = w.text();
         throw;
     } catch (const std::exception& e) {
@@ -841,7 +852,7 @@ JobResult run_energy_job(MolecularResult& p, const JobSettings& s, const OutputS
         r.message = e.what();
     }
     r.seconds = seconds_since(t0);
-    write_termination(w, r, r.seconds);
+    write_termination(w, r, r.seconds, appendix);
     r.output = w.text();
     return r;
 }
@@ -1102,7 +1113,8 @@ static void run_scan(OutputWriter& w, Streams& st, ElectronicCallbacks& cb, cons
     }
 }
 
-JobResult run_job(const MolecularInput& input, const JobSettings& s, const OutputSink& sink, const std::string& echo) {
+JobResult run_job(const MolecularInput& input, const JobSettings& s, const OutputSink& sink, const std::string& echo,
+                  const AppendixWriter& appendix) {
     const auto t0 = Clock::now();
     JobResult r;
     r.settings = s;
@@ -1125,7 +1137,7 @@ JobResult run_job(const MolecularInput& input, const JobSettings& s, const Outpu
     if (!r.estimate.refusal.empty()) {
         r.termination = "refused";
         r.message = r.estimate.refusal;
-        write_termination(w, r, seconds_since(t0));
+        write_termination(w, r, seconds_since(t0), appendix);
         r.output = w.text();
         return r;
     }
@@ -1356,7 +1368,7 @@ JobResult run_job(const MolecularInput& input, const JobSettings& s, const Outpu
     } catch (const Cancelled&) {
         r.termination = "cancelled";
         r.seconds = seconds_since(t0);
-        write_termination(w, r, r.seconds);
+        write_termination(w, r, r.seconds, appendix);
         r.output = w.text();
         throw;
     } catch (const std::exception& e) {
@@ -1370,7 +1382,7 @@ JobResult run_job(const MolecularInput& input, const JobSettings& s, const Outpu
     w.write(final_summary(r, p));
     for (const auto& x : r.warnings) w.line("    Warning: " + x);
     r.seconds = seconds_since(t0);
-    write_termination(w, r, r.seconds);
+    write_termination(w, r, r.seconds, appendix);
     r.output = w.text();
     return r;
 }

@@ -185,17 +185,22 @@ struct JobResult {
 
 using OutputSink = std::function<void(const std::string&)>;
 
+// 13.0: writes the appendix of the output file (the basis set in full, the molecular orbitals and
+// the archive of the complete results) for a finished job; called before the termination banner
+// (not for a cancelled job).
+using AppendixWriter = std::function<std::string(const JobResult&)>;
+
 // Runs a job (not "energy": that path is run_energy_job). `input` gives molecule, starting
 // geometry, method, basis and limits. Never throws for calculation problems: they end the
 // job with termination "error" and the reason in the output; Cancelled is rethrown after the
 // output says so.
 JobResult run_job(const MolecularInput& input, const JobSettings& settings, const OutputSink& sink,
-                  const std::string& input_echo);
+                  const std::string& input_echo, const AppendixWriter& appendix = AppendixWriter());
 
 // The energy job with the 5.0 output file: runs run_molecular (4.0 results unchanged) and
 // writes the output around it.
 JobResult run_energy_job(MolecularResult& prepared, const JobSettings& settings, const OutputSink& sink,
-                         const std::string& input_echo);
+                         const std::string& input_echo, const AppendixWriter& appendix = AppendixWriter());
 
 // The "Size, memory and time (estimates)" section of the output file.
 std::string job_estimate_text(const MolecularResult& prepared, const JobEstimate& estimate);
@@ -204,6 +209,6 @@ std::string job_estimate_text(const MolecularResult& prepared, const JobEstimate
 MolecularResult final_point_result(const JobResult& job, const MolecularInput& input);
 
 // The program version.
-constexpr const char* kProgramVersion = "12.0";
+constexpr const char* kProgramVersion = "13.0";
 
 }  // namespace macqc

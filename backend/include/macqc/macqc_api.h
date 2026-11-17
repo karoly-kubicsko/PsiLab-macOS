@@ -34,6 +34,12 @@
  * "job", "optimization", "frequencies", "thermochemistry", "singlePoint" and "output" (the
  * complete output file); see README.
  *
+ * Output files (ΨLab 13.0): "output" ends, before the termination banner, with the basis set in
+ * full, the molecular orbitals (AO coefficients) and the archive: this result without "output",
+ * plus "archive": {"format": 1, "program", "written"}, as ASCII JSON in lines of 100 characters
+ * between "@@PSILAB-ARCHIVE-BEGIN 1" and "@@PSILAB-ARCHIVE-END" (macqc::archive_from_output_text
+ * in calculation.h joins them); the app opens output files with it.
+ *
  * Molecular orbitals (ΨLab 8.0). The result has "orbitals": the atoms, the basis shells and the
  * orbital sets ("sets": RHF canonical orbitals, all occupied and up to 10 virtual ones; Full CI
  * natural orbitals; for HeH+ in STO-nG the two Szabo-Ostlund orbitals) with their AO

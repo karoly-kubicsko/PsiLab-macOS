@@ -18,8 +18,9 @@ struct MacQCApp: App {
         }
         .defaultSize(width: 1180, height: 760)
         .commands {
-            // File > Export Results as Text… (general path: the output file) / as JSON… /
-            // Potential Curve as Text… (replace the unused "New Window" item)
+            // File > Open Structure File…, Open Output File… (13.0), Save Optimised Geometry as
+            // XYZ… / as Gaussian Input… (13.0), Export Results as Text… (the output file with its
+            // archive) / as JSON… / Potential Curve as Text… (replace the unused "New Window" item)
             CommandGroup(replacing: .newItem) {
                 // 9.0: a custom molecule from a structure file (kept in the molecule menu)
                 Button("Open Structure File…") {
@@ -28,6 +29,15 @@ struct MacQCApp: App {
                 .keyboardShortcut("o", modifiers: [.command])
                 .disabled(model.isRunning || model.isScanning)
 
+                // 13.0: an output file (archive section) or a JSON export, every tab restored
+                Button("Open Output File…") {
+                    model.openOutputFile()
+                }
+                .keyboardShortcut("o", modifiers: [.command, .shift])
+                .disabled(model.isRunning || model.isScanning)
+
+                Divider()
+
                 Button("Save Optimised Geometry in Molecule Menu") {
                     model.saveOptimizedMolecule(select: false)
                 }
@@ -35,6 +45,13 @@ struct MacQCApp: App {
 
                 Button("Save Optimised Geometry as XYZ…") {
                     if let m = model.optimizedMolecule { model.exportXYZ(m) }
+                }
+                .disabled(model.optimizedMolecule == nil)
+
+                Button("Save Optimised Geometry as Gaussian Input…") {
+                    if let m = model.optimizedMolecule {
+                        model.exportGaussianInput(m, method: model.gaussianLevel.method, basis: model.gaussianLevel.basis)
+                    }
                 }
                 .disabled(model.optimizedMolecule == nil)
 
