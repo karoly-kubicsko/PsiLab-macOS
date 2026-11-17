@@ -15,7 +15,8 @@
 # scan settings in the sidebar, the refused TS search of LiH) and ΨLab 8.0 (the orbitals:
 # isosurfaces, a contour plot, Full CI natural orbitals, the Szabo-Ostlund orbitals), ΨLab 9.0 (custom
 # molecules from XYZ and Gaussian input text, the kept optimised geometry, the molecule menu, the
-# file panel, refusals) and ΨLab 10.0 (the analytic CCSD Hessian of H2O, the Hessian setting). The screen of the
+# file panel, refusals), ΨLab 10.0 (the analytic CCSD Hessian of H2O, the Hessian setting) and ΨLab 12.0
+# (the 3D molecule viewer: sticks with atom numbers, spheres on black). The screen of the
 # runner is 1024 pt wide: the screenshots show that the six tabs fit at the minimum window width.
 # Never fails the job: it only gathers evidence (screenshots + text) for review.
 #
@@ -643,6 +644,23 @@ relaunch -appearanceChoice light -psilabMolecule NH3 -psilabBasis aug-cc-pVDZ -p
 dump_tab "62-nh3-scan-sidebar" ""
 relaunch -appearanceChoice light -psilabMolecule LiH -psilabBasis aug-cc-pVDZ -psilabMethod RHF -psilabJob ts
 view_tab "63-lih-ts-refused" "Summary"
+
+# --- ΨLab 12.0: the 3D molecule viewer -------------------------------------------------------------
+# Its display settings are stored defaults (viewer3D.*), so launch arguments set them: sticks with
+# numbered atom labels for the optimisation of H2O2, van der Waals spheres on black for the
+# animated normal modes of NH3 (two captures must differ), the Summary of H2O2 in the default style.
+echo "== 3D viewer: H2O2 RHF optimisation in sticks with atom numbers, NH3 modes as spheres on black"
+relaunch -appearanceChoice light -psilabMolecule H2O2 -psilabBasis aug-cc-pVDZ -psilabMethod RHF -psilabJob opt -psilabAutoRun YES -viewer3D.representation sticks -viewer3D.labels numbered
+sleep 25
+view_tab "80-h2o2-opt-3d-sticks" "Optimisation"
+print_shot "80-h2o2-opt-3d-sticks"
+view_tab "81-h2o2-summary-3d" "Summary"
+print_shot "81-h2o2-summary-3d"
+relaunch -appearanceChoice dark -psilabMolecule NH3 -psilabBasis aug-cc-pVDZ -psilabMethod RHF -psilabJob freq -psilabAutoRun YES -viewer3D.representation spheres -viewer3D.background black
+sleep 25
+view_tab "82-nh3-freq-3d-spheres-dark" "Frequencies"
+frames "82-nh3-spheres-mode"
+print_shot "82-nh3-freq-3d-spheres-dark"
 
 pkill -x "ΨLab" || true
 

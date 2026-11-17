@@ -1,6 +1,6 @@
 # ΨLab — a native macOS quantum-chemistry app
 
-**Current version: 11.0** — see [Versions](#versions).
+**Current version: 12.0** — see [Versions](#versions).
 
 ΨLab computes small molecules with restricted Hartree–Fock, coupled cluster and Full CI:
 
@@ -28,8 +28,10 @@ output file that is written while the job runs.
 It shows energies, orbital energies, SCF, coupled-cluster and Davidson iterations, the largest
 cluster amplitudes, the leading CI determinants and natural-orbital occupations, the **molecular
 orbitals** (canonical RHF orbitals and Full CI natural orbitals as rotatable isosurfaces or as
-contour plots), every optimisation step with a drawing of the molecule (played step by step), the
-relaxed scan with the molecule at every point, every normal mode as an animation, thermochemical
+contour plots), a **3D molecule viewer** in the manner of PyMOL (ball and stick, sticks, spheres
+or lines; rotate and zoom with the mouse, depth cueing, labels, bond lengths, click atoms to measure
+distances, angles and dihedral angles) for the molecule, every optimisation step (played step by
+step), every point of a relaxed scan and every normal mode (animated in 3D), thermochemical
 tables and the output file, and scans potential-energy curves with the minima marked. SwiftUI
 with Liquid Glass on macOS 26; runs on macOS 14 and later, on Apple Silicon and Intel Macs. The
 same calculations run in the terminal on Linux and macOS
@@ -99,7 +101,19 @@ same calculations run in the terminal on Linux and macOS
   iterations) and the elapsed time, and **Cancel** (⌘.) stops it (the output file says so).
 - **Tabs** (six, so that they fit next to the sidebar at the minimum window width of 1000 pt):
   - *Summary*: energies, the job (final energy, optimised parameters, wavenumbers, ZPE, H, G, S),
-    geometry, basis set per atom, convergence, timings;
+    the molecule in the 3D viewer and its coordinates, basis set per atom, convergence, timings;
+  - the **3D molecule viewer** (12.0; Summary, Optimisation, Frequencies, Relaxed scan), rendered
+    with SceneKit in the manner of PyMOL: drag to turn the molecule about its centre (arcball),
+    pinch or ⌥-scroll to zoom (a plain scroll scrolls the page); the display menu (palette button) chooses the representation —
+    *ball and stick*, *sticks* (licorice), *spheres* (van der Waals radii, Bondi/Mantina) or
+    *lines*, bonds split in the middle and coloured by their atoms (CPK) —, atom labels (element,
+    or element and number), bond lengths in Å, depth cueing (the far side fades into the
+    background) and the background (window, black, white); these settings are kept and shared by
+    all viewers. **Click atoms** to pick up to four (pink shells, yellow dashes between them): the
+    viewer gives the position of one, the distance of two (Å), the angle of three and the dihedral
+    angle of four (degrees); a click beside the molecule clears the selection. *Reset view* returns
+    to the starting orientation (the plane of a planar molecule, the heaviest atom on top),
+    *Save image* writes a PNG;
   - *Methods*, with the pages *Hartree–Fock* (energy components and virial ratio, orbital
     energies, SCF iterations; for HeH⁺ also the integrals and the S/H/F/C/P matrices), *Coupled
     cluster* (energies, (T) correction, T1 diagnostic, amplitude counts and norms, largest
@@ -112,9 +126,10 @@ same calculations run in the terminal on Linux and macOS
     rotate, scroll to zoom; isovalue 0.002–0.5 a.u., default 0.05) or as a **contour plot** in the
     molecular plane or a plane of two principal axes (contours at ±c·2ᵏ, the nodal line dotted,
     the nuclei projected);
-  - *Optimisation*: the **molecule of each step**, drawn in its plane (H₂O₂ and NH₃ in a tilted
-    view, the nearer atoms larger) to the same scale for all steps, with the bond lengths in Å and, for H₂O, the H–O–H angle (the starting geometry dashed),
-    next to the step's energy, ΔE, maximum force and geometry; the buttons and the slider go to the
+  - *Optimisation*: the **molecule of each step** in the 3D viewer (12.0; the steps turned onto
+    each other, so that the molecule keeps its place and the atoms glide from step to step), with
+    the bond lengths in Å and the starting geometry as a translucent molecule (*Starting
+    geometry*), next to the step's energy, ΔE, maximum force and geometry; the buttons and the slider go to the
     first, previous, next or last step, **Play steps** shows the steps one after the other (0.7 s
     each, the last held 1.6 s, then from the start); then the start and optimised parameters with
     their change, whether H₂O kept C₂ᵥ, the gradient method, the steps table (energy, ΔE, maximum
@@ -125,10 +140,13 @@ same calculations run in the terminal on Linux and macOS
     negative Hessian eigenvalues of every step, the eigenvalues, the followed mode (eigenvalue,
     gradient component, overlap with the previous one, largest components) and the shifts λp, λn of
     the partitioned RFO step;
-  - *Frequencies*, with the pages *Frequencies* (**every normal mode as an animation**: the atoms
-    vibrate about the equilibrium geometry (dashed) along the mode, at a speed proportional to its
-    wavenumber, with *Play*/*Pause*, the amplitude (at 1 the largest atomic displacement is a
-    quarter of the shortest bond) and arrows to the turning points; the table of modes with
+  - *Frequencies*, with the pages *Frequencies* (**the normal modes animated in the 3D viewer**
+    (12.0): the atoms of the selected mode vibrate about the equilibrium geometry (translucent)
+    along the mode, at a speed proportional to its wavenumber — keyframe animations played by
+    SceneKit, r(t) = r₀ + a sin(2πt/T) d —, with *Play*/*Pause*, the amplitude (at 1 the largest
+    atomic displacement is a quarter of the shortest bond) and arrows towards the turning points;
+    the molecule can be turned and zoomed while it vibrates; a chooser lists all modes (number,
+    symmetry, wavenumber, IR intensity); the table of modes with
     symmetry, wavenumber (imaginary in red), reduced mass, force constant and IR intensity; the IR
     stick spectrum, the selected mode in orange; how the Hessian was computed — analytic, or
     numerical with the displaced coordinates and the number of gradients or energies —, isotopes;
@@ -140,7 +158,7 @@ same calculations run in the terminal on Linux and macOS
     moments of inertia, rotational constants and temperatures, vibrational temperatures);
   - *Scan*, with the pages *Relaxed scan* (7.0: the energy along the scanned coordinate in kcal/mol
     above the lowest point, with the parabolic minima and maxima; the optimised molecule at every
-    point, played point by point; the table of points — target and measured value, energy, steps,
+    point in the 3D viewer (12.0), played point by point; the table of points — target and measured value, energy, steps,
     maximum force; **Start a TS search from this point** copies its geometry into the inputs and
     selects job 8, Gaussian's route from a scan maximum to Opt=TS) and *Potential curve* (single-point
     energies whatever the job; a selectable step in Å — all X–H bonds stretched together at the
@@ -162,6 +180,18 @@ same calculations run in the terminal on Linux and macOS
   `xcode/project.yml`).
 
 ## Versions
+
+### 12.0
+**3D molecule viewer** in the manner of PyMOL (SceneKit), in place of the 2D drawings: the
+molecule of the Summary, every optimisation step, every point of a relaxed scan and the normal
+modes. Ball and stick, sticks, van der Waals spheres or lines, bonds coloured by their two atoms;
+drag to turn (arcball), pinch or ⌥-scroll to zoom; depth cueing, atom labels, bond lengths, black,
+white or window background, *Reset view* and *Save image* (PNG); click atoms to measure distances,
+angles and dihedral angles. Optimisation steps and scan points glide into each other while they
+are played; the starting geometry is a translucent molecule. The normal modes vibrate in 3D
+(keyframe animations played by SceneKit, the molecule can be turned while it vibrates) with
+arrows towards the turning points and a chooser of all modes.
+**Faster analytic Hessians and coupled cluster**: the CCSD residual forms a few large matrix products instead of many small ones (every CCSD and CCSD(T) calculation); the analytic Hessians contract the derivative integrals with all perturbed densities in one pass over the integrals, batch the products of the orbital response, take one difference for the whole CCSD(T) density, and their response iterations need one residual per Jacobian product instead of two. Analytic Hessians including the energy and gradient at the geometry (aug-cc-pVDZ, 4 threads, the same Linux machine with the portable GEMM, identical results), 11.0 → 12.0: H₂O CCSD 14.1 → 12.1 s, CCSD(T) 23.3 → 19.7 s; HOF (C1) CCSD 103 → 78 s, CCSD(T) 212 → 160 s. Whole `psilab` jobs: H₂O CCSD(T)/aug-cc-pVDZ optimisation + frequencies 40.3 → 33.1 s, NH₃ CCSD/aug-cc-pVDZ frequencies 45.2 → 35.1 s, H₂O CCSD(T)/aug-cc-pVTZ energy 8.9 → 8.4 s. The agreement with differences of analytic gradients is unchanged (47 checks, ≤ 1.1e-8 Eₕ/bohr²).
 
 ### 11.0
 **Enthalpy**: the thermochemistry tables (app, output file) give the definition of the enthalpy,
@@ -746,8 +776,9 @@ amplitude and Λ equations, Lagrangian densities, the bilinear form of the (T) e
   the Λ equations the multiplier responses drop out (2n + 2 rule),
   ⟨D^(q), H^(p)⟩ = L_t(H^(p))·t^q + L_t(H^(q))·t^p + t^p L_tt t^q. The Jacobian products are exact:
   the residual is a polynomial of degree 4 in the amplitudes, so the symmetric five-point formula
-  has no truncation error; the iterations use a central difference corrected by exact residuals
-  (defect correction), and the (vv|vv) ladder, linear in τ, is applied once per product. The pair
+  has no truncation error; the iterations use a forward difference against the residual at t
+  (12.0; one residual per product — 11.0: a central difference, two), corrected by exact
+  residuals (defect correction), and the (vv|vv) ladder, linear in τ, is applied once per product. The pair
   terms t^p L_tt t^q are second derivatives of the scalar Lagrangian
   E_corr + 2 l₁·Ω₁ + (2 l₂ − l₂ᵀ)·Ω₂ (with the ladder part Z(λ)·τ).
 - **CCSD(T)**: the (T) functional is homogeneous of degree one in the Hamiltonian but rational

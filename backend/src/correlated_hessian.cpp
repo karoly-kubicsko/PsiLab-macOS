@@ -94,6 +94,37 @@ double contract_full(const Packed4& G, const Integrals& g) {
     return e;
 }
 
+// out[y] += sum_b w_b A_b U[y] B_b' over nb blocks of n x n matrices (12.0: the products of
+// all blocks at once, in chunks of at most ~16 M doubles): A_b[t][u] = fa(b, t, u),
+// B_b[p][v] = fb(b, p, v). With the blocks stacked, As[t][(b,u)] and Bs[(b,p)][v], for each y
+// D[(b,p)][u] = sum_v Bs[(b,p)][v] U[u][v], E[(b,u)][p] = w_b D[(b,p)][u] and out[y] += As E.
+template <class FA, class FB, class FW>
+void add_sandwiches(std::size_t nb, std::size_t n, FA fa, FB fb, FW w, const std::vector<Matrix>& U,
+                    std::vector<Matrix>& out, int nt) {
+    if (nb == 0 || U.empty()) return;
+    const std::size_t chunk = std::max<std::size_t>(1, std::min<std::size_t>(nb, (std::size_t{16} << 20) / (n * n)));
+    std::vector<double> As(n * chunk * n), Bs(chunk * n * n), D(chunk * n * n), E(chunk * n * n);
+    for (std::size_t b0 = 0; b0 < nb; b0 += chunk) {
+        check_cancelled();
+        const std::size_t nbc = std::min(chunk, nb - b0), wcols = nbc * n;
+        for (std::size_t b = 0; b < nbc; ++b)
+            for (std::size_t t = 0; t < n; ++t)
+                for (std::size_t u = 0; u < n; ++u) {
+                    As[t * wcols + b * n + u] = fa(b0 + b, t, u);
+                    Bs[(b * n + t) * n + u] = fb(b0 + b, t, u);
+                }
+        for (std::size_t y = 0; y < U.size(); ++y) {
+            gemm(false, true, nbc * n, n, n, 1.0, Bs.data(), n, U[y].data(), n, 0.0, D.data(), n, nt);
+            for (std::size_t b = 0; b < nbc; ++b) {
+                const double wb = w(b0 + b);
+                for (std::size_t p = 0; p < n; ++p)
+                    for (std::size_t u = 0; u < n; ++u) E[(b * n + u) * n + p] = wb * D[(b * n + p) * n + u];
+            }
+            gemm(false, false, n, n, wcols, 1.0, As.data(), wcols, E.data(), n, 1.0, out[y].data(), n, nt);
+        }
+    }
+}
+
 }  // namespace
 
 std::vector<double> transform_packed(const std::vector<double>& in, std::size_t ns, const Matrix& M, int threads) {
@@ -274,17 +305,29 @@ MOIntegrals perturbed_from(const MOIntegrals& mo, const Matrix& U, const Matrix&
     out.npair = n * (n + 1) / 2;
     out.stride = out.npair;
     // M[(pq)][(rs)] = sum_t (U_tp g_tqrs + U_tq g_ptrs) for every rs; g^(x) = g~ + M + M'
+    // (12.0: B_rs = U' G_rs for a chunk of rs pairs in one product, GG[t][(rs, q)] = (tq|rs))
     std::vector<double> M(out.npair * out.npair, 0.0);
     {
-        Matrix Gm(n, n);
+        const std::size_t np = out.npair;
+        const std::size_t chunk = std::max<std::size_t>(1, std::min<std::size_t>(np, (std::size_t{8} << 20) / (n * n)));
+        std::vector<double> GG(n * chunk * n), BB(n * chunk * n);
+        std::vector<std::size_t> rr(np), ss(np);
         for (std::size_t r_ = 0, rs = 0; r_ < n; ++r_)
             for (std::size_t s = 0; s <= r_; ++s, ++rs) {
-                for (std::size_t t = 0; t < n; ++t)
-                    for (std::size_t q = 0; q <= t; ++q) Gm(t, q) = Gm(q, t) = mo(t, q, r_, s);
-                const Matrix B = mul(U, true, Gm, false, 1);
-                for (std::size_t p = 0, pq = 0; p < n; ++p)
-                    for (std::size_t q = 0; q <= p; ++q, ++pq) M[pq * out.npair + rs] = B(p, q) + B(q, p);
+                rr[rs] = r_;
+                ss[rs] = s;
             }
+        for (std::size_t b0 = 0; b0 < np; b0 += chunk) {
+            const std::size_t nbc = std::min(chunk, np - b0), wcols = nbc * n;
+            for (std::size_t b = 0; b < nbc; ++b)
+                for (std::size_t t = 0; t < n; ++t)
+                    for (std::size_t q = 0; q < n; ++q) GG[t * wcols + b * n + q] = mo(t, q, rr[b0 + b], ss[b0 + b]);
+            gemm(true, false, n, wcols, n, 1.0, U.data(), n, GG.data(), wcols, 0.0, BB.data(), wcols, nt);
+            for (std::size_t b = 0; b < nbc; ++b)
+                for (std::size_t p = 0, pq = 0; p < n; ++p)
+                    for (std::size_t q = 0; q <= p; ++q, ++pq)
+                        M[pq * np + b0 + b] = BB[p * wcols + b * n + q] + BB[q * wcols + b * n + p];
+        }
     }
     out.eri.assign(out.npair * out.npair, 0.0);
     for (std::size_t p = 0, pq = 0; p < n; ++p)
@@ -470,28 +513,23 @@ CorrelatedHessianResult correlated_hessian(const Molecule& mol, const BasisSet& 
     // transformations of the two-electron term) and 2 sum D (U^p' h U^p')
     std::vector<Matrix> My(np, Matrix(n, n));
     {
-        Matrix Gm(n, n), Bm(n, n);
+        // 12.0: all blocks in a few large products (add_sandwiches). First sum over r >= s
+        // (block b = pair index rs), A_b[t][u] = (tu|rs), B_b[p][v] = G_pvrs, weight 4 (8 for r != s);
+        // then over all (q, s), A_b[t][u] = (tq|us), B_b[p][v] = G_pqvs, weight 8.
+        std::vector<std::size_t> rr, ss;
         for (std::size_t r_ = 0; r_ < n; ++r_)
             for (std::size_t s = 0; s <= r_; ++s) {
-                check_cancelled();
-                const double w = (r_ == s ? 1.0 : 2.0) * 4.0;
-                for (std::size_t t = 0; t < n; ++t)
-                    for (std::size_t u = 0; u < n; ++u) {
-                        Gm(t, u) = mo(t, u, r_, s);
-                        Bm(t, u) = G.get(t, u, r_, s);
-                    }
-                for (std::size_t y = 0; y < np; ++y) add(My[y], w, mul(mul(Gm, false, U[y], false, nt), false, Bm, true, nt));
+                rr.push_back(r_);
+                ss.push_back(s);
             }
-        for (std::size_t q = 0; q < n; ++q)
-            for (std::size_t s = 0; s < n; ++s) {
-                check_cancelled();
-                for (std::size_t t = 0; t < n; ++t)
-                    for (std::size_t u = 0; u < n; ++u) {
-                        Gm(t, u) = mo(t, q, u, s);
-                        Bm(t, u) = G.get(t, q, u, s);
-                    }
-                for (std::size_t y = 0; y < np; ++y) add(My[y], 8.0, mul(mul(Gm, false, U[y], false, nt), false, Bm, true, nt));
-            }
+        add_sandwiches(
+            rr.size(), n, [&](std::size_t b, std::size_t t, std::size_t u) { return mo(t, u, rr[b], ss[b]); },
+            [&](std::size_t b, std::size_t p, std::size_t q) { return G.get(p, q, rr[b], ss[b]); },
+            [&](std::size_t b) { return (rr[b] == ss[b] ? 1.0 : 2.0) * 4.0; }, U, My, nt);
+        add_sandwiches(
+            n * n, n, [&](std::size_t b, std::size_t t, std::size_t u) { return mo(t, b / n, u, b % n); },
+            [&](std::size_t b, std::size_t p, std::size_t v) { return G.get(p, b / n, v, b % n); },
+            [&](std::size_t) { return 8.0; }, U, My, nt);
     }
     std::vector<Matrix> hU(np), DUx(np);  // h U^p, U^p D
     for (std::size_t x = 0; x < np; ++x) {
@@ -516,18 +554,22 @@ CorrelatedHessianResult correlated_hessian(const Molecule& mol, const BasisSet& 
     }
     // (v) sum DZ G~^x[P^y] for every x and y (one derivative-integral pass per y), projected
     std::vector<std::vector<double>> VZ(np, std::vector<double>(np, 0.0));
-    for (std::size_t y = 0; y < np; ++y) {
-        report_progress(JobStage::Hessian, 5, 0.0, static_cast<double>(y + 1));
-        TwoParticleDensity gz;
-        SeparableDensity t;
-        t.A = DZ;
-        t.B = Pp[y];
-        t.coulomb = 1.0;
-        t.exchange = -0.5;
-        gz.separable.push_back(t);
-        const std::vector<double> vz = eri_gradient(basis, nat, gz, nt);
-        for (std::size_t x = 0; x < np; ++x)
-            for (std::size_t c = 0; c < n3; ++c) VZ[y][x] += dir[x][c] * vz[c];
+    {
+        // 12.0: one pass over the derivative integrals for all perturbations
+        report_progress(JobStage::Hessian, 5, 0.0, static_cast<double>(np));
+        std::vector<TwoParticleDensity> gzs(np);
+        for (std::size_t y = 0; y < np; ++y) {
+            SeparableDensity t;
+            t.A = DZ;
+            t.B = Pp[y];
+            t.coulomb = 1.0;
+            t.exchange = -0.5;
+            gzs[y].separable.push_back(t);
+        }
+        const std::vector<std::vector<double>> vzs = eri_gradients(basis, nat, gzs, nt);
+        for (std::size_t y = 0; y < np; ++y)
+            for (std::size_t x = 0; x < np; ++x)
+                for (std::size_t c = 0; c < n3; ++c) VZ[y][x] += dir[x][c] * vzs[y][c];
     }
     // (vi) -4 sum_k (U^x' Gz U^y)_kk
     std::vector<Matrix> GU(np);

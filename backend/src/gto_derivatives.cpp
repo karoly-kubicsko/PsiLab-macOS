@@ -728,37 +728,60 @@ double eri_contract(const BasisSet& basis, const TwoParticleDensity& gamma, int 
 }
 
 std::vector<double> eri_gradient(const BasisSet& basis, int n_atoms, const TwoParticleDensity& gamma, int threads) {
+    return eri_gradients(basis, n_atoms, std::vector<TwoParticleDensity>{gamma}, threads)[0];
+}
+
+std::vector<std::vector<double>> eri_gradients(const BasisSet& basis, int n_atoms,
+                                               const std::vector<TwoParticleDensity>& gammas, int threads) {
     const int nt = resolve_threads(threads);
+    const std::size_t ng = gammas.size(), n3 = static_cast<std::size_t>(3 * n_atoms);
+    std::vector<std::vector<double>> out(ng, std::vector<double>(n3, 0.0));
+    if (ng == 0) return out;
     const DerivativePairs dp(basis, 1, nt);
-    std::vector<std::vector<double>> parts(static_cast<std::size_t>(nt), std::vector<double>(3 * n_atoms, 0.0));
+    // parts[t * ng + k]: thread t, density k
+    std::vector<std::vector<double>> parts(static_cast<std::size_t>(nt) * ng, std::vector<double>(n3, 0.0));
     for_unique_quartets(dp, nt, [&](int t, EriEngine& engine, const UniquePair& bra, const UniquePair& ket, bool same) {
-        thread_local std::vector<double> G, acc;
-        gamma_block(basis, gamma, bra.i, bra.j, ket.i, ket.j, G);
+        thread_local std::vector<std::vector<double>> Gs;
+        thread_local std::vector<double> acc, gsum;
+        Gs.resize(ng);
+        for (std::size_t k = 0; k < ng; ++k) gamma_block(basis, gammas[k], bra.i, bra.j, ket.i, ket.j, Gs[k]);
         const Shell& A = basis.shells[static_cast<std::size_t>(bra.i)];
         const Shell& B = basis.shells[static_cast<std::size_t>(bra.j)];
         const Shell& C = basis.shells[static_cast<std::size_t>(ket.i)];
         const Shell& D = basis.shells[static_cast<std::size_t>(ket.j)];
         const int dims[4] = {A.size(), B.size(), C.size(), D.size()};
-        const std::size_t size = 3 * G.size();
-        double gA[3] = {0, 0, 0}, gB[3] = {0, 0, 0}, gC[3] = {0, 0, 0};
+        const std::size_t size = 3 * Gs[0].size();
+        gsum.assign(9 * ng, 0.0);  // [k][centre A, B, C][xyz]
         const std::vector<ShellPair>& k00 = ket.p00;
         const std::vector<ShellPair>& b00 = bra.p00;
-        sum_components(engine, bra.p10, k00, acc, size, [&](const double* I) { contract1(I, G, dims, 0, 3, gA); });
-        sum_components(engine, bra.p01, k00, acc, size, [&](const double* I) { contract1(I, G, dims, 1, 3, gB); });
-        sum_components(engine, b00, ket.p10, acc, size, [&](const double* I) { contract1(I, G, dims, 2, 3, gC); });
+        // the derivative integrals once, contracted with every density
+        sum_components(engine, bra.p10, k00, acc, size, [&](const double* I) {
+            for (std::size_t k = 0; k < ng; ++k) contract1(I, Gs[k], dims, 0, 3, gsum.data() + 9 * k);
+        });
+        sum_components(engine, bra.p01, k00, acc, size, [&](const double* I) {
+            for (std::size_t k = 0; k < ng; ++k) contract1(I, Gs[k], dims, 1, 3, gsum.data() + 9 * k + 3);
+        });
+        sum_components(engine, b00, ket.p10, acc, size, [&](const double* I) {
+            for (std::size_t k = 0; k < ng; ++k) contract1(I, Gs[k], dims, 2, 3, gsum.data() + 9 * k + 6);
+        });
         const double deg = (bra.i == bra.j ? 1.0 : 2.0) * (ket.i == ket.j ? 1.0 : 2.0) * (same ? 1.0 : 2.0);
-        auto& g = parts[static_cast<std::size_t>(t)];
-        for (int k = 0; k < 3; ++k) {
-            g[static_cast<std::size_t>(3 * A.atom + k)] += deg * gA[k];
-            g[static_cast<std::size_t>(3 * B.atom + k)] += deg * gB[k];
-            g[static_cast<std::size_t>(3 * C.atom + k)] += deg * gC[k];
-            g[static_cast<std::size_t>(3 * D.atom + k)] -= deg * (gA[k] + gB[k] + gC[k]);
+        for (std::size_t kk = 0; kk < ng; ++kk) {
+            const double* gA = gsum.data() + 9 * kk;
+            const double* gB = gA + 3;
+            const double* gC = gA + 6;
+            auto& g = parts[static_cast<std::size_t>(t) * ng + kk];
+            for (int k = 0; k < 3; ++k) {
+                g[static_cast<std::size_t>(3 * A.atom + k)] += deg * gA[k];
+                g[static_cast<std::size_t>(3 * B.atom + k)] += deg * gB[k];
+                g[static_cast<std::size_t>(3 * C.atom + k)] += deg * gC[k];
+                g[static_cast<std::size_t>(3 * D.atom + k)] -= deg * (gA[k] + gB[k] + gC[k]);
+            }
         }
     });
-    std::vector<double> g(3 * n_atoms, 0.0);
-    for (const auto& p : parts)
-        for (std::size_t x = 0; x < g.size(); ++x) g[x] += p[x];
-    return g;
+    for (int t = 0; t < nt; ++t)
+        for (std::size_t k = 0; k < ng; ++k)
+            for (std::size_t x = 0; x < n3; ++x) out[k][x] += parts[static_cast<std::size_t>(t) * ng + k][x];
+    return out;
 }
 
 Matrix eri_hessian(const BasisSet& basis, int n_atoms, const TwoParticleDensity& gamma, int threads) {

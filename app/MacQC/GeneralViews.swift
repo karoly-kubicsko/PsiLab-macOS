@@ -52,6 +52,9 @@ struct GeneralSummaryView: View {
 
                 if let mol = out.molecule {
                     SectionTitle("Molecule")
+                    // ΨLab 12.0: the molecule in the 3D viewer, then its coordinates
+                    Molecule3DView(atoms: mol.atoms, accessibilityText: "Molecule in 3D")
+                        .frame(minWidth: 300, maxWidth: .infinity, minHeight: 280, maxHeight: 280)
                     moleculePanel(mol)
                 }
                 if let b = out.basis {

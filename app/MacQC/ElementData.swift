@@ -47,6 +47,69 @@ nonisolated enum Elements {
         return r / Units.bohrToAngstrom
     }
 
+    /// ΨLab 12.0: van der Waals radius in Å for the space-filling and ball-and-stick views of the
+    /// 3D viewer: Bondi (1964), with Mantina et al. (2009) for the main-group elements Bondi left
+    /// out; 2.0 Å for the elements of neither.
+    static func vanDerWaalsRadius(_ Z: Int) -> Double {
+        switch Z {
+        case 1: return 1.20
+        case 2: return 1.40
+        case 3: return 1.82
+        case 4: return 1.53
+        case 5: return 1.92
+        case 6: return 1.70
+        case 7: return 1.55
+        case 8: return 1.52
+        case 9: return 1.47
+        case 10: return 1.54
+        case 11: return 2.27
+        case 12: return 1.73
+        case 13: return 1.84
+        case 14: return 2.10
+        case 15: return 1.80
+        case 16: return 1.80
+        case 17: return 1.75
+        case 18: return 1.88
+        case 19: return 2.75
+        case 20: return 2.31
+        case 28: return 1.63
+        case 29: return 1.40
+        case 30: return 1.39
+        case 31: return 1.87
+        case 32: return 2.11
+        case 33: return 1.85
+        case 34: return 1.90
+        case 35: return 1.85
+        case 36: return 2.02
+        case 37: return 3.03
+        case 38: return 2.49
+        case 46: return 1.63
+        case 47: return 1.72
+        case 48: return 1.58
+        case 49: return 1.93
+        case 50: return 2.17
+        case 51: return 2.06
+        case 52: return 2.06
+        case 53: return 1.98
+        case 54: return 2.16
+        case 55: return 3.43
+        case 56: return 2.68
+        case 78: return 1.75
+        case 79: return 1.66
+        case 80: return 1.55
+        case 81: return 1.96
+        case 82: return 2.02
+        case 83: return 2.07
+        case 84: return 1.97
+        case 85: return 2.02
+        case 86: return 2.20
+        case 87: return 3.48
+        case 88: return 2.83
+        case 92: return 1.86
+        default: return 2.00
+        }
+    }
+
     /// CPK colour (Jmol), as red, green, blue in 0 … 1; grey-blue for elements not listed.
     static func cpk(_ Z: Int) -> (Double, Double, Double) {
         switch Z {

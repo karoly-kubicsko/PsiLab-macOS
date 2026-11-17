@@ -89,6 +89,10 @@ struct TwoParticleDensity {
 // sum Gamma (mn|ls)^x for every nuclear coordinate (3 n_atoms).
 std::vector<double> eri_gradient(const BasisSet& basis, int n_atoms, const TwoParticleDensity& gamma,
                                  int threads = 0);
+// 12.0: the same for several densities in one pass over the derivative integrals (one gradient
+// vector per density).
+std::vector<std::vector<double>> eri_gradients(const BasisSet& basis, int n_atoms,
+                                               const std::vector<TwoParticleDensity>& gammas, int threads = 0);
 // sum Gamma (mn|ls)^{xy} (3 n_atoms x 3 n_atoms).
 Matrix eri_hessian(const BasisSet& basis, int n_atoms, const TwoParticleDensity& gamma, int threads = 0);
 // G^x(D)_mn = sum_ls D_ls [(mn|ls)^x - (ml|ns)^x / 2] for every nuclear coordinate (D symmetric):
