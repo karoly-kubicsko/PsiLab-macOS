@@ -679,6 +679,22 @@ sleep 5
 dump_tab "93-opened-output-orbitals" ""
 print_shot "93-opened-output-orbitals"
 
+# --- ΨLab 14.0: the Pople 6-31G and 6-311G families and the def2 basis sets --------------------------
+# 6-31G* has Cartesian d functions (6D): its orbitals pass through the app with "pure": false.
+echo "== 14.0: H2O RHF/6-31G* orbitals (Cartesian d), NH3 RHF/def2-TZVP opt+freq, H2O CCSD(T)/6-311++G(3df,3pd)"
+relaunch -appearanceChoice light -psilabMolecule H2O -psilabBasis "6-31G*" -psilabMethod RHF -psilabTab orbitals
+sleep 8
+dump_tab "95-h2o-631gs-orbitals" ""
+print_shot "95-h2o-631gs-orbitals"
+relaunch -appearanceChoice light -psilabMolecule NH3 -psilabBasis def2-TZVP -psilabMethod RHF -psilabJob opt+freq -psilabAutoRun YES
+sleep 25
+view_tab "96-nh3-def2-tzvp-summary" "Summary"
+print_shot "96-nh3-def2-tzvp-summary"
+view_tab "97-nh3-def2-tzvp-frequencies" "Frequencies"
+relaunch -appearanceChoice dark -psilabMolecule H2O -psilabBasis "6-311++G(3df,3pd)" -psilabMethod "CCSD(T)" -psilabAutoRun YES -psilabTab output
+sleep 20
+view_tab "98-h2o-6-311ppg-3df-3pd-output" "Output"
+
 pkill -x "ΨLab" || true
 
 # Crash reports of this run (none expected): print the crashed thread's backtrace.

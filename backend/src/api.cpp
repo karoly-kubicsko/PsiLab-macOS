@@ -147,6 +147,8 @@ json molecular_json(const MolecularResult& m) {
     basis["functions"] = m.basis.n_functions;
     basis["shells"] = m.basis.shells.size();
     basis["maxL"] = m.basis.max_l;
+    basis["cartesianD"] = m.basis.cartesian_d;                    // 14.0: 6D (the 6-31G family)
+    basis["functionTypes"] = basis_function_types(m.basis.name);  // 14.0: e.g. "spherical harmonics (5D, 7F)"
     json ba = json::array();
     for (const auto& a : m.basis.atoms)
         ba.push_back({{"symbol", a.symbol},
@@ -719,8 +721,10 @@ bool get_bool(const json& j, const char* key, bool fallback) {
 }
 
 // ΨLab 8.0: the "orbitals" object: atoms, basis shells (normalised contraction coefficients,
-// spherical functions m = -l .. l from "first" on) and the orbital sets with their AO
-// coefficients. The app passes it back to macqc_orbital_surface and macqc_orbital_plane.
+// spherical functions m = -l .. l from "first" on; 14.0: "pure": false for a Cartesian shell,
+// its (l+1)(l+2)/2 functions xx, xy, xz, yy, yz, zz ...; absent means spherical) and the orbital
+// sets with their AO coefficients. The app passes it back to macqc_orbital_surface and
+// macqc_orbital_plane.
 json orbitals_json(const OrbitalData& d) {
     json j;
     j["basis"] = d.basis_name;
@@ -736,7 +740,8 @@ json orbitals_json(const OrbitalData& d) {
                           {"center", {s.center[0], s.center[1], s.center[2]}},
                           {"exponents", s.exponents},
                           {"coefficients", s.coefficients},
-                          {"first", s.first_function}});
+                          {"first", s.first_function},
+                          {"pure", s.pure}});
     j["shells"] = shells;
     json sets = json::array();
     for (const OrbitalSet& set : d.sets) {
@@ -773,6 +778,7 @@ OrbitalData parse_orbitals_json(const std::string& text) {
         shell.exponents = s.at("exponents").get<std::vector<double>>();
         shell.coefficients = s.at("coefficients").get<std::vector<double>>();
         shell.first_function = s.at("first").get<int>();
+        shell.pure = s.value("pure", true);  // archives of 13.0 have spherical shells only
         if (shell.exponents.size() != shell.coefficients.size() || shell.first_function < 0 ||
             shell.first_function + shell.size() > d.n_basis)
             throw std::runtime_error("orbitals: inconsistent shell");
@@ -830,8 +836,8 @@ Input parse_input_json(const std::string& text) {
     in.molecule = canonical;
     if (canonical != "HeH+") in.R = 0.0;  // default bond length of the molecule unless given
     if (canonical == "HeH+") {
-        // 7.0: a correlation-consistent basis set selects the general path; STO-1G/2G/3G (or no
-        // basis) the Szabo-Ostlund calculation
+        // 7.0: a basis set of the library (correlation-consistent; 14.0 also Pople and def2)
+        // selects the general path; STO-1G/2G/3G (or no basis) the Szabo-Ostlund calculation
         const std::string b = get_string(j, "basis", "");
         if (!b.empty() && !canonical_basis_name(b).empty()) {
             in.hehGeneral = true;
@@ -840,7 +846,8 @@ Input parse_input_json(const std::string& text) {
             for (char c : b)
                 if (c != '-' && c != ' ') t += static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
             if (t == "sto1g" || t == "sto2g" || t == "sto3g") in.nGaussians = t[3] - '0';
-            else throw std::runtime_error("\"basis\" for HeH+ must be STO-1G, STO-2G, STO-3G or a correlation-consistent set");
+            else throw std::runtime_error("\"basis\" for HeH+ must be STO-1G, STO-2G, STO-3G or a basis set of the library "
+                                          "(6-31G ..., 6-311G ..., def2-..., aug-cc-pVXZ, aug-cc-pCVXZ)");
         }
     }
     if (canonical != "HeH+" && canonical != "custom") in.angle = default_angle(canonical);
@@ -1056,18 +1063,37 @@ std::string atom_label(const OrbitalData& d, int atom) {
     return (a.symbol.empty() ? element_symbol(a.Z) : a.symbol) + std::to_string(atom + 1);
 }
 
+// x^i y^j z^k as "xxy" (14.0, labels of Cartesian functions); the components of l in basis order.
+std::vector<std::string> cartesian_component_names(int l) {
+    std::vector<std::string> names;
+    for (int x = l; x >= 0; --x)
+        for (int y = l - x; y >= 0; --y)
+            names.push_back(std::string(static_cast<std::size_t>(x), 'x') + std::string(static_cast<std::size_t>(y), 'y') +
+                            std::string(static_cast<std::size_t>(l - x - y), 'z'));
+    return names;
+}
+
 // Labels of the basis functions in basis order: atom, shell ("2p": the second p shell of the
-// atom) and m (real solid harmonics m = -l ... l), e.g. "O1 2p-1".
+// atom) and m (real solid harmonics m = -l ... l), e.g. "O1 2p-1"; for a Cartesian shell
+// (14.0) the component, e.g. "O1 3dxy".
 std::vector<std::string> basis_function_labels(const OrbitalData& d) {
     std::vector<std::string> labels(static_cast<std::size_t>(d.n_basis));
     std::vector<std::vector<int>> count(d.atoms.size(), std::vector<int>(kMaxAngularMomentum + 1, 0));
     for (const Shell& sh : d.shells) {
         const int n = sh.l + 1 + count[static_cast<std::size_t>(sh.atom)][static_cast<std::size_t>(sh.l)]++;
+        const std::string head = strprintf("%-5s %d%c", atom_label(d, sh.atom).c_str(), n, angular_letter(sh.l));
+        if (!sh.pure) {
+            const auto names = cartesian_component_names(sh.l);
+            for (std::size_t c = 0; c < names.size(); ++c) {
+                const std::size_t f = static_cast<std::size_t>(sh.first_function) + c;
+                if (f < labels.size()) labels[f] = head + names[c];
+            }
+            continue;
+        }
         for (int m = -sh.l; m <= sh.l; ++m) {
             const std::size_t f = static_cast<std::size_t>(sh.first_function + m + sh.l);
             if (f < labels.size())
-                labels[f] = strprintf("%-5s %d%c%s", atom_label(d, sh.atom).c_str(), n, angular_letter(sh.l),
-                                      sh.l == 0 ? "" : (m == 0 ? "0" : strprintf("%+d", m).c_str()));
+                labels[f] = head + (sh.l == 0 ? "" : (m == 0 ? "0" : strprintf("%+d", m)));
         }
     }
     return labels;
@@ -1079,8 +1105,15 @@ std::vector<std::string> basis_function_labels(const OrbitalData& d) {
 std::string basis_set_text(const OrbitalData& d) {
     OutputWriter w;
     w.section("Basis set in full");
-    w.line(strprintf("    %s: %d spherical basis functions in %zu shells (real solid harmonics, m = -l ... l)",
-                     d.basis_name.c_str(), d.n_basis, d.shells.size()));
+    bool cartesian = false;
+    for (const Shell& sh : d.shells) cartesian = cartesian || !sh.pure;
+    if (!cartesian)
+        w.line(strprintf("    %s: %d spherical basis functions in %zu shells (real solid harmonics, m = -l ... l)",
+                         d.basis_name.c_str(), d.n_basis, d.shells.size()));
+    else
+        w.line(strprintf("    %s: %d basis functions in %zu shells (Cartesian d: xx, xy, xz, yy, yz, zz, each normalised;\n"
+                         "    the other shells real solid harmonics, m = -l ... l)",
+                         d.basis_name.c_str(), d.n_basis, d.shells.size()));
     w.line("    exponents in bohr^-2; contraction coefficients of normalised primitives, every contracted");
     w.line("    function normalised; the functions are numbered as in the molecular orbitals below");
     std::vector<std::vector<const Shell*>> by_atom(d.atoms.size());
@@ -1092,7 +1125,8 @@ std::string basis_set_text(const OrbitalData& d) {
             if (d.atoms[b].Z != d.atoms[a].Z || by_atom[b].size() != by_atom[a].size()) continue;
             bool equal = true;
             for (std::size_t k = 0; k < by_atom[a].size() && equal; ++k)
-                equal = by_atom[a][k]->l == by_atom[b][k]->l && by_atom[a][k]->exponents == by_atom[b][k]->exponents &&
+                equal = by_atom[a][k]->l == by_atom[b][k]->l && by_atom[a][k]->pure == by_atom[b][k]->pure &&
+                        by_atom[a][k]->exponents == by_atom[b][k]->exponents &&
                         by_atom[a][k]->coefficients == by_atom[b][k]->coefficients;
             if (equal) same = static_cast<int>(b);
         }
@@ -1127,7 +1161,7 @@ std::string basis_set_text(const OrbitalData& d) {
 std::string orbitals_text(const OrbitalData& d) {
     OutputWriter w;
     w.section("Molecular orbitals (the orbitals of the Orbitals tab)");
-    w.line("    AO coefficients of the spherical basis functions of the basis set above");
+    w.line("    AO coefficients of the basis functions of the basis set above");
     const std::vector<std::string> labels = basis_function_labels(d);
     for (const OrbitalSet& set : d.sets) {
         w.line(strprintf("\n  %s (%zu orbitals)", set.title.c_str(), set.orbitals.size()));

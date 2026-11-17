@@ -287,8 +287,8 @@ std::string validate(const Input& in) {
         return e.empty() ? job_input_error(in) : e;
     }
     if (canonical_job_type(in.job) != "energy")
-        return "HeH+ in an STO-nG basis (Szabo-Ostlund) supports only the energy job; choose a correlation-consistent "
-               "basis set (aug-cc-pVDZ ... aug-cc-pV5Z) for the other jobs";
+        return "HeH+ in an STO-nG basis (Szabo-Ostlund) supports only the energy job; choose a Gaussian basis set "
+               "(6-31G ... 6-311++G(3df,3pd), def2-SVP ... def2-QZVPPD, aug-cc-pVDZ ... aug-cc-pV5Z) for the other jobs";
     auto positive = [](double v) { return std::isfinite(v) && v > 0.0; };
     if (!positive(in.R)) return "R must be a positive, finite number (bohr)";
     if (!positive(in.zeta1)) return "zeta1 must be a positive, finite number";

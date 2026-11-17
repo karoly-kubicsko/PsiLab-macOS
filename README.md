@@ -1,12 +1,14 @@
 # ΨLab — a native macOS quantum-chemistry app
 
-**Current version: 13.0** — see [Versions](#versions).
+**Current version: 14.0** — see [Versions](#versions).
 
 ΨLab computes small molecules with restricted Hartree–Fock, coupled cluster and Full CI:
 
-- **H₂, LiH, H₂O, H₂O₂, NH₃ and HeH⁺** in the correlation-consistent basis sets aug-cc-pVXZ and
-  aug-cc-pCVXZ (X = D, T, Q, 5; spherical Gaussians up to h functions, from basissetexchange.org)
-  with the methods **HF, CCSD, CCSD(T), CCSDT, CCSDTQ and Full CI** (all electrons correlated):
+- **H₂, LiH, H₂O, H₂O₂, NH₃ and HeH⁺** (and custom molecules of H–Kr) in 33 Gaussian basis sets
+  from basissetexchange.org: the correlation-consistent sets aug-cc-pVXZ and aug-cc-pCVXZ
+  (X = D, T, Q, 5; spherical Gaussians up to h functions) and (14.0) the Pople sets 6-31G …
+  6-31++G** (Cartesian d functions, 6D, as in Gaussian) and 6-311G … 6-311++G(3df,3pd) and the
+  Karlsruhe sets def2-SVP … def2-QZVPPD, with the methods **HF, CCSD, CCSD(T), CCSDT, CCSDTQ and Full CI** (all electrons correlated):
   RHF and CCSD(T) for all of them, CCSDT and CCSDTQ where they fit into memory, Full CI where it
   is feasible (H₂, HeH⁺, LiH). Before a calculation ΨLab shows its size (basis functions,
   two-electron integrals, amplitudes, determinants), memory and estimated time; it warns about
@@ -188,8 +190,11 @@ same calculations run in the terminal on Linux and macOS
   the name, the level and the energy and what the route cannot say; the route `#p method/basis`
   for the level of the optimisation — `HF`, `CCSD(Full)` or `CCSD(T,Full)` (all electrons
   correlated, as in ΨLab; Gaussian freezes the core by default), `HF` where Gaussian has no such
-  method (CCSDT, CCSDTQ, Full CI); aug-cc-pVXZ by name; aug-cc-pCVXZ as `Gen 5D 7F` with the
-  functions ΨLab used written out after the coordinates (H and He with aug-cc-pVXZ), or by name per
+  method (CCSDT, CCSDTQ, Full CI); by name the sets Gaussian has built in, with the same default
+  function types as ΨLab (14.0: the 6-31G family with 6D 7F, the 6-311G family, `Def2SVP`,
+  `Def2TZVP`, `Def2TZVPP`, `Def2QZVP`, `Def2QZVPP`; aug-cc-pVXZ); aug-cc-pCVXZ (and 14.0:
+  def2-mTZVP, def2-mTZVPP, def2-TZVPPD, def2-QZVPPD) as `Gen 5D 7F` with the functions ΨLab used
+  written out after the coordinates (for aug-cc-pCVXZ H and He with aug-cc-pVXZ), or by name per
   element when they are not known —; the name as title (ASCII, without the characters Gaussian's
   title section must not contain: @ # ! – _ \ and the hyphen); charge and multiplicity; Cartesian
   coordinates in Å. ΨLab reads both back as custom molecules (13.0: Gaussian's `!` comments are
@@ -198,6 +203,35 @@ same calculations run in the terminal on Linux and macOS
   `xcode/project.yml`).
 
 ## Versions
+
+### 14.0
+**25 more basis sets**, 33 in all, for every molecule, method and job type: the Pople sets
+**6-31G, 6-31G\*, 6-31+G, 6-31+G\*, 6-31+G\*\*, 6-31++G\*, 6-31++G\*\*** and **6-311G,
+6-311G\*, 6-311+G, 6-311+G\*, 6-311+G\*\*, 6-311++G\*, 6-311++G\*\*, 6-311++G(2d,2p),
+6-311++G(3df,3pd)**, and the Karlsruhe sets **def2-SVP, def2-mTZVP, def2-mTZVPP, def2-TZVP,
+def2-TZVPP, def2-TZVPPD, def2-QZVP, def2-QZVPP, def2-QZVPPD** (Basis Set Exchange 0.12, every
+element up to Kr for which it defines them; see [`basis/README.md`](basis/README.md)). The basis
+menus of the app have one section per family (6-31G, 6-311G, def2, aug-cc-pVXZ, aug-cc-pCVXZ);
+`psilab` also accepts Gaussian's spellings (`6-31G(d)`, `6-31+G(d,p)`, `def2SVP`).
+**Cartesian d functions**: the 6-31G family has six Cartesian d functions per d shell (6D), as
+Gaussian uses it by default (its manual lists 6-31G among the few sets with Cartesian d functions,
+which holds for its polarised and diffuse versions; the Basis Set Exchange marks these shells
+Cartesian), with
+spherical f functions (7F; f occurs in 6-31G\* for Sc–Zn). The 6-311G family and the def2 sets are
+spherical (5D, 7F), as in Gaussian. The convention matters: H₂O at the experimental geometry,
+RHF/6-31G\* = −76.0105299763 Eₕ with 6D (19 functions), −76.0091323803 Eₕ with 5D (18 functions).
+Integrals, derivative integrals, analytic gradients and Hessians, dipole derivatives, the orbital
+plots and the output file handle Cartesian shells (each component x^i y^j z^k normalised, e.g.
+⟨xx|yy⟩ = 1/3). The output names the function types (e.g. "6-31G\*: Cartesian d functions (6D),
+spherical f functions (7F)"), and its appendix labels Cartesian functions by component (`O1 3dxy`).
+**Verified against PySCF** with the same files (`reference/pyscf_basis_sets_reference.py`;
+`macqc_basis_tests`): RHF energies of H₂O in all 25 sets and of molecules with Li, C, N, Cl, K, Ca,
+Zn (6D 7F) and Br within 2.3e-12 Eₕ, CCSD(T) within 7e-11 Eₕ, analytic RHF and CCSD gradients within
+3.1e-9 Eₕ/bohr, the RHF/6-31G\* Hessian within 7.9e-10 Eₕ/bohr², dipole moment and orbital values
+within 3e-9; the analytic Hessians of RHF, CCSD, CCSD(T) and Full CI with Cartesian d functions agree
+with 4-point differences of analytic gradients within 1.1e-9 Eₕ/bohr². Gaussian input files name
+the sets Gaussian has built in and write out the others (`Gen 5D 7F`). See
+[Pople and def2 basis sets](#pople-and-def2-basis-sets-version-140).
 
 ### 13.0
 **Output files that can be opened again.** Every output file — the app's *Output* tab and text
@@ -397,7 +431,7 @@ molecule and a basis set; `R` and `angle` default to the experimental equilibriu
 
 ```text
 molecule = H2O               # H2, LiH or H2O (default HeH+)
-basis    = aug-cc-pVTZ       # aug-cc-pVXZ or aug-cc-pCVXZ, X = D, T, Q, 5
+basis    = aug-cc-pVTZ       # aug-cc-pVXZ or aug-cc-pCVXZ, X = D, T, Q, 5; 14.0: 6-31G ... 6-311++G(3df,3pd), def2-SVP ... def2-QZVPPD
 R        = 0.9572 angstrom   # O-H (H2: H-H, LiH: Li-H); default 0.74144 / 1.5949 / 0.9572 Å
 angle    = 104.52            # H-O-H in degrees (H2O only)
 method   = RHF               # HF (RHF), CCSD, CCSD(T), CCSDT, CCSDTQ, or FCI (H2 and LiH up to aug-cc-pCVTZ)
@@ -431,8 +465,9 @@ hessian  = analytic          # 10.0, freq and ts jobs with FCI, CCSD, CCSD(T): a
 initial_hessian = auto       # 10.0, minimisations: auto/analytic (HF, FCI, CCSD, CCSD(T) where possible), model (Lindh)
 ```
 
-`molecule = HeH+` with a correlation-consistent `basis` runs the general calculation (all methods
-and job types); with STO-1G, STO-2G or STO-3G it remains the Szabo–Ostlund calculation.
+`molecule = HeH+` with a Gaussian `basis` of the library (correlation-consistent; 14.0 also Pople
+and def2, except the four 6-311++G sets, which do not define He) runs the general calculation (all
+methods and job types); with STO-1G, STO-2G or STO-3G it remains the Szabo–Ostlund calculation.
 
 The job keys and the output file are described under
 [Job types and the output file](#job-types-and-the-output-file-version-50). For H₂, LiH and H₂O
@@ -676,7 +711,8 @@ the integral machinery and the analytic RHF gradient and Hessian (`gto_derivativ
   centre, d/dA_k [x^c exp(−a r²)] = 2a G(c + 1_k) − c_k G(c − 1_k), is written as "component
   shells" (angular momentum l + 1 with the contraction coefficients times 2a, and l − 1), each with
   an output transform whose rows are the 3(2l+1) derivatives of the spherical functions; second
-  derivatives use l + 2, l and l − 2 components with 6(2l+1) rows. The unchanged Obara–Saika /
+  derivatives use l + 2, l and l − 2 components with 6(2l+1) rows. (14.0: the same for Cartesian
+  shells, whose output transform is the normalisation of their (l+1)(l+2)/2 components.) The unchanged Obara–Saika /
   Head-Gordon–Pople engines evaluate them (shells up to l = 7 for second derivatives of h
   functions). Translational invariance gives the derivative with respect to the last centre:
   B for overlap and kinetic energy, the nucleus for nuclear attraction, D for electron repulsion
@@ -1017,7 +1053,7 @@ The **output file** is written while the job runs and is identical in the app's 
     canonical orbitals (all occupied ones and ten virtual ones) and, after Full CI, its natural
     orbitals, five per block with number, HOMO/LUMO label, energy and occupation, and the AO
     coefficient of every basis function (labelled by atom, shell and m, real solid harmonics
-    m = −l … l);
+    m = −l … l; 14.0: Cartesian functions by their component, e.g. `O1 3dxy`);
 12. (13.0) the **archive**: the complete results — everything the app shows — as JSON (the result of
     the C API without its "output", plus "archive": format, program, time), ASCII with non-ASCII
     characters escaped, 100 columns per line between the lines `@@PSILAB-ARCHIVE-BEGIN 1` and
@@ -1126,7 +1162,7 @@ is 5.77 kcal/mol. The scripts are `reference/pyscf_scan_reference.py`,
 ones and up to ten virtual ones) and, after Full CI, the natural orbitals (eigenvectors of the Full
 CI one-particle density, in AO coefficients C_RHF·U). The backend evaluates an orbital on a grid —
 spherical shells as Σ_m M(m, c) x^a y^b z^c Σ_p c_p e^(−α_p r²), the same solid harmonics as the
-integrals — and extracts the isosurfaces ψ = ±c by marching tetrahedra (six tetrahedra around the
+integrals (14.0: Cartesian shells as N_abc x^a y^b z^c Σ_p c_p e^(−α_p r²)) — and extracts the isosurfaces ψ = ±c by marching tetrahedra (six tetrahedra around the
 main diagonal of each cube, so neighbouring cubes split their faces alike; shared vertices). A
 coarse grid (0.5 bohr) finds the region |ψ| ≥ c/2, a grid of at most 400 000 points covers it with a
 margin of 1 bohr, and every vertex is then moved onto the exact isovalue by Newton steps along its
@@ -1172,9 +1208,9 @@ basis/                   Gaussian94 basis-set files from basissetexchange.org (+
 backend/cli/main.cpp     developer command-line tool `macqc` (flags / JSON)
 backend/cli/psilab*      terminal version `psilab` (text input file -> text output file)
 examples/                example input files for `psilab` (heh.inp, h2o.inp)
-backend/tests/           test program (CTest), expected reports in tests/data/
+backend/tests/           test programs (CTest; 14.0: test_basis_sets.cpp), reference data in tests/data/
 reference/               the verified Python reference (HeH+); PySCF reference scripts (H2, LiH, H2O,
-                         H2O2, NH3; scans, transition states, orbitals)
+                         H2O2, NH3; scans, transition states, orbitals; 14.0 Pople and def2 sets)
 third_party/nlohmann/    json.hpp (MIT)
 CMakeLists.txt           library + CLI + tests (for testing; Xcode compiles the sources directly)
 ```
@@ -1343,6 +1379,7 @@ For general molecules the output is
   "molecule": {"name","electrons","charge","R","angle","nuclearRepulsion",
                "atoms":[{"symbol","Z","position":[x,y,z]}]},                    // bohr
   "basis":    {"name","functions","shells","maxL",
+               "cartesianD","functionTypes",                              // 14.0
                "atoms":[{"symbol","basis","contraction","primitives","functions"}]},
   "estimate": {"basisFunctions","uniqueIntegrals","integralMemoryMB","integralsStored",
                "threads","rhfSeconds","totalSeconds","longCalculation",
@@ -1451,7 +1488,7 @@ Version 8.0 adds the molecular orbitals:
 
 ```text
   "orbitals": {"basis","functions","atoms":[{"symbol","Z","position"}],
-          "shells":[{"l","atom","center","exponents","coefficients","first"}],
+          "shells":[{"l","atom","center","exponents","coefficients","first","pure"}],
           "sets":[{"kind","title","orbitals":[{"number","energy","occupation","label"}],
                    "coefficients":[[AO coefficients] per orbital]}]}
 ```
@@ -1459,7 +1496,9 @@ Version 8.0 adds the molecular orbitals:
 `orbitals` (also for HeH⁺ in STO-nG, then with the two Szabo–Ostlund orbitals;
 `null` for an estimate or a refused calculation) belongs to the final calculation of the job: the
 shells' `coefficients` include the normalisation of the primitives and of the contraction, the
-functions of a shell are the real solid harmonics m = −l … l from `first` on. The C API draws an
+functions of a shell are the real solid harmonics m = −l … l from `first` on (14.0: with
+`"pure": false` the (l+1)(l+2)/2 Cartesian functions xx, xy, xz, yy, yz, zz …, each normalised —
+the d shells of the 6-31G family; a shell without `"pure"`, as written by 13.0, is spherical). The C API draws an
 orbital from this object:
 
 ```c
@@ -1575,6 +1614,74 @@ use the relaxed scan for custom molecules.
 | NH₃ with the atoms in another order against the built-in NH₃ (energy, analytic frequencies, species, G) | 3·10⁻¹³ Eₕ, 10⁻⁹ cm⁻¹ |
 | H₂O (H, O, H) CCSD/aug-cc-pVDZ opt+freq against the built-in H₂O | energy identical to 10⁻¹⁰ Eₕ; wavenumbers within 0.1 cm⁻¹, IR intensities within 10⁻⁴ km/mol |
 | Point groups and symmetry numbers of 18 molecules (C1, Cs, C2v, C2, C3v, D3h, Td, D2h, D2d, D3d, C3h, D4h, D6h, Oh, D∞h, C∞v) | all correct |
+
+### Pople and def2 basis sets (version 14.0)
+
+ΨLab 14.0 adds 25 basis sets to the eight correlation-consistent ones; the library
+(`basis_set_library()` in `basis.cpp`) has 33 sets in five families:
+
+| Family | Sets | Function types | Elements (ΨLab) |
+|---|---|---|---|
+| Pople 6-31G | 6-31G, 6-31G\*, 6-31+G, 6-31+G\*, 6-31+G\*\*, 6-31++G\*, 6-31++G\*\* | Cartesian d (6D), spherical f (7F) | 6-31G, 6-31G\*: H–Kr; the diffuse sets H–Ar |
+| Pople 6-311G | 6-311G, 6-311G\*, 6-311+G, 6-311+G\*, 6-311+G\*\*, 6-311++G\*, 6-311++G\*\*, 6-311++G(2d,2p), 6-311++G(3df,3pd) | spherical (5D, 7F) | 6-311G, 6-311G\*: H–Ca, Ga–Kr; 6-311+G…: H–Ca; 6-311++G…: H, Li–Ca; (3df,3pd): H, Li–Ar |
+| Karlsruhe def2 | def2-SVP, def2-mTZVP, def2-mTZVPP, def2-TZVP, def2-TZVPP, def2-TZVPPD, def2-QZVP, def2-QZVPP, def2-QZVPPD | spherical (5D, 7F) | H–Kr |
+| Dunning | aug-cc-pVDZ … aug-cc-pV5Z | spherical | H–Ar, Sc–Kr (not K, Ca) |
+| Dunning core-valence | aug-cc-pCVDZ … aug-cc-pCV5Z | spherical | Li–Ar (H, He: aug-cc-pVXZ) |
+
+- **Names**: any case; Gaussian's notation for the Pople polarisation functions, `6-31G(d)` =
+  6-31G\*, `6-31+G(d,p)` = 6-31+G\*\*, `6-311++G(d,p)` = 6-311++G\*\*; `def2SVP` = def2-SVP. The
+  files use Psi4's names (`+` → p, `*` → s, `(`, `,`, `)` → `_`: `6-31pgss.gbs`,
+  `6-311ppg_3df_3pd_.gbs`).
+- **Cartesian d functions (6D)**: the six d functions x², xy, xz, y², yz, z² (each normalised; their
+  span contains the five spherical d functions and the s-type combination r²) of every d shell of
+  the 6-31G family, as Gaussian uses these sets by default and as the Basis Set Exchange marks them.
+  `Shell::pure` is false for such a shell; its output transform (`cartesian_transform(l)`) is the
+  diagonal of the factors √[(2l−1)!! / ((2i−1)!! (2j−1)!! (2k−1)!!)] that normalise x^i y^j z^k
+  (the contraction coefficients carry the normalisation of x^l). Every integral (one-electron,
+  electron repulsion, dipole), every derivative integral (first and second derivatives, so the
+  analytic gradients and Hessians of all methods), the orbital values and the output go through the
+  shell's transform, so nothing else changes. The f functions of 6-31G\* (Sc–Zn) remain spherical,
+  as in Gaussian (6D 7F). The BSE marks the Na–Ar d functions of 6-311G\* Cartesian (they come from
+  the McLean–Chandler sets); Gaussian, and ΨLab, use the whole 6-311G family with 5D.
+- **Elements**: each file holds the elements up to Kr for which the BSE defines the set; all of
+  them are all-electron sets (the def2 sets need effective core potentials only from Rb on). A
+  molecule with an element outside a set is refused with the elements the set covers (e.g.
+  "6-311++G\*\* is not available for He: ΨLab has it for H, Li-Ca"). def2-QZVP and def2-QZVPP are
+  identical for H–Ne and Al–Ar (they differ for Na, Mg, K–Kr), so they give the same results for
+  the built-in molecules.
+
+Number of basis functions (6D for the 6-31G family):
+
+| | H₂ | HeH⁺ | LiH | H₂O | NH₃ | H₂O₂ |
+|---|---|---|---|---|---|---|
+| 6-31G | 4 | 4 | 11 | 13 | 15 | 22 |
+| 6-31G\* | 4 | 4 | 17 | 19 | 21 | 34 |
+| 6-31+G\*\* | 10 | 10 | 24 | 29 | 34 | 48 |
+| 6-31++G\*\* | 12 | 12 | 25 | 31 | 37 | 50 |
+| 6-311G\* | 6 | 6 | 21 | 24 | 27 | 42 |
+| 6-311++G\*\* | 14 | – | 29 | 36 | 43 | 58 |
+| 6-311++G(3df,3pd) | 36 | – | 57 | 75 | 93 | 114 |
+| def2-SVP | 10 | 10 | 14 | 24 | 29 | 38 |
+| def2-TZVP | 12 | 12 | 20 | 43 | 49 | 74 |
+| def2-TZVPPD | 34 | 34 | 39 | 74 | 88 | 114 |
+| def2-QZVPPD | 66 | 66 | 68 | 132 | 162 | 198 |
+
+(all 25 sets: [`basis/README.md`](basis/README.md)).
+
+**Verification** (`macqc_basis_tests`; `reference/pyscf_basis_sets_reference.py` in CI; PySCF with
+`cart=True` for the 6-31G family, the 6D 7F case of Zn from PySCF's Cartesian integrals transformed
+to spherical f functions):
+
+| Check | Result |
+|---|---|
+| RHF energies of H₂O in all 25 sets | ≤ 6.3·10⁻¹³ Eₕ |
+| RHF energies of LiH, NH₃, CH₄, HCl (6D in 6-31G\*, 5D in 6-311G\*), KH (6-31G: Cartesian valence d), CaH₂, ZnH₂ (6-31G\*: 6D 7F; def2-TZVPP: g functions), HBr, HeH⁺ | ≤ 2.3·10⁻¹² Eₕ |
+| CCSD(T) energies (H₂O 6-31G\* and def2-SVP, NH₃ 6-311++G\*\*) | ≤ 7·10⁻¹¹ Eₕ |
+| Analytic RHF gradients (6-31+G\*\*, HCl 6-31G\*, def2-TZVP), analytic CCSD/6-31G\* gradient | ≤ 7.6·10⁻¹⁰, 3.1·10⁻⁹ Eₕ/bohr |
+| RHF/6-31G\* Hessian, dipole moment, orbital energies, HOMO and LUMO values at points | 7.9·10⁻¹⁰ Eₕ/bohr², ≤ 3·10⁻⁹ |
+| Analytic Hessians (RHF, CCSD/6-31+G\*, CCSD(T)/6-31G\*, Full CI LiH/6-31G\*) against 4-point differences of analytic gradients; dipole derivatives | ≤ 1.1·10⁻⁹ Eₕ/bohr²; ≤ 1.4·10⁻⁸ e |
+| Cartesian d of O: ⟨xx\|xx⟩ = ⟨xy\|xy⟩ = 1, ⟨xx\|yy⟩ = 1/3, ⟨xx\|xy⟩ = 0; unit diagonal of S in all sets | ≤ 2·10⁻¹⁵ |
+| Integral-direct against stored-integral RHF (6-31++G\*\*) | 10⁻¹³ Eₕ |
 
 ## App sources
 

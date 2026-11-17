@@ -514,12 +514,14 @@ std::string molecular_report(const MolecularResult& r) {
     s += format("Nuclear repulsion energy  %20.10f E_h\n\n", mol.nuclear_repulsion());
 
     const BasisSet& b = r.basis;
-    s += "Basis set       " + b.name + " (spherical harmonics; basissetexchange.org, Gaussian94 format)\n";
+    s += "Basis set       " + b.name + " (" + basis_function_types(b.name) + "; basissetexchange.org, Gaussian94 format)\n";
+    int width = 13;  // 14.0: names up to "6-311++G(3df,3pd)"
+    for (const auto& a : b.atoms) width = std::max(width, static_cast<int>(a.basis.size()));
     std::vector<std::string> seen;
     for (const auto& a : b.atoms) {
         if (std::find(seen.begin(), seen.end(), a.symbol) != seen.end()) continue;
         seen.push_back(a.symbol);
-        s += format("    %-2s  %-13s %-16s -> %-16s %4d functions\n", a.symbol.c_str(), a.basis.c_str(),
+        s += format("    %-2s  %-*s %-16s -> %-16s %4d functions\n", a.symbol.c_str(), width, a.basis.c_str(),
                     a.primitives.c_str(), a.contraction.c_str(), a.functions);
     }
     for (const auto& n : r.notes) s += "    Note: " + n + "\n";

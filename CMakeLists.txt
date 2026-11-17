@@ -241,3 +241,14 @@ target_include_directories(macqc_correlated_hessian_tests PRIVATE third_party)
 add_test(NAME macqc_correlated_hessian_tests COMMAND macqc_correlated_hessian_tests)
 set_tests_properties(macqc_correlated_hessian_tests PROPERTIES
   ENVIRONMENT "PSILAB_BASIS_DIR=${CMAKE_CURRENT_SOURCE_DIR}/basis" TIMEOUT 3600)
+
+# ΨLab 14.0: the Pople 6-31G (Cartesian d, 6D) and 6-311G families and the def2 sets against
+# PySCF (energies, gradients, Hessians, orbitals), Cartesian shells, the library and its names.
+add_executable(macqc_basis_tests backend/tests/test_basis_sets.cpp)
+target_link_libraries(macqc_basis_tests PRIVATE macqc)
+target_include_directories(macqc_basis_tests PRIVATE third_party)
+target_compile_definitions(macqc_basis_tests PRIVATE
+  MACQC_TEST_DATA_DIR="${CMAKE_CURRENT_SOURCE_DIR}/backend/tests/data")
+add_test(NAME macqc_basis_tests COMMAND macqc_basis_tests)
+set_tests_properties(macqc_basis_tests PROPERTIES
+  ENVIRONMENT "PSILAB_BASIS_DIR=${CMAKE_CURRENT_SOURCE_DIR}/basis" TIMEOUT 3600)

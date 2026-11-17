@@ -91,7 +91,7 @@ final class AppModel {
 
     var molecule: MoleculeChoice = .heh
 
-    // HeH+: Szabo–Ostlund (STO-1G, STO-2G, STO-3G) or (7.0) a correlation-consistent basis set
+    // HeH+: Szabo–Ostlund (STO-1G, STO-2G, STO-3G) or (7.0) a Gaussian basis set of the library
     var R: Double = AppModel.defaultR             // bohr (the backend's unit), also of the general HeH+
     var zeta1: Double = AppModel.defaultZeta1   // He
     var zeta2: Double = AppModel.defaultZeta2   // H
@@ -104,7 +104,7 @@ final class AppModel {
         set { hehBasis = "STO-\(newValue)G" }
     }
 
-    // General path: H2, LiH, H2O, H2O2, NH3 and HeH+ in a correlation-consistent basis set
+    // General path: H2, LiH, H2O, H2O2, NH3 and HeH+ in a Gaussian basis set (14.0: Pople, def2, Dunning)
     var basis: String = "aug-cc-pVDZ"
     var method: MethodChoice = .hf
     var bondLengths: [MoleculeChoice: Double] = [:]   // bohr; missing = experimental value
@@ -303,7 +303,7 @@ final class AppModel {
         } else if molecule == .custom {
             if let last = savedMolecules.last { selectSaved(last.id) } else { molecule = .heh }
         }
-        // HeH+: -psilabBasis STO-2G (Szabo–Ostlund) or aug-cc-pVTZ (general path)
+        // HeH+: -psilabBasis STO-2G (Szabo–Ostlund) or aug-cc-pVTZ (general path); 14.0: any set, e.g. "6-31G*"
         if let b = defaults.string(forKey: "psilabBasis"),
            let name = BasisSets.choices(for: molecule).first(where: { $0.lowercased() == b.lowercased() }) {
             currentBasis = name

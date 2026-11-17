@@ -158,7 +158,7 @@ static void test_basis_files() {
         {"aug-cc-pCVQZ", 8, "[9s8p6d4f2g]", 109}, {"aug-cc-pCV5Z", 1, "", 0},
         {"aug-cc-pCV5Z", 3, "", 0},               {"aug-cc-pCV5Z", 8, "[11s10p8d6f4g2h]", 181},
     };
-    CHECK(supported_basis_sets().size() == 8);
+    CHECK(supported_basis_sets().size() == 33);  // 14.0: 8 correlation-consistent sets + 25 Pople and def2 sets
     for (const auto& e : table) {
         const std::string path = default_basis_directory() + "/" + basis_file_name(e.basis);
         BasisFile f;
@@ -193,7 +193,8 @@ static void test_basis_files() {
     }
     CHECK(canonical_basis_name("AUG-CC-PVTZ") == "aug-cc-pVTZ");
     CHECK(canonical_basis_name(" aug-cc-pcv5z ") == "aug-cc-pCV5Z");
-    CHECK(canonical_basis_name("6-31G*").empty());
+    CHECK(canonical_basis_name("6-31G*") == "6-31G*");  // 14.0
+    CHECK(canonical_basis_name("6-31G**").empty());
 
     // Parser details: D exponents, SP shells, scale factor, element 'H' versus h shells.
     const BasisFile f = parse_gaussian94(
@@ -469,7 +470,7 @@ static void test_api() {
     CHECK(lih["error"].is_string() && lih["error"].get<std::string>().find("not available for Li") != std::string::npos);
     CHECK(lih["rhf"].is_null());
     const char* bad[] = {R"({"molecule":"CH4"})",
-                         R"({"molecule":"H2O","basis":"6-31G"})",
+                         R"({"molecule":"H2O","basis":"6-31G**"})",
                          R"({"molecule":"H2O","angle":200})",
                          R"({"molecule":"H2","R":-1})",
                          R"({"molecule":"H2","R":0.1})",

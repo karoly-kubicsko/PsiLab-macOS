@@ -1,8 +1,9 @@
-// Integrals over contracted spherical-harmonic Gaussian shells (l <= 5):
+// Integrals over contracted spherical-harmonic or (14.0) Cartesian Gaussian shells (l <= 5):
 //   overlap, kinetic energy, nuclear attraction (Obara-Saika recurrences) and
 //   electron repulsion (Head-Gordon-Pople: Obara-Saika vertical recurrence per
 //   primitive quartet, contraction, then horizontal recurrence and the
-//   Cartesian -> real-solid-harmonic transformation).
+//   Cartesian -> real-solid-harmonic transformation, or the normalisation of the Cartesian
+//   components for a Cartesian shell).
 #pragma once
 
 #include <array>
@@ -44,6 +45,15 @@ struct ShellTransform {
 // The real-solid-harmonic transform of angular momentum l (2l+1 rows).
 const ShellTransform& spherical_transform(int l);
 
+// 14.0: the Cartesian functions of angular momentum l ((l+1)(l+2)/2 rows, one per component
+// x^i y^j z^k, each normalised: the factor sqrt((2l-1)!! / ((2i-1)!! (2j-1)!! (2k-1)!!))
+// relative to x^l, whose primitive normalisation the contraction coefficients carry).
+const ShellTransform& cartesian_transform(int l);
+
+// The output functions of a basis shell: spherical_transform(l), or cartesian_transform(l)
+// for a Cartesian shell (Shell::pure false).
+const ShellTransform& shell_transform(const Shell& s);
+
 // out[pre][rows][post] = T applied to in[pre][ncart(T.l)][post].
 void apply_transform(const ShellTransform& T, int pre, int post, const double* in, double* out);
 
@@ -60,7 +70,8 @@ struct ShellPair {
     int la = 0, lb = 0;          // angular momenta of a and b
     double AB[3] = {0, 0, 0};    // A - B
     std::vector<PrimitivePair> prims;
-    // Output transforms of a and b (nullptr: real solid harmonics of la, lb).
+    // Output transforms of a and b (nullptr: real solid harmonics of la, lb; a Cartesian
+    // shell always has its transform set).
     const ShellTransform* ta = nullptr;
     const ShellTransform* tb = nullptr;
     // True if a and b were exchanged to have la >= lb and the integrals are to be returned
@@ -71,7 +82,7 @@ struct ShellPair {
 };
 
 // One shell pair of two (possibly modified) shells X and Y with output transforms tx, ty
-// (nullptr: spherical). The engine needs l(a) >= l(b); if l(Y) > l(X) the shells are
+// (nullptr: shell_transform of the shell, i.e. spherical or Cartesian). The engine needs l(a) >= l(b); if l(Y) > l(X) the shells are
 // exchanged internally and, with keep_order, the integrals are still returned as [X][Y].
 ShellPair make_shell_pair(const Shell& X, const ShellTransform* tx, const Shell& Y, const ShellTransform* ty,
                           bool keep_order = true, int index_x = 0, int index_y = 0);

@@ -76,8 +76,8 @@ int parse_basis(const std::string& text, int line) {
     if (t == "sto1g" || t == "1") return 1;
     if (t == "sto2g" || t == "2") return 2;
     if (t == "sto3g" || t == "3") return 3;
-    fail(line, "basis must be STO-1G, STO-2G or STO-3G (Szabo-Ostlund) or a correlation-consistent set "
-               "(aug-cc-pVXZ, aug-cc-pCVXZ), got '" + trim(text) + "'");
+    fail(line, "basis must be STO-1G, STO-2G or STO-3G (Szabo-Ostlund) or a basis set of the library "
+               "(6-31G ..., 6-311G ..., def2-..., aug-cc-pVXZ, aug-cc-pCVXZ), got '" + trim(text) + "'");
 }
 
 // "1.4632", "1.4632 bohr", "0.7743 angstrom", "0.7743 Å" -> bohr
@@ -263,7 +263,7 @@ Settings parse_input_text(const std::string& text, const std::string& base_direc
         s.input.geometryFile = e.value;
         s.structureWarnings = sf.warnings;
     }
-    // 7.0: HeH+ with a correlation-consistent basis set is a general molecule (all methods and
+    // 7.0: HeH+ with a basis set of the library (14.0: also Pople and def2) is a general molecule (all methods and
     // jobs); with STO-1G/2G/3G (or no basis) it is the Szabo-Ostlund calculation
     const bool heh_general = molecule == "HeH+" && entries.count("basis") &&
                              !macqc::canonical_basis_name(entries["basis"].value).empty();
@@ -274,7 +274,7 @@ Settings parse_input_text(const std::string& text, const std::string& base_direc
         if (it != entries.end() && !allowed)
             fail(it->second.line, "'" + it->second.key + "' applies to " + who + " only (molecule = " + molecule + ")");
     };
-    const std::string general = "H2, LiH, H2O, H2O2, NH3 and HeH+ in a correlation-consistent basis set";
+    const std::string general = "H2, LiH, H2O, H2O2, NH3, custom molecules and HeH+ in a Gaussian basis set";
     const std::string sto = "HeH+ in an STO-nG basis (Szabo-Ostlund)";
     only("zeta_He", heh, sto);
     only("zeta_H", heh, sto);

@@ -77,22 +77,83 @@ double double_factorial(int n) {  // n!! for n >= -1
     return r;
 }
 
-struct Spec {
-    const char* name;
-    const char* file;
+// The basis-set library (14.0: 33 sets in five families), in display order. `cartesian_d`:
+// the d shells are six Cartesian functions (6D), as Gaussian uses the 6-31G family by default
+// and as the Basis Set Exchange marks these shells; every other shell of every set is
+// spherical (5D, 7F), Gaussian's default for all other sets.
+const BasisSetInfo kBases[] = {
+    {"6-31G", "6-31g.gbs", "Pople 6-31G", true},
+    {"6-31G*", "6-31gs.gbs", "Pople 6-31G", true},
+    {"6-31+G", "6-31pg.gbs", "Pople 6-31G", true},
+    {"6-31+G*", "6-31pgs.gbs", "Pople 6-31G", true},
+    {"6-31+G**", "6-31pgss.gbs", "Pople 6-31G", true},
+    {"6-31++G*", "6-31ppgs.gbs", "Pople 6-31G", true},
+    {"6-31++G**", "6-31ppgss.gbs", "Pople 6-31G", true},
+    {"6-311G", "6-311g.gbs", "Pople 6-311G", false},
+    {"6-311G*", "6-311gs.gbs", "Pople 6-311G", false},
+    {"6-311+G", "6-311pg.gbs", "Pople 6-311G", false},
+    {"6-311+G*", "6-311pgs.gbs", "Pople 6-311G", false},
+    {"6-311+G**", "6-311pgss.gbs", "Pople 6-311G", false},
+    {"6-311++G*", "6-311ppgs.gbs", "Pople 6-311G", false},
+    {"6-311++G**", "6-311ppgss.gbs", "Pople 6-311G", false},
+    {"6-311++G(2d,2p)", "6-311ppg_2d_2p_.gbs", "Pople 6-311G", false},
+    {"6-311++G(3df,3pd)", "6-311ppg_3df_3pd_.gbs", "Pople 6-311G", false},
+    {"def2-SVP", "def2-svp.gbs", "Karlsruhe def2", false},
+    {"def2-mTZVP", "def2-mtzvp.gbs", "Karlsruhe def2", false},
+    {"def2-mTZVPP", "def2-mtzvpp.gbs", "Karlsruhe def2", false},
+    {"def2-TZVP", "def2-tzvp.gbs", "Karlsruhe def2", false},
+    {"def2-TZVPP", "def2-tzvpp.gbs", "Karlsruhe def2", false},
+    {"def2-TZVPPD", "def2-tzvppd.gbs", "Karlsruhe def2", false},
+    {"def2-QZVP", "def2-qzvp.gbs", "Karlsruhe def2", false},
+    {"def2-QZVPP", "def2-qzvpp.gbs", "Karlsruhe def2", false},
+    {"def2-QZVPPD", "def2-qzvppd.gbs", "Karlsruhe def2", false},
+    {"aug-cc-pVDZ", "aug-cc-pvdz.gbs", "Dunning aug-cc-pVXZ", false},
+    {"aug-cc-pVTZ", "aug-cc-pvtz.gbs", "Dunning aug-cc-pVXZ", false},
+    {"aug-cc-pVQZ", "aug-cc-pvqz.gbs", "Dunning aug-cc-pVXZ", false},
+    {"aug-cc-pV5Z", "aug-cc-pv5z.gbs", "Dunning aug-cc-pVXZ", false},
+    {"aug-cc-pCVDZ", "aug-cc-pcvdz.gbs", "Dunning aug-cc-pCVXZ", false},
+    {"aug-cc-pCVTZ", "aug-cc-pcvtz.gbs", "Dunning aug-cc-pCVXZ", false},
+    {"aug-cc-pCVQZ", "aug-cc-pcvqz.gbs", "Dunning aug-cc-pCVXZ", false},
+    {"aug-cc-pCV5Z", "aug-cc-pcv5z.gbs", "Dunning aug-cc-pCVXZ", false},
 };
 
-const Spec kBases[] = {
-    {"aug-cc-pVDZ", "aug-cc-pvdz.gbs"},   {"aug-cc-pVTZ", "aug-cc-pvtz.gbs"},
-    {"aug-cc-pVQZ", "aug-cc-pvqz.gbs"},   {"aug-cc-pV5Z", "aug-cc-pv5z.gbs"},
-    {"aug-cc-pCVDZ", "aug-cc-pcvdz.gbs"}, {"aug-cc-pCVTZ", "aug-cc-pcvtz.gbs"},
-    {"aug-cc-pCVQZ", "aug-cc-pcvqz.gbs"}, {"aug-cc-pCV5Z", "aug-cc-pcv5z.gbs"},
-};
+// Spelling-independent key of a basis-set name: lower case without blanks; Gaussian's
+// polarisation notation (d) = *, (d,p) = ** at the end of a Pople name; "def2svp" = "def2-svp".
+std::string name_key(const std::string& name) {
+    std::string k;
+    for (char c : lower(trim(name)))
+        if (c != ' ' && c != '\t') k += c;
+    auto ends_with = [&](const std::string& t) { return k.size() >= t.size() && k.compare(k.size() - t.size(), t.size(), t) == 0; };
+    if (k.rfind("6-31", 0) == 0) {
+        if (ends_with("g(d,p)")) k = k.substr(0, k.size() - 5) + "**";
+        else if (ends_with("g(d)")) k = k.substr(0, k.size() - 3) + "*";
+    }
+    if (k.rfind("def2", 0) == 0 && k.size() > 4 && k[4] != '-') k.insert(4, "-");
+    return k;
+}
 
 // aug-cc-pCVXZ -> aug-cc-pVXZ (the valence set used for hydrogen), else "".
 std::string valence_partner(const std::string& canonical) {
     if (canonical.rfind("aug-cc-pCV", 0) == 0) return "aug-cc-pV" + canonical.substr(10);
     return "";
+}
+
+// "H-Ar", "H, Li-Ca", "H-Ca, Ga-Kr": the elements of a basis-set file as ranges of atomic numbers.
+std::string element_ranges(const BasisFile& f) {
+    std::string out;
+    auto it = f.elements.begin();
+    while (it != f.elements.end()) {
+        const int first = it->first;
+        int last = first;
+        auto next = std::next(it);
+        while (next != f.elements.end() && next->first == last + 1) {
+            last = next->first;
+            ++next;
+        }
+        out += (out.empty() ? "" : ", ") + element_symbol(first) + (last == first ? "" : "-" + element_symbol(last));
+        it = next;
+    }
+    return out;
 }
 
 std::string read_text_file(const std::string& path) {
@@ -187,6 +248,11 @@ BasisFile parse_gaussian94(const std::string& text) {
     return file;
 }
 
+const std::vector<BasisSetInfo>& basis_set_library() {
+    static const std::vector<BasisSetInfo> library(std::begin(kBases), std::end(kBases));
+    return library;
+}
+
 const std::vector<std::string>& supported_basis_sets() {
     static const std::vector<std::string> names = [] {
         std::vector<std::string> v;
@@ -196,17 +262,27 @@ const std::vector<std::string>& supported_basis_sets() {
     return names;
 }
 
-std::string canonical_basis_name(const std::string& name) {
-    const std::string n = lower(trim(name));
+const BasisSetInfo* basis_set_info(const std::string& name) {
+    const std::string k = name_key(name);
     for (const auto& b : kBases)
-        if (n == lower(b.name)) return b.name;
-    return "";
+        if (k == name_key(b.name)) return &b;
+    return nullptr;
+}
+
+std::string canonical_basis_name(const std::string& name) {
+    const BasisSetInfo* b = basis_set_info(name);
+    return b ? b->name : "";
 }
 
 std::string basis_file_name(const std::string& canonical_name) {
-    for (const auto& b : kBases)
-        if (canonical_name == b.name) return b.file;
+    if (const BasisSetInfo* b = basis_set_info(canonical_name)) return b->file;
     return lower(canonical_name) + ".gbs";
+}
+
+std::string basis_function_types(const std::string& name) {
+    const BasisSetInfo* b = basis_set_info(name);
+    if (b && b->cartesian_d) return "Cartesian d functions (6D), spherical f functions (7F)";
+    return "spherical harmonics (5D, 7F)";
 }
 
 std::string default_basis_directory() {
@@ -248,6 +324,7 @@ BasisSet build_basis(const Molecule& mol, const std::string& basis_name,
 
     BasisSet basis;
     basis.name = name;
+    basis.cartesian_d = basis_set_info(name)->cartesian_d;
     basis.source = main_file->second.header;
     std::set<std::string> extra_sources;
     for (std::size_t a = 0; a < mol.atoms.size(); ++a) {
@@ -277,7 +354,25 @@ BasisSet build_basis(const Molecule& mol, const std::string& basis_name,
             } else {
                 std::string msg = name + " is not available for " + atom.symbol +
                                   ": the Basis Set Exchange does not define it for this element.";
-                if (name.find("pCV") != std::string::npos && atom.Z > 18)
+                const std::string family = basis_set_info(name)->family;
+                const bool dunning = family.rfind("Dunning", 0) == 0;
+                if (!dunning) {
+                    // 14.0: the Pople and def2 sets, as ΨLab has them (H-Kr where the BSE defines them)
+                    msg = name + " is not available for " + atom.symbol + ": ΨLab has it for " +
+                          element_ranges(main_file->second) + " (the elements up to Kr for which the Basis Set "
+                          "Exchange defines it).";
+                    if (atom.Z > 36 && family == "Karlsruhe def2")
+                        msg += " (Beyond Kr the def2 sets are used with the def2 effective core potentials, which "
+                               "ΨLab does not implement; ΨLab computes molecules of H-Kr.)";
+                    else if (atom.Z > 36)
+                        msg += " (Elements beyond Kr need effective core potentials, which ΨLab does not implement; "
+                               "ΨLab computes molecules of H-Kr.)";
+                    else if (family == "Pople 6-31G")
+                        msg += " (The diffuse 6-31+G and 6-31++G sets are defined for H-Ar; 6-31G and 6-31G* for "
+                               "H-Kr. The def2 sets cover H-Kr.)";
+                    else
+                        msg += " (The 6-31G and 6-31G* sets and the def2 sets cover H-Kr.)";
+                } else if (name.find("pCV") != std::string::npos && atom.Z > 18)
                     msg += " (The core-valence sets are defined for Li-Ar; use the aug-cc-pVXZ set.)";
                 else if (atom.Z == 19 || atom.Z == 20)
                     msg += " (The Basis Set Exchange has no aug-cc-pVXZ sets for K and Ca.)";
@@ -302,6 +397,7 @@ BasisSet build_basis(const Molecule& mol, const std::string& basis_name,
             sh.center = atom.position;
             sh.exponents = sd.exponents;
             sh.coefficients = normalized_coefficients(sd.l, sd.exponents, sd.coefficients);
+            sh.pure = !(basis.cartesian_d && sd.l == 2);  // 14.0: 6D for the 6-31G family
             sh.first_function = basis.n_functions;
             basis.n_functions += sh.size();
             basis.n_primitives += static_cast<int>(sd.exponents.size()) * sh.size();

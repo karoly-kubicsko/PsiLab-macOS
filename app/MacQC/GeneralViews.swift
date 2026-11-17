@@ -2,7 +2,7 @@
 //  GeneralViews.swift
 //  MacQC
 //
-//  Detail views of the general path (H₂, LiH, H₂O, H₂O₂, NH₃, HeH⁺ in a correlation-consistent
+//  Detail views of the general path (H₂, LiH, H₂O, H₂O₂, NH₃, HeH⁺ in a Gaussian
 //  basis set): summary, Hartree–Fock and Full CI pages; the
 //  coupled-cluster page is in CoupledClusterView.swift, the job tabs in JobViews.swift and the
 //  output file in OutputView.swift.
@@ -194,7 +194,7 @@ struct GeneralSummaryView: View {
             }
             .monospacedDigit()
             .textSelection(.enabled)
-            Text("\(b.functions) spherical basis functions in \(b.shells) shells; highest angular momentum l = \(b.maxL).")
+            Text("\(b.functions) basis functions, \(b.functionTypes ?? "spherical harmonics"), in \(b.shells) shells; highest angular momentum l = \(b.maxL).")
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }

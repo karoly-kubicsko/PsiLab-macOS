@@ -235,10 +235,13 @@ extension SavedMolecule {
     ///  - comment lines ("!") with the name, the level and energy of an optimised geometry, and
     ///    what the route cannot say;
     ///  - route "#p method/basis": HF, CCSD(Full) or CCSD(T,Full) (all electrons correlated, as in
-    ///    ΨLab; HF where Gaussian has no such method); aug-cc-pVXZ by name; aug-cc-pCVXZ, which
-    ///    Gaussian does not have built in, as "Gen 5D 7F" with ΨLab's functions written out
-    ///    (H and He with the aug-cc-pVXZ functions, as ΨLab uses them), or by name per element
-    ///    when the functions are not known;
+    ///    ΨLab; HF where Gaussian has no such method); by Gaussian's name the sets it has built in
+    ///    (14.0: the 6-31G family, whose default 6D 7F ΨLab uses as well, the 6-311G family and
+    ///    Def2SVP, Def2TZVP, Def2TZVPP, Def2QZVP, Def2QZVPP, all with Gaussian's default function
+    ///    types; aug-cc-pVXZ); the others (aug-cc-pCVXZ, def2-mTZVP, def2-mTZVPP, def2-TZVPPD,
+    ///    def2-QZVPPD) as "Gen 5D 7F" with ΨLab's functions written out (for aug-cc-pCVXZ H and He
+    ///    with the aug-cc-pVXZ functions, as ΨLab uses them), or by name per element when the
+    ///    functions are not known;
     ///  - title (the name, ASCII without the characters the title section must not contain);
     ///  - charge and multiplicity, Cartesian coordinates in Å, and the basis section if any.
     /// ΨLab reads it back as a custom molecule (comments are skipped).
@@ -260,9 +263,27 @@ extension SavedMolecule {
             lines.append("! all electrons correlated, as in PsiLab (Full: no frozen core)")
         }
         // the basis set
-        var route = basis
+        var route = SavedMolecule.gaussianBasisKeyword(basis) ?? basis
         var basisSection: [String] = []
-        if basis.lowercased().hasPrefix("aug-cc-pcv") {
+        if BasisSets.isCartesianD(basis) {
+            lines.append("! \(basis): Cartesian d functions (6D, Gaussian's default for the 6-31G family), as in PsiLab")
+        }
+        if SavedMolecule.gaussianBasisKeyword(basis) == nil && !basis.lowercased().hasPrefix("aug-cc-pcv") {
+            // 14.0: def2 sets that Gaussian does not have built in (spherical, 5D 7F)
+            route = "Gen 5D 7F"
+            if let section = SavedMolecule.gaussianBasisSection(for: atoms.map(\.Z), orbitals: orbitals) {
+                lines.append("! basis set \(basis) as used by PsiLab, written out below")
+                basisSection = section
+            } else {
+                lines.append("! basis set \(basis) by name: if your Gaussian does not have it,")
+                lines.append("! replace the names by its functions (e.g. from basissetexchange.org)")
+                var seen: [Int] = []
+                for Z in atoms.map(\.Z) where !seen.contains(Z) {
+                    seen.append(Z)
+                    basisSection += ["\(Elements.symbol(Z)) 0", basis, "****"]
+                }
+            }
+        } else if basis.lowercased().hasPrefix("aug-cc-pcv") {
             route = "Gen 5D 7F"
             let partner = "aug-cc-pV" + basis.dropFirst("aug-cc-pCV".count)
             if let section = SavedMolecule.gaussianBasisSection(for: atoms.map(\.Z), orbitals: orbitals) {
@@ -289,6 +310,22 @@ extension SavedMolecule {
             lines.append("")
         }
         return lines.joined(separator: "\n") + "\n"
+    }
+
+    /// 14.0: Gaussian's keyword of a ΨLab basis set that Gaussian has built in (with the same
+    /// default function types as ΨLab: 6D 7F for the 6-31G family, 5D 7F for the others), nil for
+    /// aug-cc-pCVXZ, def2-mTZVP, def2-mTZVPP, def2-TZVPPD and def2-QZVPPD.
+    static func gaussianBasisKeyword(_ basis: String) -> String? {
+        let b = basis.lowercased()
+        if b.hasPrefix("6-31") || b.hasPrefix("aug-cc-pv") { return basis }
+        switch b {
+        case "def2-svp": return "Def2SVP"
+        case "def2-tzvp": return "Def2TZVP"
+        case "def2-tzvpp": return "Def2TZVPP"
+        case "def2-qzvp": return "Def2QZVP"
+        case "def2-qzvpp": return "Def2QZVPP"
+        default: return nil
+        }
     }
 
     /// Gaussian's general basis input for the elements `Z` from the shells of `orbitals` (one atom

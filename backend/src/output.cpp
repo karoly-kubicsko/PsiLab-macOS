@@ -93,12 +93,15 @@ std::string parameter_lines(const Molecule& mol, const std::string& indent) {
 }
 
 std::string basis_block(const BasisSet& b, const std::vector<std::string>& notes) {
-    std::string s = "    " + b.name + ": spherical harmonics, Gaussian94 files from basissetexchange.org\n";
+    std::string s = "    " + b.name + ": " + basis_function_types(b.name) +
+                    ", Gaussian94 files from basissetexchange.org\n";
+    int width = 13;  // 14.0: names up to "6-311++G(3df,3pd)"
+    for (const auto& a : b.atoms) width = std::max(width, static_cast<int>(a.basis.size()));
     std::vector<std::string> seen;
     for (const auto& a : b.atoms) {
         if (std::find(seen.begin(), seen.end(), a.symbol) != seen.end()) continue;
         seen.push_back(a.symbol);
-        s += strprintf("    %-2s  %-13s %-16s -> %-16s %4d functions\n", a.symbol.c_str(), a.basis.c_str(),
+        s += strprintf("    %-2s  %-*s %-16s -> %-16s %4d functions\n", a.symbol.c_str(), width, a.basis.c_str(),
                        a.primitives.c_str(), a.contraction.c_str(), a.functions);
     }
     for (const auto& n : notes) s += "    Note: " + n + "\n";

@@ -46,8 +46,10 @@ int atomic_number(const std::string& symbol);
 // Largest atomic number (118). A structure may contain any element; which elements a calculation
 // can use depends on the basis set: the all-electron aug-cc-pVXZ sets of the Basis Set Exchange
 // cover H-Ar and Sc-Kr (Sc-Zn up to aug-cc-pVQZ: their 5Z sets need i functions), aug-cc-pCVXZ
-// Li-Ar (aug-cc-pCV5Z: B-Ar). Heavier elements need effective core potentials (aug-cc-pVXZ-PP),
-// which ΨLab does not implement; such molecules are refused with that explanation.
+// Li-Ar (aug-cc-pCV5Z: B-Ar); 14.0: 6-31G, 6-31G* and the def2 sets H-Kr, the diffuse 6-31G sets
+// H-Ar, the 6-311G family H-Ca and Ga-Kr (diffuse ones up to Ca). Heavier elements need effective
+// core potentials (aug-cc-pVXZ-PP, def2-ECP), which ΨLab does not implement; such molecules are
+// refused with that explanation.
 constexpr int kMaxAtomicNumber = 118;
 
 // Canonical molecule name ("H2", "LiH", "H2O", "H2O2", "NH3", "HeH+"; "custom") for any spelling, or "".

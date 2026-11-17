@@ -181,12 +181,11 @@ void basis_function_values(const std::vector<Shell>& shells, int n_basis, const 
             continue;
         }
         cartesian_monomials(l, x, y, z, mono);
-        const int nc = (l + 1) * (l + 2) / 2;
-        const std::vector<double>& M = solid_harmonic_matrix(l);
-        for (int m = 0; m < 2 * l + 1; ++m) {
+        // the functions of the shell: real solid harmonics, or (14.0) normalised Cartesian components
+        const ShellTransform& T = shell_transform(s);
+        for (int m = 0; m < T.size(); ++m) {
             double v = 0.0;
-            const double* row = M.data() + static_cast<std::size_t>(m) * nc;
-            for (int c = 0; c < nc; ++c) v += row[c] * mono[c];
+            for (const auto& [c, f] : T.rows[static_cast<std::size_t>(m)]) v += f * mono[c];
             out[m] = v * radial;
         }
     }

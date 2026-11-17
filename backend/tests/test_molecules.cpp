@@ -447,8 +447,8 @@ int main() {
         check_max("  HeH+ without a basis set: the Szabo-Ostlund STO-3G energy (E_h)",
                   std::fabs(legacy["hf"]["totalEnergy"].get<double>() - (-2.860661992)), 1e-9);
         CHECK(run({{"molecule", "HeH+"}, {"basis", "STO-1G"}})["input"]["nGaussians"].get<int>() == 1);
-        CHECK(contains(run({{"molecule", "HeH+"}, {"job", "opt"}})["error"].get<std::string>(), "correlation-consistent"));
-        CHECK(contains(run({{"molecule", "HeH+"}, {"basis", "6-31G"}})["error"].get<std::string>(), "STO-1G, STO-2G, STO-3G"));
+        CHECK(contains(run({{"molecule", "HeH+"}, {"job", "opt"}})["error"].get<std::string>(), "choose a Gaussian basis set"));
+        CHECK(contains(run({{"molecule", "HeH+"}, {"basis", "6-31G**"}})["error"].get<std::string>(), "STO-1G, STO-2G, STO-3G"));
         CHECK(contains(run({{"molecule", "HeH+"}, {"basis", "aug-cc-pVDZ"}, {"job", "ts"}})["error"].get<std::string>(),
                        "no transition state"));
     }
