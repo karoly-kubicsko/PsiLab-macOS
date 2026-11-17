@@ -621,7 +621,7 @@ final class Molecule3DController {
             for (bond, node) in bondNodes {
                 let animation = CAKeyframeAnimation(keyPath: "transform")
                 animation.values = frames.map { f in
-                    NSValue(scnMatrix4: SCNMatrix4FromMat4(Molecule3DController.bondMatrix(vector(f[bond.a]), vector(f[bond.b]))))
+                    NSValue(scnMatrix4: SCNMatrix4(Molecule3DController.bondMatrix(vector(f[bond.a]), vector(f[bond.b]))))
                 }
                 animation.keyTimes = times
                 animation.duration = v.period
