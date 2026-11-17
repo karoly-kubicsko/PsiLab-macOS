@@ -346,6 +346,16 @@ struct MoleculeSceneRepresentable: NSViewRepresentable {
 /// pages: a plain scroll scrolls the page, ⌥-scroll (or a pinch) zooms the molecule.
 final class MoleculeSCNView: SCNView {
     var onClick: ((CGPoint) -> Void)?
+    /// Called when the view gets another size (the first layout replaces the placeholder size).
+    var onResize: (() -> Void)?
+
+    override func setFrameSize(_ newSize: NSSize) {
+        let old = frame.size
+        super.setFrameSize(newSize)
+        if abs(old.width - newSize.width) > 0.5 || abs(old.height - newSize.height) > 0.5 {
+            onResize?()
+        }
+    }
 
     override func scrollWheel(with event: NSEvent) {
         if event.modifierFlags.contains(.option) || event.modifierFlags.contains(.command) {
@@ -387,6 +397,9 @@ final class Molecule3DController {
     /// Centre and radius (bohr) of the region the starting view shows.
     private var center = SIMD3<Float>(0, 0, 0)
     private var radius: Float = 4
+    /// The camera transform of the last Reset view: while the camera is still there, a new size of
+    /// the view fits the molecule again.
+    private var resetTransform: simd_float4x4?
     private var depthTimer: Timer?
     private var depthCueDistance: Float = -1
     private var materials: [String: SCNMaterial] = [:]
@@ -409,6 +422,7 @@ final class Molecule3DController {
         cameraNode.camera = {
             let camera = SCNCamera()
             camera.fieldOfView = 30
+            camera.projectionDirection = .vertical
             camera.zNear = 0.05
             camera.zFar = 2000
             return camera
@@ -449,6 +463,9 @@ final class Molecule3DController {
         view.installClickRecognizer()
         view.onClick = { [weak self] point in
             self?.click(at: point)
+        }
+        view.onResize = { [weak self] in
+            self?.refitIfUntouched()
         }
         // Depth cueing follows the distance of the camera (zooming changes it): checked 10 times
         // a second, also while the mouse is dragged.
@@ -652,14 +669,28 @@ final class Molecule3DController {
             node.childNodes.filter { $0.name == "halo" }.forEach { $0.removeFromParentNode() }
         }
         let rep = c.style.representation
-        // bond lengths (not for a vibrating mode), a little above the middle of each bond
-        if c.style.bondLengths && c.vibration == nil {
+        // bond lengths (not for a vibrating mode) beside the middle of each bond, on the side away
+        // from the centre of the molecule (as in the 2D drawings of earlier versions); a bond
+        // through the centre (diatomics, CH4) has its label a little above it on the screen
+        if c.style.bondLengths && c.vibration == nil && !c.positions.isEmpty {
+            var centroid = SIMD3<Float>(0, 0, 0)
+            for p in c.positions { centroid += vector(p) }
+            centroid /= Float(c.positions.count)
+            let height: Float = 0.34
+            let clearance = Float(max(rep.bondRadius, 0.08)) + 0.75 * height
             for bond in c.bonds where bond.a < c.positions.count && bond.b < c.positions.count {
                 let a = vector(c.positions[bond.a]), b = vector(c.positions[bond.b])
-                let r = Double(simd_length(b - a)) * Units.bohrToAngstrom
-                let node = label(String(format: "%.4f Å", r), height: 0.42, lift: 0.42,
+                let length = simd_length(b - a)
+                guard length > 1e-4 else { continue }
+                let u = (b - a) / length
+                let middle = (a + b) / 2
+                var side = middle - centroid
+                side -= simd_dot(side, u) * u
+                let outward = simd_length(side) > 0.05
+                let r = Double(length) * Units.bohrToAngstrom
+                let node = label(String(format: "%.4f Å", r), height: height, lift: outward ? 0 : clearance,
                                  toward: Float(max(rep.bondRadius, 0.1)) + 0.05, dark: c.style.darkBackground, plate: true)
-                node.simdPosition = (a + b) / 2
+                node.simdPosition = outward ? middle + simd_normalize(side) * clearance : middle
                 annotationRoot.addChildNode(node)
             }
         }
@@ -719,19 +750,31 @@ final class Molecule3DController {
             front = max(front, simd_dot(d, toward))
             reach = max(reach, simd_length(d))
         }
-        let margin = largestAtom + 0.6
+        let margin = largestAtom + 0.8
         halfWidth += margin
         halfHeight += margin
         radius = reach + largestAtom
+        // the vertical field of view is 30°; the horizontal one follows from the shape of the view
         let bounds = view.bounds.size
-        let aspect = bounds.width > 10 && bounds.height > 10 ? Float(bounds.width / bounds.height) : 1.8
+        let aspect = bounds.width > 20 && bounds.height > 20 ? Float(bounds.width / bounds.height) : 1.5
         let t = Float(tan(15.0 * Double.pi / 180))
-        let distance = 1.08 * max(halfHeight / t, halfWidth / (t * min(max(aspect, 0.7), 3))) + front + largestAtom
+        let distance = 1.1 * max(halfHeight / t, halfWidth / (t * min(max(aspect, 0.3), 4))) + front + largestAtom
         cameraNode.simdPosition = center + distance * toward
         cameraNode.simdLook(at: center, up: up, localFront: SIMD3<Float>(0, 0, -1))
         view.defaultCameraController.target = scnVector(center)
+        resetTransform = cameraNode.simdTransform
         depthCueDistance = -1
         updateDepthCue(force: true)
+    }
+
+    /// A new size of the view (its first layout, a resized window): fit the molecule again unless
+    /// the camera was moved since the last reset.
+    private func refitIfUntouched() {
+        guard let r = resetTransform, cameraNode.simdTransform == r else { return }
+        SCNTransaction.begin()
+        SCNTransaction.animationDuration = 0
+        resetView()
+        SCNTransaction.commit()
     }
 
     private func applyBackground(_ c: Molecule3DConfiguration) {
