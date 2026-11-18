@@ -667,7 +667,13 @@ print_shot "82-nh3-freq-3d-spheres-dark"
 # examples/outputs/h2o-ccsd-opt-freq.out, written by psilab 13.0: its archive section restores every
 # tab without a calculation (the orbitals are computed again from the basis set and coefficients).
 echo "== open an output file of psilab (H2O CCSD/aug-cc-pVDZ opt+freq): Summary, Optimisation, Frequencies, Orbitals"
-EXAMPLE_OUT="$PWD/examples/outputs/h2o-ccsd-opt-freq.out"
+# The app is sandboxed: a path given on the command line must lie in its container (a file chosen
+# in File > Open Output File… is granted by the file panel). The container exists after the
+# launches above.
+CONTAINER="$HOME/Library/Containers/org.psilab.PsiLab/Data"
+mkdir -p "$CONTAINER/tmp"
+cp examples/outputs/h2o-ccsd-opt-freq.out "$CONTAINER/tmp/" || echo "could not copy the example output into the container"
+EXAMPLE_OUT="$CONTAINER/tmp/h2o-ccsd-opt-freq.out"
 relaunch -appearanceChoice light -psilabOpenOutput "$EXAMPLE_OUT"
 view_tab "90-opened-output-summary" "Summary"
 print_shot "90-opened-output-summary"

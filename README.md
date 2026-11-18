@@ -1609,8 +1609,10 @@ XcodeGen project spec in `xcode/project.yml`. See [`app/SETUP.md`](app/SETUP.md)
   `-psilabSPBasis`, `-psilabR` (Å), `-psilabAngle`, `-psilabROO` (Å), `-psilabDihedral`,
   `-psilabScan`, `-psilabScanStart`, `-psilabTSHessian`, `-psilabEigenTest`, `-psilabTab`,
   `-psilabOrbital`, `-psilabOrbitalSet`, `-psilabOrbitalView`, `-psilabIsovalue`,
-  `-psilabAutoRun`, `-psilabPlaySteps`, (13.0) `-psilabOpenOutput` (opens an output file: the
-  example output of H₂O CCSD opt+freq with its Summary, Optimisation, Frequencies and Orbitals pages)
+  `-psilabAutoRun`, `-psilabPlaySteps`, (13.0) `-psilabOpenOutput` (opens an output file at launch,
+  without a calculation; the app is sandboxed, so the path must lie in its container: the smoke test
+  copies the example output of H₂O CCSD opt+freq there and shows its Summary, Optimisation,
+  Frequencies and Orbitals pages)
   and the viewer settings `-viewer3D.*` (12.0); screenshots on the runner's 1024-pt-wide screen,
   where the window has its minimum width of 1000 pt) and publishes the **ΨLab-app** download.
   The first build of `main` with a new app version is published as a GitHub Release (tag

@@ -250,6 +250,8 @@ final class AppModel {
     /// 13.0: the output file (or JSON export) whose results are shown, nil for a calculation of
     /// this session.
     var openedFile: OpenedOutputFile?
+    /// An output file was requested at launch (-psilabOpenOutput): no calculation at launch.
+    var openedAtLaunch = false
     var errorMessage: String?
     var progress = MacQCProgress()
     /// The backend's description of the current step ("Optimisation step 4 · E = … · max force …").
@@ -383,8 +385,11 @@ final class AppModel {
             }
         }
         autoRunLongJobs = defaults.bool(forKey: "psilabAutoRun")
-        // 13.0: -psilabOpenOutput path: open an output file (or a JSON export) at launch
+        // 13.0: -psilabOpenOutput path: open an output file (or a JSON export) at launch; no
+        // calculation then, also when the file cannot be read (its error stays visible). The app is
+        // sandboxed: the path must lie in its container.
         if let path = defaults.string(forKey: "psilabOpenOutput"), !path.isEmpty {
+            openedAtLaunch = true
             loadOutputFile(from: URL(fileURLWithPath: (path as NSString).expandingTildeInPath),
                            showSummary: defaults.string(forKey: "psilabTab") == nil)
         }

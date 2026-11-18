@@ -25,7 +25,7 @@ struct ContentView: View {
         .task {
             // Show a result right away (the Szabo–Ostlund defaults, or the molecule given as a
             // launch argument). Large general calculations wait for Run.
-            if model.result == nil {
+            if model.result == nil && !model.openedAtLaunch {
                 if model.isGeneral {
                     await model.refreshEstimate()
                     if model.refusal == nil && (!model.isLongCalculation || model.autoRunLongJobs) {
