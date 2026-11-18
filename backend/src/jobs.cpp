@@ -544,7 +544,9 @@ void write_header(OutputWriter& w, const JobSettings& s, const std::string& echo
 void write_molecule(OutputWriter& w, const MolecularResult& p, const std::string& what) {
     const Molecule& m = p.molecule;
     w.section("Molecule");
-    w.line(strprintf("    %s, %d electrons, charge %d, closed-shell singlet", m.display_name().c_str(), m.electrons(), m.charge));
+    w.line(strprintf("    %s, %d electrons%s, charge %d, closed-shell singlet", m.display_name().c_str(), m.electrons(),
+                     m.core_electrons() ? strprintf(" (and %d core electrons in ECPs)", m.core_electrons()).c_str() : "",
+                     m.charge));
     if (m.custom) w.line(strprintf("    %s (%zu atoms, Cartesian coordinates)", m.title.empty() ? "custom molecule" : m.title.c_str(), m.atoms.size()));
     w.line("    " + what);
     w.write(geometry_table(m));
@@ -785,6 +787,7 @@ MolecularResult final_point_result(const JobResult& job, const MolecularInput& i
         r.input.angle = si.values[3] * deg;  // NH3: R(N1-H2), A(H2-N1-H3)
     }
     r.basis = build_basis(r.molecule, r.input.basis, input.basis_directory);
+    r.molecule = attach_ecps(r.molecule, r.basis);  // 14.0: effective core potentials
     for (const auto& a : r.basis.atoms)
         if (!a.note.empty() && std::find(r.notes.begin(), r.notes.end(), a.note) == r.notes.end()) r.notes.push_back(a.note);
     if (sp) {
@@ -1331,12 +1334,13 @@ JobResult run_job(const MolecularInput& input, const JobSettings& s, const Outpu
                       (job_has_ts(s.type) ? "transition state: " : "optimised geometry: ") + method_label(m2) + "/" + b2);
             w.write(geometry_table(x));
             const BasisSet bs = build_basis(x, b2, p.input.basis_directory);
+            const Molecule xs = attach_ecps(x, bs);  // 14.0: the ECPs of the single point's basis set
             w.write(basis_block(bs, psp->notes));
             st.reset();
             st.method = m2;
             st.context = "Single point · ";
             ElectronicCallbacks cb2 = stream_callbacks(st);
-            const SinglePoint sp = run_single_point(x, bs, m2, eo, b2 == p.input.basis ? guess : nullptr, cb2);
+            const SinglePoint sp = run_single_point(xs, bs, m2, eo, b2 == p.input.basis ? guess : nullptr, cb2);
             write_point_details(w, sp, bs, true);
             r.single_point = sp;
             r.final_energy = sp.energy;

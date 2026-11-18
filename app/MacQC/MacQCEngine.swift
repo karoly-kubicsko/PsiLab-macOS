@@ -16,7 +16,7 @@ import Foundation
 
 /// Input JSON of `macqc_run`. HeH⁺ with `basis` "STO-1G", "STO-2G" or "STO-3G" selects the
 /// Szabo–Ostlund calculation (keys R … printLevel); H₂, LiH, H₂O, H₂O₂, NH₃ and HeH⁺ with a
-/// correlation-consistent basis set the general path (R, basis, angle, method, job, …). The
+/// Gaussian basis set of the library the general path (R, basis, angle, method, job, …). The
 /// backend echoes only the keys of the selected path (the Szabo–Ostlund echo has no "molecule"),
 /// so every key is optional when decoding.
 nonisolated struct MacQCInput: Codable, Sendable, Equatable {
@@ -122,7 +122,7 @@ nonisolated struct MacQCInput: Codable, Sendable, Equatable {
     }
 
     /// True for the general Gaussian-basis path: H₂, LiH, H₂O, H₂O₂, NH₃, and HeH⁺ in a
-    /// correlation-consistent basis set (false: HeH⁺ in STO-nG, Szabo–Ostlund).
+    /// Gaussian basis set of the library (false: HeH⁺ in STO-nG, Szabo–Ostlund).
     var isGeneral: Bool { molecule != "HeH+" || !basis.uppercased().hasPrefix("STO") }
 
     /// ΨLab 9.0: a custom molecule (atoms from a structure file).
@@ -217,6 +217,16 @@ nonisolated struct MacQCAtom: Codable, Sendable, Equatable {
     var symbol: String
     var Z: Int
     var position: [Double]   // bohr
+    var ecp: MacQCEcp?       // 14.0: in the orbitals object, the atom's effective core potential
+}
+
+/// 14.0: an effective core potential U = U_L + Σ_l |lm⟩[U_l − U_L]⟨lm| with Gaussian terms
+/// c·exp(−a r²), each term [a, c].
+nonisolated struct MacQCEcp: Codable, Sendable, Equatable {
+    var core: Int                    // core electrons replaced
+    var L: Int                       // angular momentum of the local part
+    var local: [[Double]]            // U_L
+    var projected: [[[Double]]]      // U_l − U_L, l = 0 … L−1
 }
 
 nonisolated struct MacQCMoleculeInfo: Codable, Sendable, Equatable {
@@ -233,6 +243,7 @@ nonisolated struct MacQCMoleculeInfo: Codable, Sendable, Equatable {
     var formula: String?     // Hill order, e.g. "CO2"
     var custom: Bool?
     var title: String?       // custom molecules: the name from the structure file (LaTeX)
+    var coreElectrons: Int?  // 14.0: replaced by effective core potentials (0 or nil: none)
 }
 
 nonisolated struct MacQCAtomBasis: Codable, Sendable, Equatable {
@@ -241,6 +252,8 @@ nonisolated struct MacQCAtomBasis: Codable, Sendable, Equatable {
     var contraction: String
     var primitives: String
     var functions: Int
+    var ecp: String?          // 14.0: "ECP28" (28 core electrons replaced), nil: all electrons
+    var ecpElectrons: Int?
 }
 
 nonisolated struct MacQCBasisInfo: Codable, Sendable, Equatable {
@@ -249,6 +262,10 @@ nonisolated struct MacQCBasisInfo: Codable, Sendable, Equatable {
     var shells: Int
     var maxL: Int
     var atoms: [MacQCAtomBasis]
+    /// 14.0 (nil in older results: spherical): the d shells are Cartesian (6D, the 6-31G family),
+    /// and the kind of functions in words, e.g. "spherical harmonics (5D, 7F)".
+    var cartesianD: Bool?
+    var functionTypes: String?
 }
 
 nonisolated struct MacQCFCIEstimate: Codable, Sendable, Equatable {
@@ -728,14 +745,21 @@ nonisolated struct MacQCScan: Codable, Sendable, Equatable {
 
 // MARK: - Molecular orbitals (ΨLab 8.0)
 
-/// A contracted shell of real solid-harmonic Gaussians (coefficients include all normalisation).
+/// A contracted shell of real solid-harmonic Gaussians or (14.0) of Cartesian Gaussians
+/// (coefficients include all normalisation).
 nonisolated struct MacQCShell: Codable, Sendable, Equatable {
     var l: Int
     var atom: Int
     var center: [Double]             // bohr
     var exponents: [Double]
     var coefficients: [Double]
-    var first: Int                   // first basis function (m = -l … l)
+    var first: Int                   // first basis function (m = -l … l, or xx, xy, xz, yy, yz, zz)
+    /// 14.0: false for a Cartesian shell (the d shells of the 6-31G family, 6D); nil (older
+    /// results) or true: spherical. Passed back to the backend with the orbitals.
+    var pure: Bool?
+
+    var isCartesian: Bool { pure == false }
+    var size: Int { isCartesian ? (l + 1) * (l + 2) / 2 : 2 * l + 1 }
 }
 
 nonisolated struct MacQCOrbitalInfo: Codable, Sendable, Equatable, Identifiable {

@@ -97,8 +97,8 @@ void one_block_sum(OneKind kind, const ShellView& a, const ShellView& b, const s
         else
             for (std::size_t i = 0; i < acc.size(); ++i) acc[i] += out[i];
     };
-    const ShellTransform& sa = spherical_transform(a.shell->l);
-    const ShellTransform& sb = spherical_transform(b.shell->l);
+    const ShellTransform& sa = shell_transform(*a.shell);
+    const ShellTransform& sb = shell_transform(*b.shell);
     if (!a.comps && !b.comps) {
         run(*a.shell, sa, *b.shell, sb);
     } else if (a.comps && !b.comps) {
@@ -146,17 +146,17 @@ void for_ordered_pairs(const BasisSet& basis, int threads, Body body) {
 // ---------------------------------------------------------------------------------------
 
 std::vector<DerivativeComponent> shell_derivative_components(const Shell& s, int order) {
-    const int l = s.l, ns = 2 * l + 1;
-    const std::vector<double>& M = solid_harmonic_matrix(l);
+    // The output functions of the shell (real solid harmonics, or 14.0 normalised Cartesian
+    // components) as sparse rows over its Cartesian components.
+    const ShellTransform& S = shell_transform(s);
+    const int l = s.l, ns = S.size();
     const auto comps = cartesian_components(l);
-    const int nc = static_cast<int>(comps.size());
     std::vector<DerivativeComponent> out;
     if (order == 1) {
         RowBuilder up(3 * ns), down(3 * ns);
         for (int k = 0; k < 3; ++k)
             for (int m = 0; m < ns; ++m)
-                for (int c = 0; c < nc; ++c) {
-                    const double v = M[static_cast<std::size_t>(m) * nc + c];
+                for (const auto& [c, v] : S.rows[static_cast<std::size_t>(m)]) {
                     if (v == 0.0) continue;
                     auto e = comps[static_cast<std::size_t>(c)];
                     auto eu = e;
@@ -178,8 +178,7 @@ std::vector<DerivativeComponent> shell_derivative_components(const Shell& s, int
         for (int kp = k; kp < 3; ++kp) {
             const int pr = direction_pair(k, kp);
             for (int m = 0; m < ns; ++m)
-                for (int c = 0; c < nc; ++c) {
-                    const double v = M[static_cast<std::size_t>(m) * nc + c];
+                for (const auto& [c, v] : S.rows[static_cast<std::size_t>(m)]) {
                     if (v == 0.0) continue;
                     const auto e = comps[static_cast<std::size_t>(c)];
                     const int row = pr * ns + m;
@@ -1039,7 +1038,7 @@ std::vector<double> nuclear_repulsion_gradient(const Molecule& mol) {
                 d[k] = mol.atoms[i].position[k] - mol.atoms[j].position[k];
                 r2 += d[k] * d[k];
             }
-            const double r = std::sqrt(r2), f = mol.atoms[i].Z * mol.atoms[j].Z / (r2 * r);
+            const double r = std::sqrt(r2), f = mol.atoms[i].nuclear_charge() * mol.atoms[j].nuclear_charge() / (r2 * r);
             for (int k = 0; k < 3; ++k) g[3 * i + k] -= f * d[k];
         }
     return g;
@@ -1056,7 +1055,7 @@ Matrix nuclear_repulsion_hessian(const Molecule& mol) {
                 d[k] = mol.atoms[i].position[k] - mol.atoms[j].position[k];
                 r2 += d[k] * d[k];
             }
-            const double r = std::sqrt(r2), zz = mol.atoms[i].Z * mol.atoms[j].Z;
+            const double r = std::sqrt(r2), zz = mol.atoms[i].nuclear_charge() * mol.atoms[j].nuclear_charge();
             // d^2/dRi_k dRi_l of Z Z / r = Z Z (3 d_k d_l / r^5 - delta_kl / r^3); the (i, j) block is minus that.
             for (int k = 0; k < 3; ++k)
                 for (int l = 0; l < 3; ++l) {

@@ -2,10 +2,11 @@
 // from R(O-O), R(O-H), the O-O-H angle and the H-O-O-H dihedral angle; NH3 (7.0) built from
 // R(N-H) and the H-N-H angle (C3v; 120 degrees: planar, D3h). ΨLab 9.0: any closed-shell molecule
 // of any elements from Cartesian coordinates ("custom", read from .xyz or .gjf files); the basis sets
-// cover H-Kr (see kMaxAtomicNumber).
+// cover H-Kr (14.0: the def2 sets with their ECPs up to Rn and Th-Lr; see kMaxAtomicNumber).
 #pragma once
 
 #include <array>
+#include <memory>
 #include <string>
 #include <vector>
 
@@ -14,10 +15,34 @@ namespace macqc {
 // 1 bohr in angstrom (CODATA 2022).
 constexpr double kBohrInAngstrom = 0.529177210544;
 
+// 14.0: a semi-local effective core potential (ECP) of an atom, as in Gaussian's input:
+//   U(r) = U_L(r) + sum_{l < L} sum_m |lm> [U_l(r) - U_L(r)] <lm|,
+// each radial part a sum of terms c r^(n-2) exp(-a r^2) (r from the atom; ΨLab supports n = 2,
+// the Gaussian terms of the Stuttgart-Cologne potentials of the def2 sets).
+struct EcpTerm {
+    int power = 2;            // n
+    double exponent = 0.0;    // a (bohr^-2)
+    double coefficient = 0.0; // c (E_h)
+};
+
+struct AtomEcp {
+    int core_electrons = 0;                     // electrons replaced by the potential
+    int local_l = 0;                            // L of the local part U_L
+    std::vector<EcpTerm> local;                 // U_L
+    std::vector<std::vector<EcpTerm>> projected;  // [l] = U_l - U_L, l = 0 .. L-1
+};
+
 struct Atom {
     int Z = 0;
     std::string symbol;
     std::array<double, 3> position{};  // bohr
+    // 14.0: the ECP of the atom in the basis set of the calculation (nullptr: all electrons);
+    // set by attach_ecps (basis.h) when the basis is built.
+    std::shared_ptr<const AtomEcp> ecp;
+
+    // The nuclear charge the electrons see: Z, less the core electrons of an ECP.
+    int nuclear_charge() const { return ecp ? Z - ecp->core_electrons : Z; }
+    int core_electrons() const { return ecp ? ecp->core_electrons : 0; }
 };
 
 struct Molecule {
@@ -30,7 +55,10 @@ struct Molecule {
     bool custom = false;
     std::string title;  // custom: the name of the structure file's comment/title line (may contain LaTeX)
 
+    // Electrons treated explicitly (14.0: without the core electrons of ECPs) and the nuclear
+    // repulsion of the nuclear charges the electrons see (Z less the ECP core electrons).
     int electrons() const;
+    int core_electrons() const;  // 14.0: replaced by ECPs
     double nuclear_repulsion() const;
     // Molecular formula in Hill order ("CO2", "CH4", "H2O"; with the charge: "NH4+", "SO4 2-").
     std::string formula() const;
@@ -46,8 +74,10 @@ int atomic_number(const std::string& symbol);
 // Largest atomic number (118). A structure may contain any element; which elements a calculation
 // can use depends on the basis set: the all-electron aug-cc-pVXZ sets of the Basis Set Exchange
 // cover H-Ar and Sc-Kr (Sc-Zn up to aug-cc-pVQZ: their 5Z sets need i functions), aug-cc-pCVXZ
-// Li-Ar (aug-cc-pCV5Z: B-Ar). Heavier elements need effective core potentials (aug-cc-pVXZ-PP),
-// which ΨLab does not implement; such molecules are refused with that explanation.
+// Li-Ar (aug-cc-pCV5Z: B-Ar); 14.0: 6-31G, 6-31G* and the def2 sets H-Kr, the diffuse 6-31G sets
+// H-Ar, the 6-311G family H-Ca and Ga-Kr (diffuse ones up to Ca). Heavier elements need effective
+// core potentials (aug-cc-pVXZ-PP, def2-ECP), which ΨLab does not implement; such molecules are
+// refused with that explanation.
 constexpr int kMaxAtomicNumber = 118;
 
 // Canonical molecule name ("H2", "LiH", "H2O", "H2O2", "NH3", "HeH+"; "custom") for any spelling, or "".

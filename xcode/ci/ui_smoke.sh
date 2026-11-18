@@ -685,6 +685,33 @@ sleep 5
 dump_tab "93-opened-output-orbitals" ""
 print_shot "93-opened-output-orbitals"
 
+# --- ΨLab 14.0: the Pople 6-31G and 6-311G families and the def2 basis sets --------------------------
+# 6-31G* has Cartesian d functions (6D): its orbitals pass through the app with "pure": false.
+echo "== 14.0: H2O RHF/6-31G* orbitals (Cartesian d), NH3 RHF/def2-TZVP opt+freq, H2O CCSD(T)/6-311++G(3df,3pd)"
+relaunch -appearanceChoice light -psilabMolecule H2O -psilabBasis "6-31G*" -psilabMethod RHF -psilabTab orbitals
+sleep 8
+dump_tab "95-h2o-631gs-orbitals" ""
+print_shot "95-h2o-631gs-orbitals"
+relaunch -appearanceChoice light -psilabMolecule NH3 -psilabBasis def2-TZVP -psilabMethod RHF -psilabJob opt+freq -psilabAutoRun YES
+sleep 25
+view_tab "96-nh3-def2-tzvp-summary" "Summary"
+print_shot "96-nh3-def2-tzvp-summary"
+view_tab "97-nh3-def2-tzvp-frequencies" "Frequencies"
+relaunch -appearanceChoice dark -psilabMolecule H2O -psilabBasis "6-311++G(3df,3pd)" -psilabMethod "CCSD(T)" -psilabAutoRun YES -psilabTab output
+sleep 20
+view_tab "98-h2o-6-311ppg-3df-3pd-output" "Output"
+
+# Elements beyond Kr: the def2 sets with their effective core potentials (HI, ECP28 on I; PbO, ECP60)
+echo "== 14.0: HI RHF/def2-TZVP opt+freq (I with the def2 ECP), PbO CCSD(T)/def2-SVP energy"
+relaunch -appearanceChoice light -psilabStructure $'2\nHI\nH 0 0 0\nI 0 0 1.62\n' -psilabStructureName hi.xyz -psilabBasis def2-TZVP -psilabMethod RHF -psilabJob opt+freq -psilabAutoRun YES
+sleep 20
+view_tab "99-hi-def2-tzvp-summary" "Summary"
+print_shot "99-hi-def2-tzvp-summary"
+view_tab "99b-hi-def2-tzvp-frequencies" "Frequencies"
+relaunch -appearanceChoice dark -psilabStructure $'2\nPbO\nPb 0 0 0\nO 0 0 1.92\n' -psilabStructureName pbo.xyz -psilabBasis def2-SVP -psilabMethod "CCSD(T)" -psilabAutoRun YES -psilabTab output
+sleep 20
+view_tab "99c-pbo-ccsdt-output" "Output"
+
 pkill -x "ΨLab" || true
 
 # Crash reports of this run (none expected): print the crashed thread's backtrace.

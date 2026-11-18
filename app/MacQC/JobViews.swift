@@ -600,7 +600,7 @@ struct JobPlaceholder: View {
                     .frame(maxWidth: 560)
             }
             ContentUnavailableView(title, systemImage: systemImage,
-                                   description: Text(model.isGeneral ? text : "HeH⁺ in an STO-nG basis (Szabo–Ostlund) runs single-point energies. Choose a correlation-consistent basis set for the other job types."))
+                                   description: Text(model.isGeneral ? text : "HeH⁺ in an STO-nG basis (Szabo–Ostlund) runs single-point energies. Choose a Gaussian basis set (6-31G … aug-cc-pCV5Z) for the other job types."))
         }
         .padding()
     }

@@ -8,8 +8,8 @@
 import Foundation
 
 /// HeH⁺ is the Szabo–Ostlund STO-nG calculation of versions 1 and 2, or (ΨLab 7.0) a general
-/// calculation in a correlation-consistent basis set; H₂, LiH, H₂O, H₂O₂ and NH₃ use the
-/// correlation-consistent Gaussian basis sets.
+/// calculation in a Gaussian basis set of the library; H₂, LiH, H₂O, H₂O₂ and NH₃ use the
+/// Gaussian basis sets (correlation-consistent; 14.0 also Pople and def2).
 nonisolated enum MoleculeChoice: String, CaseIterable, Identifiable, Sendable {
     case heh = "HeH+"
     case h2 = "H2"
@@ -142,7 +142,7 @@ nonisolated enum MoleculeChoice: String, CaseIterable, Identifiable, Sendable {
     /// Short note shown under the molecule picker.
     var subtitle: String {
         switch self {
-        case .heh: return "2 electrons, charge +1: STO-nG (Szabo–Ostlund, HF and Full CI) or a correlation-consistent basis set (all methods and jobs)"
+        case .heh: return "2 electrons, charge +1: STO-nG (Szabo–Ostlund, HF and Full CI) or a Gaussian basis set (all methods and jobs)"
         case .h2: return "2 electrons, closed shell"
         case .lih: return "4 electrons, closed shell"
         case .h2o: return "10 electrons, closed shell (Full CI impossible)"
@@ -450,15 +450,41 @@ nonisolated enum JobChoice: String, CaseIterable, Identifiable, Sendable {
     }
 }
 
+/// A family of basis sets: a section of the basis-set menus.
+nonisolated struct BasisFamily: Sendable, Hashable {
+    let title: String
+    let names: [String]
+}
+
 nonisolated enum BasisSets {
-    /// The Gaussian94 files in the app bundle's basis folder (from basissetexchange.org).
-    static let all = [
-        "aug-cc-pVDZ", "aug-cc-pVTZ", "aug-cc-pVQZ", "aug-cc-pV5Z",
-        "aug-cc-pCVDZ", "aug-cc-pCVTZ", "aug-cc-pCVQZ", "aug-cc-pCV5Z",
+    /// The Gaussian94 files in the app bundle's basis folder (from basissetexchange.org), by family
+    /// in the order of the backend's library (basis.cpp). 14.0: the Pople 6-31G family (Cartesian
+    /// d functions, 6D, as Gaussian uses them) and 6-311G family and the Karlsruhe def2 sets.
+    static let families: [BasisFamily] = [
+        BasisFamily(title: "Pople 6-31G (Cartesian d, 6D)",
+                    names: ["6-31G", "6-31G*", "6-31+G", "6-31+G*", "6-31+G**", "6-31++G*", "6-31++G**"]),
+        BasisFamily(title: "Pople 6-311G",
+                    names: ["6-311G", "6-311G*", "6-311+G", "6-311+G*", "6-311+G**", "6-311++G*", "6-311++G**",
+                            "6-311++G(2d,2p)", "6-311++G(3df,3pd)"]),
+        BasisFamily(title: "Karlsruhe def2 (ECPs beyond Kr)",
+                    names: ["def2-SVP", "def2-mTZVP", "def2-mTZVPP", "def2-TZVP", "def2-TZVPP", "def2-TZVPPD",
+                            "def2-QZVP", "def2-QZVPP", "def2-QZVPPD"]),
+        BasisFamily(title: "Dunning aug-cc-pVXZ",
+                    names: ["aug-cc-pVDZ", "aug-cc-pVTZ", "aug-cc-pVQZ", "aug-cc-pV5Z"]),
+        BasisFamily(title: "Dunning aug-cc-pCVXZ (core-valence)",
+                    names: ["aug-cc-pCVDZ", "aug-cc-pCVTZ", "aug-cc-pCVQZ", "aug-cc-pCV5Z"]),
     ]
+
+    /// All 33 basis sets of the library in menu order.
+    static let all: [String] = families.flatMap(\.names)
 
     /// HeH⁺ in the Slater-type basis of Szabo and Ostlund, expanded in 1, 2 or 3 Gaussians.
     static let szaboOstlund = ["STO-1G", "STO-2G", "STO-3G"]
+
+    /// 14.0: the 6-31G family, whose d functions are six Cartesian functions (6D).
+    static func isCartesianD(_ name: String) -> Bool {
+        families[0].names.contains { $0.lowercased() == name.lowercased() }
+    }
 
     /// The basis sets of a molecule's menu (HeH⁺: the STO-nG sets first).
     static func choices(for molecule: MoleculeChoice) -> [String] {

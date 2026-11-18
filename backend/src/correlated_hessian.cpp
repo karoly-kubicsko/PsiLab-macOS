@@ -457,7 +457,7 @@ CorrelatedHessianResult correlated_hessian(const Molecule& mol, const BasisSet& 
             for (std::size_t x = 0; x < n3; ++x)
                 for (std::size_t f = 0; f < 3; ++f) {
                     dip_expl[x][f] = dot(D1, rx[x][f]);
-                    if (x % 3 == f) dip_expl[x][f] -= mol.atoms[x / 3].Z;
+                    if (x % 3 == f) dip_expl[x][f] -= mol.atoms[x / 3].nuclear_charge();
                 }
         }
         res.explicit_seconds = seconds_since(te);
@@ -603,7 +603,7 @@ CorrelatedHessianResult correlated_hessian(const Molecule& mol, const BasisSet& 
     if (nf > 0) {
         for (std::size_t f = 0; f < 3; ++f) {
             double mu = -(dot(Ds, resp.h[n3 + f]) + dot(resp.U[n3 + f], X));
-            for (const Atom& a : mol.atoms) mu += a.Z * a.position[f];
+            for (const Atom& a : mol.atoms) mu += a.nuclear_charge() * a.position[f];
             res.dipole[f] = mu;
         }
     }

@@ -1,5 +1,7 @@
 #include "macqc/gto_integrals.h"
 
+#include "macqc/ecp.h"
+
 #include <algorithm>
 #include <array>
 #include <cmath>
@@ -159,13 +161,32 @@ const SolidTables& solid_tables() {
     return t;
 }
 
+double odd_double_factorial(int n) {  // (2n-1)!! for n >= 0
+    double r = 1.0;
+    for (int k = 2 * n - 1; k > 1; k -= 2) r *= k;
+    return r;
+}
+
 struct TransformTables {
     ShellTransform sph[kMaxAngularMomentum + 1];
+    ShellTransform cart[kMaxAngularMomentum + 1];
     TransformTables() {
         const SolidTables& st = solid_tables();
+        const CartTables& ct = cart_tables();
         for (int l = 0; l <= kMaxAngularMomentum; ++l) {
             sph[l].l = l;
             sph[l].rows = st.rows[l];
+            // Cartesian components, each normalised: <x^i y^j z^k e^{-2ar^2}> is proportional to
+            // (2i-1)!! (2j-1)!! (2k-1)!!, that of x^l to (2l-1)!!.
+            cart[l].l = l;
+            cart[l].rows.resize(static_cast<std::size_t>(ncart(l)));
+            for (int c = 0; c < ncart(l); ++c) {
+                const auto& e = ct.comp[l][static_cast<std::size_t>(c)];
+                const double f = std::sqrt(odd_double_factorial(l) / (odd_double_factorial(e[0]) *
+                                                                      odd_double_factorial(e[1]) *
+                                                                      odd_double_factorial(e[2])));
+                cart[l].rows[static_cast<std::size_t>(c)].emplace_back(c, f);
+            }
         }
     }
 };
@@ -202,9 +223,10 @@ void transform_rows(const std::vector<std::vector<std::pair<int, double>>>& rows
     }
 }
 
-// in [pre][ncart(l)][post] -> out [pre][2l+1][post]
-void to_spherical(int l, int pre, int post, const double* in, double* out) {
-    transform_rows(solid_tables().rows[l], ncart(l), pre, post, in, out);
+// in [pre][ncart(l)][post] -> out [pre][s.size()][post] (spherical or Cartesian functions)
+void to_shell_functions(const Shell& s, int pre, int post, const double* in, double* out) {
+    const TransformTables& t = transform_tables();
+    transform_rows((s.pure ? t.sph[s.l] : t.cart[s.l]).rows, ncart(s.l), pre, post, in, out);
 }
 
 // The transform of a pair member: t, or the solid harmonics of l.
@@ -366,7 +388,7 @@ void nuclear_block(const Shell& A, const Shell& B, const std::vector<Atom>& nucl
                 for (int d = 0; d < 3; ++d) PC[d] = P[d] - atom.position[d];
                 const double Tb = p * (PC[0] * PC[0] + PC[1] * PC[1] + PC[2] * PC[2]);
                 boys_function(L, Tb, F);
-                const double pref = -atom.Z * 2.0 * kPiExact / p * K;
+                const double pref = -atom.nuclear_charge() * 2.0 * kPiExact / p * K;
                 for (int m = 0; m <= L; ++m) v[m] = pref * F[m];
                 for (int e = 1; e <= L; ++e) {
                     const int nm = L - e + 1, nm1 = nm + 1, nm2 = nm + 2;
@@ -395,6 +417,10 @@ void nuclear_block(const Shell& A, const Shell& B, const std::vector<Atom>& nucl
     for (int e = la; e <= L; ++e) in[e - la] = acc.data() + aoff[e - la];
     cart.assign(static_cast<std::size_t>(ncart(la)) * ncart(lb), 0.0);
     hrr(la, lb, AB, 1, in, work, cart.data());
+    // 14.0: the effective core potentials of the nuclei (part of their attraction, so every
+    // derivative of these integrals includes them)
+    for (const Atom& atom : nuclei)
+        if (atom.ecp) add_ecp_cartesian(A, B, atom, cart);
 }
 
 enum class MatrixKind { Overlap, Kinetic, Nuclear };
@@ -415,8 +441,8 @@ Matrix one_electron_matrix(const BasisSet& basis, const Molecule* mol, MatrixKin
             const int na = ncart(A.l), sa = A.size(), sb = B.size();
             tmp.resize(static_cast<std::size_t>(na) * sb);
             sph.resize(static_cast<std::size_t>(sa) * sb);
-            to_spherical(B.l, na, 1, cart.data(), tmp.data());
-            to_spherical(A.l, 1, sb, tmp.data(), sph.data());
+            to_shell_functions(B, na, 1, cart.data(), tmp.data());
+            to_shell_functions(A, 1, sb, tmp.data(), sph.data());
             for (int a = 0; a < sa; ++a)
                 for (int b = 0; b < sb; ++b) {
                     const double v = sph[static_cast<std::size_t>(a) * sb + b];
@@ -488,6 +514,8 @@ ShellPairList make_shell_pairs(const BasisSet& basis) {
             const Shell& B = basis.shells[b];
             sp.la = A.l;
             sp.lb = B.l;
+            if (!A.pure) sp.ta = &cartesian_transform(A.l);
+            if (!B.pure) sp.tb = &cartesian_transform(B.l);
             double AB2 = 0.0;
             for (int d = 0; d < 3; ++d) {
                 sp.AB[d] = A.center[d] - B.center[d];
@@ -513,6 +541,8 @@ ShellPairList make_shell_pairs(const BasisSet& basis) {
 
 ShellPair make_shell_pair(const Shell& X, const ShellTransform* tx, const Shell& Y, const ShellTransform* ty,
                           bool keep_order, int index_x, int index_y) {
+    if (!tx && !X.pure) tx = &cartesian_transform(X.l);
+    if (!ty && !Y.pure) ty = &cartesian_transform(Y.l);
     ShellPair sp;
     const bool swap = Y.l > X.l;
     const Shell& A = swap ? Y : X;
@@ -548,6 +578,15 @@ ShellPair make_shell_pair(const Shell& X, const ShellTransform* tx, const Shell&
 const ShellTransform& spherical_transform(int l) {
     if (l < 0 || l > kMaxAngularMomentum) throw std::invalid_argument("spherical_transform: l out of range");
     return transform_tables().sph[l];
+}
+
+const ShellTransform& cartesian_transform(int l) {
+    if (l < 0 || l > kMaxAngularMomentum) throw std::invalid_argument("cartesian_transform: l out of range");
+    return transform_tables().cart[l];
+}
+
+const ShellTransform& shell_transform(const Shell& s) {
+    return s.pure ? spherical_transform(s.l) : cartesian_transform(s.l);
 }
 
 void apply_transform(const ShellTransform& T, int pre, int post, const double* in, double* out) {
@@ -599,10 +638,10 @@ std::vector<Matrix> dipole_matrices(const BasisSet& basis, const std::array<doub
             const int na = ncart(A.l), sa = A.size(), sb = B.size();
             tmp.resize(static_cast<std::size_t>(3) * na * sb);
             sph.resize(static_cast<std::size_t>(3) * sa * sb);
-            to_spherical(B.l, 3 * na, 1, cart.data(), tmp.data());
+            to_shell_functions(B, 3 * na, 1, cart.data(), tmp.data());
             for (int k = 0; k < 3; ++k)
-                to_spherical(A.l, 1, sb, tmp.data() + static_cast<std::size_t>(k) * na * sb,
-                             sph.data() + static_cast<std::size_t>(k) * sa * sb);
+                to_shell_functions(A, 1, sb, tmp.data() + static_cast<std::size_t>(k) * na * sb,
+                                   sph.data() + static_cast<std::size_t>(k) * sa * sb);
             for (int k = 0; k < 3; ++k)
                 for (int a = 0; a < sa; ++a)
                     for (int b = 0; b < sb; ++b) {
@@ -755,7 +794,7 @@ const double* EriEngine::compute(const ShellPair& bra, const ShellPair& ket) {
             }
         }
 
-    // ---- bra HRR: (la lb | k), then spherical on b and a.
+    // ---- bra HRR: (la lb | k), then the output transforms (spherical or Cartesian) on b and a.
     const double* in[kMaxLL + 2];
     for (int E = la; E <= Lab; ++E) in[E - la] = acc + accoff[E - la];
     const ShellTransform& Ta = pair_transform(bra.ta, la);

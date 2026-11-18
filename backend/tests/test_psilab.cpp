@@ -48,7 +48,7 @@ int main() {
 
     // Errors carry the line number and say what is wrong.
     CHECK(rejects("basis = STO-3G\nbasis = STO-2G\n", "line 2"));
-    CHECK(rejects("basis = 6-31G\n", "STO-1G, STO-2G or STO-3G"));
+    CHECK(rejects("basis = 6-31G**\n", "STO-1G, STO-2G or STO-3G"));  // 14.0: 6-31G is a basis set of the library
     CHECK(rejects("R = abc\n", "needs a number"));
     CHECK(rejects("R = 1.4 parsec\n", "unknown length unit"));
     CHECK(rejects("colour = blue\n", "unknown key"));
@@ -93,7 +93,7 @@ int main() {
     CHECK(rejects("molecule = H2\nangle = 100\n", "applies to H2O, H2O2 and NH3 only"));
     CHECK(rejects("angle = 100\n", "applies to H2O, H2O2 and NH3 only"));
     CHECK(rejects("method = RHF\n", "HeH+ always runs Hartree-Fock and Full CI"));
-    CHECK(rejects("molecule = H2O\nbasis = STO-3G\n", "basis must be one of aug-cc-pVDZ"));
+    CHECK(rejects("molecule = H2O\nbasis = STO-3G\n", "basis must be one of 6-31G, 6-31G*, 6-31+G"));
     CHECK(rejects("molecule = H2\nmethod = MP2\n", "method must be HF (RHF), CCSD, CCSD(T), CCSDT, CCSDTQ or FCI"));
     CHECK(psilab::parse_input_text("molecule = H2\nmethod = ccsd(t)\n").input.method == "CCSD(T)");
     CHECK(psilab::parse_input_text("molecule = H2\nmethod = HF\n").input.method == "RHF");
@@ -115,14 +115,14 @@ int main() {
                                                      });
     CHECK(h2.error.empty());
     CHECK(streamed == h2.text && pieces > 10);
-    CHECK(contains(h2.text, "\xCE\xA8Lab 13.0"));
+    CHECK(contains(h2.text, "\xCE\xA8Lab 14.0"));
     CHECK(contains(h2.text, "Job          Energy (energy)"));
     CHECK(contains(h2.text, "    | molecule = H2"));  // the input file as given
     CHECK(contains(h2.text, "Hartree-Fock (RHF) total energy:  -1.1287937367 E_h"));
     CHECK(contains(h2.text, "total energy (RHF)               -1.1287937367"));
     CHECK(contains(h2.text, "18 basis functions"));
     CHECK(contains(h2.text, "H   aug-cc-pVDZ   (5s2p)           -> [3s2p]"));
-    CHECK(contains(h2.text, "Normal termination of \xCE\xA8Lab 13.0"));
+    CHECK(contains(h2.text, "Normal termination of \xCE\xA8Lab 14.0"));
     CHECK(contains(psilab::estimate_text(psilab::parse_input_text("molecule = H2O\nbasis = aug-cc-pCVDZ\n")),
                    "aug-cc-pCVDZ is not defined for H"));
     // Full CI: H2 runs, H2O is refused with an explanation (in the output file and the error).
@@ -159,7 +159,7 @@ int main() {
     CHECK(psilab::parse_input_text("molecule = H2\njob = freq\npressure = 1 atm\n").input.pressure == 101325.0);
     CHECK(psilab::parse_input_text("molecule = H2\njob = freq\npressure = 100 kPa\n").input.pressure == 1.0e5);
     CHECK(rejects("molecule = H2\njob = sweep\n", "job must be energy, opt, freq, opt+freq, opt+freq+sp, scan, ts, ts+freq or ts+freq+sp"));
-    CHECK(rejects("job = opt\n", "applies to H2, LiH, H2O, H2O2, NH3 and HeH+ in a correlation-consistent basis set only"));
+    CHECK(rejects("job = opt\n", "applies to H2, LiH, H2O, H2O2, NH3, custom molecules and HeH+ in a Gaussian basis set only"));
     CHECK(rejects("molecule = H2\njob = opt\nsp_method = CCSD\n", "'sp_method' applies to job = opt+freq+sp and ts+freq+sp only"));
     CHECK(rejects("molecule = H2\njob = opt\ntemperature = 300\n",
                   "applies to job = freq, opt+freq, opt+freq+sp, ts+freq and ts+freq+sp only"));
@@ -169,7 +169,7 @@ int main() {
     CHECK(rejects("molecule = H2\njob = opt\nmax_steps = 0\n", "max_steps must be an integer from 1 to 1000"));
     CHECK(rejects("molecule = H2\njob = freq\ntemperature = -3\n", "temperature must be between"));
     CHECK(rejects("molecule = H2\njob = freq\npressure = 3 psi\n", "pressure unit"));
-    CHECK(rejects("molecule = H2\njob = opt+freq+sp\nsp_basis = 6-31G\n", "unknown basis set"));
+    CHECK(rejects("molecule = H2\njob = opt+freq+sp\nsp_basis = 6-31G**\n", "unknown basis set"));
     // estimates of jobs: steps, analytic or numerical, refusals
     const std::string est = psilab::estimate_text(psilab::parse_input_text("molecule = H2O\nmethod = CCSD(T)\njob = opt+freq\n"));
     CHECK(contains(est, "Geometry optimisation: analytic gradient"));
@@ -214,7 +214,7 @@ int main() {
     CHECK(rejects("molecule = H2O\njob = opt\nscan = 1 2 S 2 0.1\n", "'scan' applies to job = scan only"));
     CHECK(rejects("molecule = H2O\njob = scan\nscan = 1 2 S 2 0.1\nscan_start = 90 degrees\n", "degrees apply to angles"));
     CHECK(rejects("molecule = H2O\njob = scan\nscan = 2 1 3 S 2 10\nscan_start = 1 bohr\n", "bohr applies to a bond"));
-    CHECK(rejects("scan_start = 1\n", "applies to H2, LiH, H2O, H2O2, NH3 and HeH+ in a correlation-consistent basis set only"));
+    CHECK(rejects("scan_start = 1\n", "applies to H2, LiH, H2O, H2O2, NH3, custom molecules and HeH+ in a Gaussian basis set only"));
     const std::string sest = psilab::estimate_text(psilab::parse_input_text("molecule = H2O\njob = scan\nscan = 2 1 3 S 8 5\n"));
     CHECK(contains(sest, "Relaxed scan: analytic gradient (derivative integrals); 9 points"));
     const psilab::RunResult srun = psilab::run_to_text(
@@ -264,8 +264,8 @@ int main() {
     CHECK(std::fabs(hg.input.R - 1.4632) < 1e-12);  // the Szabo-Ostlund bond length (0.7743 angstrom)
     CHECK(!psilab::parse_input_text("molecule = HeH+\nbasis = STO-2G\n").input.hehGeneral);
     CHECK(rejects("molecule = HeH+\nbasis = aug-cc-pVDZ\nzeta_He = 2\n", "'zeta_He' applies to HeH+ in an STO-nG basis"));
-    CHECK(rejects("molecule = HeH+\nmethod = CCSD\n", "applies to H2, LiH, H2O, H2O2, NH3 and HeH+ in a correlation-consistent"));
-    CHECK(rejects("molecule = HeH+\nbasis = 6-31G\n", "or a correlation-consistent set"));
+    CHECK(rejects("molecule = HeH+\nmethod = CCSD\n", "applies to H2, LiH, H2O, H2O2, NH3, custom molecules and HeH+ in a Gaussian basis set"));
+    CHECK(rejects("molecule = HeH+\nbasis = 6-31G**\n", "or a basis set of the library"));
     const psilab::RunResult hrun = psilab::run_to_text(
         psilab::parse_input_text("molecule = HeH+\nbasis = aug-cc-pVDZ\nmethod = CCSD\njob = scan\nscan = 1 2 S 2 0.1\n"));
     CHECK(hrun.error.empty());

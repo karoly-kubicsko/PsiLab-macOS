@@ -79,7 +79,13 @@ double default_angle(const std::string& molecule) {
 
 int Molecule::electrons() const {
     int n = -charge;
-    for (const Atom& a : atoms) n += a.Z;
+    for (const Atom& a : atoms) n += a.nuclear_charge();  // 14.0: without ECP core electrons
+    return n;
+}
+
+int Molecule::core_electrons() const {
+    int n = 0;
+    for (const Atom& a : atoms) n += a.core_electrons();
     return n;
 }
 
@@ -90,7 +96,7 @@ double Molecule::nuclear_repulsion() const {
             const double dx = atoms[i].position[0] - atoms[j].position[0];
             const double dy = atoms[i].position[1] - atoms[j].position[1];
             const double dz = atoms[i].position[2] - atoms[j].position[2];
-            e += atoms[i].Z * atoms[j].Z / std::sqrt(dx * dx + dy * dy + dz * dz);
+            e += atoms[i].nuclear_charge() * atoms[j].nuclear_charge() / std::sqrt(dx * dx + dy * dy + dz * dz);
         }
     return e;
 }

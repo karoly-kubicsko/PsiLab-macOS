@@ -1,12 +1,13 @@
 // Derivatives of the Gaussian integrals with respect to the nuclear coordinates (ΨLab 5.0).
 //
-// The derivative of a contracted spherical Gaussian with respect to its centre,
+// The derivative of a contracted Gaussian with respect to its centre,
 //   d/dA_k [x^cx y^cy z^cz exp(-a r^2)] = 2a G(c + 1_k) - c_k G(c - 1_k),
 // is a sum of "component shells": the Cartesian functions of l+1 with the contraction
 // coefficients multiplied by 2a, and those of l-1 with the original coefficients, each with
-// an output transform (ShellTransform) whose rows are the 3(2l+1) derivatives
-// (row = k (2l+1) + m). Second derivatives use l+2 (4a^2), l (2a) and l-2 components with
-// 6(2l+1) rows (kk' = xx, xy, xz, yy, yz, zz). The ordinary integral engines then evaluate the
+// an output transform (ShellTransform) whose rows are the 3n derivatives of the n functions
+// of the shell (row = k n + m; n = 2l+1 spherical functions or, 14.0, (l+1)(l+2)/2 Cartesian
+// ones). Second derivatives use l+2 (4a^2), l (2a) and l-2 components with 6n rows
+// (kk' = xx, xy, xz, yy, yz, zz). The ordinary integral engines then evaluate the
 // derivative integrals; nothing is approximated.
 //
 // Translational invariance: two-centre integrals depend only on A - B, three-centre nuclear
@@ -30,7 +31,7 @@ namespace macqc {
 
 struct DerivativeComponent {
     Shell shell;               // angular momentum l + 2, l + 1, l, l - 1 or l - 2; modified coefficients
-    ShellTransform transform;  // rows: 3 (2l+1) first or 6 (2l+1) second derivatives
+    ShellTransform transform;  // rows: 3 n first or 6 n second derivatives (n = shell.size() of the parent)
 };
 
 // First (order 1) or second (order 2) derivative components of a shell.

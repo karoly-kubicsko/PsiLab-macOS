@@ -36,7 +36,7 @@ struct OrbitalData {
     std::vector<Atom> atoms;    // bohr
     std::string basis_name;
     int n_basis = 0;
-    std::vector<Shell> shells;  // spherical shells; coefficients include all normalisation
+    std::vector<Shell> shells;  // spherical or (14.0) Cartesian shells; coefficients include all normalisation
     std::vector<OrbitalSet> sets;
 };
 
@@ -51,7 +51,7 @@ OrbitalData make_orbital_data(const Molecule& mol, const BasisSet& basis, const 
 OrbitalData make_sto_orbital_data(int n_gaussians, double R, double zeta1, double zeta2, double ZA, double ZB,
                                   const std::vector<double>& C, const std::vector<double>& energies);
 
-// Values of all basis functions (spherical, in basis order) at the point r.
+// Values of all basis functions (spherical or Cartesian, in basis order) at the point r.
 void basis_function_values(const std::vector<Shell>& shells, int n_basis, const std::array<double, 3>& r,
                            double* values);
 

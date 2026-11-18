@@ -1,0 +1,610 @@
+{
+ "structures": {
+  "H2O": {
+   "title": "H$_2$O",
+   "charge": 0,
+   "xyz": "3\nH$_2$O\nO 0 0 0\nH 0.75695033 0 0.58588228\nH -0.75695033 0 0.58588228\n"
+  },
+  "H2O-distorted": {
+   "title": "H$_2$O",
+   "charge": 0,
+   "xyz": "3\nH$_2$O\nO 0 0 0.02\nH 0.80 0.03 0.55\nH -0.73 0 0.61\n"
+  },
+  "LiH": {
+   "title": "LiH",
+   "charge": 0,
+   "xyz": "2\nLiH\nLi 0 0 0\nH 0 0 1.5949\n"
+  },
+  "NH3": {
+   "title": "NH$_3$",
+   "charge": 0,
+   "xyz": "4\nNH$_3$\nN 0 0 0.1173\nH 0.9377 0 -0.2737\nH -0.46885 0.81207 -0.2737\nH -0.46885 -0.81207 -0.2737\n"
+  },
+  "CH4": {
+   "title": "CH$_4$",
+   "charge": 0,
+   "xyz": "5\nCH$_4$\nC 0 0 0\nH 0.629118 0.629118 0.629118\nH -0.629118 -0.629118 0.629118\nH -0.629118 0.629118 -0.629118\nH 0.629118 -0.629118 -0.629118\n"
+  },
+  "HCl": {
+   "title": "HCl",
+   "charge": 0,
+   "xyz": "2\nHCl\nH 0 0 0\nCl 0 0 1.2746\n"
+  },
+  "HCl-stretched": {
+   "title": "HCl",
+   "charge": 0,
+   "xyz": "2\nHCl\nH 0 0 0\nCl 0 0 1.35\n"
+  },
+  "KH": {
+   "title": "KH",
+   "charge": 0,
+   "xyz": "2\nKH\nK 0 0 0\nH 0 0 2.2423\n"
+  },
+  "CaH2": {
+   "title": "CaH$_2$",
+   "charge": 0,
+   "xyz": "3\nCaH$_2$\nCa 0 0 0\nH 0 0 2.04\nH 0 0 -2.04\n"
+  },
+  "ZnH2": {
+   "title": "ZnH$_2$",
+   "charge": 0,
+   "xyz": "3\nZnH$_2$\nZn 0 0 0\nH 0 0 1.535\nH 0 0 -1.535\n"
+  },
+  "HBr": {
+   "title": "HBr",
+   "charge": 0,
+   "xyz": "2\nHBr\nBr 0 0 0\nH 0 0 1.4145\n"
+  },
+  "HeH+": {
+   "title": "HeH$^+$",
+   "charge": 1,
+   "xyz": "2\nHeH$^+$\nHe 0 0 0\nH 0 0 0.7743\n"
+  }
+ },
+ "energies": [
+  {
+   "molecule": "H2O",
+   "basis": "6-31G",
+   "method": "RHF",
+   "energy": -75.98399746920617,
+   "basisFunctions": 13,
+   "cartesianD": true
+  },
+  {
+   "molecule": "H2O",
+   "basis": "6-31G*",
+   "method": "RHF",
+   "energy": -76.01052997614826,
+   "basisFunctions": 19,
+   "cartesianD": true
+  },
+  {
+   "molecule": "H2O",
+   "basis": "6-31+G",
+   "method": "RHF",
+   "energy": -75.99128657161793,
+   "basisFunctions": 17,
+   "cartesianD": true
+  },
+  {
+   "molecule": "H2O",
+   "basis": "6-31+G*",
+   "method": "RHF",
+   "energy": -76.01746715238889,
+   "basisFunctions": 23,
+   "cartesianD": true
+  },
+  {
+   "molecule": "H2O",
+   "basis": "6-31+G**",
+   "method": "RHF",
+   "energy": -76.03068610166054,
+   "basisFunctions": 29,
+   "cartesianD": true
+  },
+  {
+   "molecule": "H2O",
+   "basis": "6-31++G*",
+   "method": "RHF",
+   "energy": -76.01762931228583,
+   "basisFunctions": 25,
+   "cartesianD": true
+  },
+  {
+   "molecule": "H2O",
+   "basis": "6-31++G**",
+   "method": "RHF",
+   "energy": -76.03077643164008,
+   "basisFunctions": 31,
+   "cartesianD": true
+  },
+  {
+   "molecule": "H2O",
+   "basis": "6-311G",
+   "method": "RHF",
+   "energy": -76.00939307400166,
+   "basisFunctions": 19,
+   "cartesianD": false
+  },
+  {
+   "molecule": "H2O",
+   "basis": "6-311G*",
+   "method": "RHF",
+   "energy": -76.03156327465675,
+   "basisFunctions": 24,
+   "cartesianD": false
+  },
+  {
+   "molecule": "H2O",
+   "basis": "6-311+G",
+   "method": "RHF",
+   "energy": -76.01479426159358,
+   "basisFunctions": 23,
+   "cartesianD": false
+  },
+  {
+   "molecule": "H2O",
+   "basis": "6-311+G*",
+   "method": "RHF",
+   "energy": -76.03689434923827,
+   "basisFunctions": 28,
+   "cartesianD": false
+  },
+  {
+   "molecule": "H2O",
+   "basis": "6-311+G**",
+   "method": "RHF",
+   "energy": -76.05272726970279,
+   "basisFunctions": 34,
+   "cartesianD": false
+  },
+  {
+   "molecule": "H2O",
+   "basis": "6-311++G*",
+   "method": "RHF",
+   "energy": -76.0370939599241,
+   "basisFunctions": 30,
+   "cartesianD": false
+  },
+  {
+   "molecule": "H2O",
+   "basis": "6-311++G**",
+   "method": "RHF",
+   "energy": -76.05284604182901,
+   "basisFunctions": 36,
+   "cartesianD": false
+  },
+  {
+   "molecule": "H2O",
+   "basis": "6-311++G(2d,2p)",
+   "method": "RHF",
+   "energy": -76.05615683863934,
+   "basisFunctions": 47,
+   "cartesianD": false
+  },
+  {
+   "molecule": "H2O",
+   "basis": "6-311++G(3df,3pd)",
+   "method": "RHF",
+   "energy": -76.05871057764242,
+   "basisFunctions": 75,
+   "cartesianD": false
+  },
+  {
+   "molecule": "H2O",
+   "basis": "def2-SVP",
+   "method": "RHF",
+   "energy": -75.96101480998462,
+   "basisFunctions": 24,
+   "cartesianD": false
+  },
+  {
+   "molecule": "H2O",
+   "basis": "def2-mTZVP",
+   "method": "RHF",
+   "energy": -76.05133223796432,
+   "basisFunctions": 30,
+   "cartesianD": false
+  },
+  {
+   "molecule": "H2O",
+   "basis": "def2-mTZVPP",
+   "method": "RHF",
+   "energy": -76.0588903906889,
+   "basisFunctions": 34,
+   "cartesianD": false
+  },
+  {
+   "molecule": "H2O",
+   "basis": "def2-TZVP",
+   "method": "RHF",
+   "energy": -76.05904289494566,
+   "basisFunctions": 43,
+   "cartesianD": false
+  },
+  {
+   "molecule": "H2O",
+   "basis": "def2-TZVPP",
+   "method": "RHF",
+   "energy": -76.06252069281834,
+   "basisFunctions": 59,
+   "cartesianD": false
+  },
+  {
+   "molecule": "H2O",
+   "basis": "def2-TZVPPD",
+   "method": "RHF",
+   "energy": -76.06389359995617,
+   "basisFunctions": 74,
+   "cartesianD": false
+  },
+  {
+   "molecule": "H2O",
+   "basis": "def2-QZVP",
+   "method": "RHF",
+   "energy": -76.06678191462728,
+   "basisFunctions": 117,
+   "cartesianD": false
+  },
+  {
+   "molecule": "H2O",
+   "basis": "def2-QZVPP",
+   "method": "RHF",
+   "energy": -76.06678191462713,
+   "basisFunctions": 117,
+   "cartesianD": false
+  },
+  {
+   "molecule": "H2O",
+   "basis": "def2-QZVPPD",
+   "method": "RHF",
+   "energy": -76.0670953817442,
+   "basisFunctions": 132,
+   "cartesianD": false
+  },
+  {
+   "molecule": "LiH",
+   "basis": "6-31++G**",
+   "method": "RHF",
+   "energy": -7.982442537370135,
+   "basisFunctions": 25,
+   "cartesianD": true
+  },
+  {
+   "molecule": "NH3",
+   "basis": "6-311++G(3df,3pd)",
+   "method": "RHF",
+   "energy": -56.21849772079555,
+   "basisFunctions": 93,
+   "cartesianD": false
+  },
+  {
+   "molecule": "CH4",
+   "basis": "6-31+G*",
+   "method": "RHF",
+   "energy": -40.19557925159414,
+   "basisFunctions": 27,
+   "cartesianD": true
+  },
+  {
+   "molecule": "CH4",
+   "basis": "def2-TZVPPD",
+   "method": "RHF",
+   "energy": -40.21441709211021,
+   "basisFunctions": 105,
+   "cartesianD": false
+  },
+  {
+   "molecule": "HCl",
+   "basis": "6-31G*",
+   "method": "RHF",
+   "energy": -460.0599298760219,
+   "basisFunctions": 21,
+   "cartesianD": true
+  },
+  {
+   "molecule": "HCl",
+   "basis": "6-311G*",
+   "method": "RHF",
+   "energy": -460.08622673531227,
+   "basisFunctions": 29,
+   "cartesianD": false
+  },
+  {
+   "molecule": "HCl",
+   "basis": "def2-QZVP",
+   "method": "RHF",
+   "energy": -460.11229011051546,
+   "basisFunctions": 100,
+   "cartesianD": false
+  },
+  {
+   "molecule": "KH",
+   "basis": "6-31G",
+   "method": "RHF",
+   "energy": -599.6469273736171,
+   "basisFunctions": 31,
+   "cartesianD": true
+  },
+  {
+   "molecule": "CaH2",
+   "basis": "6-311G",
+   "method": "RHF",
+   "energy": -677.8364280076463,
+   "basisFunctions": 40,
+   "cartesianD": false
+  },
+  {
+   "molecule": "ZnH2",
+   "basis": "6-31G*",
+   "method": "RHF",
+   "energy": -1778.6036839088008,
+   "basisFunctions": 40,
+   "cartesianD": true
+  },
+  {
+   "molecule": "ZnH2",
+   "basis": "def2-TZVPP",
+   "method": "RHF",
+   "energy": -1778.9298401071478,
+   "basisFunctions": 92,
+   "cartesianD": false
+  },
+  {
+   "molecule": "HBr",
+   "basis": "6-31G*",
+   "method": "RHF",
+   "energy": -2572.6843980048925,
+   "basisFunctions": 37,
+   "cartesianD": true
+  },
+  {
+   "molecule": "HBr",
+   "basis": "def2-SVP",
+   "method": "RHF",
+   "energy": -2572.6849907397573,
+   "basisFunctions": 37,
+   "cartesianD": false
+  },
+  {
+   "molecule": "HeH+",
+   "basis": "6-311G",
+   "method": "RHF",
+   "energy": -2.916497555889306,
+   "basisFunctions": 6,
+   "cartesianD": false
+  },
+  {
+   "molecule": "H2O",
+   "basis": "6-31G*",
+   "method": "CCSD(T)",
+   "energy": -76.20968386814955,
+   "basisFunctions": 19,
+   "cartesianD": true
+  },
+  {
+   "molecule": "H2O",
+   "basis": "def2-SVP",
+   "method": "CCSD(T)",
+   "energy": -76.17692554891359,
+   "basisFunctions": 24,
+   "cartesianD": false
+  },
+  {
+   "molecule": "NH3",
+   "basis": "6-311++G**",
+   "method": "CCSD(T)",
+   "energy": -56.454362037275544,
+   "basisFunctions": 43,
+   "cartesianD": false
+  }
+ ],
+ "gradients": [
+  {
+   "molecule": "H2O-distorted",
+   "basis": "6-31+G**",
+   "method": "RHF",
+   "energy": -76.03087968331447,
+   "gradient": [
+    -0.020483743618568556,
+    -0.0005679834987799143,
+    -0.005720491554950247,
+    0.016892909459022665,
+    0.0006022321813476117,
+    0.00996587776871305,
+    0.003590834159551637,
+    -3.4248682567690914e-05,
+    -0.004245386213759694
+   ]
+  },
+  {
+   "molecule": "HCl-stretched",
+   "basis": "6-31G*",
+   "method": "RHF",
+   "energy": -460.0559377013726,
+   "gradient": [
+    7.294592245149578e-17,
+    1.0437558159119885e-17,
+    -0.047147983614085565,
+    -7.294592245136522e-17,
+    -1.0437558159105192e-17,
+    0.047147983614084676
+   ]
+  },
+  {
+   "molecule": "H2O-distorted",
+   "basis": "def2-TZVP",
+   "method": "RHF",
+   "energy": -76.05917586345392,
+   "gradient": [
+    -0.01981659684123485,
+    -0.0005509048195256744,
+    -0.005589880611895914,
+    0.018268882593693636,
+    0.0006210633999288867,
+    0.009592334807783987,
+    0.0015477142475397443,
+    -7.015858040315464e-05,
+    -0.00400245419587919
+   ]
+  },
+  {
+   "molecule": "H2O-distorted",
+   "basis": "6-31G*",
+   "method": "CCSD",
+   "energy": -76.20685368365265,
+   "gradient": [
+    -0.01858227676981719,
+    0.00042541144622575133,
+    0.03170283972553456,
+    -0.003268135337796796,
+    -0.00026705514509023365,
+    -0.007832313636484622,
+    0.021850412107615735,
+    -0.00015835630113542705,
+    -0.02387052608904172
+   ]
+  }
+ ],
+ "h2o_631gs": {
+  "hessian": [
+   0.7291843598730023,
+   -7.949217048531517e-16,
+   -5.475690793069591e-16,
+   -0.36459217993771176,
+   4.35524147705741e-16,
+   -0.27704057232120216,
+   -0.36459217993771076,
+   3.593975566015631e-16,
+   0.27704057232120016,
+   -7.94921704307418e-16,
+   0.013320577690860258,
+   -7.787317954013074e-17,
+   4.2180165266463963e-16,
+   -0.006660288841867201,
+   9.52436658420634e-16,
+   3.731200521884061e-16,
+   -0.006660288841867423,
+   -8.745634804142881e-16,
+   -9.382706803873587e-16,
+   -7.787317800635007e-17,
+   0.5172959056665004,
+   -0.20607528196041947,
+   6.022417990643802e-16,
+   -0.2586479528356591,
+   0.20607528196042102,
+   -5.243686195242701e-16,
+   -0.25864795283565867,
+   -0.36459217993771176,
+   4.2180165266463963e-16,
+   -0.2060752819604197,
+   0.3982081466424914,
+   -5.665162766972666e-16,
+   0.2415579269684336,
+   -0.033615966835339975,
+   1.4471462305920983e-16,
+   -0.035482645011513665,
+   4.35524147705741e-16,
+   -0.006660288841867201,
+   6.022417990643802e-16,
+   -5.665162764435598e-16,
+   0.005956674571666598,
+   -7.765566319681456e-16,
+   1.3099211952794095e-16,
+   0.0007036142523398695,
+   1.7431483344921378e-16,
+   -0.27704057232120194,
+   9.52436658420634e-16,
+   -0.2586479528356591,
+   0.2415579270080983,
+   -7.765566361970995e-16,
+   0.23916570639199045,
+   0.03548264501395206,
+   -1.7588002596027622e-16,
+   0.01948224644155485,
+   -0.36459217993771076,
+   3.731200521884061e-16,
+   0.20607528196042124,
+   -0.033615966835339975,
+   1.3099211952794095e-16,
+   0.03548264501395206,
+   0.3982081466424925,
+   -5.041121719242386e-16,
+   -0.24155792696843448,
+   3.593975566015631e-16,
+   -0.006660288841867423,
+   -5.243686195242701e-16,
+   1.4471462305920983e-16,
+   0.0007036142523398695,
+   -1.7588002596027622e-16,
+   -5.041121737309524e-16,
+   0.005956674571665932,
+   7.002486456378652e-16,
+   0.27704057232119994,
+   -8.745634804142881e-16,
+   -0.25864795283565867,
+   -0.035482645011513665,
+   1.7431483344921378e-16,
+   0.01948224644155485,
+   -0.2415579270080992,
+   7.002486474642633e-16,
+   0.23916570639199164
+  ],
+  "dipole": [
+   8.133684697986254e-16,
+   -3.4238439626006246e-16,
+   0.8753133522620409
+  ],
+  "points": [
+   [
+    0.3,
+    0.2,
+    0.5
+   ],
+   [
+    1.0,
+    -0.4,
+    1.2
+   ],
+   [
+    -0.7,
+    0.6,
+    -0.3
+   ],
+   [
+    0.0,
+    0.0,
+    1.5
+   ],
+   [
+    1.43,
+    0.1,
+    1.0
+   ]
+  ],
+  "orbitals": {
+   "HOMO": [
+    0.2015044528098728,
+    -0.05143751583486286,
+    0.24778605757911867,
+    3.5521294994979164e-16,
+    0.009837518286974592
+   ],
+   "LUMO": [
+    0.28714459430251255,
+    0.0006002309937674505,
+    0.030350949670695626,
+    0.06691785653893029,
+    -0.06365369796159658
+   ]
+  },
+  "orbitalEnergies": [
+   -20.560371802746598,
+   -1.3418022946510155,
+   -0.7069485788528733,
+   -0.5710100125812727,
+   -0.49790553065758436,
+   0.21075369075308314
+  ]
+ }
+}

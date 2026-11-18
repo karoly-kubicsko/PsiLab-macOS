@@ -110,7 +110,7 @@ struct SidebarView: View {
 
         Section("Basis") {
             basisPicker
-            Text("STO-nG: the Slater functions of Szabo and Ostlund, Hartree–Fock and Full CI. A correlation-consistent set gives HeH⁺ every method and job type.")
+            Text("STO-nG: the Slater functions of Szabo and Ostlund, Hartree–Fock and Full CI. A Gaussian basis set (6-31G … aug-cc-pCV5Z) gives HeH⁺ every method and job type.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
             LabeledContent("ζ (He)") {
@@ -137,15 +137,47 @@ struct SidebarView: View {
         }
     }
 
-    /// Basis-set menu of the selected molecule (HeH⁺: STO-1G, STO-2G, STO-3G and the
-    /// correlation-consistent sets).
+    /// Basis-set menu of the selected molecule (HeH⁺: STO-1G, STO-2G, STO-3G first), 14.0: in
+    /// sections by family (6-31G, 6-311G, def2, aug-cc-pVXZ, aug-cc-pCVXZ).
     private var basisPicker: some View {
         Picker("Basis set", selection: $model.currentBasis) {
-            ForEach(BasisSets.choices(for: model.molecule), id: \.self) { name in
-                Text(name).tag(name)
+            if model.molecule == .heh {
+                Section("Szabo–Ostlund (STO-nG)") {
+                    ForEach(BasisSets.szaboOstlund, id: \.self) { name in
+                        Text(name).tag(name)
+                    }
+                }
             }
+            basisFamilySections(value: { $0 })
         }
         .disabled(model.isRunning || model.isScanning)
+    }
+
+    /// The 33 basis sets of the library in one section per family, each tagged with `value(name)`.
+    @ViewBuilder
+    private func basisFamilySections<T: Hashable>(value: @escaping (String) -> T) -> some View {
+        ForEach(BasisSets.families, id: \.self) { family in
+            Section(family.title) {
+                ForEach(family.names, id: \.self) { name in
+                    Text(name).tag(value(name))
+                }
+            }
+        }
+    }
+
+    /// The note under the basis-set menu of the general path (14.0: the Pople and def2 sets).
+    private var basisCaption: String {
+        let kind = BasisSets.isCartesianD(model.currentBasis)
+            ? "\(model.currentBasis): Cartesian d functions (6D), as Gaussian uses the 6-31G family; the other sets are spherical (5D, 7F)."
+            : "Gaussian functions from basissetexchange.org, spherical (5D, 7F) except the Cartesian d functions (6D) of the 6-31G family."
+        switch model.molecule {
+        case .heh:
+            return kind + " He is not in the 6-311++G sets and has no core-valence sets (they fall back to aug-cc-pVXZ). STO-nG returns to the Szabo–Ostlund calculation."
+        case .custom:
+            return kind + " Elements: def2 H–Rn with effective core potentials from Rb on (TZVPPD, QZVPPD without Ce–Lu; mTZVP, mTZVPP also Th–Lr); 6-31G, 6-31G* H–Kr; 6-31+G… H–Ar; 6-311G, 6-311G* H–Ca, Ga–Kr and I (the diffuse ones up to Ca); aug-cc-pVXZ H–Ar and Sc–Kr (Sc–Zn up to QZ), aug-cc-pCVXZ Li–Ar."
+        default:
+            return kind + " The core-valence sets (CV) add tight functions for the 1s core."
+        }
     }
 
     // MARK: General path
@@ -291,11 +323,7 @@ struct SidebarView: View {
                 .font(.caption)
                 .foregroundStyle(.secondary)
             basisPicker
-            Text(model.molecule == .heh
-                 ? "Spherical Gaussian functions from basissetexchange.org (He has no core-valence sets: they fall back to aug-cc-pVXZ). STO-nG returns to the Szabo–Ostlund calculation."
-                 : model.molecule == .custom
-                 ? "Spherical Gaussian functions from basissetexchange.org: aug-cc-pVXZ for H–Ar and Sc–Kr (Sc–Zn up to QZ; none for K, Ca), aug-cc-pCVXZ for Li–Ar. Heavier elements would need effective core potentials, which ΨLab does not have."
-                 : "Spherical Gaussian functions from basissetexchange.org; the core-valence sets (CV) add tight functions for the 1s core.")
+            Text(basisCaption)
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }
@@ -312,9 +340,7 @@ struct SidebarView: View {
                 .pickerStyle(.menu)
                 Picker("SP basis set", selection: $model.spBasis) {
                     Text("Same (\(model.currentBasis))").tag(String?.none)
-                    ForEach(BasisSets.all, id: \.self) { name in
-                        Text(name).tag(String?.some(name))
-                    }
+                    basisFamilySections(value: { String?.some($0) })
                 }
                 .pickerStyle(.menu)
                 Text((model.job.hasTransitionState ? "Energy at the transition state" : "Energy at the optimised geometry")

@@ -183,7 +183,7 @@ std::array<double, 3> dipole_moment(const Molecule& mol, const BasisSet& basis, 
     for (int k = 0; k < 3; ++k) {
         mu[static_cast<std::size_t>(k)] = -dot(P, r[static_cast<std::size_t>(k)]);
         for (const Atom& a : mol.atoms)
-            mu[static_cast<std::size_t>(k)] += a.Z * (a.position[static_cast<std::size_t>(k)] - origin[static_cast<std::size_t>(k)]);
+            mu[static_cast<std::size_t>(k)] += a.nuclear_charge() * (a.position[static_cast<std::size_t>(k)] - origin[static_cast<std::size_t>(k)]);
     }
     return mu;
 }
@@ -394,7 +394,7 @@ RHFHessianResult rhf_hessian(const Molecule& mol, const BasisSet& basis, const R
             for (std::size_t k = 0; k < o; ++k)
                 for (std::size_t l = 0; l < o; ++l) resp -= 2.0 * Smo[x](k, l) * R(k, l);
             double val = -resp - dot(P, rx[x][static_cast<std::size_t>(m)]);
-            if (static_cast<int>(x % 3) == m) val += mol.atoms[x / 3].Z;
+            if (static_cast<int>(x % 3) == m) val += mol.atoms[x / 3].nuclear_charge();
             res.dipole_derivatives[x][static_cast<std::size_t>(m)] = val;
         }
     res.cphf_seconds = seconds_since(t1);

@@ -77,23 +77,87 @@ double double_factorial(int n) {  // n!! for n >= -1
     return r;
 }
 
-struct Spec {
-    const char* name;
-    const char* file;
+// The basis-set library (14.0: 33 sets in five families), in display order. `cartesian_d`:
+// the d shells are six Cartesian functions (6D), as Gaussian uses the 6-31G family by default
+// and as the Basis Set Exchange marks these shells; every other shell of every set is
+// spherical (5D, 7F), Gaussian's default for all other sets.
+const BasisSetInfo kBases[] = {
+    {"6-31G", "6-31g.gbs", "Pople 6-31G", true},
+    {"6-31G*", "6-31gs.gbs", "Pople 6-31G", true},
+    {"6-31+G", "6-31pg.gbs", "Pople 6-31G", true},
+    {"6-31+G*", "6-31pgs.gbs", "Pople 6-31G", true},
+    {"6-31+G**", "6-31pgss.gbs", "Pople 6-31G", true},
+    {"6-31++G*", "6-31ppgs.gbs", "Pople 6-31G", true},
+    {"6-31++G**", "6-31ppgss.gbs", "Pople 6-31G", true},
+    {"6-311G", "6-311g.gbs", "Pople 6-311G", false},
+    {"6-311G*", "6-311gs.gbs", "Pople 6-311G", false},
+    {"6-311+G", "6-311pg.gbs", "Pople 6-311G", false},
+    {"6-311+G*", "6-311pgs.gbs", "Pople 6-311G", false},
+    {"6-311+G**", "6-311pgss.gbs", "Pople 6-311G", false},
+    {"6-311++G*", "6-311ppgs.gbs", "Pople 6-311G", false},
+    {"6-311++G**", "6-311ppgss.gbs", "Pople 6-311G", false},
+    {"6-311++G(2d,2p)", "6-311ppg_2d_2p_.gbs", "Pople 6-311G", false},
+    {"6-311++G(3df,3pd)", "6-311ppg_3df_3pd_.gbs", "Pople 6-311G", false},
+    {"def2-SVP", "def2-svp.gbs", "Karlsruhe def2", false},
+    {"def2-mTZVP", "def2-mtzvp.gbs", "Karlsruhe def2", false},
+    {"def2-mTZVPP", "def2-mtzvpp.gbs", "Karlsruhe def2", false},
+    {"def2-TZVP", "def2-tzvp.gbs", "Karlsruhe def2", false},
+    {"def2-TZVPP", "def2-tzvpp.gbs", "Karlsruhe def2", false},
+    {"def2-TZVPPD", "def2-tzvppd.gbs", "Karlsruhe def2", false},
+    {"def2-QZVP", "def2-qzvp.gbs", "Karlsruhe def2", false},
+    {"def2-QZVPP", "def2-qzvpp.gbs", "Karlsruhe def2", false},
+    {"def2-QZVPPD", "def2-qzvppd.gbs", "Karlsruhe def2", false},
+    {"aug-cc-pVDZ", "aug-cc-pvdz.gbs", "Dunning aug-cc-pVXZ", false},
+    {"aug-cc-pVTZ", "aug-cc-pvtz.gbs", "Dunning aug-cc-pVXZ", false},
+    {"aug-cc-pVQZ", "aug-cc-pvqz.gbs", "Dunning aug-cc-pVXZ", false},
+    {"aug-cc-pV5Z", "aug-cc-pv5z.gbs", "Dunning aug-cc-pVXZ", false},
+    {"aug-cc-pCVDZ", "aug-cc-pcvdz.gbs", "Dunning aug-cc-pCVXZ", false},
+    {"aug-cc-pCVTZ", "aug-cc-pcvtz.gbs", "Dunning aug-cc-pCVXZ", false},
+    {"aug-cc-pCVQZ", "aug-cc-pcvqz.gbs", "Dunning aug-cc-pCVXZ", false},
+    {"aug-cc-pCV5Z", "aug-cc-pcv5z.gbs", "Dunning aug-cc-pCVXZ", false},
 };
 
-const Spec kBases[] = {
-    {"aug-cc-pVDZ", "aug-cc-pvdz.gbs"},   {"aug-cc-pVTZ", "aug-cc-pvtz.gbs"},
-    {"aug-cc-pVQZ", "aug-cc-pvqz.gbs"},   {"aug-cc-pV5Z", "aug-cc-pv5z.gbs"},
-    {"aug-cc-pCVDZ", "aug-cc-pcvdz.gbs"}, {"aug-cc-pCVTZ", "aug-cc-pcvtz.gbs"},
-    {"aug-cc-pCVQZ", "aug-cc-pcvqz.gbs"}, {"aug-cc-pCV5Z", "aug-cc-pcv5z.gbs"},
-};
+// Spelling-independent key of a basis-set name: lower case without blanks; Gaussian's
+// polarisation notation (d) = *, (d,p) = ** at the end of a Pople name; "def2svp" = "def2-svp".
+std::string name_key(const std::string& name) {
+    std::string k;
+    for (char c : lower(trim(name)))
+        if (c != ' ' && c != '\t') k += c;
+    auto ends_with = [&](const std::string& t) { return k.size() >= t.size() && k.compare(k.size() - t.size(), t.size(), t) == 0; };
+    if (k.rfind("6-31", 0) == 0) {
+        if (ends_with("g(d,p)")) k = k.substr(0, k.size() - 5) + "**";
+        else if (ends_with("g(d)")) k = k.substr(0, k.size() - 3) + "*";
+    }
+    if (k.rfind("def2", 0) == 0 && k.size() > 4 && k[4] != '-') k.insert(4, "-");
+    return k;
+}
 
 // aug-cc-pCVXZ -> aug-cc-pVXZ (the valence set used for hydrogen), else "".
 std::string valence_partner(const std::string& canonical) {
     if (canonical.rfind("aug-cc-pCV", 0) == 0) return "aug-cc-pV" + canonical.substr(10);
     return "";
 }
+
+// "H-Ar", "H, Li-Ca", "H-Ca, Ga-Kr": the elements of a basis-set file as ranges of atomic numbers.
+std::string element_ranges(const BasisFile& f) {
+    std::string out;
+    auto it = f.elements.begin();
+    while (it != f.elements.end()) {
+        const int first = it->first;
+        int last = first;
+        auto next = std::next(it);
+        while (next != f.elements.end() && next->first == last + 1) {
+            last = next->first;
+            ++next;
+        }
+        out += (out.empty() ? "" : ", ") + element_symbol(first) + (last == first ? "" : "-" + element_symbol(last));
+        it = next;
+    }
+    return out;
+}
+
+// "ECP28": the potential for reports (its number of core electrons).
+std::string format_ecp(const AtomEcp& e) { return "ECP" + std::to_string(e.core_electrons); }
 
 std::string read_text_file(const std::string& path) {
     std::ifstream f(path, std::ios::binary);
@@ -110,81 +174,154 @@ char angular_letter(int l) {
 
 BasisFile parse_gaussian94(const std::string& text) {
     BasisFile file;
-    std::istringstream in(text);
-    std::string raw;
-    int line = 0;
-    ElementBasis* current = nullptr;
+    // the lines (without the byte-order mark), numbered from 1
+    std::vector<std::string> lines;
+    {
+        std::istringstream in(text);
+        std::string raw;
+        while (std::getline(in, raw)) {
+            if (lines.empty() && raw.size() >= 3 && raw.compare(0, 3, "\xEF\xBB\xBF") == 0) raw.erase(0, 3);
+            lines.push_back(raw);
+        }
+    }
+    std::size_t i = 0;  // next line
+    int line = 0;       // number of the line last read
     bool in_header = true;
-    while (std::getline(in, raw)) {
-        ++line;
-        if (line == 1 && raw.size() >= 3 && raw.compare(0, 3, "\xEF\xBB\xBF") == 0) raw.erase(0, 3);
-        const std::string s = trim(raw);
-        if (s.empty()) continue;
-        if (s[0] == '!') {
-            if (in_header) file.header += s + "\n";
-            continue;
+    // the next line that is not blank and not a comment, trimmed ("" at the end of the text)
+    auto next_line = [&]() -> std::string {
+        while (i < lines.size()) {
+            const std::string t = trim(lines[i++]);
+            line = static_cast<int>(i);
+            if (t.empty()) continue;
+            if (t[0] == '!') {
+                if (in_header) file.header += t + "\n";
+                continue;
+            }
+            in_header = false;
+            return t;
         }
-        in_header = false;
-        if (s.rfind("****", 0) == 0) {
-            current = nullptr;
-            continue;
-        }
-        const auto t = split(s);
-        if (!current) {
-            // Element line: "<symbol> 0" (a leading '-' is allowed).
-            int zero = -1;
-            std::string sym = t[0];
-            if (!sym.empty() && sym[0] == '-') sym.erase(0, 1);
-            if (t.size() != 2 || !parse_int(t[1], zero) || zero != 0)
-                fail(line, "expected an element line such as 'O 0', got '" + s + "'");
-            const int Z = atomic_number(sym);
-            if (Z == 0) fail(line, "unknown or unsupported element '" + t[0] + "'");
-            if (file.elements.count(Z)) fail(line, "element " + sym + " is defined twice");
-            current = &file.elements[Z];
-            current->Z = Z;
-            continue;
-        }
-        // Shell line: "<type> <nprim> <scale>".
-        int nprim = 0;
-        double scale = 1.0;
-        if (t.size() != 3 || !parse_int(t[1], nprim) || !parse_real(t[2], scale))
-            fail(line, "expected a shell line such as 'S 3 1.00', got '" + s + "'");
-        const std::string type = upper(t[0]);
-        const bool sp = (type == "SP" || type == "L");
-        const int l = sp ? 0 : shell_l(type);
-        if (l < 0) fail(line, "unknown shell type '" + t[0] + "'");
-        if (l > kMaxAngularMomentum - 1)
-            fail(line, std::string("angular momentum ") + angular_letter(l) +
-                           " is beyond the supported maximum (h, l = 5)");
-        if (nprim < 1 || nprim > 100) fail(line, "invalid number of primitives " + t[1]);
-        if (!(scale > 0.0)) fail(line, "invalid scale factor " + t[2]);
-        ShellData a, b;
-        a.l = l;
-        b.l = 1;
-        for (int k = 0; k < nprim; ++k) {
-            if (!std::getline(in, raw)) fail(line, "file ends inside a shell");
-            ++line;
-            const auto p = split(trim(raw));
-            double e = 0.0, c1 = 0.0, c2 = 0.0;
-            if (p.size() != (sp ? 3u : 2u) || !parse_real(p[0], e) || !parse_real(p[1], c1) ||
-                (sp && !parse_real(p[2], c2)))
-                fail(line, std::string("expected ") + (sp ? "exponent and two coefficients" : "exponent and coefficient") +
-                               ", got '" + trim(raw) + "'");
-            if (!(e > 0.0)) fail(line, "exponents must be positive");
-            e *= scale * scale;
-            a.exponents.push_back(e);
-            a.coefficients.push_back(c1);
-            if (sp) {
-                b.exponents.push_back(e);
-                b.coefficients.push_back(c2);
+        line = static_cast<int>(lines.size());
+        return "";
+    };
+    // 14.0: "<El>-ECP L n_core", then L + 1 parts (the local part U_L first, then U_l - U_L for
+    // l = 0 .. L-1): a label line, the number of terms, "n exponent coefficient" per term.
+    auto read_ecp = [&](const std::vector<std::string>& head, int Z) {
+        int L = 0, ncore = 0;
+        if (head.size() != 3 || !parse_int(head[1], L) || !parse_int(head[2], ncore))
+            fail(line, "expected an ECP line such as 'I-ECP 3 28'");
+        if (L < 0 || L > 6) fail(line, "ECP angular momentum " + head[1] + " is beyond the supported maximum (l = 6)");
+        if (ncore < 0 || ncore >= Z || ncore % 2 != 0) fail(line, "invalid number of ECP core electrons " + head[2]);
+        auto ecp = std::make_shared<AtomEcp>();
+        ecp->core_electrons = ncore;
+        ecp->local_l = L;
+        ecp->projected.resize(static_cast<std::size_t>(L));
+        for (int part = 0; part <= L; ++part) {
+            const std::string label = next_line();
+            if (label.empty()) fail(line, "the file ends inside an ECP");
+            int nterm = 0;
+            const std::string count = next_line();
+            if (!parse_int(count, nterm) || nterm < 0 || nterm > 100)
+                fail(line, "expected the number of ECP terms, got '" + count + "'");
+            std::vector<EcpTerm>& terms = part == 0 ? ecp->local : ecp->projected[static_cast<std::size_t>(part - 1)];
+            for (int k = 0; k < nterm; ++k) {
+                const auto t = split(next_line());
+                EcpTerm term;
+                if (t.size() != 3 || !parse_int(t[0], term.power) || !parse_real(t[1], term.exponent) ||
+                    !parse_real(t[2], term.coefficient))
+                    fail(line, "expected an ECP term 'n exponent coefficient'");
+                if (term.power != 2)
+                    fail(line, "ECP terms r^(n-2) exp(-a r^2) with n = " + t[0] +
+                                   " are not supported (ΨLab supports the Gaussian terms, n = 2)");
+                if (!(term.exponent > 0.0)) fail(line, "ECP exponents must be positive");
+                if (term.coefficient != 0.0) terms.push_back(term);
             }
         }
-        current->shells.push_back(a);
-        if (sp) current->shells.push_back(b);
+        ElementBasis& eb = file.elements[Z];
+        eb.Z = Z;
+        if (eb.ecp) fail(line, "element " + element_symbol(Z) + " has two ECPs");
+        eb.ecp = ecp;
+    };
+    for (;;) {
+        std::string s = next_line();
+        if (s.empty()) break;
+        if (s.rfind("****", 0) == 0) continue;
+        // Element line: "<symbol> 0" (a leading '-' is allowed).
+        auto t = split(s);
+        int zero = -1;
+        std::string sym = t[0];
+        if (!sym.empty() && sym[0] == '-') sym.erase(0, 1);
+        if (t.size() != 2 || !parse_int(t[1], zero) || zero != 0)
+            fail(line, "expected an element line such as 'O 0', got '" + s + "'");
+        const int Z = atomic_number(sym);
+        if (Z == 0) fail(line, "unknown or unsupported element '" + t[0] + "'");
+        const int element_line = line;
+        s = next_line();
+        if (s.empty()) throw std::runtime_error("basis file ends without '****' after the last element");
+        t = split(s);
+        const std::string first = upper(t[0]);
+        if (first.size() > 4 && first.compare(first.size() - 4, 4, "-ECP") == 0) {
+            read_ecp(t, Z);
+            continue;
+        }
+        if (file.elements.count(Z) && !file.elements[Z].shells.empty())
+            fail(element_line, "element " + sym + " is defined twice");
+        ElementBasis* current = &file.elements[Z];
+        current->Z = Z;
+        // Shell lines "<type> <nprim> <scale>" with their primitives, up to "****".
+        for (;;) {
+            if (s.rfind("****", 0) == 0) break;
+            int nprim = 0;
+            double scale = 1.0;
+            if (t.size() != 3 || !parse_int(t[1], nprim) || !parse_real(t[2], scale))
+                fail(line, "expected a shell line such as 'S 3 1.00', got '" + s + "'");
+            const std::string type = upper(t[0]);
+            const bool sp = (type == "SP" || type == "L");
+            const int l = sp ? 0 : shell_l(type);
+            if (l < 0) fail(line, "unknown shell type '" + t[0] + "'");
+            if (l > kMaxAngularMomentum - 1)
+                fail(line, std::string("angular momentum ") + angular_letter(l) +
+                               " is beyond the supported maximum (h, l = 5)");
+            if (nprim < 1 || nprim > 100) fail(line, "invalid number of primitives " + t[1]);
+            if (!(scale > 0.0)) fail(line, "invalid scale factor " + t[2]);
+            ShellData a, b;
+            a.l = l;
+            b.l = 1;
+            for (int k = 0; k < nprim; ++k) {
+                if (i >= lines.size()) fail(line, "file ends inside a shell");
+                const std::string raw = trim(lines[i++]);
+                line = static_cast<int>(i);
+                const auto p = split(raw);
+                double e = 0.0, c1 = 0.0, c2 = 0.0;
+                if (p.size() != (sp ? 3u : 2u) || !parse_real(p[0], e) || !parse_real(p[1], c1) ||
+                    (sp && !parse_real(p[2], c2)))
+                    fail(line, std::string("expected ") + (sp ? "exponent and two coefficients" : "exponent and coefficient") +
+                                   ", got '" + raw + "'");
+                if (!(e > 0.0)) fail(line, "exponents must be positive");
+                e *= scale * scale;
+                a.exponents.push_back(e);
+                a.coefficients.push_back(c1);
+                if (sp) {
+                    b.exponents.push_back(e);
+                    b.coefficients.push_back(c2);
+                }
+            }
+            current->shells.push_back(a);
+            if (sp) current->shells.push_back(b);
+            s = next_line();
+            if (s.empty()) throw std::runtime_error("basis file ends without '****' after the last element");
+            t = split(s);
+        }
     }
-    if (current) throw std::runtime_error("basis file ends without '****' after the last element");
     if (file.elements.empty()) throw std::runtime_error("no element found in the basis-set file");
+    for (const auto& [Z, eb] : file.elements)
+        if (eb.shells.empty())
+            throw std::runtime_error("element " + element_symbol(Z) + " has an ECP but no basis functions");
     return file;
+}
+
+const std::vector<BasisSetInfo>& basis_set_library() {
+    static const std::vector<BasisSetInfo> library(std::begin(kBases), std::end(kBases));
+    return library;
 }
 
 const std::vector<std::string>& supported_basis_sets() {
@@ -196,17 +333,27 @@ const std::vector<std::string>& supported_basis_sets() {
     return names;
 }
 
-std::string canonical_basis_name(const std::string& name) {
-    const std::string n = lower(trim(name));
+const BasisSetInfo* basis_set_info(const std::string& name) {
+    const std::string k = name_key(name);
     for (const auto& b : kBases)
-        if (n == lower(b.name)) return b.name;
-    return "";
+        if (k == name_key(b.name)) return &b;
+    return nullptr;
+}
+
+std::string canonical_basis_name(const std::string& name) {
+    const BasisSetInfo* b = basis_set_info(name);
+    return b ? b->name : "";
 }
 
 std::string basis_file_name(const std::string& canonical_name) {
-    for (const auto& b : kBases)
-        if (canonical_name == b.name) return b.file;
+    if (const BasisSetInfo* b = basis_set_info(canonical_name)) return b->file;
     return lower(canonical_name) + ".gbs";
+}
+
+std::string basis_function_types(const std::string& name) {
+    const BasisSetInfo* b = basis_set_info(name);
+    if (b && b->cartesian_d) return "Cartesian d functions (6D), spherical f functions (7F)";
+    return "spherical harmonics (5D, 7F)";
 }
 
 std::string default_basis_directory() {
@@ -248,6 +395,7 @@ BasisSet build_basis(const Molecule& mol, const std::string& basis_name,
 
     BasisSet basis;
     basis.name = name;
+    basis.cartesian_d = basis_set_info(name)->cartesian_d;
     basis.source = main_file->second.header;
     std::set<std::string> extra_sources;
     for (std::size_t a = 0; a < mol.atoms.size(); ++a) {
@@ -277,7 +425,24 @@ BasisSet build_basis(const Molecule& mol, const std::string& basis_name,
             } else {
                 std::string msg = name + " is not available for " + atom.symbol +
                                   ": the Basis Set Exchange does not define it for this element.";
-                if (name.find("pCV") != std::string::npos && atom.Z > 18)
+                const std::string family = basis_set_info(name)->family;
+                const bool dunning = family.rfind("Dunning", 0) == 0;
+                if (!dunning) {
+                    // 14.0: the Pople and def2 sets, every element for which the BSE defines them
+                    msg = name + " is not available for " + atom.symbol + ": ΨLab has it for " +
+                          element_ranges(main_file->second) + " (the elements for which the Basis Set Exchange "
+                          "defines it).";
+                    if (family == "Karlsruhe def2" && atom.Z >= 58 && atom.Z <= 71)
+                        msg += " (The diffuse def2-TZVPPD and def2-QZVPPD are not defined for the lanthanides "
+                               "Ce-Lu; use def2-TZVPP or def2-QZVPP.)";
+                    else if (family == "Karlsruhe def2")
+                        msg += " (The def2 sets end at Rn; def2-mTZVP and def2-mTZVPP also cover Th-Lr.)";
+                    else if (family == "Pople 6-31G")
+                        msg += " (The diffuse 6-31+G and 6-31++G sets are defined for H-Ar, 6-31G and 6-31G* for "
+                               "H-Kr; the def2 sets cover H-Rn.)";
+                    else
+                        msg += " (6-31G and 6-31G* cover H-Kr, the def2 sets H-Rn.)";
+                } else if (name.find("pCV") != std::string::npos && atom.Z > 18)
                     msg += " (The core-valence sets are defined for Li-Ar; use the aug-cc-pVXZ set.)";
                 else if (atom.Z == 19 || atom.Z == 20)
                     msg += " (The Basis Set Exchange has no aug-cc-pVXZ sets for K and Ca.)";
@@ -285,13 +450,22 @@ BasisSet build_basis(const Molecule& mol, const std::string& basis_name,
                     msg += " (aug-cc-pV5Z of Sc-Zn contains i functions, l = 6; ΨLab's integrals go up to h functions. "
                            "Use aug-cc-pVQZ or a smaller set.)";
                 else if (atom.Z > 36)
-                    msg += " (Elements beyond Kr need effective core potentials, the aug-cc-pVXZ-PP sets, which ΨLab "
-                           "does not implement; ΨLab computes molecules of H-Ar and Sc-Kr, except K and Ca.)";
+                    msg += " (Elements beyond Kr need effective core potentials: ΨLab has the aug-cc-pVXZ sets for "
+                           "H-Ar and Sc-Kr and, 14.0, the def2 sets with their effective core potentials up to Rn: "
+                           "use def2-SVP ... def2-QZVPPD.)";
                 if (name == "aug-cc-pCV5Z" && atom.Z == 3)
                     msg += " (The BSE has aug-cc-pCV5Z only for B-Ar.) For " + mol.display_name() +
                            " choose aug-cc-pCVQZ or aug-cc-pV5Z.";
                 throw std::runtime_error(msg);
             }
+        }
+        // 14.0: the effective core potential of the atom (from the file of its functions)
+        basis.ecps.push_back(eb->ecp);
+        if (eb->ecp) {
+            const AtomEcp& e = *eb->ecp;
+            info.ecp_electrons = e.core_electrons;
+            info.ecp = format_ecp(e);
+            basis.ecp_electrons += e.core_electrons;
         }
         int count[kMaxAngularMomentum] = {0};
         std::set<double> prims[kMaxAngularMomentum];
@@ -302,6 +476,7 @@ BasisSet build_basis(const Molecule& mol, const std::string& basis_name,
             sh.center = atom.position;
             sh.exponents = sd.exponents;
             sh.coefficients = normalized_coefficients(sd.l, sd.exponents, sd.coefficients);
+            sh.pure = !(basis.cartesian_d && sd.l == 2);  // 14.0: 6D for the 6-31G family
             sh.first_function = basis.n_functions;
             basis.n_functions += sh.size();
             basis.n_primitives += static_cast<int>(sd.exponents.size()) * sh.size();
@@ -322,6 +497,24 @@ BasisSet build_basis(const Molecule& mol, const std::string& basis_name,
     }
     for (const auto& s : extra_sources) basis.source += files.at(s).header;
     return basis;
+}
+
+// A basis set without the per-atom list (built by hand, e.g. in tests) has no ECPs.
+Molecule attach_ecps(const Molecule& mol, const BasisSet& basis) {
+    if (!basis.ecps.empty() && basis.ecps.size() != mol.atoms.size())
+        throw std::logic_error("attach_ecps: the basis set was built for another molecule");
+    Molecule m = mol;
+    for (std::size_t a = 0; a < m.atoms.size(); ++a) m.atoms[a].ecp = basis.ecps.empty() ? nullptr : basis.ecps[a];
+    return m;
+}
+
+void check_ecps(const Molecule& mol, const BasisSet& basis) {
+    bool ok = basis.ecps.empty() || basis.ecps.size() == mol.atoms.size();
+    for (std::size_t a = 0; ok && a < mol.atoms.size(); ++a)
+        ok = mol.atoms[a].ecp == (basis.ecps.empty() ? nullptr : basis.ecps[a]);
+    if (!ok)
+        throw std::logic_error("internal error: the effective core potentials of the molecule are not those of "
+                               "the basis set (attach_ecps)");
 }
 
 BasisSet build_basis(const Molecule& mol, const std::string& basis_name, const std::string& directory) {
