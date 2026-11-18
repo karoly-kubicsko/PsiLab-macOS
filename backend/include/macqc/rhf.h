@@ -63,9 +63,13 @@ struct RHFOptions {
     double memory_limit_mb = 1024;  // for storing the two-electron integrals
     // Optional starting orbitals (AO x MO coefficients of a nearby geometry, same basis):
     // the occupied ones are orthonormalised in the current overlap metric and give the
-    // starting density instead of the core-Hamiltonian guess (geometry optimisations,
-    // finite differences).
+    // starting density instead of the initial guess (geometry optimisations, finite differences).
     const Matrix* guess_orbitals = nullptr;
+    // 14.0: the initial guess without starting orbitals: "sad" (default), the superposition of
+    // the densities of the neutral atoms, each from an SCF of the atom in its basis functions
+    // (and its ECP) with the electrons of its open shell spread evenly over the degenerate
+    // orbitals; or "core", the orbitals of the core Hamiltonian (earlier versions).
+    std::string guess = "sad";
     // Optional uniform electric field F (atomic units, about the origin): adds F . r to the
     // core Hamiltonian of the electrons and -F . sum_A Z_A R_A to the nuclear energy, so that
     // E(F) = E(0) - mu . F + ... (finite-field dipole moments; energies only, no gradients).
@@ -107,6 +111,7 @@ struct RHFResult {
     double integral_seconds = 0.0;  // one-electron + stored ERIs (or Schwarz setup)
     double scf_seconds = 0.0;
     bool guess_from_orbitals = false;  // the SCF started from RHFOptions::guess_orbitals
+    std::string guess;                 // 14.0: "orbitals", "sad" or "core"
 };
 
 // Progress callback: called after each SCF iteration (may be empty).

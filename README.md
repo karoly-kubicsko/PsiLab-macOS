@@ -4,11 +4,12 @@
 
 ΨLab computes small molecules with restricted Hartree–Fock, coupled cluster and Full CI:
 
-- **H₂, LiH, H₂O, H₂O₂, NH₃ and HeH⁺** (and custom molecules of H–Kr) in 33 Gaussian basis sets
-  from basissetexchange.org: the correlation-consistent sets aug-cc-pVXZ and aug-cc-pCVXZ
-  (X = D, T, Q, 5; spherical Gaussians up to h functions) and (14.0) the Pople sets 6-31G …
-  6-31++G** (Cartesian d functions, 6D, as in Gaussian) and 6-311G … 6-311++G(3df,3pd) and the
-  Karlsruhe sets def2-SVP … def2-QZVPPD, with the methods **HF, CCSD, CCSD(T), CCSDT, CCSDTQ and Full CI** (all electrons correlated):
+- **H₂, LiH, H₂O, H₂O₂, NH₃ and HeH⁺** (and custom molecules of H–Rn and Th–Lr) in 33 Gaussian
+  basis sets from basissetexchange.org: the correlation-consistent sets aug-cc-pVXZ and
+  aug-cc-pCVXZ (X = D, T, Q, 5; spherical Gaussians up to h functions) and (14.0) the Pople sets
+  6-31G … 6-31++G** (Cartesian d functions, 6D, as in Gaussian) and 6-311G … 6-311++G(3df,3pd) and
+  the Karlsruhe sets def2-SVP … def2-QZVPPD for every element the Basis Set Exchange defines them
+  for, with the **effective core potentials** of the def2 sets beyond Kr, with the methods **HF, CCSD, CCSD(T), CCSDT, CCSDTQ and Full CI** (all electrons correlated):
   RHF and CCSD(T) for all of them, CCSDT and CCSDTQ where they fit into memory, Full CI where it
   is feasible (H₂, HeH⁺, LiH). Before a calculation ΨLab shows its size (basis functions,
   two-electron integrals, amplitudes, determinants), memory and estimated time; it warns about
@@ -230,7 +231,25 @@ Zn (6D 7F) and Br within 2.3e-12 Eₕ, CCSD(T) within 7e-11 Eₕ, analytic RHF a
 3.1e-9 Eₕ/bohr, the RHF/6-31G\* Hessian within 7.9e-10 Eₕ/bohr², dipole moment and orbital values
 within 3e-9; the analytic Hessians of RHF, CCSD, CCSD(T) and Full CI with Cartesian d functions agree
 with 4-point differences of analytic gradients within 1.1e-9 Eₕ/bohr². Gaussian input files name
-the sets Gaussian has built in and write out the others (`Gen 5D 7F`). See
+the sets Gaussian has built in and write out the others (`Gen 5D 7F`).
+**All elements**: every set covers every element for which the Basis Set Exchange defines it — the
+def2 sets H–Rn (def2-TZVPPD and def2-QZVPPD without Ce–Lu; def2-mTZVP and def2-mTZVPP also
+Th–Lr), 6-311G and 6-311G\* also I (all-electron). Beyond Kr the def2 sets come with their
+**effective core potentials** (ECP28 for Rb–Xe and the 4f-in-valence lanthanides Ce–Lu, ECP46 for
+Cs–La, ECP60 for Hf–Rn; Stuttgart–Cologne potentials), which ΨLab 14.0 implements: semi-local ECP
+integrals (the local part as three-centre overlaps, the projected parts by the expansion in
+modified spherical Bessel functions with exact angular integrals and Gauss–Legendre radial
+quadrature), part of the nuclear attraction of their atom, so that the analytic gradients and
+Hessians of all methods include them; the electrons see the nuclear charge Z less the core
+electrons. The BSE gives def2-mTZVP and def2-mTZVPP without ECPs; ΨLab attaches the ECPs their
+valence bases belong to (def2-ECP for Rb–Rn, the small-core ECP60MWB for Th–Lr, as ORCA does). An
+HI, CsF, AuH, PbO, LuF₃ or ThO₂ calculation agrees with PySCF to 1.7e-11 Eₕ (RHF), 4e-11 Eₕ
+(CCSD(T)), gradients 3e-10 Eₕ/bohr and Hessians 3.4e-10 Eₕ/bohr²
+(`reference/pyscf_ecp_reference.py`). **SCF guess**: the SCF starts from the superposition of
+atomic densities (SAD: one SCF of each element in its basis functions and ECP, open shells spread
+evenly over degenerate orbitals) instead of the core Hamiltonian, which failed for ionic
+heavy-element molecules (CsF, LuF₃, ThO₂). Output, app and Gaussian input (`GenECP` with the
+potentials written out) report the ECPs. See
 [Pople and def2 basis sets](#pople-and-def2-basis-sets-version-140).
 
 ### 13.0
@@ -1190,7 +1209,7 @@ the orbitals:
 ```
 backend/include/macqc/   public headers (macqc_api.h is the C API)
 backend/src/             linalg, integrals, scf, fci, report, calculation, api (HeH+, STO-nG);
-                         molecule, basis, gto_integrals, rhf, molecular (H2, LiH, H2O);
+                         molecule, basis, gto_integrals, ecp (14.0), rhf, molecular (H2, LiH, H2O);
                          gemm, mo_integrals, ci (Full CI for H2, LiH); job (cancel/progress);
                          cc_closed_shell (CCSD, (T)), cc_general (CCSDT, CCSDTQ), cc_estimate;
                          gto_derivatives (derivative integrals), rhf_derivatives (RHF gradient,
@@ -1376,11 +1395,11 @@ For general molecules the output is
 ```text
 {
   "input": {...}, "error": null | "message",
-  "molecule": {"name","electrons","charge","R","angle","nuclearRepulsion",
+  "molecule": {"name","electrons","coreElectrons" (14.0: in ECPs),"charge","R","angle","nuclearRepulsion",
                "atoms":[{"symbol","Z","position":[x,y,z]}]},                    // bohr
   "basis":    {"name","functions","shells","maxL",
                "cartesianD","functionTypes",                              // 14.0
-               "atoms":[{"symbol","basis","contraction","primitives","functions"}]},
+               "atoms":[{"symbol","basis","contraction","primitives","functions","ecp","ecpElectrons"}]},
   "estimate": {"basisFunctions","uniqueIntegrals","integralMemoryMB","integralsStored",
                "threads","rhfSeconds","totalSeconds","longCalculation",
                "fci": {"orbitals","alphaElectrons","betaElectrons","alphaStrings","betaStrings",
@@ -1487,7 +1506,7 @@ Geometries (`geometry`, `initialGeometry`, …) of H₂O₂ also give `ROO`, `R1
 Version 8.0 adds the molecular orbitals:
 
 ```text
-  "orbitals": {"basis","functions","atoms":[{"symbol","Z","position"}],
+  "orbitals": {"basis","functions","atoms":[{"symbol","Z","position","ecp" (14.0)}],
           "shells":[{"l","atom","center","exponents","coefficients","first","pure"}],
           "sets":[{"kind","title","orbitals":[{"number","energy","occupation","label"}],
                    "coefficients":[[AO coefficients] per orbital]}]}
@@ -1623,8 +1642,8 @@ use the relaxed scan for custom molecules.
 | Family | Sets | Function types | Elements (ΨLab) |
 |---|---|---|---|
 | Pople 6-31G | 6-31G, 6-31G\*, 6-31+G, 6-31+G\*, 6-31+G\*\*, 6-31++G\*, 6-31++G\*\* | Cartesian d (6D), spherical f (7F) | 6-31G, 6-31G\*: H–Kr; the diffuse sets H–Ar |
-| Pople 6-311G | 6-311G, 6-311G\*, 6-311+G, 6-311+G\*, 6-311+G\*\*, 6-311++G\*, 6-311++G\*\*, 6-311++G(2d,2p), 6-311++G(3df,3pd) | spherical (5D, 7F) | 6-311G, 6-311G\*: H–Ca, Ga–Kr; 6-311+G…: H–Ca; 6-311++G…: H, Li–Ca; (3df,3pd): H, Li–Ar |
-| Karlsruhe def2 | def2-SVP, def2-mTZVP, def2-mTZVPP, def2-TZVP, def2-TZVPP, def2-TZVPPD, def2-QZVP, def2-QZVPP, def2-QZVPPD | spherical (5D, 7F) | H–Kr |
+| Pople 6-311G | 6-311G, 6-311G\*, 6-311+G, 6-311+G\*, 6-311+G\*\*, 6-311++G\*, 6-311++G\*\*, 6-311++G(2d,2p), 6-311++G(3df,3pd) | spherical (5D, 7F) | 6-311G, 6-311G\*: H–Ca, Ga–Kr, I; 6-311+G…: H–Ca; 6-311++G…: H, Li–Ca; (3df,3pd): H, Li–Ar |
+| Karlsruhe def2 | def2-SVP, def2-mTZVP, def2-mTZVPP, def2-TZVP, def2-TZVPP, def2-TZVPPD, def2-QZVP, def2-QZVPP, def2-QZVPPD | spherical (5D, 7F) | H–Rn (TZVPPD, QZVPPD: H–La, Hf–Rn; mTZVP, mTZVPP also Th–Lr), with ECPs from Rb on |
 | Dunning | aug-cc-pVDZ … aug-cc-pV5Z | spherical | H–Ar, Sc–Kr (not K, Ca) |
 | Dunning core-valence | aug-cc-pCVDZ … aug-cc-pCV5Z | spherical | Li–Ar (H, He: aug-cc-pVXZ) |
 
@@ -1643,10 +1662,10 @@ use the relaxed scan for custom molecules.
   shell's transform, so nothing else changes. The f functions of 6-31G\* (Sc–Zn) remain spherical,
   as in Gaussian (6D 7F). The BSE marks the Na–Ar d functions of 6-311G\* Cartesian (they come from
   the McLean–Chandler sets); Gaussian, and ΨLab, use the whole 6-311G family with 5D.
-- **Elements**: each file holds the elements up to Kr for which the BSE defines the set; all of
-  them are all-electron sets (the def2 sets need effective core potentials only from Rb on). A
-  molecule with an element outside a set is refused with the elements the set covers (e.g.
-  "6-311++G\*\* is not available for He: ΨLab has it for H, Li-Ca"). def2-QZVP and def2-QZVPP are
+- **Elements**: each file holds every element for which the BSE defines the set (the Pople sets up
+  to Kr, 6-311G and 6-311G\* also I; the def2 sets with their ECPs, below). A molecule with an
+  element outside a set is refused with the elements the set covers (e.g. "6-311++G\*\* is not
+  available for He: ΨLab has it for H, Li-Ca"). def2-QZVP and def2-QZVPP are
   identical for H–Ne and Al–Ar (they differ for Na, Mg, K–Kr), so they give the same results for
   the built-in molecules.
 
@@ -1668,7 +1687,57 @@ Number of basis functions (6D for the 6-31G family):
 
 (all 25 sets: [`basis/README.md`](basis/README.md)).
 
-**Verification** (`macqc_basis_tests`; `reference/pyscf_basis_sets_reference.py` in CI; PySCF with
+#### Effective core potentials (14.0)
+
+Beyond Kr the def2 sets are valence basis sets for the Stuttgart–Cologne pseudopotentials (the
+def2-ECP): 28 core electrons for Rb–Xe, 46 for Cs–La, 28 with the 4f shell in the valence for
+Ce–Lu, 60 for Hf–Rn. The files hold them in Gaussian's ECP format (`I-ECP 3 28`, then the local
+part U_L and U_l − U_L for l < L, each a sum of terms c·exp(−a r²)). For def2-mTZVP and
+def2-mTZVPP, which the BSE gives without ECPs, ΨLab attaches the def2-ECP (Rb–Rn: their valence
+bases are those of def2-TZVP, the same largest exponents) and the small-core ECP60MWB of the
+actinides (Th–Lr: their (14s13p10d8f1g)/[10s9p5d4f1g] valence basis is the Cao–Dolg segmented set
+of ECP60MWB, Turbomole's def-TZVP), as ORCA uses these sets; the files say so in their header.
+
+- **Integrals** (`ecp.cpp`): ⟨a|U|b⟩ for Cartesian shells up to l = 9. The local part (a Gaussian in
+  r about the ECP centre C) is a three-centre overlap (Obara–Saika). For a projected part, the
+  angular projection of a shell function onto Y_lm on the sphere of radius r about C follows from
+  the binomial expansion of (r − a)^c (a = A − C) and the expansion of exp(2α r a·r̂) in modified
+  spherical Bessel functions; the angular integrals ∫ Y_λμ Y_lm x^p y^q z^s are exact (polynomials
+  on the sphere), the radial integral of the two projections times exp(−ζ r²) r² is a 64-point
+  Gauss–Legendre quadrature over ±9 widths about the peak of each Gaussian product (64 against 160
+  points: 3.5e-14 relative). Scaled Bessel functions e^−x i_n(x): series, Miller's downward and
+  upward recurrence by range.
+- **Nuclear charges and derivatives**: the atom carries its ECP (`Atom::ecp`, set by `attach_ecps`
+  when the basis is built); the electrons see Z less the core electrons (electron count, nuclear
+  repulsion, dipoles, Mulliken charges). The ECP is part of the nuclear attraction of its atom, so
+  every first and second derivative — with respect to the shell centres through the component
+  shells, with respect to C by translational invariance — and hence every analytic gradient,
+  Hessian, CPHF and response equation includes it.
+- **Reports**: the molecule ("HI, 26 electrons (and 28 core electrons in ECPs)"), the basis block
+  (`I def2-SVP (10s7p6d) -> [4s4p2d] 26 functions, ECP28`) and, in the appendix, the potential in
+  full; JSON `molecule.coreElectrons`, `basis.atoms[].ecp`, `orbitals.atoms[].ecp`.
+
+**Verification** (`macqc_basis_tests`; `reference/pyscf_ecp_reference.py` in CI; PySCF with the
+same files, basis functions and ECPs):
+
+| Check | Result |
+|---|---|
+| RHF energies: HI in def2-SVP, TZVP, QZVPP (h functions), TZVPPD, mTZVP; Xe/def2-QZVPP; CsF (ECP46); AuH (ECP60); PbO; ICl; LuF₃ (lanthanide ECP28, projectors up to g); ThO₂/def2-mTZVPP (ECP60MWB); HI/6-311G\* all-electron | ≤ 1.7·10⁻¹¹ Eₕ |
+| CCSD(T)/def2-SVP of HI | 4·10⁻¹¹ Eₕ |
+| Analytic RHF gradients (HI, CsF, PbO, LuF₃), CCSD gradient of HI | ≤ 3.3·10⁻¹⁰ Eₕ/bohr |
+| RHF Hessians of HI and PbO | ≤ 3.4·10⁻¹⁰ Eₕ/bohr² |
+| Analytic CCSD(T) Hessian of HI with ECP against 4-point differences of analytic gradients; dipole derivatives | 9.9·10⁻¹¹ Eₕ/bohr²; 3.8·10⁻¹⁰ e |
+| AuH, PbO turned and shifted: energy unchanged | 4·10⁻¹³ Eₕ |
+| e^−x i_n(x) against closed forms and the recurrence, every range | ≤ 3.3·10⁻¹⁴ |
+
+**SCF guess (14.0)**: the SCF starts from the superposition of atomic densities (SAD) — for each
+element (and ECP) an SCF of the neutral atom in its basis functions, filling the orbitals by
+energy with the electrons of the last, partly filled group of degenerate orbitals spread evenly
+over it, damped — instead of the core-Hamiltonian orbitals (`RHFOptions::guess = "core"`), which
+left CsF, LuF₃ and ThO₂ unconverged after 300 iterations; with SAD they converge in 11–16.
+Optimisations and finite differences still start from the orbitals of the previous geometry.
+
+**Verification of the Pople and def2 sets up to Kr** (`macqc_basis_tests`; `reference/pyscf_basis_sets_reference.py` in CI; PySCF with
 `cart=True` for the 6-31G family, the 6D 7F case of Zn from PySCF's Cartesian integrals transformed
 to spherical f functions):
 

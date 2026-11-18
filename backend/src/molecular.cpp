@@ -336,6 +336,7 @@ MolecularResult prepare_molecular(const MolecularInput& input) {
         r.molecule = make_molecule(r.input.molecule, r.input.R, r.input.angle, r.input.r_oo, r.input.dihedral);
     }
     r.basis = build_basis(r.molecule, r.input.basis, r.input.basis_directory);
+    r.molecule = attach_ecps(r.molecule, r.basis);  // 14.0: effective core potentials
     for (const auto& a : r.basis.atoms)
         if (!a.note.empty() && std::find(r.notes.begin(), r.notes.end(), a.note) == r.notes.end())
             r.notes.push_back(a.note);
@@ -489,8 +490,10 @@ std::string molecular_report(const MolecularResult& r) {
     s += std::string("\xCE\xA8Lab \xE2\x80\x93 restricted Hartree-Fock") +
          (r.input.method == "FCI" ? " and Full CI" : (r.input.method == "RHF" ? "" : " and " + r.input.method)) + "\n" +
          rule + "\n";
-    s += format("Molecule        %s, %d electrons, closed shell (charge %d, singlet)\n", mol.display_name().c_str(),
-                mol.electrons(), mol.charge);
+    s += format("Molecule        %s, %d electrons%s, closed shell (charge %d, singlet)\n", mol.display_name().c_str(),
+                mol.electrons(),
+                mol.core_electrons() ? format(" (and %d core electrons in ECPs)", mol.core_electrons()).c_str() : "",
+                mol.charge);
     if (mol.custom)
         s += "Title           " + (mol.title.empty() ? std::string("(none)") : mol.title) + "\n" +
              format("Geometry        %zu atoms from Cartesian coordinates\n", mol.atoms.size());
@@ -521,10 +524,15 @@ std::string molecular_report(const MolecularResult& r) {
     for (const auto& a : b.atoms) {
         if (std::find(seen.begin(), seen.end(), a.symbol) != seen.end()) continue;
         seen.push_back(a.symbol);
-        s += format("    %-2s  %-*s %-16s -> %-16s %4d functions\n", a.symbol.c_str(), width, a.basis.c_str(),
-                    a.primitives.c_str(), a.contraction.c_str(), a.functions);
+        s += format("    %-2s  %-*s %-16s -> %-16s %4d functions%s\n", a.symbol.c_str(), width, a.basis.c_str(),
+                    a.primitives.c_str(), a.contraction.c_str(), a.functions,
+                    a.ecp.empty() ? "" : (", " + a.ecp).c_str());
     }
     for (const auto& n : r.notes) s += "    Note: " + n + "\n";
+    if (b.ecp_electrons > 0)
+        s += format("    Effective core potentials (ECPn: n core electrons replaced): %d core electrons; the\n"
+                    "    nuclear charges are Z less the core electrons\n",
+                    b.ecp_electrons);
     s += format("    %d basis functions, %zu shells, highest angular momentum %c (l = %d)\n", b.n_functions,
                 b.shells.size(), angular_letter(b.max_l), b.max_l);
     const CostEstimate& e = r.estimate;
@@ -554,7 +562,10 @@ std::string molecular_report(const MolecularResult& r) {
     s += format("    overlap matrix: smallest eigenvalue %.3e; %s\n", h.smallest_overlap_eigenvalue,
                 h.removed_functions ? format("%d functions removed", h.removed_functions).c_str()
                                     : "no functions removed");
-    s += "\nSCF             core-Hamiltonian guess, DIIS (up to 8 Fock matrices)\n";
+    const char* guess = h.guess == "sad"        ? "superposition of atomic densities (SAD)"
+                        : h.guess == "orbitals" ? "orbitals of the previous geometry"
+                                                : "core-Hamiltonian guess";
+    s += format("\nSCF             %s, DIIS (up to 8 Fock matrices)\n", guess);
     s += format("    converged when |dE| < %.1e E_h and max |X'(FPS - SPF)X| < %.1e\n", r.input.energy_tol,
                 r.input.gradient_tol);
     if (level >= 2) {

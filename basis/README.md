@@ -74,11 +74,21 @@ Number of basis functions per molecule (spherical):
 ## ΨLab 14.0: the Pople 6-31G and 6-311G families and the def2 sets
 
 25 more files, written with the same offline copy of the BSE data (version 0.12) for every element
-up to Kr for which the BSE defines the set (all of them are all-electron sets there):
+for which the BSE defines the set, with the effective core potentials (ECPs) of the def2 sets beyond
+Kr:
 
 ```
-basis_set_exchange.get_basis(<name>, elements=<Z <= 36 defined>, fmt="gaussian94", header=True)
+basis_set_exchange.get_basis(<name>, fmt="gaussian94", header=True)
 ```
+
+(ΨLab 14.0 first had these sets for H–Kr only; the blocks of H–Kr are unchanged byte for byte.)
+def2-mTZVP and def2-mTZVPP are given by the BSE without ECPs for their elements beyond Kr; their
+files add the def2-ECP of def2-SVP (Rb–Rn) and the small-core ECP60MWB ("Stuttgart RSC 1997 ECP"
+of the BSE, Th–Lr) to the BSE's basis through `basis_set_exchange.write_formatted_basis_str`, and
+their headers say so. These are the ECPs of their valence bases: for Rb–Rn they are derived from
+def2-TZVP (the same largest exponents), for Th–Lr they are the (14s13p10d8f1g)/[10s9p5d4f1g]
+reduction of the Cao–Dolg segmented basis of ECP60MWB (Turbomole's def-TZVP); ORCA uses these sets
+with the same ECPs.
 
 The file names follow Psi4's library (`+` → `p`, `*` → `s`, `(`, `,`, `)` → `_`):
 
@@ -87,11 +97,13 @@ The file names follow Psi4's library (`+` → `p`, `*` → `s`, `(`, `,`, `)` �
 | `6-31g.gbs`, `6-31gs.gbs` | 6-31G, 6-31G\* | H–Kr | Cartesian d (6D), spherical f (7F) |
 | `6-31pg.gbs`, `6-31pgs.gbs`, `6-31pgss.gbs` | 6-31+G, 6-31+G\*, 6-31+G\*\* | H–Ar | 6D |
 | `6-31ppgs.gbs`, `6-31ppgss.gbs` | 6-31++G\*, 6-31++G\*\* | H–Ar | 6D |
-| `6-311g.gbs`, `6-311gs.gbs` | 6-311G, 6-311G\* | H–Ca, Ga–Kr | spherical (5D, 7F) |
+| `6-311g.gbs`, `6-311gs.gbs` | 6-311G, 6-311G\* | H–Ca, Ga–Kr, I (all-electron) | spherical (5D, 7F) |
 | `6-311pg.gbs`, `6-311pgs.gbs`, `6-311pgss.gbs` | 6-311+G, 6-311+G\*, 6-311+G\*\* | H–Ca | 5D |
 | `6-311ppgs.gbs`, `6-311ppgss.gbs`, `6-311ppg_2d_2p_.gbs` | 6-311++G\*, 6-311++G\*\*, 6-311++G(2d,2p) | H, Li–Ca | 5D |
 | `6-311ppg_3df_3pd_.gbs` | 6-311++G(3df,3pd) | H, Li–Ar | 5D 7F |
-| `def2-svp.gbs`, `def2-mtzvp.gbs`, `def2-mtzvpp.gbs`, `def2-tzvp.gbs`, `def2-tzvpp.gbs`, `def2-tzvppd.gbs`, `def2-qzvp.gbs`, `def2-qzvpp.gbs`, `def2-qzvppd.gbs` | def2-SVP, def2-mTZVP, def2-mTZVPP, def2-TZVP, def2-TZVPP, def2-TZVPPD, def2-QZVP, def2-QZVPP, def2-QZVPPD | H–Kr | spherical (5D, 7F; up to g) |
+| `def2-svp.gbs`, `def2-tzvp.gbs`, `def2-tzvpp.gbs`, `def2-qzvp.gbs`, `def2-qzvpp.gbs` | def2-SVP, def2-TZVP, def2-TZVPP, def2-QZVP, def2-QZVPP | H–Rn, ECPs Rb–Rn | spherical (5D, 7F; up to g, def2-QZVPP up to h) |
+| `def2-tzvppd.gbs`, `def2-qzvppd.gbs` | def2-TZVPPD, def2-QZVPPD | H–La, Hf–Rn, ECPs Rb–La, Hf–Rn | spherical |
+| `def2-mtzvp.gbs`, `def2-mtzvpp.gbs` | def2-mTZVP, def2-mTZVPP | H–Rn, Th–Lr, ECPs Rb–Rn (def2-ECP), Th–Lr (ECP60MWB) | spherical |
 
 **Function types.** The Gaussian94 format does not say whether a d shell has five spherical or six
 Cartesian functions; ΨLab follows Gaussian's defaults, which are also the BSE's marks for the
@@ -99,6 +111,12 @@ Cartesian functions; ΨLab follows Gaussian's defaults, which are also the BSE's
 the other sets is spherical. (The BSE marks the Na–Ar d functions of 6-311G\* Cartesian, from the
 McLean–Chandler sets; Gaussian uses the 6-311G family with 5D throughout, and so does ΨLab.) For
 H₂O, RHF/6-31G\* is −76.0105299763 Eₕ with 6D and −76.0091323803 Eₕ with 5D.
+
+**The ECPs** (Gaussian's format: `I-ECP 3 28`, the local part U_L and U_l − U_L for l < L, terms
+`2 exponent coefficient`, i.e. c·exp(−a r²)): 28 core electrons for Rb–Xe, 46 for Cs–La, 28 for the
+lanthanides Ce–Lu (4f in the valence; local part l = 5, projectors up to g), 60 for Hf–Rn and
+(ECP60MWB) Th–Lr. They are identical in all def2 files. ΨLab supports the Gaussian terms (n = 2),
+which all of them are.
 
 **def2-QZVP and def2-QZVPP** are identical for H–Ne and Al–Ar (the files differ for Na, Mg and
 K–Kr). The Pople data are those of Gaussian 09 (6-31G family) and of the original BSE (6-311G
@@ -182,3 +200,19 @@ Please cite the BSE and the original publications when you use these basis sets:
   A. Hansen, S. Grimme, J. Chem. Phys. **148**, 064104 (2018), doi:10.1063/1.5012601 (B97-3c);
   def2-mTZVPP: S. Grimme, A. Hansen, S. Ehlert, J.-M. Mewes, J. Chem. Phys. **154**, 064103 (2021),
   doi:10.1063/5.0040021 (r²SCAN-3c).
+- 14.0, all-electron iodine in 6-311G: M. N. Glukhovtsev, A. Pross, M. P. McGrath, L. Radom,
+  J. Chem. Phys. **103**, 1878 (1995), doi:10.1063/1.469712.
+- 14.0, the def2 ECPs (Stuttgart–Cologne pseudopotentials): Rb, Cs: G. Leininger et al., Chem. Phys.
+  Lett. **255**, 274 (1996), doi:10.1016/0009-2614(96)00382-X; Sr, Ba: M. Kaupp et al., J. Chem.
+  Phys. **94**, 1360 (1991), doi:10.1063/1.459993; Y–Cd, Hf–Hg: D. Andrae et al., Theor. Chim. Acta
+  **77**, 123 (1990), doi:10.1007/BF01114537; In–Sb, Pb, Bi: B. Metz, H. Stoll, M. Dolg, J. Chem.
+  Phys. **113**, 2563 (2000), doi:10.1063/1.1305880; Tl: B. Metz et al., Theor. Chem. Acc. **104**, 22
+  (2000), doi:10.1007/s002149900101; Te–Xe, Po–Rn: K. A. Peterson et al., J. Chem. Phys. **119**,
+  11113 (2003), doi:10.1063/1.1622924; La: M. Dolg et al., Theor. Chim. Acta **75**, 173 (1989),
+  doi:10.1007/BF00528565, and **85**, 441 (1993), doi:10.1007/BF01112983; Ce–Yb: M. Dolg, H. Stoll,
+  H. Preuss, J. Chem. Phys. **90**, 1730 (1989), doi:10.1063/1.456066; Lu: X. Cao, M. Dolg, J. Chem.
+  Phys. **115**, 7348 (2001), doi:10.1063/1.1406535.
+- 14.0, the actinide ECP60MWB (def2-mTZVP, def2-mTZVPP for Th–Lr): W. Küchle, M. Dolg, H. Stoll,
+  H. Preuss, J. Chem. Phys. **100**, 7535 (1994), doi:10.1063/1.466847; the valence basis: X. Cao,
+  M. Dolg, H. Stoll, J. Chem. Phys. **118**, 487 (2003), doi:10.1063/1.1521431; X. Cao, M. Dolg,
+  J. Mol. Struct. THEOCHEM **673**, 203 (2004), doi:10.1016/j.theochem.2003.12.015.

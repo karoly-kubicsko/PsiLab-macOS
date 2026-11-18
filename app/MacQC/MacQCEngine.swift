@@ -217,6 +217,16 @@ nonisolated struct MacQCAtom: Codable, Sendable, Equatable {
     var symbol: String
     var Z: Int
     var position: [Double]   // bohr
+    var ecp: MacQCEcp?       // 14.0: in the orbitals object, the atom's effective core potential
+}
+
+/// 14.0: an effective core potential U = U_L + Σ_l |lm⟩[U_l − U_L]⟨lm| with Gaussian terms
+/// c·exp(−a r²), each term [a, c].
+nonisolated struct MacQCEcp: Codable, Sendable, Equatable {
+    var core: Int                    // core electrons replaced
+    var L: Int                       // angular momentum of the local part
+    var local: [[Double]]            // U_L
+    var projected: [[[Double]]]      // U_l − U_L, l = 0 … L−1
 }
 
 nonisolated struct MacQCMoleculeInfo: Codable, Sendable, Equatable {
@@ -233,6 +243,7 @@ nonisolated struct MacQCMoleculeInfo: Codable, Sendable, Equatable {
     var formula: String?     // Hill order, e.g. "CO2"
     var custom: Bool?
     var title: String?       // custom molecules: the name from the structure file (LaTeX)
+    var coreElectrons: Int?  // 14.0: replaced by effective core potentials (0 or nil: none)
 }
 
 nonisolated struct MacQCAtomBasis: Codable, Sendable, Equatable {
@@ -241,6 +252,8 @@ nonisolated struct MacQCAtomBasis: Codable, Sendable, Equatable {
     var contraction: String
     var primitives: String
     var functions: Int
+    var ecp: String?          // 14.0: "ECP28" (28 core electrons replaced), nil: all electrons
+    var ecpElectrons: Int?
 }
 
 nonisolated struct MacQCBasisInfo: Codable, Sendable, Equatable {

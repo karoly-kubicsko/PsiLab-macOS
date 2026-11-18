@@ -268,7 +268,19 @@ extension SavedMolecule {
         if BasisSets.isCartesianD(basis) {
             lines.append("! \(basis): Cartesian d functions (6D, Gaussian's default for the 6-31G family), as in PsiLab")
         }
-        if SavedMolecule.gaussianBasisKeyword(basis) == nil && !basis.lowercased().hasPrefix("aug-cc-pcv") {
+        let heavy = atoms.contains { $0.Z > 36 }
+        if heavy, let section = SavedMolecule.gaussianBasisSection(for: atoms.map(\.Z), orbitals: orbitals) {
+            // 14.0: elements beyond Kr (the def2 sets with their ECPs, I in 6-311G): the functions and
+            // potentials ΨLab used, exactly (Gaussian's built-in def2 sets lack Ce-Lu)
+            let ecp = SavedMolecule.gaussianECPSection(for: atoms.map(\.Z), orbitals: orbitals)
+            route = ecp.isEmpty ? "Gen 5D 7F" : "GenECP 5D 7F"
+            lines.append("! basis set \(basis) as used by PsiLab, written out below"
+                         + (ecp.isEmpty ? "" : ", with its effective core potentials"))
+            basisSection = ecp.isEmpty ? section : section + [""] + ecp
+        } else if heavy && basis.lowercased().hasPrefix("def2") {
+            lines.append("! \(basis): PsiLab uses the def2 effective core potentials for the elements beyond Kr;")
+            lines.append("! give them with GenECP (basissetexchange.org) if your Gaussian does not apply them")
+        } else if SavedMolecule.gaussianBasisKeyword(basis) == nil && !basis.lowercased().hasPrefix("aug-cc-pcv") {
             // 14.0: def2 sets that Gaussian does not have built in (spherical, 5D 7F)
             route = "Gen 5D 7F"
             if let section = SavedMolecule.gaussianBasisSection(for: atoms.map(\.Z), orbitals: orbitals) {
@@ -349,6 +361,39 @@ extension SavedMolecule {
                 }
             }
             section.append("****")
+        }
+        return section
+    }
+
+    /// 14.0: Gaussian's ECP input for the elements `Z` that have an effective core potential in
+    /// `orbitals` (one atom of each element): "I 0", "I-ECP L n_core", then the local part and the
+    /// parts U_l − U_L, each a title, the number of terms and "2 exponent coefficient" lines.
+    static func gaussianECPSection(for Z: [Int], orbitals: MacQCOrbitals?) -> [String] {
+        guard let orbitals else { return [] }
+        let letters = ["s", "p", "d", "f", "g", "h", "i"]
+        var section: [String] = []
+        var seen: [Int] = []
+        for z in Z where !seen.contains(z) {
+            seen.append(z)
+            guard let atom = orbitals.atoms.first(where: { $0.Z == z }), let ecp = atom.ecp,
+                  ecp.L < letters.count else { continue }
+            let symbol = Elements.symbol(z)
+            let top = letters[ecp.L]
+            section.append("\(symbol) 0")
+            section.append("\(symbol)-ECP \(ecp.L) \(ecp.core)")
+            var parts: [(String, [[Double]])] = [("\(top) potential", ecp.local)]
+            for (l, terms) in ecp.projected.enumerated() where l < letters.count {
+                parts.append(("\(letters[l])-\(top) potential", terms))
+            }
+            for (title, terms) in parts {
+                section.append(title)
+                // a part without terms (all coefficients zero) as one zero term
+                let list = terms.isEmpty ? [[1.0, 0.0]] : terms
+                section.append(String(format: "  %ld", list.count))
+                for t in list where t.count == 2 {
+                    section.append(String(format: "2  %18.10f  %18.10f", t[0], t[1]))
+                }
+            }
         }
         return section
     }

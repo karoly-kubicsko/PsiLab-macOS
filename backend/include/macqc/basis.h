@@ -5,6 +5,7 @@
 
 #include <array>
 #include <map>
+#include <memory>
 #include <string>
 #include <vector>
 
@@ -26,6 +27,7 @@ struct ShellData {
 struct ElementBasis {
     int Z = 0;
     std::vector<ShellData> shells;
+    std::shared_ptr<const AtomEcp> ecp;  // 14.0: the effective core potential, if the file has one
 };
 
 struct BasisFile {
@@ -35,7 +37,10 @@ struct BasisFile {
 
 // Parses Gaussian94 text (as written by basissetexchange.org). SP shells are split
 // into an S and a P shell; a scale factor other than 1 multiplies the exponents
-// by its square. Throws std::runtime_error("line N: ...") on malformed input.
+// by its square. 14.0: effective core potentials ("<El> 0", "<El>-ECP L n_core", then
+// the local part U_L and U_l - U_L for l = 0 .. L-1, each "<label>", the number of terms
+// and lines "n exponent coefficient"; only n = 2 is supported). Throws
+// std::runtime_error("line N: ...") on malformed input.
 BasisFile parse_gaussian94(const std::string& text);
 
 // A basis set of ΨLab's library (14.0).
@@ -101,6 +106,8 @@ struct AtomBasisInfo {
     std::string primitives;   // e.g. "(10s5p2d)" (distinct exponents per l)
     int functions = 0;
     std::string note;         // e.g. why another basis set was used for H
+    int ecp_electrons = 0;    // 14.0: core electrons replaced by the atom's ECP (0: all electrons)
+    std::string ecp;          // 14.0: "ECP28" for a potential with 28 core electrons ("" without)
 };
 
 struct BasisSet {
@@ -112,7 +119,19 @@ struct BasisSet {
     int max_l = 0;
     int n_primitives = 0;  // sum over shells of exponents x (2l+1)
     std::string source;    // header line(s) of the file(s) read
+    // 14.0: the ECP of every atom (nullptr: all electrons), in the order of the molecule's atoms
+    // (empty for a basis set built by hand: no ECPs)
+    std::vector<std::shared_ptr<const AtomEcp>> ecps;
+    int ecp_electrons = 0;  // core electrons replaced by ECPs, all atoms
 };
+
+// 14.0: the molecule with the ECPs of `basis` on its atoms (Atom::ecp; atoms without an ECP in
+// the basis lose one they had). Every calculation with `basis` uses this molecule: its nuclear
+// charges are Z less the ECP core electrons, and its nuclear attraction includes the ECPs.
+Molecule attach_ecps(const Molecule& mol, const BasisSet& basis);
+
+// Throws std::logic_error unless the ECPs on the atoms of `mol` are those of `basis`.
+void check_ecps(const Molecule& mol, const BasisSet& basis);
 
 // Builds the basis for the molecule from the files in `directory`. For H, the
 // core-valence sets aug-cc-pCVXZ are not defined (H has no core); the matching

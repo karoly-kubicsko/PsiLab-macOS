@@ -466,7 +466,7 @@ nonisolated enum BasisSets {
         BasisFamily(title: "Pople 6-311G",
                     names: ["6-311G", "6-311G*", "6-311+G", "6-311+G*", "6-311+G**", "6-311++G*", "6-311++G**",
                             "6-311++G(2d,2p)", "6-311++G(3df,3pd)"]),
-        BasisFamily(title: "Karlsruhe def2",
+        BasisFamily(title: "Karlsruhe def2 (ECPs beyond Kr)",
                     names: ["def2-SVP", "def2-mTZVP", "def2-mTZVPP", "def2-TZVP", "def2-TZVPP", "def2-TZVPPD",
                             "def2-QZVP", "def2-QZVPP", "def2-QZVPPD"]),
         BasisFamily(title: "Dunning aug-cc-pVXZ",

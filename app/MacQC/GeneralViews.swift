@@ -157,7 +157,7 @@ struct GeneralSummaryView: View {
             }
             Divider().gridCellUnsizedAxes(.horizontal)
             GridRow {
-                Text("\(mol.electrons) electrons, charge \(mol.charge), singlet")
+                Text(electronsText(mol))
                     .gridCellColumns(4)
                     .gridColumnAlignment(.leading)
                 Text("E_nn = " + Fmt.energy10(mol.nuclearRepulsion) + " E_h")
@@ -169,6 +169,13 @@ struct GeneralSummaryView: View {
         .dataPanel()
     }
 
+    /// "26 electrons (+ 28 in ECPs), charge 0, singlet".
+    private func electronsText(_ mol: MacQCMoleculeInfo) -> String {
+        let core = mol.coreElectrons ?? 0
+        let ecp = core > 0 ? " (+ \(core) in ECPs)" : ""
+        return "\(mol.electrons) electrons\(ecp), charge \(mol.charge), singlet"
+    }
+
     private func basisPanel(_ b: MacQCBasisInfo) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             Grid(alignment: .leading, horizontalSpacing: 24, verticalSpacing: 5) {
@@ -178,6 +185,7 @@ struct GeneralSummaryView: View {
                     Text("Primitives")
                     Text("Contracted")
                     Text("Functions").gridColumnAlignment(.trailing)
+                    Text("Core")
                 }
                 .font(.subheadline.weight(.semibold))
                 .foregroundStyle(.secondary)
@@ -189,6 +197,7 @@ struct GeneralSummaryView: View {
                         Text(atom.primitives)
                         Text(atom.contraction)
                         Text("\(atom.functions)")
+                        Text(atom.ecp ?? "all electrons")
                     }
                 }
             }
@@ -197,6 +206,11 @@ struct GeneralSummaryView: View {
             Text("\(b.functions) basis functions, \(b.functionTypes ?? "spherical harmonics"), in \(b.shells) shells; highest angular momentum l = \(b.maxL).")
                 .font(.caption)
                 .foregroundStyle(.secondary)
+            if b.atoms.contains(where: { ($0.ecpElectrons ?? 0) > 0 }) {
+                Text("ECPn: an effective core potential replaces n core electrons (the def2 sets beyond Kr); the nuclear charge is Z − n.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
         }
         .dataPanel()
     }

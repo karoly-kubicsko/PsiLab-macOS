@@ -174,7 +174,7 @@ struct SidebarView: View {
         case .heh:
             return kind + " He is not in the 6-311++G sets and has no core-valence sets (they fall back to aug-cc-pVXZ). STO-nG returns to the Szabo–Ostlund calculation."
         case .custom:
-            return kind + " Elements: 6-31G, 6-31G* and def2 H–Kr; 6-31+G… H–Ar; 6-311G, 6-311G* H–Ca and Ga–Kr (the diffuse ones up to Ca); aug-cc-pVXZ H–Ar and Sc–Kr (Sc–Zn up to QZ; none for K, Ca), aug-cc-pCVXZ Li–Ar. Heavier elements would need effective core potentials, which ΨLab does not have."
+            return kind + " Elements: def2 H–Rn with effective core potentials from Rb on (TZVPPD, QZVPPD without Ce–Lu; mTZVP, mTZVPP also Th–Lr); 6-31G, 6-31G* H–Kr; 6-31+G… H–Ar; 6-311G, 6-311G* H–Ca, Ga–Kr and I (the diffuse ones up to Ca); aug-cc-pVXZ H–Ar and Sc–Kr (Sc–Zn up to QZ), aug-cc-pCVXZ Li–Ar."
         default:
             return kind + " The core-valence sets (CV) add tight functions for the 1s core."
         }

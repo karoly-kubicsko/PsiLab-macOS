@@ -101,10 +101,15 @@ std::string basis_block(const BasisSet& b, const std::vector<std::string>& notes
     for (const auto& a : b.atoms) {
         if (std::find(seen.begin(), seen.end(), a.symbol) != seen.end()) continue;
         seen.push_back(a.symbol);
-        s += strprintf("    %-2s  %-*s %-16s -> %-16s %4d functions\n", a.symbol.c_str(), width, a.basis.c_str(),
-                       a.primitives.c_str(), a.contraction.c_str(), a.functions);
+        s += strprintf("    %-2s  %-*s %-16s -> %-16s %4d functions%s\n", a.symbol.c_str(), width, a.basis.c_str(),
+                       a.primitives.c_str(), a.contraction.c_str(), a.functions,
+                       a.ecp.empty() ? "" : (", " + a.ecp).c_str());
     }
     for (const auto& n : notes) s += "    Note: " + n + "\n";
+    if (b.ecp_electrons > 0)
+        s += strprintf("    Effective core potentials (ECPn: n core electrons replaced): %d core electrons; the\n"
+                       "    nuclear charges are Z less the core electrons\n",
+                       b.ecp_electrons);
     s += strprintf("    %d basis functions, %zu shells, highest angular momentum %c (l = %d)\n", b.n_functions,
                    b.shells.size(), angular_letter(b.max_l), b.max_l);
     return s;
@@ -121,7 +126,7 @@ std::string scf_iteration_line(const RHFIteration& it) {
 
 std::vector<double> mulliken_charges(const Molecule& mol, const BasisSet& b, const Matrix& P, const Matrix& S) {
     std::vector<double> q(mol.atoms.size(), 0.0);
-    for (std::size_t a = 0; a < mol.atoms.size(); ++a) q[a] = mol.atoms[a].Z;
+    for (std::size_t a = 0; a < mol.atoms.size(); ++a) q[a] = mol.atoms[a].nuclear_charge();
     const std::size_t n = P.rows();
     for (const Shell& sh : b.shells)
         for (int f = 0; f < sh.size(); ++f) {
@@ -147,7 +152,7 @@ std::vector<double> lowdin_charges(const Molecule& mol, const BasisSet& b, const
         }
     const Matrix sps = matmul(matmul(half, P), half);
     std::vector<double> q(mol.atoms.size(), 0.0);
-    for (std::size_t a = 0; a < mol.atoms.size(); ++a) q[a] = mol.atoms[a].Z;
+    for (std::size_t a = 0; a < mol.atoms.size(); ++a) q[a] = mol.atoms[a].nuclear_charge();
     for (const Shell& sh : b.shells)
         for (int f = 0; f < sh.size(); ++f) {
             const std::size_t mu = static_cast<std::size_t>(sh.first_function + f);

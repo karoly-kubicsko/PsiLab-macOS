@@ -23,6 +23,7 @@
 #include <vector>
 
 #include "macqc/basis.h"
+#include "macqc/ecp.h"
 #include "macqc/gradient.h"
 #include "macqc/gto_derivatives.h"
 #include "macqc/gto_integrals.h"
@@ -136,19 +137,24 @@ static void test_library() {
         const char* elements;  // expected element_ranges text, checked through a refusal below
         int count;
     };
-    const Coverage cov[] = {{"6-31G", "H-Kr", 36},      {"6-31+G*", "H-Ar", 18},    {"6-311G*", "H-Ca, Ga-Kr", 26},
-                            {"6-311+G", "H-Ca", 20},    {"6-311++G**", "H, Li-Ca", 19},
-                            {"6-311++G(3df,3pd)", "H, Li-Ar", 17},                  {"def2-QZVPPD", "H-Kr", 36}};
+    // 14.0, all elements the BSE defines: I in 6-311G(*); the def2 sets up to Rn with their ECPs
+    // (Rb-Rn; the diffuse ones without Ce-Lu), def2-mTZVP(P) also Th-Lr
+    const Coverage cov[] = {{"6-31G", "H-Kr", 36},       {"6-31+G*", "H-Ar", 18},   {"6-311G*", "H-Ca, Ga-Kr, I", 27},
+                            {"6-311+G", "H-Ca", 20},     {"6-311++G**", "H, Li-Ca", 19},
+                            {"6-311++G(3df,3pd)", "H, Li-Ar", 17},                  {"def2-SVP", "H-Rn", 86},
+                            {"def2-QZVPPD", "H-La, Hf-Rn", 72},                     {"def2-mTZVPP", "H-Rn, Th-Lr", 100}};
     for (const char* n : requested) {
         const BasisFile f = parse_gaussian94(read_file(default_basis_directory() + "/" + basis_file_name(n)));
         CHECK(contains(f.header, "Basis Set Exchange") && contains(f.header, "Version 0.12"));
         CHECK(contains(f.header, std::string("Basis set: ") + n));
         int maxl = 0;
         for (const auto& [Z, e] : f.elements) {
-            CHECK(Z >= 1 && Z <= 36);
+            CHECK(Z >= 1 && Z <= 103);
+            // an ECP exactly for the elements beyond Kr of the def2 sets (6-311G: I all-electron)
+            CHECK((e.ecp != nullptr) == (Z > 36 && std::string(n).rfind("def2", 0) == 0));
             for (const auto& sh : e.shells) maxl = std::max(maxl, sh.l);
         }
-        CHECK(maxl <= 4);
+        CHECK(maxl <= 5);  // h functions: def2-QZVPP of the heavier elements
         for (const auto& c : cov)
             if (std::string(c.basis) == n) CHECK(static_cast<int>(f.elements.size()) == c.count);
     }
@@ -423,13 +429,181 @@ static void test_output_and_input() {
     CHECK(contains(he, "6-311++G** is not available for He") && contains(he, "H, Li-Ca"));
     const std::string k = error_of({{"molecule", "custom"}, {"atoms", atoms_json("2\n\nK 0 0 0\nH 0 0 2.24\n")}, {"basis", "6-31+G*"}});
     CHECK(contains(k, "not available for K") && contains(k, "H-Ar"));
-    const std::string rb = error_of({{"molecule", "custom"}, {"atoms", atoms_json("2\n\nRb 0 0 0\nH 0 0 2.37\n")}, {"basis", "def2-SVP"}});
-    CHECK(contains(rb, "not available for Rb") && contains(rb, "effective core potentials"));
+    // 14.0: the def2 sets end at Rn (def2-mTZVP(P): Th-Lr); the diffuse ones skip Ce-Lu; Rb needs an ECP
+    const std::string u = error_of({{"molecule", "custom"}, {"atoms", atoms_json("2\n\nU 0 0 0\nO 0 0 1.8\n")}, {"basis", "def2-SVP"}});
+    CHECK(contains(u, "not available for U") && contains(u, "H-Rn") && contains(u, "Th-Lr"));
+    const std::string ce = error_of({{"molecule", "custom"}, {"atoms", atoms_json("2\n\nCe 0 0 0\nO 0 0 1.8\n")}, {"basis", "def2-TZVPPD"}});
+    CHECK(contains(ce, "not available for Ce") && contains(ce, "lanthanides"));
+    const std::string rb = error_of({{"molecule", "custom"}, {"atoms", atoms_json("2\n\nRb 0 0 0\nH 0 0 2.37\n")}, {"basis", "aug-cc-pVDZ"}});
+    CHECK(contains(rb, "not available for Rb") && contains(rb, "effective core potentials") && contains(rb, "def2"));
     const std::string unknown = error_of({{"molecule", "H2O"}, {"basis", "6-31G**"}});
     CHECK(contains(unknown, "6-31G**") && contains(unknown, "6-311++G(3df,3pd)"));
     // HeH+ in a Pople set is the general molecule (all methods), not the Szabo-Ostlund calculation
     const json heh = run({{"molecule", "HeH+"}, {"basis", "6-311G"}, {"method", "FCI"}, {"printLevel", 0}});
     CHECK(heh["error"].is_null() && heh["fullCI"].is_object() && heh["basis"]["functions"] == 6);
+}
+
+// ---- 14.0: elements beyond Kr: the def2 sets with their effective core potentials ---------------
+
+static void test_ecp(const json& ref) {
+    std::printf("-- effective core potentials (def2 sets beyond Kr) and all-electron iodine\n");
+    // modified spherical Bessel functions e^-x i_n(x) against closed forms and the recurrence, in
+    // every regime of scaled_bessel_i (series x <= 0.5, Miller's recurrence, upward recurrence)
+    {
+        double worst = 0.0, worst_rec = 0.0;
+        for (double x : {0.6, 1.0, 2.5, 7.0, 18.0, 29.9, 30.1, 45.0, 120.0, 4000.0}) {
+            double v[16];
+            scaled_bessel_i(14, x, v);
+            const double e2 = std::exp(-2.0 * x);
+            const double sh = 0.5 * (1.0 - e2), ch = 0.5 * (1.0 + e2);  // e^-x sinh x, e^-x cosh x
+            const double i0 = sh / x, i1 = ch / x - sh / (x * x), i2 = (3.0 / (x * x) + 1.0) * sh / x - 3.0 * ch / (x * x);
+            worst = std::max({worst, std::fabs(v[0] - i0) / i0, std::fabs(v[1] - i1) / i1, std::fabs(v[2] - i2) / i2});
+            for (int n = 1; n < 14; ++n)
+                worst_rec = std::max(worst_rec, std::fabs(v[n - 1] - v[n + 1] - (2.0 * n + 1.0) / x * v[n]) / v[n - 1]);
+        }
+        check_max("e^-x i_n(x), n = 0, 1, 2, against closed forms (relative)", worst, 1e-13);
+        check_max("e^-x i_n(x), n <= 14: recurrence i_(n-1) - i_(n+1) = (2n+1)/x i_n (relative)", worst_rec, 1e-12);
+        double a[16], b[16], cont = 0.0;
+        for (double x : {0.5, 30.0}) {  // the regime boundaries for nmax = 10 (2 nmax + 10 = 30)
+            scaled_bessel_i(10, x, a);
+            scaled_bessel_i(10, x * (1.0 + 1e-12), b);
+            for (int n = 0; n <= 10; ++n) cont = std::max(cont, std::fabs(a[n] - b[n]) / a[n]);
+        }
+        check_max("e^-x i_n(x): continuity across the regimes (relative)", cont, 1e-10);
+    }
+    const json& S = ref["structures"];
+    auto mol_of = [&](const std::string& name) { return molecule_from_xyz(S[name]["xyz"].get<std::string>(), S[name]["charge"].get<int>()); };
+    // the radial quadrature: 64 points (default) against 160 for every shell pair of HI in def2-QZVPP
+    {
+        const Molecule m0 = mol_of("HI");
+        const BasisSet b = build_basis(m0, "def2-QZVPP", "");
+        const Molecule m = attach_ecps(m0, b);
+        CHECK(m.atoms[1].ecp && m.atoms[1].ecp->core_electrons == 28 && !m.atoms[0].ecp);
+        double worst = 0.0, largest = 0.0;
+        std::vector<double> c1, c2;
+        for (const Shell& A : b.shells)
+            for (const Shell& B : b.shells) {
+                c1.assign(static_cast<std::size_t>(A.cartesian_size()) * B.cartesian_size(), 0.0);
+                c2 = c1;
+                add_ecp_cartesian(A, B, m.atoms[1], c1);
+                add_ecp_cartesian(A, B, m.atoms[1], c2, 160);
+                for (std::size_t k = 0; k < c1.size(); ++k) {
+                    worst = std::max(worst, std::fabs(c1[k] - c2[k]));
+                    largest = std::max(largest, std::fabs(c1[k]));
+                }
+            }
+        std::printf("     largest ECP integral of HI/def2-QZVPP: %.3f E_h\n", largest);
+        check_max("ECP integrals HI/def2-QZVPP: 64 against 160 radial points (relative to the largest)", worst / largest,
+                  1e-13);
+    }
+    // energies against PySCF
+    double worst_rhf = 0.0, worst_cc = 0.0;
+    for (const auto& r : ref["energies"]) {
+        const std::string name = r["molecule"], basis = r["basis"], method = r["method"];
+        const auto t0 = Clock::now();
+        const json out = run({{"molecule", "custom"}, {"atoms", atoms_json(S[name]["xyz"])}, {"title", S[name]["title"]},
+                              {"charge", S[name]["charge"]}, {"basis", basis}, {"method", method}, {"printLevel", 0}});
+        if (!out["error"].is_null()) {
+            ++g_checks;
+            ++g_failures;
+            std::printf("FAIL %s %s %s: %s\n", name.c_str(), basis.c_str(), method.c_str(), out["error"].get<std::string>().c_str());
+            continue;
+        }
+        const double e = method == "RHF" ? out["rhf"]["totalEnergy"].get<double>() : out["coupledCluster"]["totalEnergy"].get<double>();
+        const double diff = std::fabs(e - r["energy"].get<double>());
+        CHECK(out["basis"]["functions"] == r["basisFunctions"]);
+        CHECK(out["molecule"]["electrons"] == r["electrons"]);
+        CHECK(out["molecule"]["coreElectrons"] == r["coreElectrons"]);
+        std::printf("     %-13s %-12s %-8s %3d functions %3d+%2d electrons %20.10f  diff %.1e  %5.1f s\n", name.c_str(),
+                    basis.c_str(), method.c_str(), out["basis"]["functions"].get<int>(), out["molecule"]["electrons"].get<int>(),
+                    out["molecule"]["coreElectrons"].get<int>(), e, diff, since(t0));
+        double& w = method == "RHF" ? worst_rhf : worst_cc;
+        w = std::max(w, diff);
+    }
+    check_max("RHF energies with ECP28/46/60, lanthanide ECP28 (Lu), actinide ECP60MWB (Th); I all-electron, vs PySCF",
+              worst_rhf, 1e-8);
+    check_max("CCSD(T)/def2-SVP of HI (ECP28) vs PySCF", worst_cc, 1e-8);
+    // analytic gradients (the ECP derivatives through translational invariance) and Hessians
+    for (const auto& r : ref["gradients"]) {
+        const std::string name = r["molecule"], basis = r["basis"], method = r["method"];
+        const Molecule m0 = mol_of(name);
+        const BasisSet b = build_basis(m0, basis, "");
+        const Molecule m = attach_ecps(m0, b);
+        const auto t0 = Clock::now();
+        const GradientResult g = run_gradient(m, b, method, tight());
+        CHECK(g.analytic);
+        double worst = 0.0;
+        for (std::size_t x = 0; x < g.gradient.size(); ++x)
+            worst = std::max(worst, std::fabs(g.gradient[x] - r["gradient"][x].get<double>()));
+        // PySCF's CCSD gradient solves its response equations to about 1e-8
+        check_max(name + " " + method + "/" + basis + " analytic gradient vs PySCF (" +
+                      std::to_string(static_cast<int>(since(t0))) + " s)",
+                  worst, method == "RHF" ? 2e-8 : 2e-7);
+    }
+    for (const auto& r : ref["hessians"]) {
+        const std::string name = r["molecule"], basis = r["basis"];
+        const Molecule m0 = mol_of(name);
+        const BasisSet b = build_basis(m0, basis, "");
+        const Molecule m = attach_ecps(m0, b);
+        const HessianResult h = run_hessian(m, b, "RHF", tight(), HessianOptions());
+        CHECK(h.analytic);
+        const std::size_t n = h.hessian.rows();
+        double worst = 0.0;
+        for (std::size_t i = 0; i < n; ++i)
+            for (std::size_t j = 0; j < n; ++j) worst = std::max(worst, std::fabs(h.hessian(i, j) - r["hessian"][i * n + j].get<double>()));
+        check_max(name + " RHF/" + basis + " analytic Hessian vs PySCF (E_h/bohr^2)", worst, 2e-7);
+    }
+    // the analytic CCSD(T) Hessian with an ECP against 4-point differences of analytic gradients (Full CI
+    // is impractical here: the lightest ECP atoms keep 9 or more valence electrons)
+    {
+        const Molecule m0 = mol_of("HI-stretched");
+        const BasisSet b = build_basis(m0, "def2-SVP", "");
+        const Molecule m = attach_ecps(m0, b);
+        const auto t0 = Clock::now();
+        HessianOptions ho;
+        ho.response_tol = 1e-11;
+        const HessianResult ha = run_hessian(m, b, "CCSD(T)", tight(), ho);
+        CHECK(ha.analytic && ha.has_dipole_derivatives);
+        const FDReference fr = fd_hessian(m, b, "CCSD(T)", 0.005);
+        double worst = 0.0, wa = 0.0;
+        for (std::size_t i = 0; i < ha.hessian.rows(); ++i)
+            for (std::size_t j = 0; j < ha.hessian.cols(); ++j) worst = std::max(worst, std::fabs(ha.hessian(i, j) - fr.H(i, j)));
+        for (std::size_t x = 0; x < ha.dipole_derivatives.size(); ++x)
+            for (std::size_t k = 0; k < 3; ++k) wa = std::max(wa, std::fabs(ha.dipole_derivatives[x][k] - fr.apt[x][k]));
+        check_max("CCSD(T)/def2-SVP HI (ECP28), analytic Hessian vs 4-point differences, " +
+                      std::to_string(static_cast<int>(since(t0))) + " s (E_h/bohr^2)",
+                  worst, 1e-8);
+        check_max("CCSD(T)/def2-SVP HI (ECP28), dipole derivatives vs 4-point differences (e)", wa, 1e-7);
+    }
+    // rotational invariance (the projectors about the ECP centre): LuF3 and AuH turned arbitrarily
+    {
+        const double c1 = std::cos(0.7), s1 = std::sin(0.7), c2 = std::cos(-1.9), s2 = std::sin(-1.9);
+        auto turn = [&](Molecule m) {
+            for (Atom& a : m.atoms) {
+                const auto p = a.position;
+                const double x = c1 * p[0] - s1 * p[1], y = s1 * p[0] + c1 * p[1], z = p[2];
+                a.position = {x, c2 * y - s2 * z, s2 * y + c2 * z};
+                a.position[0] += 0.3;
+            }
+            return m;
+        };
+        for (const auto& [name, basis] : {std::pair<std::string, std::string>{"AuH", "def2-TZVPP"}, {"PbO", "def2-SVP"}}) {
+            const Molecule m0 = mol_of(name), m1 = turn(m0);
+            const BasisSet b0 = build_basis(m0, basis, ""), b1 = build_basis(m1, basis, "");
+            const double e0 = run_single_point(attach_ecps(m0, b0), b0, "RHF", tight()).energy;
+            const double e1 = run_single_point(attach_ecps(m1, b1), b1, "RHF", tight()).energy;
+            check_max(name + "/" + basis + ": energy of the turned and shifted molecule (E_h)", std::fabs(e0 - e1), 1e-9);
+        }
+    }
+    // the output: electrons, core electrons and the ECP in the basis block and the appendix
+    const json out = run({{"molecule", "custom"}, {"atoms", atoms_json(S["HI"]["xyz"])}, {"basis", "def2-SVP"},
+                          {"method", "RHF"}, {"job", "energy"}, {"printLevel", 1}});
+    const std::string o = out["output"].is_string() ? out["output"].get<std::string>() : "";
+    CHECK(contains(o, "26 electrons (and 28 core electrons in ECPs)"));
+    CHECK(contains(o, "26 functions, ECP28"));
+    CHECK(contains(o, "ECP28: 28 core electrons"));
+    CHECK(out["basis"]["atoms"][1]["ecp"] == "ECP28" && out["basis"]["atoms"][1]["ecpElectrons"] == 28);
+    CHECK(out["basis"]["atoms"][0]["ecp"].is_null());
 }
 
 int main() {
@@ -443,6 +617,7 @@ int main() {
         test_h2o_631gs(ref);
         test_correlated_hessians();
         test_output_and_input();
+        test_ecp(json::parse(read_file(data + "/ecp_reference.json")));
     } catch (const std::exception& e) {
         std::printf("FAIL exception: %s\n", e.what());
         ++g_failures;

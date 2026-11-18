@@ -45,6 +45,8 @@ void usage(const char* prog) {
                  "          aug-cc-pCVDZ | aug-cc-pCVTZ | aug-cc-pCVQZ | aug-cc-pCV5Z\n"
                  "          (also Gaussian's spellings 6-31G(d), 6-31+G(d,p), def2SVP; the 6-31G family\n"
                  "          has Cartesian d functions, 6D, as in Gaussian; all other sets are spherical)\n"
+                 "          custom molecules: the def2 sets cover H-Rn (mTZVP, mTZVPP also Th-Lr) with\n"
+                 "          effective core potentials from Rb on; 6-311G, 6-311G* include I\n"
                  "  angle = <degrees> (H2O: H-O-H, H2O2: O-O-H, NH3: H-N-H, 120 = planar)   threads = <n>\n"
                  "  R_OO = <number> [bohr | angstrom], dihedral = <degrees>   (H2O2: O-O bond, H-O-O-H)\n"
                  "  method = HF | CCSD | CCSD(T) | CCSDT | CCSDTQ | FCI   (all electrons correlated)\n"

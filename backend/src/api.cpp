@@ -129,7 +129,8 @@ json molecular_json(const MolecularResult& m) {
     mol["formula"] = m.molecule.formula();
     mol["custom"] = m.molecule.custom;
     mol["title"] = m.molecule.custom ? json(m.molecule.title) : json(nullptr);
-    mol["electrons"] = m.molecule.electrons();
+    mol["electrons"] = m.molecule.electrons();          // 14.0: without the core electrons of ECPs
+    mol["coreElectrons"] = m.molecule.core_electrons();  // 14.0: replaced by ECPs
     mol["charge"] = m.molecule.charge;
     mol["R"] = m.input.R;
     const bool has_angle = m.molecule.name == "H2O" || m.molecule.name == "H2O2" || m.molecule.name == "NH3";
@@ -155,7 +156,9 @@ json molecular_json(const MolecularResult& m) {
                       {"basis", a.basis},
                       {"contraction", a.contraction},
                       {"primitives", a.primitives},
-                      {"functions", a.functions}});
+                      {"functions", a.functions},
+                      {"ecp", a.ecp.empty() ? json(nullptr) : json(a.ecp)},  // 14.0: e.g. "ECP28"
+                      {"ecpElectrons", a.ecp_electrons}});
     basis["atoms"] = ba;
 
     const CostEstimate& e = m.estimate;
@@ -721,7 +724,8 @@ bool get_bool(const json& j, const char* key, bool fallback) {
 }
 
 // ΨLab 8.0: the "orbitals" object: atoms, basis shells (normalised contraction coefficients,
-// spherical functions m = -l .. l from "first" on; 14.0: "pure": false for a Cartesian shell,
+// spherical functions m = -l .. l from "first" on; 14.0: atoms with an "ecp" object (core
+// electrons, local part, projected parts), "pure": false for a Cartesian shell,
 // its (l+1)(l+2)/2 functions xx, xy, xz, yy, yz, zz ...; absent means spherical) and the orbital
 // sets with their AO coefficients. The app passes it back to macqc_orbital_surface and
 // macqc_orbital_plane.
@@ -730,8 +734,23 @@ json orbitals_json(const OrbitalData& d) {
     j["basis"] = d.basis_name;
     j["functions"] = d.n_basis;
     json atoms = json::array();
-    for (const Atom& a : d.atoms)
-        atoms.push_back({{"symbol", a.symbol}, {"Z", a.Z}, {"position", {a.position[0], a.position[1], a.position[2]}}});
+    for (const Atom& a : d.atoms) {
+        json at = {{"symbol", a.symbol}, {"Z", a.Z}, {"position", {a.position[0], a.position[1], a.position[2]}}};
+        if (a.ecp) {
+            // 14.0: the effective core potential (for Gaussian input; not needed to draw orbitals):
+            // core electrons, L of the local part, its terms and those of U_l - U_L, [exponent, coefficient]
+            auto terms = [](const std::vector<EcpTerm>& t) {
+                json out = json::array();
+                for (const EcpTerm& x : t) out.push_back({x.exponent, x.coefficient});
+                return out;
+            };
+            json projected = json::array();
+            for (const auto& p : a.ecp->projected) projected.push_back(terms(p));
+            at["ecp"] = {{"core", a.ecp->core_electrons}, {"L", a.ecp->local_l}, {"local", terms(a.ecp->local)},
+                         {"projected", projected}};
+        }
+        atoms.push_back(at);
+    }
     j["atoms"] = atoms;
     json shells = json::array();
     for (const Shell& s : d.shells)
@@ -1152,6 +1171,22 @@ std::string basis_set_text(const OrbitalData& d) {
                 w.line(strprintf("      %-5s  %-9s %18.10f %18.10f", k == 0 ? name.c_str() : "",
                                  k == 0 ? range.c_str() : "", sh->exponents[k], c));
             }
+        }
+        // 14.0: the effective core potential of the atom
+        if (const auto& ecp = d.atoms[a].ecp) {
+            const char L = angular_letter(ecp->local_l);
+            w.line(strprintf("      ECP%d: %d core electrons; U(r) = U_%c(r) + sum_l |lm> [U_l(r) - U_%c(r)] <lm|, "
+                             "terms c exp(-a r^2)",
+                             ecp->core_electrons, ecp->core_electrons, L, L));
+            w.line("      part                     exponent        coefficient");
+            auto part = [&](const std::string& label, const std::vector<EcpTerm>& terms) {
+                for (std::size_t k = 0; k < terms.size(); ++k)
+                    w.line(strprintf("      %-12s %18.10f %18.10f", k == 0 ? label.c_str() : "", terms[k].exponent,
+                                     terms[k].coefficient));
+            };
+            part(std::string("U_") + L, ecp->local);
+            for (std::size_t l = 0; l < ecp->projected.size(); ++l)
+                part(std::string("U_") + angular_letter(static_cast<int>(l)) + " - U_" + L, ecp->projected[l]);
         }
     }
     return w.text();

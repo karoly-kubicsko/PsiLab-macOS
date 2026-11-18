@@ -695,6 +695,17 @@ relaunch -appearanceChoice dark -psilabMolecule H2O -psilabBasis "6-311++G(3df,3
 sleep 20
 view_tab "98-h2o-6-311ppg-3df-3pd-output" "Output"
 
+# Elements beyond Kr: the def2 sets with their effective core potentials (HI, ECP28 on I; PbO, ECP60)
+echo "== 14.0: HI RHF/def2-TZVP opt+freq (I with the def2 ECP), PbO CCSD(T)/def2-SVP energy"
+relaunch -appearanceChoice light -psilabStructure $'2\nHI\nH 0 0 0\nI 0 0 1.62\n' -psilabStructureName hi.xyz -psilabBasis def2-TZVP -psilabMethod RHF -psilabJob opt+freq -psilabAutoRun YES
+sleep 20
+view_tab "99-hi-def2-tzvp-summary" "Summary"
+print_shot "99-hi-def2-tzvp-summary"
+view_tab "99b-hi-def2-tzvp-frequencies" "Frequencies"
+relaunch -appearanceChoice dark -psilabStructure $'2\nPbO\nPb 0 0 0\nO 0 0 1.92\n' -psilabStructureName pbo.xyz -psilabBasis def2-SVP -psilabMethod "CCSD(T)" -psilabAutoRun YES -psilabTab output
+sleep 20
+view_tab "99c-pbo-ccsdt-output" "Output"
+
 pkill -x "ΨLab" || true
 
 # Crash reports of this run (none expected): print the crashed thread's backtrace.

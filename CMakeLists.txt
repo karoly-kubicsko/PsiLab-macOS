@@ -26,6 +26,7 @@ add_library(macqc STATIC
   backend/src/basis.cpp
   backend/src/gto_integrals.cpp
   backend/src/gto_derivatives.cpp
+  backend/src/ecp.cpp
   backend/src/rhf_derivatives.cpp
   backend/src/tensor.cpp
   backend/src/correlated_gradient.cpp

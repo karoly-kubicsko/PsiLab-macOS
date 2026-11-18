@@ -1038,7 +1038,7 @@ std::vector<double> nuclear_repulsion_gradient(const Molecule& mol) {
                 d[k] = mol.atoms[i].position[k] - mol.atoms[j].position[k];
                 r2 += d[k] * d[k];
             }
-            const double r = std::sqrt(r2), f = mol.atoms[i].Z * mol.atoms[j].Z / (r2 * r);
+            const double r = std::sqrt(r2), f = mol.atoms[i].nuclear_charge() * mol.atoms[j].nuclear_charge() / (r2 * r);
             for (int k = 0; k < 3; ++k) g[3 * i + k] -= f * d[k];
         }
     return g;
@@ -1055,7 +1055,7 @@ Matrix nuclear_repulsion_hessian(const Molecule& mol) {
                 d[k] = mol.atoms[i].position[k] - mol.atoms[j].position[k];
                 r2 += d[k] * d[k];
             }
-            const double r = std::sqrt(r2), zz = mol.atoms[i].Z * mol.atoms[j].Z;
+            const double r = std::sqrt(r2), zz = mol.atoms[i].nuclear_charge() * mol.atoms[j].nuclear_charge();
             // d^2/dRi_k dRi_l of Z Z / r = Z Z (3 d_k d_l / r^5 - delta_kl / r^3); the (i, j) block is minus that.
             for (int k = 0; k < 3; ++k)
                 for (int l = 0; l < 3; ++l) {

@@ -1,5 +1,7 @@
 #include "macqc/gto_integrals.h"
 
+#include "macqc/ecp.h"
+
 #include <algorithm>
 #include <array>
 #include <cmath>
@@ -386,7 +388,7 @@ void nuclear_block(const Shell& A, const Shell& B, const std::vector<Atom>& nucl
                 for (int d = 0; d < 3; ++d) PC[d] = P[d] - atom.position[d];
                 const double Tb = p * (PC[0] * PC[0] + PC[1] * PC[1] + PC[2] * PC[2]);
                 boys_function(L, Tb, F);
-                const double pref = -atom.Z * 2.0 * kPiExact / p * K;
+                const double pref = -atom.nuclear_charge() * 2.0 * kPiExact / p * K;
                 for (int m = 0; m <= L; ++m) v[m] = pref * F[m];
                 for (int e = 1; e <= L; ++e) {
                     const int nm = L - e + 1, nm1 = nm + 1, nm2 = nm + 2;
@@ -415,6 +417,10 @@ void nuclear_block(const Shell& A, const Shell& B, const std::vector<Atom>& nucl
     for (int e = la; e <= L; ++e) in[e - la] = acc.data() + aoff[e - la];
     cart.assign(static_cast<std::size_t>(ncart(la)) * ncart(lb), 0.0);
     hrr(la, lb, AB, 1, in, work, cart.data());
+    // 14.0: the effective core potentials of the nuclei (part of their attraction, so every
+    // derivative of these integrals includes them)
+    for (const Atom& atom : nuclei)
+        if (atom.ecp) add_ecp_cartesian(A, B, atom, cart);
 }
 
 enum class MatrixKind { Overlap, Kinetic, Nuclear };

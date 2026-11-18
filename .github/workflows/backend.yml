@@ -207,6 +207,9 @@ jobs:
       - name: Basis sets of 14.0 (6-31G family 6D, 6-311G, def2; energies, gradients, Hessian, orbitals)
         run: python3 reference/pyscf_basis_sets_reference.py --check
 
+      - name: Elements beyond Kr (def2 sets with ECPs, I in 6-311G*; energies, gradients, Hessians)
+        run: python3 reference/pyscf_ecp_reference.py --check
+
   # On request only: every RHF reference case, including H2O/aug-cc-pCV5Z (341 functions), and
   # every Full CI case, including LiH/aug-cc-pCVTZ (11 million determinants).
   rhf-full:

@@ -7,6 +7,7 @@
 #include <chrono>
 #include <cmath>
 #include <exception>
+#include <map>
 #include <mutex>
 #include <stdexcept>
 #include <thread>
@@ -341,7 +342,102 @@ Matrix FockBuilder::build_direct(const Matrix& D) const {
     return reduce_g(parts, n);
 }
 
+namespace {
+
+// 14.0, the SAD guess: the density of a neutral atom (with its ECP) in its own basis functions,
+// from an SCF in which the electrons fill the orbitals by energy and the electrons of the last,
+// partly filled group of degenerate orbitals are spread evenly over it (a spherical ensemble).
+// Damped iterations; the guess needs no tight convergence.
+Matrix atomic_density(const Atom& atom, const std::vector<Shell>& shells, int threads, double memory_mb) {
+    BasisSet b;
+    int nf = 0;
+    for (Shell s : shells) {
+        s.atom = 0;
+        s.first_function = nf;
+        nf += s.size();
+        b.max_l = std::max(b.max_l, s.l);
+        b.shells.push_back(std::move(s));
+    }
+    b.n_functions = nf;
+    const std::size_t n = static_cast<std::size_t>(nf);
+    Molecule m;
+    m.atoms = {atom};
+    const Matrix S = overlap_matrix(b);
+    const Matrix H = add(kinetic_matrix(b), nuclear_attraction_matrix(b, m));
+    const EigenResult se = symmetric_eigen(S);
+    std::vector<std::size_t> keep;
+    for (std::size_t k = 0; k < n; ++k)
+        if (se.values[k] >= 1.0e-7) keep.push_back(k);
+    Matrix X(n, keep.size());
+    for (std::size_t k = 0; k < keep.size(); ++k)
+        for (std::size_t i = 0; i < n; ++i) X(i, k) = se.vectors(i, keep[k]) / std::sqrt(se.values[keep[k]]);
+    const double nel = atom.nuclear_charge();
+    auto occupied_density = [&](const Matrix& F) {
+        const EigenResult e = symmetric_eigen(mtm(X, mm(F, X)));
+        const Matrix C = mm(X, e.vectors);
+        std::vector<double> occ(e.values.size(), 0.0);
+        double left = nel;
+        for (std::size_t k = 0; k < e.values.size() && left > 1.0e-12;) {
+            std::size_t end = k + 1;
+            while (end < e.values.size() && std::fabs(e.values[end] - e.values[k]) < 1.0e-4) ++end;
+            const double put = std::min(left, 2.0 * static_cast<double>(end - k));
+            for (std::size_t q = k; q < end; ++q) occ[q] = put / static_cast<double>(end - k);
+            left -= put;
+            k = end;
+        }
+        Matrix P(n, n);
+        for (std::size_t q = 0; q < occ.size(); ++q) {
+            if (occ[q] == 0.0) continue;
+            for (std::size_t i = 0; i < n; ++i)
+                for (std::size_t j = 0; j < n; ++j) P(i, j) += occ[q] * C(i, q) * C(j, q);
+        }
+        return P;
+    };
+    FockBuilder fock(b, threads, memory_mb);
+    Matrix P = occupied_density(H);
+    double e_prev = 0.0;
+    for (int it = 0; it < 80; ++it) {
+        const Matrix F = add(H, fock.build(P));
+        const double e = 0.5 * (dot(P, H) + dot(P, F));
+        const Matrix Pn = occupied_density(F);
+        // damping: half of the new density
+        for (std::size_t i = 0; i < n; ++i)
+            for (std::size_t j = 0; j < n; ++j) P(i, j) = 0.5 * (P(i, j) + Pn(i, j));
+        if (it > 2 && std::fabs(e - e_prev) < 1.0e-7) break;
+        e_prev = e;
+    }
+    return P;
+}
+
+// The superposition of the atomic densities (block diagonal; one atomic SCF per element and ECP).
+Matrix sad_density(const Molecule& mol, const BasisSet& basis, int threads, double memory_mb) {
+    const std::size_t n = static_cast<std::size_t>(basis.n_functions);
+    Matrix P(n, n);
+    std::map<std::pair<int, const AtomEcp*>, Matrix> done;
+    for (std::size_t a = 0; a < mol.atoms.size(); ++a) {
+        std::vector<Shell> shells;
+        std::vector<std::size_t> index;
+        for (const Shell& s : basis.shells)
+            if (s.atom == static_cast<int>(a)) {
+                shells.push_back(s);
+                for (int k = 0; k < s.size(); ++k) index.push_back(static_cast<std::size_t>(s.first_function + k));
+            }
+        if (shells.empty()) continue;
+        const auto key = std::make_pair(mol.atoms[a].Z, mol.atoms[a].ecp.get());
+        auto it = done.find(key);
+        if (it == done.end() || it->second.rows() != index.size())
+            it = done.insert_or_assign(key, atomic_density(mol.atoms[a], shells, threads, memory_mb)).first;
+        const Matrix& D = it->second;
+        for (std::size_t i = 0; i < index.size(); ++i)
+            for (std::size_t j = 0; j < index.size(); ++j) P(index[i], index[j]) = D(i, j);
+    }
+    return P;
+}
+
+}  // namespace
+
 RHFResult run_rhf(const Molecule& mol, const BasisSet& basis, const RHFOptions& opt, const RHFProgress& progress) {
+    check_ecps(mol, basis);  // 14.0: the molecule carries the ECPs of the basis set
     const int nel = mol.electrons();
     if (nel <= 0 || nel % 2 != 0)
         throw std::runtime_error("restricted Hartree-Fock needs an even, positive number of electrons");
@@ -367,7 +463,7 @@ RHFResult run_rhf(const Molecule& mol, const BasisSet& basis, const RHFOptions& 
             const double f = opt.field[static_cast<std::size_t>(k)];
             if (f == 0.0) continue;
             H = add(H, D[static_cast<std::size_t>(k)], f);
-            for (const Atom& a : mol.atoms) r.nuclear_repulsion -= f * a.Z * a.position[static_cast<std::size_t>(k)];
+            for (const Atom& a : mol.atoms) r.nuclear_repulsion -= f * a.nuclear_charge() * a.position[static_cast<std::size_t>(k)];
         }
     }
     r.S = S;
@@ -403,12 +499,13 @@ RHFResult run_rhf(const Molecule& mol, const BasisSet& basis, const RHFOptions& 
         eps = e.values;
     };
 
-    // Core-Hamiltonian guess, or the occupied orbitals of a nearby geometry (Loewdin
-    // orthonormalised in the current metric).
+    // The occupied orbitals of a nearby geometry (Loewdin orthonormalised in the current metric),
+    // else (14.0) the superposition of atomic densities or the core-Hamiltonian orbitals.
     Matrix C;
     std::vector<double> eps;
     diagonalize(H, C, eps);
     Matrix P = density(C, nocc);
+    r.guess = "core";
     if (opt.guess_orbitals && opt.guess_orbitals->rows() == n &&
         opt.guess_orbitals->cols() >= static_cast<std::size_t>(nocc)) {
         Matrix Co(n, static_cast<std::size_t>(nocc));
@@ -431,7 +528,14 @@ RHFResult run_rhf(const Molecule& mol, const BasisSet& basis, const RHFOptions& 
             const Matrix Cn = mm(Co, Mh);
             P = density(Cn, nocc);
             r.guess_from_orbitals = true;
+            r.guess = "orbitals";
         }
+    }
+    if (!r.guess_from_orbitals && opt.guess == "sad") {
+        P = sad_density(mol, basis, opt.threads, opt.memory_limit_mb);
+        r.guess = "sad";
+    } else if (!r.guess_from_orbitals && opt.guess != "core") {
+        throw std::invalid_argument("unknown SCF guess '" + opt.guess + "' (sad or core)");
     }
 
     std::vector<Matrix> diis_f, diis_e;
