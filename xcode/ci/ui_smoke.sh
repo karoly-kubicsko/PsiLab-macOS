@@ -15,8 +15,9 @@
 # scan settings in the sidebar, the refused TS search of LiH) and ΨLab 8.0 (the orbitals:
 # isosurfaces, a contour plot, Full CI natural orbitals, the Szabo-Ostlund orbitals), ΨLab 9.0 (custom
 # molecules from XYZ and Gaussian input text, the kept optimised geometry, the molecule menu, the
-# file panel, refusals), ΨLab 10.0 (the analytic CCSD Hessian of H2O, the Hessian setting) and ΨLab 12.0
-# (the 3D molecule viewer: sticks with atom numbers, spheres on black). The screen of the
+# file panel, refusals), ΨLab 10.0 (the analytic CCSD Hessian of H2O, the Hessian setting), ΨLab 12.0
+# (the 3D molecule viewer: sticks with atom numbers, spheres on black) and ΨLab 13.0 (an output file of
+# psilab opened again: every tab and the orbitals from its archive). The screen of the
 # runner is 1024 pt wide: the screenshots show that the six tabs fit at the minimum window width.
 # Never fails the job: it only gathers evidence (screenshots + text) for review.
 #
@@ -661,6 +662,28 @@ sleep 25
 view_tab "82-nh3-freq-3d-spheres-dark" "Frequencies"
 frames "82-nh3-spheres-mode"
 print_shot "82-nh3-freq-3d-spheres-dark"
+
+# --- ΨLab 13.0: an output file opened again ----------------------------------------------------------
+# examples/outputs/h2o-ccsd-opt-freq.out, written by psilab 13.0: its archive section restores every
+# tab without a calculation (the orbitals are computed again from the basis set and coefficients).
+echo "== open an output file of psilab (H2O CCSD/aug-cc-pVDZ opt+freq): Summary, Optimisation, Frequencies, Orbitals"
+# The app is sandboxed: a path given on the command line must lie in its container (a file chosen
+# in File > Open Output File… is granted by the file panel). The container exists after the
+# launches above.
+CONTAINER="$HOME/Library/Containers/org.psilab.PsiLab/Data"
+mkdir -p "$CONTAINER/tmp"
+cp examples/outputs/h2o-ccsd-opt-freq.out "$CONTAINER/tmp/" || echo "could not copy the example output into the container"
+EXAMPLE_OUT="$CONTAINER/tmp/h2o-ccsd-opt-freq.out"
+relaunch -appearanceChoice light -psilabOpenOutput "$EXAMPLE_OUT"
+view_tab "90-opened-output-summary" "Summary"
+print_shot "90-opened-output-summary"
+view_tab "91-opened-output-optimisation" "Optimisation"
+view_tab "92-opened-output-frequencies" "Frequencies"
+print_shot "92-opened-output-frequencies"
+relaunch -appearanceChoice light -psilabOpenOutput "$EXAMPLE_OUT" -psilabTab orbitals
+sleep 5
+dump_tab "93-opened-output-orbitals" ""
+print_shot "93-opened-output-orbitals"
 
 pkill -x "ΨLab" || true
 

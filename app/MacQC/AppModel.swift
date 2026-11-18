@@ -247,6 +247,11 @@ final class AppModel {
     }
     /// Changes with every new result (the orbital page starts afresh).
     var resultSerial = 0
+    /// 13.0: the output file (or JSON export) whose results are shown, nil for a calculation of
+    /// this session.
+    var openedFile: OpenedOutputFile?
+    /// An output file was requested at launch (-psilabOpenOutput): no calculation at launch.
+    var openedAtLaunch = false
     var errorMessage: String?
     var progress = MacQCProgress()
     /// The backend's description of the current step ("Optimisation step 4 · E = … · max force …").
@@ -380,6 +385,14 @@ final class AppModel {
             }
         }
         autoRunLongJobs = defaults.bool(forKey: "psilabAutoRun")
+        // 13.0: -psilabOpenOutput path: open an output file (or a JSON export) at launch; no
+        // calculation then, also when the file cannot be read (its error stays visible). The app is
+        // sandboxed: the path must lie in its container.
+        if let path = defaults.string(forKey: "psilabOpenOutput"), !path.isEmpty {
+            openedAtLaunch = true
+            loadOutputFile(from: URL(fileURLWithPath: (path as NSString).expandingTildeInPath),
+                           showSummary: defaults.string(forKey: "psilabTab") == nil)
+        }
     }
 
     // MARK: Inputs
@@ -640,6 +653,7 @@ final class AppModel {
                 return
             }
             result = output
+            openedFile = nil   // 13.0: a result of this session (a cancelled or failed run keeps the file's)
             errorMessage = output.error
             // UI smoke test (-psilabSaveOptimized YES): keep the optimised geometry
             if UserDefaults.standard.bool(forKey: "psilabSaveOptimized") && optimizedMolecule != nil {
@@ -1071,7 +1085,8 @@ final class AppModel {
     }
 
     func exportText() {
-        guard let out = result, let text = fullTextReport() else { return }
+        // 13.0: with the archive of the results (the file can be opened again)
+        guard let out = result, let text = exportableText() else { return }
 
         let panel = NSSavePanel()
         panel.title = "Export Results as Text"

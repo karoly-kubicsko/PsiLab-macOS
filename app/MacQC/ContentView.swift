@@ -25,7 +25,7 @@ struct ContentView: View {
         .task {
             // Show a result right away (the Szabo–Ostlund defaults, or the molecule given as a
             // launch argument). Large general calculations wait for Run.
-            if model.result == nil {
+            if model.result == nil && !model.openedAtLaunch {
                 if model.isGeneral {
                     await model.refreshEstimate()
                     if model.refusal == nil && (!model.isLongCalculation || model.autoRunLongJobs) {
@@ -76,6 +76,15 @@ struct DetailView: View {
     @Bindable var model: AppModel
 
     var body: some View {
+        VStack(spacing: 0) {
+            if let file = model.openedFile, model.result != nil {
+                OpenedFileBanner(file: file)
+            }
+            tabs
+        }
+    }
+
+    private var tabs: some View {
         TabView(selection: $model.selectedTab) {
             SummaryView(model: model)
                 .tabItem { Label("Summary", systemImage: "list.bullet.rectangle") }
@@ -106,6 +115,30 @@ struct DetailView: View {
 }
 
 // MARK: - Shared small views
+
+/// 13.0: the results shown are those of an opened output file.
+struct OpenedFileBanner: View {
+    var file: OpenedOutputFile
+
+    var body: some View {
+        let detail = [file.program, file.written.isEmpty ? "" : "written " + file.written]
+            .filter { !$0.isEmpty }.joined(separator: ", ")
+        Label {
+            Text("Results read from “\(file.name)”" + (detail.isEmpty ? "" : " (\(detail))")
+                 + ". Run calculates the inputs of the sidebar.")
+                .font(.callout)
+                .textSelection(.enabled)
+                .frame(maxWidth: .infinity, alignment: .leading)
+        } icon: {
+            Image(systemName: "doc.text.magnifyingglass")
+                .foregroundStyle(Color.accentColor)
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 6)
+        .background(Color.accentColor.opacity(0.08))
+        .accessibilityElement(children: .combine)
+    }
+}
 
 /// Banner in the detail area before a result exists: why the current settings cannot be calculated (red), or that the
 /// calculation will take long (orange).

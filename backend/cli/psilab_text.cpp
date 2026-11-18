@@ -646,6 +646,8 @@ RunResult run_to_text(const Settings& settings, const macqc::OutputSink& sink) {
         for (const auto& f : failures) text += "failed point: " + f + "\n";
     }
     if (text.empty() || text.back() != '\n') text += "\n";
+    // 13.0: the archive of the results (the app opens the file with File > Open Output File…)
+    text += macqc::output_appendix(out);
     result.text = text;
     return result;
 }

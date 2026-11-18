@@ -110,4 +110,15 @@ Input parse_input_json(const std::string& text);
 // Serialise to the documented output JSON (never throws).
 std::string output_to_json(const Output& out, int indent = -1);
 
+// 13.0: the appendix of an output file, written before its termination banner: for the general
+// molecules the basis set in full and the molecular orbitals of the app's Orbitals tab (AO
+// coefficients), then the archive: the complete results (the JSON of output_to_json without
+// "output") between the lines "@@PSILAB-ARCHIVE-BEGIN 1" and "@@PSILAB-ARCHIVE-END", ASCII,
+// wrapped at 100 columns. The app reads it back (File > Open Output File…).
+std::string output_appendix(const Output& out);
+
+// The archive JSON in the text of an output file (the lines between the markers joined); ""
+// if there is none.
+std::string archive_from_output_text(const std::string& text);
+
 }  // namespace macqc

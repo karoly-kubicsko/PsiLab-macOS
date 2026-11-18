@@ -93,6 +93,40 @@ std::string job_input_error(const Input& in) {
     return "";
 }
 
+// The Output of a finished job other than "energy": its final energy calculation and the job.
+void set_job_result(Output& out, JobResult jr, const MolecularInput& mi, const MolecularResult& prepared) {
+    out.molecular = final_point_result(jr, mi);
+    out.molecular->estimate = prepared.estimate;
+    out.molecular->refusal = jr.estimate.refusal;
+    for (const auto& w : jr.warnings) out.molecular->warnings.push_back(w);
+    out.report = out.molecular->report;
+    out.error = jr.termination == "normal" ? std::string() : (jr.message.empty() ? "the job did not finish" : jr.message);
+    out.job = std::move(jr);
+}
+
+// The Output of a finished energy job (out.molecular holds its results).
+void set_energy_result(Output& out, JobResult jr) {
+    const MolecularResult& m = *out.molecular;
+    out.error.clear();
+    out.job = std::move(jr);
+    if (!m.refusal.empty()) {
+        out.error = m.refusal;
+        return;
+    }
+    if (!m.rhf) {
+        out.error = out.job->message.empty() ? "no result" : out.job->message;
+        return;
+    }
+    out.report = m.report;
+    const RHFResult& h = *m.rhf;
+    if (!h.converged)
+        out.error = "SCF did not converge in " + std::to_string(h.iterations) + " iterations";
+    else if (!std::isfinite(h.total_energy))
+        out.error = "SCF produced non-finite energies";
+    else if (m.fci && !m.fci->converged)
+        out.error = "Full CI did not converge in " + std::to_string(m.fci->iterations) + " iterations";
+}
+
 Output run_molecular_calculation(const Input& in0, const OutputSink& sink) {
     Output out;
     out.input = in0;
@@ -130,37 +164,41 @@ Output run_molecular_calculation(const Input& in0, const OutputSink& sink) {
             return out;
         }
         const std::string echo = in.echo.empty() ? input_echo(out.input) : in.echo;
+        // 13.0: the appendix of the output file (basis set, orbitals, archive) describes the
+        // results exactly as they are returned: the appendix writer fills `out` as it is returned
+        // (after the appendix the job only adds the termination banner to its output text). Not
+        // for print level 0 (the points of the app's potential curve, whose output is not kept).
+        const bool with_appendix = in.printLevel > 0;
+        bool filled = false;
         if (js.type != "energy") {
             const MolecularResult prepared = *out.molecular;
-            JobResult jr = run_job(molecular_input(in), js, sink, echo);
-            out.molecular = final_point_result(jr, molecular_input(in));
-            out.molecular->estimate = prepared.estimate;
-            out.molecular->refusal = jr.estimate.refusal;
-            for (const auto& w : jr.warnings) out.molecular->warnings.push_back(w);
-            out.report = out.molecular->report;
-            if (jr.termination != "normal") out.error = jr.message.empty() ? "the job did not finish" : jr.message;
-            out.job = std::move(jr);
+            const MolecularInput mi = molecular_input(in);
+            AppendixWriter appendix;
+            if (with_appendix)
+                appendix = [&](const JobResult& r) {
+                    set_job_result(out, r, mi, prepared);
+                    filled = true;
+                    return output_appendix(out);
+                };
+            JobResult jr = run_job(mi, js, sink, echo, appendix);
+            if (filled)
+                out.job->output = std::move(jr.output);
+            else
+                set_job_result(out, std::move(jr), mi, prepared);
             return out;
         }
-        JobResult jr = run_energy_job(*out.molecular, js, sink, echo);
-        if (!out.molecular->refusal.empty()) {
-            out.error = out.molecular->refusal;
-            out.job = std::move(jr);
-            return out;
-        }
-        out.job = std::move(jr);
-        if (!out.molecular->rhf) {
-            out.error = out.job->message.empty() ? "no result" : out.job->message;
-            return out;
-        }
-        out.report = out.molecular->report;
-        const RHFResult& h = *out.molecular->rhf;
-        if (!h.converged)
-            out.error = "SCF did not converge in " + std::to_string(h.iterations) + " iterations";
-        else if (!std::isfinite(h.total_energy))
-            out.error = "SCF produced non-finite energies";
-        else if (out.molecular->fci && !out.molecular->fci->converged)
-            out.error = "Full CI did not converge in " + std::to_string(out.molecular->fci->iterations) + " iterations";
+        AppendixWriter appendix;
+        if (with_appendix)
+            appendix = [&](const JobResult& r) {
+                set_energy_result(out, r);
+                filled = true;
+                return output_appendix(out);
+            };
+        JobResult jr = run_energy_job(*out.molecular, js, sink, echo, appendix);
+        if (filled)
+            out.job->output = std::move(jr.output);
+        else
+            set_energy_result(out, std::move(jr));
     } catch (const std::exception& e) {
         out.error = e.what();
     } catch (...) {

@@ -60,6 +60,11 @@ struct CustomMoleculeHeader: View {
                 .help("Read another structure file (.xyz or Gaussian input); it is added to the molecule menu.")
             Button("Save as XYZ…") { model.exportXYZ(m) }
                 .help("Save these coordinates as an .xyz file (Å; the comment line is the name and level).")
+            Button("Save as GJF…") {
+                model.exportGaussianInput(m, method: model.method.rawValue, basis: model.currentBasis,
+                                          orbitals: model.orbitalsForBasis(model.currentBasis))
+            }
+            .help("Save these coordinates as a Gaussian input file (.gjf; route for the method and basis set of the sidebar, Cartesian coordinates in Å).")
             Button("Remove") { confirmRemove = true }
                 .help("Remove this molecule from the molecule menu.")
         }
@@ -145,6 +150,12 @@ struct SaveOptimizedGeometryBox: View {
                     .accessibilityLabel("Save optimised geometry in the molecule menu")
                     Button("Save as XYZ…") { model.exportXYZ(m) }
                         .accessibilityLabel("Save optimised geometry as XYZ")
+                    Button("Save as GJF…") {
+                        let level = model.gaussianLevel
+                        model.exportGaussianInput(m, method: level.method, basis: level.basis, orbitals: level.orbitals)
+                    }
+                    .accessibilityLabel("Save optimised geometry as Gaussian input")
+                    .help("A Gaussian input file (.gjf): the route for the level of the optimisation, Cartesian coordinates in Å.")
                 }
                 .controlSize(.small)
                 if model.molecule == .custom {

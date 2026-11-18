@@ -1,9 +1,11 @@
+#include <algorithm>
 #include <cctype>
 #include <cmath>
 #include <cstdlib>
 #include <cstring>
 #include <exception>
 #include <new>
+#include <optional>
 #include <stdexcept>
 #include <string>
 
@@ -12,6 +14,7 @@
 #include "macqc/jobs.h"
 #include "macqc/macqc_api.h"
 #include "macqc/orbitals.h"
+#include "macqc/output.h"
 #include "macqc/structure_file.h"
 #include "nlohmann/json.hpp"
 
@@ -926,7 +929,9 @@ Input parse_input_json(const std::string& text) {
     return in;
 }
 
-std::string output_to_json(const Output& out, int indent) {
+namespace {
+
+json output_json(const Output& out, const OrbitalData* orbitals = nullptr) {
     json j;
     j["input"] = input_json(out.input);
     j["error"] = out.error.empty() ? json(nullptr) : json(out.error);
@@ -951,7 +956,9 @@ std::string output_to_json(const Output& out, int indent) {
         }
         add_job_json(j, out);
         j["orbitals"] = nullptr;
-        if (out.molecular && out.molecular->rhf && out.molecular->rhf->C.rows() > 0) {
+        if (orbitals) {
+            j["orbitals"] = orbitals_json(*orbitals);  // 13.0: built once for the appendix
+        } else if (out.molecular && out.molecular->rhf && out.molecular->rhf->C.rows() > 0) {
             try {
                 const MolecularResult& m = *out.molecular;
                 const OrbitalData d = make_orbital_data(m.molecule, m.basis, *m.rhf, m.fci ? &*m.fci : nullptr);
@@ -963,7 +970,7 @@ std::string output_to_json(const Output& out, int indent) {
         j["hf"] = nullptr;
         j["fci"] = nullptr;
         j["report"] = out.report;
-        return j.dump(indent, ' ', false, json::error_handler_t::replace);
+        return j;
     }
 
     if (out.hf) {
@@ -1034,7 +1041,182 @@ std::string output_to_json(const Output& out, int indent) {
     }
 
     j["report"] = out.report;
-    return j.dump(indent, ' ', false, json::error_handler_t::replace);
+    return j;
+}
+
+
+// ---- 13.0: the appendix of the output file ------------------------------------------------
+
+// Normalisation of the primitive x^l exp(-a r^2), as the basis set applies it (a contraction of
+// one primitive with coefficient 1 is that primitive, normalised).
+double primitive_norm(int l, double a) { return normalized_coefficients(l, {a}, {1.0})[0]; }
+
+std::string atom_label(const OrbitalData& d, int atom) {
+    const Atom& a = d.atoms[static_cast<std::size_t>(atom)];
+    return (a.symbol.empty() ? element_symbol(a.Z) : a.symbol) + std::to_string(atom + 1);
+}
+
+// Labels of the basis functions in basis order: atom, shell ("2p": the second p shell of the
+// atom) and m (real solid harmonics m = -l ... l), e.g. "O1 2p-1".
+std::vector<std::string> basis_function_labels(const OrbitalData& d) {
+    std::vector<std::string> labels(static_cast<std::size_t>(d.n_basis));
+    std::vector<std::vector<int>> count(d.atoms.size(), std::vector<int>(kMaxAngularMomentum + 1, 0));
+    for (const Shell& sh : d.shells) {
+        const int n = sh.l + 1 + count[static_cast<std::size_t>(sh.atom)][static_cast<std::size_t>(sh.l)]++;
+        for (int m = -sh.l; m <= sh.l; ++m) {
+            const std::size_t f = static_cast<std::size_t>(sh.first_function + m + sh.l);
+            if (f < labels.size())
+                labels[f] = strprintf("%-5s %d%c%s", atom_label(d, sh.atom).c_str(), n, angular_letter(sh.l),
+                                      sh.l == 0 ? "" : (m == 0 ? "0" : strprintf("%+d", m).c_str()));
+        }
+    }
+    return labels;
+}
+
+// The basis set in full: exponents (bohr^-2) and the contraction coefficients of normalised
+// primitives (every contracted function normalised); atoms with the same functions as an
+// earlier atom of their element are listed once.
+std::string basis_set_text(const OrbitalData& d) {
+    OutputWriter w;
+    w.section("Basis set in full");
+    w.line(strprintf("    %s: %d spherical basis functions in %zu shells (real solid harmonics, m = -l ... l)",
+                     d.basis_name.c_str(), d.n_basis, d.shells.size()));
+    w.line("    exponents in bohr^-2; contraction coefficients of normalised primitives, every contracted");
+    w.line("    function normalised; the functions are numbered as in the molecular orbitals below");
+    std::vector<std::vector<const Shell*>> by_atom(d.atoms.size());
+    for (const Shell& sh : d.shells) by_atom[static_cast<std::size_t>(sh.atom)].push_back(&sh);
+    for (std::size_t a = 0; a < d.atoms.size(); ++a) {
+        // same element and the same shells (exponents, l) as an earlier atom: name it
+        int same = -1;
+        for (std::size_t b = 0; b < a && same < 0; ++b) {
+            if (d.atoms[b].Z != d.atoms[a].Z || by_atom[b].size() != by_atom[a].size()) continue;
+            bool equal = true;
+            for (std::size_t k = 0; k < by_atom[a].size() && equal; ++k)
+                equal = by_atom[a][k]->l == by_atom[b][k]->l && by_atom[a][k]->exponents == by_atom[b][k]->exponents &&
+                        by_atom[a][k]->coefficients == by_atom[b][k]->coefficients;
+            if (equal) same = static_cast<int>(b);
+        }
+        const int first = by_atom[a].empty() ? 0 : by_atom[a].front()->first_function + 1;
+        int last = first - 1;
+        for (const Shell* sh : by_atom[a]) last = sh->first_function + sh->size();
+        if (same >= 0) {
+            w.line(strprintf("\n    %-5s functions %d-%d: the same as %s", atom_label(d, static_cast<int>(a)).c_str(),
+                             first, last, atom_label(d, same).c_str()));
+            continue;
+        }
+        w.line(strprintf("\n    %-5s functions %d-%d", atom_label(d, static_cast<int>(a)).c_str(), first, last));
+        w.line("      shell  functions          exponent        coefficient");
+        std::vector<int> count(kMaxAngularMomentum + 1, 0);
+        for (const Shell* sh : by_atom[a]) {
+            const int n = sh->l + 1 + count[static_cast<std::size_t>(sh->l)]++;
+            const std::string name = strprintf("%d%c", n, angular_letter(sh->l));
+            const std::string range = sh->size() == 1 ? strprintf("%d", sh->first_function + 1)
+                                                      : strprintf("%d-%d", sh->first_function + 1,
+                                                                  sh->first_function + sh->size());
+            for (std::size_t k = 0; k < sh->exponents.size(); ++k) {
+                const double c = sh->coefficients[k] / primitive_norm(sh->l, sh->exponents[k]);
+                w.line(strprintf("      %-5s  %-9s %18.10f %18.10f", k == 0 ? name.c_str() : "",
+                                 k == 0 ? range.c_str() : "", sh->exponents[k], c));
+            }
+        }
+    }
+    return w.text();
+}
+
+// The orbitals of the Orbitals tab with their AO coefficients, five per block.
+std::string orbitals_text(const OrbitalData& d) {
+    OutputWriter w;
+    w.section("Molecular orbitals (the orbitals of the Orbitals tab)");
+    w.line("    AO coefficients of the spherical basis functions of the basis set above");
+    const std::vector<std::string> labels = basis_function_labels(d);
+    for (const OrbitalSet& set : d.sets) {
+        w.line(strprintf("\n  %s (%zu orbitals)", set.title.c_str(), set.orbitals.size()));
+        for (std::size_t first = 0; first < set.orbitals.size(); first += 5) {
+            const std::size_t last = std::min(first + 5, set.orbitals.size());
+            std::string number = "\n                     ", label = "                     ",
+                        energy = "    Energy (E_h)     ", occupation = "    Occupation       ";
+            bool any_energy = false;
+            for (std::size_t k = first; k < last; ++k) {
+                const OrbitalInfo& o = set.orbitals[k];
+                number += strprintf("%12d", o.number);
+                label += strprintf("%12s", o.label.c_str());
+                energy += o.has_energy ? strprintf("%12.6f", o.energy) : std::string(12, ' ');
+                occupation += strprintf("%12.6f", o.occupation);
+                any_energy = any_energy || o.has_energy;
+            }
+            w.line(number);
+            if (label.find_first_not_of(' ') != std::string::npos) w.line(label);
+            if (any_energy) w.line(energy);
+            w.line(occupation);
+            for (int f = 0; f < d.n_basis; ++f) {
+                std::string row = strprintf("    %4d  %-13s", f + 1, labels[static_cast<std::size_t>(f)].c_str());
+                for (std::size_t k = first; k < last; ++k) {
+                    const std::vector<double>& c = set.coefficients[k];
+                    row += strprintf("%12.6f", static_cast<std::size_t>(f) < c.size() ? c[static_cast<std::size_t>(f)] : 0.0);
+                }
+                w.line(row);
+            }
+        }
+    }
+    return w.text();
+}
+
+constexpr const char* kArchiveBegin = "@@PSILAB-ARCHIVE-BEGIN";
+constexpr const char* kArchiveEnd = "@@PSILAB-ARCHIVE-END";
+
+// The archive: the results as ASCII JSON (non-ASCII characters escaped), 100 columns per line.
+std::string archive_text(json j) {
+    j.erase("output");
+    j["archive"] = {{"format", 1},
+                    {"program", std::string("\xCE\xA8Lab ") + kProgramVersion},
+                    {"written", local_time_string()}};
+    const std::string data = j.dump(-1, ' ', true, json::error_handler_t::replace);
+    OutputWriter w;
+    w.section("\xCE\xA8Lab archive: the complete results, read by File > Open Output File\xE2\x80\xA6 of the app");
+    w.line("    JSON (format 1); the lines between the markers are joined without line breaks");
+    w.line(std::string(kArchiveBegin) + " 1");
+    for (std::size_t k = 0; k < data.size(); k += 100) w.line(data.substr(k, 100));
+    w.line(kArchiveEnd);
+    return w.text();
+}
+
+}  // namespace
+
+std::string output_to_json(const Output& out, int indent) {
+    return output_json(out).dump(indent, ' ', false, json::error_handler_t::replace);
+}
+
+std::string output_appendix(const Output& out) {
+    std::string text;
+    std::optional<OrbitalData> d;
+    if (out.molecular && out.molecular->rhf && out.molecular->rhf->C.rows() > 0) {
+        try {
+            const MolecularResult& m = *out.molecular;
+            d = make_orbital_data(m.molecule, m.basis, *m.rhf, m.fci ? &*m.fci : nullptr);
+            text += basis_set_text(*d);
+            text += orbitals_text(*d);
+        } catch (const std::exception& e) {
+            text += std::string("\n    (the molecular orbitals could not be written: ") + e.what() + ")\n";
+        }
+    }
+    text += archive_text(output_json(out, d ? &*d : nullptr));
+    return text;
+}
+
+std::string archive_from_output_text(const std::string& text) {
+    const std::size_t begin = text.rfind(kArchiveBegin);
+    if (begin == std::string::npos) return "";
+    std::size_t pos = text.find('\n', begin);
+    std::string data;
+    while (pos != std::string::npos && pos + 1 < text.size()) {
+        const std::size_t next = text.find('\n', pos + 1);
+        std::string line = text.substr(pos + 1, next == std::string::npos ? std::string::npos : next - pos - 1);
+        if (!line.empty() && line.back() == '\r') line.pop_back();
+        if (line.rfind(kArchiveEnd, 0) == 0) return data;
+        data += line;
+        pos = next;
+    }
+    return "";  // no end marker: incomplete
 }
 
 }  // namespace macqc

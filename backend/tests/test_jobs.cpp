@@ -12,7 +12,9 @@
 //  - refusals (H2O CCSDTQ frequencies and optimisation, H2O Full CI) with the estimate's counts
 //    of energies and gradients of numerical Hessians;
 //  - the streamed output file: read while the job runs with macqc_job_output, it equals the
-//    "output" of the result; progress text; cancellation during an optimisation.
+//    "output" of the result; progress text; cancellation during an optimisation;
+//  - 13.0: the appendix of the output file (basis set in full, molecular orbitals, the archive
+//    that reproduces the result JSON).
 // PSILAB_TEST_MAX_NBF >= 100 (the manual "full" CI job) adds H2O CCSDT frequencies (numerical
 // Hessian from 19 energies).
 #include <atomic>
@@ -537,6 +539,50 @@ int main() {
         macqc_free(t);
         check_max("  cancellation latency during an optimisation step (s)", latency, 5.0);
         macqc_job_free(job);
+    }
+
+    // ---- 13.0: the appendix of the output file. The archive reproduces the result JSON (all but
+    // "output") exactly; the basis set in full and the molecular orbitals are written before it
+    {
+        auto archive_of = [](const json& r) {
+            const std::string text = r["output"].get<std::string>();
+            const std::string a = macqc::archive_from_output_text(text);
+            return a.empty() ? json() : json::parse(a);
+        };
+        const std::vector<std::pair<std::string, json>> jobs = {
+            {"H2O RHF opt+freq", {{"molecule", "H2O"}, {"method", "RHF"}, {"job", "opt+freq"}, {"R", 1.0}, {"angle", 110.0}}},
+            {"LiH Full CI energy", {{"molecule", "LiH"}, {"method", "FCI"}}},
+            {"H2O CCSD energy", {{"molecule", "H2O"}, {"method", "CCSD"}}},
+        };
+        for (const auto& [label, input] : jobs) {
+            const json r = run_logged("13.0 archive: " + label, input);
+            CHECK(r["error"].is_null());
+            const std::string text = r["output"].get<std::string>();
+            json a = archive_of(r);
+            CHECK(a.is_object());
+            if (!a.is_object()) continue;
+            CHECK(a["archive"]["format"] == 1 && contains(a["archive"]["program"].get<std::string>(), macqc::kProgramVersion));
+            a.erase("archive");
+            json b = r;
+            b.erase("output");
+            CHECK(a == b);
+            if (a != b)
+                for (auto it = b.begin(); it != b.end(); ++it)
+                    if (!a.contains(it.key()) || a[it.key()] != it.value()) std::printf("     differs: %s\n", it.key().c_str());
+            // the readable appendix before the archive, the termination banner after it
+            const std::size_t basis = text.find("---- Basis set in full"), mos = text.find("---- Molecular orbitals"),
+                              arch = text.find("@@PSILAB-ARCHIVE-BEGIN 1"), term = text.find("Normal termination");
+            CHECK(basis != std::string::npos && mos > basis && arch > mos && term > arch);
+            CHECK(contains(text, "RHF canonical orbitals"));
+            if (input["method"] == "FCI") CHECK(contains(text, "natural orbitals"));
+            // ASCII only between the markers (the JSON escapes non-ASCII characters)
+            bool ascii = true;
+            for (std::size_t k = arch; k < term; ++k) ascii = ascii && static_cast<unsigned char>(text[k]) < 128;
+            CHECK(ascii);
+        }
+        CHECK(macqc::archive_from_output_text("no archive here").empty());
+        CHECK(macqc::archive_from_output_text("@@PSILAB-ARCHIVE-BEGIN 1\n{\"a\":\r\n1}\r\n@@PSILAB-ARCHIVE-END\n") == "{\"a\":1}");
+        CHECK(macqc::archive_from_output_text("@@PSILAB-ARCHIVE-BEGIN 1\n{\"a\":1}\n").empty());  // incomplete
     }
 
     if (full) {

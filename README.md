@@ -1,6 +1,6 @@
 # ΨLab — a native macOS quantum-chemistry app
 
-**Current version: 12.0** — see [Versions](#versions).
+**Current version: 13.0** — see [Versions](#versions).
 
 ΨLab computes small molecules with restricted Hartree–Fock, coupled cluster and Full CI:
 
@@ -49,8 +49,8 @@ same calculations run in the terminal on Linux and macOS
 - **Sidebar**: the **molecule** (HeH⁺, H₂, LiH, H₂O, H₂O₂, NH₃; 9.0: the kept custom molecules by
   name, and *Custom molecule…*, which opens an .xyz or Gaussian input file — the molecule is kept in
   the menu; its name, charge and coordinates in Å are shown, the name and charge editable; after an
-  optimisation *Save in Molecule Menu* / *Save as XYZ…* keep the optimised coordinates with their
-  level) and, for all of them except HeH⁺
+  optimisation *Save in Molecule Menu* / *Save as XYZ…* / *Save as GJF…* (13.0: Gaussian input)
+  keep the optimised coordinates with their level) and, for all of them except HeH⁺
   in STO-nG:
   - the **job** (a menu, in this order): 1 *Energy*, 2 *Geometry optimisation*, 3 *Frequencies*
     (at the input geometry; a warning if it is not a stationary point), 4 *Optimisation +
@@ -173,13 +173,41 @@ same calculations run in the terminal on Linux and macOS
   Curve ⌘8, Output ⌘9.
 - **Menus**: *File ▸ Export Results as Text…* (⇧⌘E) saves, for the general calculations, the
   output file of the job — exactly the text of the *Output* tab and of `psilab` — and for HeH⁺ the summary, the
-  FORTRAN-style report and, after a scan, the potential-curve table; *File ▸ Export Results as
+  FORTRAN-style report and, after a scan, the potential-curve table; 13.0: every exported text ends
+  with the archive of the results (see below); *File ▸ Export Results as
   JSON…* (⌥⇧⌘E) saves the results as JSON; *File ▸ Export Potential Curve as Text…* saves the scan
   table with its minima; *Edit ▸ Copy Summary as Text* (⇧⌘C) copies the short summary.
+  13.0: **File ▸ Open Output File…** (⇧⌘O) opens an output file — the app's text export or a
+  `psilab` .out file of version 13.0 or later — or a JSON export of any version and shows all its
+  results in every tab as after the calculation: summary, Hartree–Fock, coupled cluster and Full CI
+  pages, the **orbitals** (computed again from the basis set and the MO coefficients of the file:
+  isosurfaces, contour plots, level diagram), optimisation steps, frequencies and normal modes,
+  thermochemistry, scans and the output text. A banner names the file; the sidebar keeps its inputs
+  (*Run* calculates them). *File ▸ Save Optimised Geometry as XYZ… / as Gaussian Input…* write the
+  optimised coordinates as an .xyz file or a Gaussian input file (.gjf): comment lines (`!`) with
+  the name, the level and the energy and what the route cannot say; the route `#p method/basis`
+  for the level of the optimisation — `HF`, `CCSD(Full)` or `CCSD(T,Full)` (all electrons
+  correlated, as in ΨLab; Gaussian freezes the core by default), `HF` where Gaussian has no such
+  method (CCSDT, CCSDTQ, Full CI); aug-cc-pVXZ by name; aug-cc-pCVXZ as `Gen 5D 7F` with the
+  functions ΨLab used written out after the coordinates (H and He with aug-cc-pVXZ), or by name per
+  element when they are not known —; the name as title (ASCII, without the characters Gaussian's
+  title section must not contain: @ # ! – _ \ and the hyphen); charge and multiplicity; Cartesian
+  coordinates in Å. ΨLab reads both back as custom molecules (13.0: Gaussian's `!` comments are
+  skipped).
 - **Build from source**: see [`app/SETUP.md`](app/SETUP.md) (Xcode 26, or XcodeGen with
   `xcode/project.yml`).
 
 ## Versions
+
+### 13.0
+**Output files that can be opened again.** Every output file — the app's *Output* tab and text
+export and `psilab`'s .out file — now ends with the basis set in full (exponents and contraction
+coefficients), the molecular orbitals of the Orbitals tab with their AO coefficients and, before
+the termination banner, an archive section with the complete results as JSON. *File ▸ Open Output
+File…* (⇧⌘O) reads such a file (or a JSON export) and shows every tab as after the calculation,
+the orbitals included. Optimised geometries can be saved as Gaussian input (*Save as GJF…*, *File ▸
+Save Optimised Geometry as Gaussian Input…*) as well as .xyz. See
+[Job types and the output file](#job-types-and-the-output-file-version-50).
 
 ### 12.0
 **3D molecule viewer** in the manner of PyMOL (SceneKit), in place of the 2D drawings: the
@@ -227,7 +255,7 @@ sidebar shows the name, formula, number of atoms and electrons, the editable nam
 coordinates in Å. After a converged geometry optimisation or transition-state search of any
 molecule ΨLab offers to save the optimised coordinates — in the molecule menu, listed with the level
 of the optimisation (e.g. "CO₂ · CCSD/aug-cc-pCVTZ"), or as an .xyz file whose comment line gives
-the name, the level and the energy. All methods and job types work for custom molecules (closed-shell
+the name, the level and the energy, or (13.0) as a Gaussian input file (.gjf). All methods and job types work for custom molecules (closed-shell
 singlets); structures may contain any element (Z = 1 … 118), the basis sets cover H–Ar and Sc–Kr
 (not K, Ca; heavier elements would need effective core potentials). See
 [Custom molecules](#custom-molecules-version-90).
@@ -981,9 +1009,29 @@ The **output file** is written while the job runs and is identical in the app's 
    rotational and vibrational parts in kcal/mol, cal/(mol K) and J/(mol K), with partition
    functions;
 9. single point of job 5 with its own SCF and correlated iterations;
-10. summary (final geometry, final energy and its label, convergence, wavenumbers, thermochemistry)
-    and "Normal termination" with the total time, or "Error termination" with the reason
+10. summary (final geometry, final energy and its label, convergence, wavenumbers, thermochemistry);
+11. (13.0) the **basis set in full** — for every atom (atoms with the same functions as an earlier
+    one of their element are named once) each shell with the numbers of its spherical functions,
+    the exponents (bohr⁻²) and the contraction coefficients of normalised primitives (every
+    contracted function normalised) — and the **molecular orbitals of the Orbitals tab**: the RHF
+    canonical orbitals (all occupied ones and ten virtual ones) and, after Full CI, its natural
+    orbitals, five per block with number, HOMO/LUMO label, energy and occupation, and the AO
+    coefficient of every basis function (labelled by atom, shell and m, real solid harmonics
+    m = −l … l);
+12. (13.0) the **archive**: the complete results — everything the app shows — as JSON (the result of
+    the C API without its "output", plus "archive": format, program, time), ASCII with non-ASCII
+    characters escaped, 100 columns per line between the lines `@@PSILAB-ARCHIVE-BEGIN 1` and
+    `@@PSILAB-ARCHIVE-END`; joined without the line breaks it equals the JSON (tested). The app reads
+    it with *File ▸ Open Output File…*; it is written for every job that was not cancelled (also
+    for a refusal or an error, with what exists), not for the points of the app's potential curve,
+    whose output is not kept;
+13. "Normal termination" with the total time, or "Error termination" with the reason
     (refusal, non-converged optimisation, failed SCF) or "Calculation cancelled".
+
+`psilab`'s output files of HeH⁺ in STO-nG (and the app's text export of them) end with the archive
+too. [`examples/outputs/h2o-ccsd-opt-freq.out`](examples/outputs/h2o-ccsd-opt-freq.out) is an
+example (H₂O CCSD/aug-cc-pVDZ optimisation + frequencies, `psilab` 13.0, from
+[`h2o-ccsd-opt-freq.inp`](examples/outputs/h2o-ccsd-opt-freq.inp)).
 
 Warnings (non-stationary geometry, removed near-linear dependencies, imaginary frequencies left out
 of the thermochemistry, rises of the energy during the optimisation) appear where they occur and
@@ -1561,7 +1609,11 @@ XcodeGen project spec in `xcode/project.yml`. See [`app/SETUP.md`](app/SETUP.md)
   `-psilabSPBasis`, `-psilabR` (Å), `-psilabAngle`, `-psilabROO` (Å), `-psilabDihedral`,
   `-psilabScan`, `-psilabScanStart`, `-psilabTSHessian`, `-psilabEigenTest`, `-psilabTab`,
   `-psilabOrbital`, `-psilabOrbitalSet`, `-psilabOrbitalView`, `-psilabIsovalue`,
-  `-psilabAutoRun`, `-psilabPlaySteps`; screenshots on the runner's 1024-pt-wide screen,
+  `-psilabAutoRun`, `-psilabPlaySteps`, (13.0) `-psilabOpenOutput` (opens an output file at launch,
+  without a calculation; the app is sandboxed, so the path must lie in its container: the smoke test
+  copies the example output of H₂O CCSD opt+freq there and shows its Summary, Optimisation,
+  Frequencies and Orbitals pages)
+  and the viewer settings `-viewer3D.*` (12.0); screenshots on the runner's 1024-pt-wide screen,
   where the window has its minimum width of 1000 pt) and publishes the **ΨLab-app** download.
   The first build of `main` with a new app version is published as a GitHub Release (tag
   `v<version>`, asset `PsiLab-<version>.app.zip`). A published release is not changed by later

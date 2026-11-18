@@ -169,13 +169,35 @@ StructureFile parse_xyz(const std::vector<std::string>& L) {
     return f;
 }
 
-StructureFile parse_gaussian(const std::vector<std::string>& L) {
+// 13.0: Gaussian's comments: "!" starts a comment anywhere on a line, and lines that are only a
+// comment may appear anywhere (they do not end a section as a blank line does). The lines without
+// comments, with their line numbers in the file (for messages).
+std::vector<std::string> without_gaussian_comments(const std::vector<std::string>& L, std::vector<std::size_t>* line_of) {
+    std::vector<std::string> out;
+    for (std::size_t k = 0; k < L.size(); ++k) {
+        const std::size_t bang = L[k].find('!');
+        if (bang == std::string::npos) {
+            out.push_back(L[k]);
+        } else {
+            const std::string before = L[k].substr(0, bang);
+            if (blank(before)) continue;  // a comment line
+            out.push_back(before);
+        }
+        line_of->push_back(k);
+    }
+    return out;
+}
+
+StructureFile parse_gaussian(const std::vector<std::string>& lines) {
+    std::vector<std::size_t> line_of;
+    const std::vector<std::string> L = without_gaussian_comments(lines, &line_of);
+    auto at = [&](std::size_t k) { return at_line(k < line_of.size() ? line_of[k] : lines.size()); };
     StructureFile f;
     f.format = "gaussian";
     std::size_t i = 0;
     while (i < L.size() && (blank(L[i]) || trim(L[i])[0] == '%')) ++i;
     if (i >= L.size() || trim(L[i])[0] != '#')
-        throw std::runtime_error(i < L.size() ? at_line(i) + "the route section (a line starting with #) is missing"
+        throw std::runtime_error(i < L.size() ? at(i) + "the route section (a line starting with #) is missing"
                                               : "the route section (a line starting with #) is missing");
     std::string route;
     while (i < L.size() && !blank(L[i])) route += " " + lower(trim(L[i++]));
@@ -198,8 +220,8 @@ StructureFile parse_gaussian(const std::vector<std::string>& L) {
         const auto fl = fields(L[i]);
         long q = 0, m = 0;
         if (fl.size() < 2 || !to_integer(fl[0], &q) || !to_integer(fl[1], &m))
-            throw std::runtime_error(at_line(i) + "expected the charge and the multiplicity, e.g. '0 1'");
-        if (m < 1) throw std::runtime_error(at_line(i) + "the multiplicity must be at least 1");
+            throw std::runtime_error(at(i) + "expected the charge and the multiplicity, e.g. '0 1'");
+        if (m < 1) throw std::runtime_error(at(i) + "the multiplicity must be at least 1");
         f.charge = static_cast<int>(q);
         f.multiplicity = static_cast<int>(m);
         f.has_charge = true;
@@ -218,14 +240,14 @@ StructureFile parse_gaussian(const std::vector<std::string>& L) {
         }
         if (!all_numbers || (num.size() != 3 && num.size() != 4)) {
             if (fl.size() == 1 || fl.size() == 3 || fl.size() == 5 || fl.size() == 7 || !all_numbers)
-                throw std::runtime_error(at_line(i) + "this looks like a Z-matrix; ΨLab reads Cartesian coordinates only "
+                throw std::runtime_error(at(i) + "this looks like a Z-matrix; ΨLab reads Cartesian coordinates only "
                                          "('symbol x y z')");
-            throw std::runtime_error(at_line(i) + "expected 'symbol x y z'");
+            throw std::runtime_error(at(i) + "expected 'symbol x y z'");
         }
-        const int Z = element_of_label(fl[0], i);
+        const int Z = element_of_label(fl[0], i < line_of.size() ? line_of[i] : i);
         if (num.size() == 4) {
             if (num[0] != 0.0 && num[0] != -1.0 && num[0] != -2.0 && num[0] != -3.0)
-                throw std::runtime_error(at_line(i) + "this looks like a Z-matrix; ΨLab reads Cartesian coordinates only "
+                throw std::runtime_error(at(i) + "this looks like a Z-matrix; ΨLab reads Cartesian coordinates only "
                                          "('symbol x y z' or 'symbol freeze-code x y z')");
             num.erase(num.begin());
         }
@@ -247,7 +269,7 @@ std::string format_of(const std::string& hint, const std::vector<std::string>& L
     for (const auto& l : L) {
         const std::string t = trim(l);
         if (t.empty()) continue;
-        if (t[0] == '%' || t[0] == '#') return "gaussian";
+        if (t[0] == '%' || t[0] == '#' || t[0] == '!') return "gaussian";
         const auto fl = fields(t);
         long n = 0;
         if (!fl.empty() && to_integer(fl[0], &n)) return "xyz";
