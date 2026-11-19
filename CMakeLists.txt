@@ -53,6 +53,7 @@ add_library(macqc STATIC
   backend/src/uhf_correlated.cpp
   backend/src/molecular.cpp
   backend/src/gemm.cpp
+  backend/src/accelerators.cpp
   backend/src/mo_integrals.cpp
   backend/src/ci.cpp
   backend/src/cc_general.cpp
@@ -63,7 +64,7 @@ add_library(macqc STATIC
   backend/src/api.cpp)
 target_include_directories(macqc PUBLIC backend/include)
 target_include_directories(macqc PRIVATE third_party)
-target_link_libraries(macqc PUBLIC Threads::Threads)
+target_link_libraries(macqc PUBLIC Threads::Threads ${CMAKE_DL_LIBS})
 # Basis-set files (Gaussian94, from basissetexchange.org): the source tree is the default
 # location for builds that are not installed; installed programs use <prefix>/share/psilab/basis.
 target_compile_definitions(macqc PRIVATE MACQC_BASIS_DIR="${CMAKE_CURRENT_SOURCE_DIR}/basis")

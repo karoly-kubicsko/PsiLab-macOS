@@ -1,5 +1,19 @@
 # Basis sets
 
+**ΨLab 15.0: STO-1G, STO-2G, STO-3G** (`sto-1g.gbs`, `sto-2g.gbs`, `sto-3g.gbs`) for every molecule.
+STO-2G (H–Xe) and STO-3G (H–Xe) are the Basis Set Exchange's files (data version 0.12,
+`basis_set_exchange.get_basis(name, fmt="gaussian94", header=True)`). The BSE has no STO-1G;
+`backend/tools/sto_ng.py` generates it: the least-squares fits of a Slater function by one Gaussian
+(Hehre, Stewart and Pople, J. Chem. Phys. 51, 2657 (1969); 1s: α = 0.270950 ζ², the value of Szabo
+and Ostlund), the s and p functions of an sp shell with a shared exponent, and the Slater exponents
+ζ of every element and shell taken from the BSE's STO-3G (ζ² = α(STO-3G)/α(ζ = 1)), for H–Ca. The
+script checks its radial integrals against 30-digit quadrature, its 1s fits against Szabo and
+Ostlund's exponents (STO-1G/2G/3G within 4.3e-6 relative), and its 2- and 3-term fits against the
+BSE's STO-2G and STO-3G (normalised contractions within 1.1e-4 and 8.9e-6; the published STO-2G
+exponents of one shell differ among themselves by up to 3.4e-4 in ζ², so they are compared to that
+precision). ΨLab's Szabo–Ostlund calculation of HeH⁺ keeps its own STO-nG functions (with the
+book's ζ = 2.0925 and 1.24); these files serve the general calculation.
+
 The Gaussian basis sets of ΨLab, in Gaussian94 format (`.gbs`), exactly as written by the
 [Basis Set Exchange](https://www.basissetexchange.org) (BSE, data version 0.12), downloaded on
 2026-11-12 with

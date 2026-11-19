@@ -215,7 +215,10 @@ static void test_formula_and_checks() {
     const json oh = json::array({{{"symbol", "O"}, {"x", 0}, {"y", 0}, {"z", 0}}, {{"symbol", "H"}, {"x", 0}, {"y", 0}, {"z", 0.97}}});
     CHECK(contains(estimate({{"atoms", oh}}), "an odd number"));
     CHECK(estimate({{"atoms", oh}, {"charge", -1}}).empty());
-    CHECK(contains(estimate({{"atoms", oh}, {"charge", -1}, {"multiplicity", 3}}), "closed-shell singlets only"));
+    // 15.0: open shells with UHF or ROHF; RHF itself needs a closed-shell singlet
+    CHECK(contains(estimate({{"atoms", oh}, {"charge", -1}, {"multiplicity", 3}}), "needs a closed-shell singlet"));
+    CHECK(estimate({{"atoms", oh}, {"charge", -1}, {"multiplicity", 3}, {"method", "HF"}}).empty());
+    CHECK(estimate({{"atoms", oh}, {"multiplicity", 2}, {"method", "UMP2"}}).empty());
     CHECK(contains(estimate({}), "needs \"atoms\""));
     const json kr = json::array({{{"symbol", "Kr"}, {"x", 0}, {"y", 0}, {"z", 0}}});
     CHECK(estimate({{"atoms", kr}}).empty());

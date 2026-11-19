@@ -132,6 +132,13 @@ static void test_energies() {
         build_reference(r, mol, b, ref, mult, nullptr);
         check_near(name + " " + ref + " SCF", r.scf.total_energy, c["scf"].get<double>(), 1e-9);
         for (auto it = c["energies"].begin(); it != c["energies"].end(); ++it) {
+            // the quadruples of LiH/6-31G take minutes in the dense spin-orbital engine (o^4 v^6 per
+            // iteration); H2O/STO-3G, OH and CH2 test them
+            const std::string key = it.key();
+            if (name == "LiH" && key.size() > 2 && key.compare(key.size() - 2, 2, "TQ") == 0) {
+                std::printf("skip %s %s (the quadruples are tested on H2O, OH, CH2)\n", name.c_str(), key.c_str());
+                continue;
+            }
             SOResult res = run_so_method(it.key(), r.H, ref, tight());
             check_near(name + " " + ref + " " + it.key(), res.total_energy, it.value().get<double>(), 2e-8);
         }

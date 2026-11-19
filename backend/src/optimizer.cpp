@@ -898,12 +898,16 @@ OptimizationResult optimize_geometry(const Molecule& start, const BasisSet& basi
                     for (std::size_t i = 0; i < nq; ++i) total[i] = pd0[i] + d1[i];
                     double downhill = 0.0;
                     for (std::size_t i = 0; i < nq; ++i) downhill += total[i] * gt[i];
+                    // the energy change the quadratic model predicts for the GEDIIS step
+                    double model = downhill;
+                    for (std::size_t i = 0; i < nq; ++i)
+                        for (std::size_t j = 0; j < nq; ++j) model += 0.5 * total[i] * Ht(i, j) * total[j];
                     if (degenerate) {
                         rec.gediis_note = "the RFO step from the GEDIIS point was degenerate: RFO step";
                     } else if (norm(total) > trust) {
                         rec.gediis_note = format("GEDIIS step %.3f longer than the trust radius %.3f: RFO step", norm(total), trust);
-                    } else if (downhill >= 0.0) {
-                        rec.gediis_note = "GEDIIS step not downhill: RFO step";
+                    } else if (downhill >= 0.0 || model >= 0.0) {
+                        rec.gediis_note = format("GEDIIS step not downhill (predicted energy change %.2e E_h): RFO step", model);
                     } else {
                         dq = total;
                         rec.rfo_lambda = lam;

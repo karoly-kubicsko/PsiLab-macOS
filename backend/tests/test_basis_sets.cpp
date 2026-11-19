@@ -99,11 +99,11 @@ static ElectronicOptions tight() {
 static void test_library() {
     std::printf("-- the basis-set library\n");
     const auto& lib = basis_set_library();
-    CHECK(lib.size() == 33 && supported_basis_sets().size() == 33);
+    CHECK(lib.size() == 36 && supported_basis_sets().size() == 36);  // 15.0: with STO-1G, STO-2G, STO-3G
     std::vector<std::string> families;
     for (const auto& b : lib)
         if (families.empty() || families.back() != b.family) families.push_back(b.family);
-    CHECK((families == std::vector<std::string>{"Pople 6-31G", "Pople 6-311G", "Karlsruhe def2", "Dunning aug-cc-pVXZ",
+    CHECK((families == std::vector<std::string>{"Pople STO-nG", "Pople 6-31G", "Pople 6-311G", "Karlsruhe def2", "Dunning aug-cc-pVXZ",
                                                 "Dunning aug-cc-pCVXZ"}));
     int cartesian = 0;
     for (const auto& b : lib) cartesian += b.cartesian_d ? 1 : 0;

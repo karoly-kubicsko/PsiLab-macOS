@@ -712,6 +712,24 @@ relaunch -appearanceChoice dark -psilabStructure $'2\nPbO\nPb 0 0 0\nO 0 0 1.92\
 sleep 20
 view_tab "99c-pbo-ccsdt-output" "Output"
 
+# --- ΨLab 15.0: open shells, the atoms and new molecules, MPn/QCI, optimiser options -------------
+echo "== 15.0: O2 UMP2/6-31G* opt+freq (RecalcFC=2, GEDIIS), N atom ROHF, H2O QCISD(T)/6-31G opt+freq, HeH+ STO-3G"
+relaunch -appearanceChoice light -psilabMolecule O2 -psilabBasis "6-31G*" -psilabMethod MP2 -psilabJob opt+freq -psilabOptHessian recalcfc -psilabRecalcFC 2 -psilabGEDIIS YES -psilabAutoRun YES
+sleep 25
+view_tab "a0-o2-ump2-summary" "Summary"
+print_shot "a0-o2-ump2-summary"
+view_tab "a1-o2-ump2-optimisation" "Optimisation"
+relaunch -appearanceChoice dark -psilabMolecule N -psilabBasis "6-31G*" -psilabMethod HF -psilabReference ROHF -psilabAutoRun YES -psilabTab output
+sleep 10
+view_tab "a2-n-rohf-output" "Output"
+relaunch -appearanceChoice light -psilabMolecule H2O -psilabBasis 6-31G -psilabMethod "QCISD(T)" -psilabJob opt+freq -psilabAutoRun YES
+sleep 40
+view_tab "a3-h2o-qcisdt-frequencies" "Frequencies"
+print_shot "a3-h2o-qcisdt-frequencies"
+relaunch -appearanceChoice light -psilabMolecule HeH+ -psilabBasis STO-3G
+sleep 5
+view_tab "a4-heh-sto3g-summary" "Summary"
+
 pkill -x "ΨLab" || true
 
 # Crash reports of this run (none expected): print the crashed thread's backtrace.

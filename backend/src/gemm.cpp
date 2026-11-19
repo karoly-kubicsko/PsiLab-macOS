@@ -3,6 +3,7 @@
 // which uses the matrix units of Apple silicon; the portable code is the fallback.
 #include <algorithm>
 #include <climits>
+#include <string>
 #include <cstddef>
 #include <thread>
 #include <vector>
@@ -12,6 +13,7 @@
 #include <Accelerate/Accelerate.h>
 #endif
 
+#include "macqc/accelerators.h"
 #include "macqc/linalg.h"
 
 // The rest of the backend is compiled without floating-point contraction (identical
@@ -111,15 +113,23 @@ void gemm_serial(const View& A, const View& B, std::size_t m, std::size_t n, std
 }  // namespace
 
 const char* gemm_backend_name() {
+    // 15.0: with the run-time loaded GPU and CPU BLAS paths (accelerators.h)
+    static const std::string name = [] {
 #if defined(MACQC_USE_ACCELERATE)
-    return "Apple Accelerate (BLAS)";
+        std::string base = "Apple Accelerate (BLAS)";
 #else
-    return "portable blocked GEMM";
+        std::string base = "portable blocked GEMM";
 #endif
+        const std::string acc = accelerator_description();
+        return acc.empty() ? base : acc + "; otherwise " + base;
+    }();
+    return name.c_str();
 }
 
 void gemm(bool trans_a, bool trans_b, std::size_t m, std::size_t n, std::size_t k, double alpha, const double* a,
           std::size_t lda, const double* b, std::size_t ldb, double beta, double* c, std::size_t ldc, int threads) {
+    // 15.0: GPU (cuBLAS, hipBLAS) for large products, an optimised CPU BLAS where loaded
+    if (accelerated_gemm(trans_a, trans_b, m, n, k, alpha, a, lda, b, ldb, beta, c, ldc, threads)) return;
 #if defined(MACQC_USE_ACCELERATE)
     if (m > 0 && n > 0 && k > 0 && m <= INT_MAX && n <= INT_MAX && k <= INT_MAX && lda <= INT_MAX &&
         ldb <= INT_MAX && ldc <= INT_MAX) {

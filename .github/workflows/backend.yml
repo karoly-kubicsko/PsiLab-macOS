@@ -58,7 +58,7 @@ jobs:
           grep -q "Normal termination" job5.out
           sed -n '/---- Summary/,$p' job5.out
           printf 'molecule = H2O\nmethod = CCSDTQ\njob = freq\nfci_memory = 8 GB\n' > h2o-ccsdtq.inp
-          if ./build/psilab h2o-ccsdtq.inp; then echo "CCSDTQ frequencies of H2O must be refused"; exit 1; fi
+          if ./build/psilab h2o-ccsdtq.inp > h2o-ccsdtq.out; then echo "CCSDTQ frequencies of H2O must be refused"; exit 1; fi
           grep -q "CCSDTQ frequencies for H2O is not possible" h2o-ccsdtq.out
 
       - name: Terminal version, relaxed scan (7.0)
@@ -111,6 +111,28 @@ jobs:
           ./build/psilab h2o2ts.inp h2o2ts.out
           grep -q "Point group C2h" h2o2ts.out
           grep -q "Normal termination" h2o2ts.out
+
+      - name: Terminal version, 15.0 (open shells, new methods, psilab INPUT > OUTPUT)
+        run: |
+          printf 'molecule = O2\nbasis = 6-31G\nmethod = UMP2\njob = opt+freq\nopt_hessian = recalcfc=2\nopt_algorithm = gediis\n' > o2.inp
+          ./build/psilab --estimate o2.inp
+          ./build/psilab o2.inp > o2.out
+          grep -q "O2, 16 electrons" o2.out
+          grep -q "RecalcFC=2" o2.out
+          grep -q "Stationary point found" o2.out
+          grep -q "Normal termination" o2.out
+          printf 'molecule = N\nbasis = 6-31G*\nmethod = ROHF\n' > n.inp
+          ./build/psilab n.inp > n.out
+          grep -q "quartet, reference ROHF" n.out
+          printf 'molecule = H2O\nbasis = 6-31G\nmethod = QCISD(T)\njob = opt+freq\n' > qci.inp
+          ./build/psilab qci.inp > qci.out
+          grep -q "analytic" qci.out
+          grep -q "Normal termination" qci.out
+          printf 'molecule = C\nbasis = STO-3G\nmethod = FCI\n' > c.inp
+          ./build/psilab c.inp > c.out
+          grep -q "spin-adapted" c.out
+          printf 'molecule = H2O\nmultiplicity = 2\n' > bad.inp
+          if ./build/psilab bad.inp > bad.out; then echo "10 electrons with multiplicity 2 must be refused"; exit 1; fi
 
   # The same build and tests on macOS (Apple clang, libc++, matrix products through Apple's
   # Accelerate), and the installed terminal version: psilab must find its basis-set files in
