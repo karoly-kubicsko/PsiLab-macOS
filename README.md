@@ -135,7 +135,7 @@ same calculations run in the terminal on Linux and macOS
   - *Optimisation*: the **molecule of each step** in the 3D viewer (12.0; the steps turned onto
     each other, so that the molecule keeps its place and the atoms glide from step to step), with
     the bond lengths in Å and the starting geometry as a translucent molecule (*Starting
-    geometry*), next to the step's energy, ΔE, maximum force and geometry; the buttons and the slider go to the
+    geometry*), above the step's energy, ΔE, maximum force and geometry (15.0; beside them before); the buttons and the slider go to the
     first, previous, next or last step, **Play steps** shows the steps one after the other (0.7 s
     each, the last held 1.6 s, then from the start); then the start and optimised parameters with
     their change, whether H₂O kept C₂ᵥ, the gradient method, the steps table (energy, ΔE, maximum
@@ -346,11 +346,12 @@ the new methods (no permutational packing of T₃/T₄: CISDTQ for LiH/6-31G tak
 CCSDTQ longer, where the closed-shell CCSDTQ of 4.0 is used) are the limits.
 
 **App (tasks 7 and 8).** The tab bar (*Summary … Output*) is again in the window's toolbar as in
-12.0 (13.0 had wrapped the tab view in a stack for the opened-file banner, which moved the tabs below
-a title bar; the banner is now inside each tab). The 3D viewers of the optimisation steps, scan
-points (480 pt) and normal modes (500 pt) are larger. The method menu has sections (Hartree–Fock,
-Møller–Plesset, CI, QCI, coupled cluster); the Gaussian input export writes `UMP2(Full)`,
-`QCISD(T,Full)` and so on.
+12.0 (13.0 had wrapped the tab view in a stack for the opened-file banner, which moved the tabs
+below a title bar; the banner is now inside each tab). The 3D viewers of the optimisation steps,
+scan points (480 pt high) and normal modes (500 pt high) are larger and span the full width of their
+panel: the data of the step or point and the chooser of the normal modes are below the viewer
+instead of beside it. The method menu has sections (Hartree–Fock, Møller–Plesset, CI, QCI, coupled
+cluster); the Gaussian input export writes `UMP2(Full)`, `QCISD(T,Full)` and so on.
 
 **Terminal (`psilab`).** Every key above; `psilab input.inp > output.out` writes the output file
 to the standard output (the summary goes to the standard error), `psilab input.inp output.out`
