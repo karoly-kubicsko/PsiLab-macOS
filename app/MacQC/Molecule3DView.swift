@@ -101,6 +101,14 @@ nonisolated enum MoleculeBackgroundChoice: String, CaseIterable, Identifiable, S
     }
 }
 
+
+/// 15.0: the heights of the 3D viewers (12.0-14.0: 300 pt for the optimisation steps and scan
+/// points, 320 pt for the normal modes), larger so that the molecule fills more of the tab.
+enum Viewer3DSize {
+    static let height: CGFloat = 480
+    static let modeHeight: CGFloat = 500
+}
+
 struct Molecule3DStyle: Equatable {
     var representation: MoleculeRepresentation = .ballAndStick
     var labels: MoleculeLabelChoice = .hidden

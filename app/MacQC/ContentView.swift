@@ -75,42 +75,56 @@ final class WindowFitterView: NSView {
 struct DetailView: View {
     @Bindable var model: AppModel
 
+    // 15.0: the TabView is the root of the detail column again (as in 12.0), so that macOS places
+    // the tab bar in the window's toolbar. 13.0 had wrapped it in a VStack for the banner of an
+    // opened output file, which moved the tabs below a title bar; the banner is now an inset of
+    // every tab's content.
     var body: some View {
-        VStack(spacing: 0) {
-            if let file = model.openedFile, model.result != nil {
-                OpenedFileBanner(file: file)
-            }
-            tabs
-        }
-    }
-
-    private var tabs: some View {
         TabView(selection: $model.selectedTab) {
             SummaryView(model: model)
+                .modifier(OpenedFileInset(model: model))
                 .tabItem { Label("Summary", systemImage: "list.bullet.rectangle") }
                 .tag(DetailTab.summary)
 
             MethodsView(model: model)
+                .modifier(OpenedFileInset(model: model))
                 .tabItem { Label("Methods", systemImage: "square.grid.2x2") }
                 .tag(DetailTab.methods)
 
             OptimizationView(model: model)
+                .modifier(OpenedFileInset(model: model))
                 .tabItem { Label("Optimisation", systemImage: "arrow.down.right.and.arrow.up.left") }
                 .tag(DetailTab.optimization)
 
             FrequenciesView(model: model)
+                .modifier(OpenedFileInset(model: model))
                 .tabItem { Label("Frequencies", systemImage: "waveform.path") }
                 .tag(DetailTab.frequencies)
 
             ScanTabView(model: model)
+                .modifier(OpenedFileInset(model: model))
                 .tabItem { Label("Scan", systemImage: "chart.xyaxis.line") }
                 .tag(DetailTab.potentialCurve)
 
             OutputView(model: model)
+                .modifier(OpenedFileInset(model: model))
                 .tabItem { Label("Output", systemImage: "doc.plaintext") }
                 .tag(DetailTab.output)
         }
         .padding(.top, 4)
+    }
+}
+
+/// 15.0: the banner of an opened output file above the content of a tab.
+struct OpenedFileInset: ViewModifier {
+    @Bindable var model: AppModel
+
+    func body(content: Content) -> some View {
+        content.safeAreaInset(edge: .top, spacing: 0) {
+            if let file = model.openedFile, model.result != nil {
+                OpenedFileBanner(file: file)
+            }
+        }
     }
 }
 

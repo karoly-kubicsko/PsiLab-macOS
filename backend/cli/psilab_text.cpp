@@ -3,6 +3,8 @@
 #include <fstream>
 #include <iterator>
 
+#include "macqc/molecule.h"
+#include "macqc/rhf.h"
 #include "macqc/structure_file.h"
 
 #include <algorithm>
@@ -200,6 +202,11 @@ Settings parse_input_text(const std::string& text, const std::string& base_direc
         if (k == "charge") return "charge";
         if (k == "multiplicity" || k == "mult" || k == "spin") return "multiplicity";
         if (k == "title" || k == "name") return "title";
+        if (k == "reference" || k == "ref" || k == "scfreference" || k == "scf") return "reference";
+        if (k == "szaboostlund" || k == "sto") return "szabo_ostlund";
+        if (k == "opthessian" || k == "optfc" || k == "fc") return "opt_hessian";
+        if (k == "recalcfc" || k == "recalc") return "recalc_fc";
+        if (k == "optalgorithm" || k == "algorithm" || k == "optstep") return "opt_algorithm";
         return "";
     };
     std::map<std::string, Entry> entries;
@@ -221,8 +228,9 @@ Settings parse_input_text(const std::string& text, const std::string& base_direc
         if (k.empty())
             fail(line, "unknown key '" + key +
                            "' (known: molecule, basis, R, angle, R_OO, dihedral, method, job, sp_method, sp_basis, temperature, "
-                           "pressure, opt_convergence, max_steps, scan, scan_start, ts_hessian, eigen_test, hessian, initial_hessian, zeta_He, zeta_H, exact_erf, "
-                           "scan_step, threads, memory, fci_memory, basis_dir, geometry, charge, multiplicity, title)");
+                           "pressure, opt_convergence, max_steps, scan, scan_start, ts_hessian, opt_hessian, recalc_fc, opt_algorithm, eigen_test, "
+                           "hessian, initial_hessian, zeta_He, zeta_H, exact_erf, scan_step, szabo_ostlund, threads, memory, "
+                           "fci_memory, basis_dir, geometry, charge, multiplicity, reference, title)");
         if (entries.count(k)) fail(line, "'" + key + "' is given twice");
         entries[k] = Entry{key, value, line};
     }
@@ -232,11 +240,19 @@ Settings parse_input_text(const std::string& text, const std::string& base_direc
     if (entries.count("molecule")) {
         const Entry& e = entries["molecule"];
         molecule = macqc::canonical_molecule_name(e.value);
-        if (molecule.empty())
-            fail(e.line, "molecule must be HeH+, H2, LiH, H2O, H2O2, NH3 or custom, got '" + e.value + "'");
+        if (molecule.empty()) {
+            // 15.0: the atoms H-Ar and the molecules of the menu (H2+, H3+, H5+, N2, O2, F2, Cl2, NO, NO2)
+            if (const macqc::MoleculePreset* pr = macqc::find_molecule_preset(e.value)) molecule = pr->key;
+        }
+        if (molecule.empty()) {
+            std::string list;
+            for (const auto& pr : macqc::molecule_presets()) list += ", " + pr.key;
+            fail(e.line, "molecule must be HeH+, H2, LiH, H2O, H2O2, NH3, custom" + list + ", got '" + e.value + "'");
+        }
     }
     s.input.molecule = molecule;
-    if (molecule != "HeH+" && molecule != "custom") s.input.angle = macqc::default_angle(molecule);
+    const bool preset = macqc::find_molecule_preset(molecule) != nullptr && macqc::canonical_molecule_name(molecule).empty();
+    if (molecule != "HeH+" && molecule != "custom" && !preset) s.input.angle = macqc::default_angle(molecule);
     const bool custom = molecule == "custom";
     if (custom) {
         // 9.0: the atoms from a structure file (.xyz or Gaussian .gjf/.com), relative to the input file
@@ -265,8 +281,21 @@ Settings parse_input_text(const std::string& text, const std::string& base_direc
     }
     // 7.0: HeH+ with a basis set of the library (14.0: also Pople and def2) is a general molecule (all methods and
     // jobs); with STO-1G/2G/3G (or no basis) it is the Szabo-Ostlund calculation
-    const bool heh_general = molecule == "HeH+" && entries.count("basis") &&
-                             !macqc::canonical_basis_name(entries["basis"].value).empty();
+    // 15.0: STO-1G/2G/3G are library basis sets for every molecule; HeH+ with them stays the
+    // Szabo-Ostlund calculation unless szabo_ostlund = no
+    bool szabo_ostlund = true;
+    if (entries.count("szabo_ostlund")) {
+        const Entry& e = entries["szabo_ostlund"];
+        if (molecule != "HeH+") fail(e.line, "'" + e.key + "' applies to HeH+ only (molecule = " + molecule + ")");
+        szabo_ostlund = parse_bool(e.value, e.line, e.key);
+    }
+    s.input.szaboOstlund = szabo_ostlund;
+    const std::string heh_basis = entries.count("basis") ? macqc::canonical_basis_name(entries["basis"].value) : "";
+    const bool heh_sto = heh_basis == "STO-1G" || heh_basis == "STO-2G" || heh_basis == "STO-3G";
+    const bool heh_general = molecule == "HeH+" &&
+                             (entries.count("basis") ? !heh_basis.empty() && (!heh_sto || !szabo_ostlund) : !szabo_ostlund);
+    if (molecule == "HeH+" && !entries.count("basis") && !szabo_ostlund)
+        fail(entries["szabo_ostlund"].line, "szabo_ostlund = no needs a basis set (e.g. basis = STO-3G)");
     s.input.hehGeneral = heh_general;
     const bool heh = molecule == "HeH+" && !heh_general;
     auto only = [&](const char* key, bool allowed, const std::string& who) {
@@ -274,7 +303,9 @@ Settings parse_input_text(const std::string& text, const std::string& base_direc
         if (it != entries.end() && !allowed)
             fail(it->second.line, "'" + it->second.key + "' applies to " + who + " only (molecule = " + molecule + ")");
     };
-    const std::string general = "H2, LiH, H2O, H2O2, NH3, custom molecules and HeH+ in a Gaussian basis set";
+    const std::string general =
+        "H2, LiH, H2O, H2O2, NH3, the atoms and molecules of the menu, custom molecules and HeH+ in a Gaussian basis set "
+        "(HeH+ with STO-nG: szabo_ostlund = no)";
     const std::string sto = "HeH+ in an STO-nG basis (Szabo-Ostlund)";
     only("zeta_He", heh, sto);
     only("zeta_H", heh, sto);
@@ -286,16 +317,21 @@ Settings parse_input_text(const std::string& text, const std::string& base_direc
     only("dihedral", molecule == "H2O2", "H2O2");
     only("method", !heh, general + " (HeH+ always runs Hartree-Fock and Full CI)");
     only("geometry", custom, "molecule = custom");
-    only("charge", custom, "molecule = custom");
-    only("multiplicity", custom, "molecule = custom");
+    // 15.0: charge and multiplicity for every molecule of the general calculation
+    only("charge", !heh, general);
+    only("multiplicity", !heh, general);
+    only("reference", !heh, general);
     only("title", custom, "molecule = custom");
-    only("R", !custom, "the built-in molecules (a custom molecule takes its geometry from the structure file)");
+    only("R", !custom && !preset,
+         "H2, LiH, H2O, H2O2, NH3 and HeH+ (a custom molecule takes its geometry from the structure file, the atoms and "
+         "molecules of the menu have fixed geometries)");
     only("threads", !heh, general);
     only("memory", !heh, general);
     only("fci_memory", !heh, general);
     only("basis_dir", !heh, general);
     for (const char* k : {"job", "sp_method", "sp_basis", "temperature", "pressure", "opt_convergence", "max_steps",
-                          "ts_hessian", "eigen_test", "hessian", "initial_hessian"})
+                          "ts_hessian", "eigen_test", "hessian", "initial_hessian", "opt_hessian", "recalc_fc",
+                          "opt_algorithm"})
         only(k, !heh, general);
 
     std::vector<std::pair<std::string, Entry>> ordered(entries.begin(), entries.end());
@@ -333,8 +369,17 @@ Settings parse_input_text(const std::string& text, const std::string& base_direc
                 if (c != '-' && c != ' ') m += c;
             const std::string canonical = m == "hartreefock" ? "RHF" : macqc::canonical_method_name(value);
             if (canonical.empty())
-                fail(ln, "method must be HF (RHF), CCSD, CCSD(T), CCSDT, CCSDTQ or FCI, got '" + value + "'");
-            s.input.method = canonical;
+                fail(ln, "method must be HF, RHF, UHF, ROHF, MP2, MP3, MP4, MP5, CISD, CISD(T), CISDT, CISDTQ, QCISD, QCISD(T), "
+                         "QCISDT, QCISDTQ, CCSD, CCSD(T), CCSDT, CCSDTQ or FCI (optionally with the prefix U or RO, e.g. "
+                         "UMP2, ROCCSD(T)), got '" + value + "'");
+            // 15.0: the method as given, with its reference prefix (HF: RHF for closed-shell singlets,
+            // UHF otherwise, as in Gaussian; UMP2, ROCCSD(T), ...)
+            {
+                const macqc::MethodSpec spec = macqc::parse_method_spec(value);
+                s.input.method = (m == "hartreefock" || (canonical == "RHF" && spec.reference.empty()))
+                                     ? "HF"
+                                     : macqc::method_label(canonical, spec.reference);
+            }
         } else if (k == "zeta_He") {
             s.input.zeta1 = parse_number(value, ln, e.key);
         } else if (k == "zeta_H") {
@@ -345,8 +390,9 @@ Settings parse_input_text(const std::string& text, const std::string& base_direc
             s.scan = parse_bool(value, ln, e.key);
         } else if (k == "scan") {
             // relaxed scan (7.0): the Gaussian ModRedundant line "[B|A|D] N1 N2 [N3 [N4]] S nsteps stepsize"
-            const int n_atoms = custom ? static_cast<int>(s.input.atoms.size())
-                                       : (molecule == "H2O2" || molecule == "NH3") ? 4 : (molecule == "H2O" ? 3 : 2);  // HeH+: 2
+            const int n_atoms = custom   ? static_cast<int>(s.input.atoms.size())
+                                : preset ? static_cast<int>(macqc::find_molecule_preset(molecule)->atoms.size())
+                                         : (molecule == "H2O2" || molecule == "NH3") ? 4 : (molecule == "H2O" ? 3 : 2);  // HeH+: 2
             macqc::JobSettings js;
             const std::string err = macqc::parse_scan_line(value, n_atoms, &js);
             if (!err.empty()) fail(ln, "scan: " + err);
@@ -399,10 +445,43 @@ Settings parse_input_text(const std::string& text, const std::string& base_direc
             if (s.input.job.empty())
                 fail(ln, "job must be energy, opt, freq, opt+freq, opt+freq+sp, scan, ts, ts+freq or ts+freq+sp, got '" + value +
                              "'");
-        } else if (k == "ts_hessian") {
-            const std::string h = lower(value);
-            if (h != "calcfc" && h != "calcall") fail(ln, "ts_hessian must be calcfc or calcall, got '" + value + "'");
-            s.input.tsHessian = h;
+        } else if (k == "ts_hessian" || k == "opt_hessian") {
+            // calcfc | calcall | recalcfc=N (15.0; Gaussian Opt=RecalcFC=N); opt_hessian also auto
+            std::string h;
+            for (char c : lower(value))
+                if (c != ' ') h += c;
+            int n = 0;
+            if (h.rfind("recalcfc", 0) == 0 && h.size() > 8) {
+                const std::string num = h.substr(h[8] == '=' || h[8] == ':' ? 9 : 8);
+                const double t = parse_number(num, ln, e.key);
+                if (t != std::floor(t) || t < 1 || t > 1000) fail(ln, "RecalcFC=N needs an integer N from 1 to 1000");
+                n = static_cast<int>(t);
+                h = "recalcfc";
+            }
+            const bool ok = h == "calcfc" || h == "calcall" || h == "recalcfc" || (k == "opt_hessian" && h == "auto");
+            if (!ok)
+                fail(ln, e.key + " must be " + (k == "opt_hessian" ? "auto, " : "") + "calcfc, calcall or recalcfc=N, got '" +
+                             value + "'");
+            (k == "ts_hessian" ? s.input.tsHessian : s.input.optHessian) = h;
+            if (n > 0) {
+                if (entries.count("recalc_fc") && s.input.recalcFC != n && s.input.recalcFC != 0)
+                    fail(ln, "RecalcFC=N given twice with different N");
+                s.input.recalcFC = n;
+            }
+        } else if (k == "recalc_fc") {
+            const double t = parse_number(value, ln, e.key);
+            if (t != std::floor(t) || t < 1 || t > 1000) fail(ln, "recalc_fc must be an integer from 1 to 1000");
+            if (s.input.recalcFC != 0 && s.input.recalcFC != static_cast<int>(t))
+                fail(ln, "RecalcFC=N given twice with different N");
+            s.input.recalcFC = static_cast<int>(t);
+        } else if (k == "opt_algorithm") {
+            const std::string a = lower(value);
+            if (a != "rfo" && a != "gediis") fail(ln, "opt_algorithm must be rfo or gediis, got '" + value + "'");
+            s.input.optAlgorithm = a;
+        } else if (k == "reference") {
+            const std::string r = macqc::canonical_reference_name(value);
+            if (r.empty()) fail(ln, "reference must be RHF, UHF or ROHF, got '" + value + "'");
+            s.input.reference = r;
         } else if (k == "eigen_test") {
             s.input.eigenTest = parse_bool(value, ln, e.key);
         } else if (k == "hessian") {
@@ -420,7 +499,8 @@ Settings parse_input_text(const std::string& text, const std::string& base_direc
                 if (c != '-' && c != ' ') m += c;
             const std::string canonical = m == "hartreefock" ? "RHF" : macqc::canonical_method_name(value);
             if (canonical.empty())
-                fail(ln, "sp_method must be HF (RHF), CCSD, CCSD(T), CCSDT, CCSDTQ or FCI, got '" + value + "'");
+                fail(ln, "sp_method must be one of the methods of 'method' (HF, UHF, ROHF, MP2 ... MP5, CISD ... QCISDTQ, "
+                         "CCSD ... CCSDTQ, FCI), got '" + value + "'");
             s.input.spMethod = canonical;
         } else if (k == "sp_basis") {
             s.input.spBasis = macqc::canonical_basis_name(value);
@@ -461,6 +541,7 @@ Settings parse_input_text(const std::string& text, const std::string& base_direc
             const double t = parse_number(value, ln, e.key);
             if (t != std::floor(t) || std::fabs(t) > 100) fail(ln, e.key + " must be an integer");
             (k == "charge" ? s.input.charge : s.input.multiplicity) = static_cast<int>(t);
+            (k == "charge" ? s.input.chargeGiven : s.input.multiplicityGiven) = true;
         } else if (k == "title") {
             s.input.title = value;
         }
@@ -484,13 +565,23 @@ Settings parse_input_text(const std::string& text, const std::string& base_direc
                  "freq, opt+freq, opt+freq+sp, ts, ts+freq and ts+freq+sp");
         job_only("initial_hessian", macqc::job_uses_optimizer(job) && !macqc::job_has_ts(job),
                  "opt, opt+freq, opt+freq+sp and scan");
+        job_only("opt_hessian", macqc::job_has_optimization(job) && !macqc::job_has_ts(job), "opt, opt+freq and opt+freq+sp");
+        job_only("opt_algorithm", macqc::job_has_optimization(job) && !macqc::job_has_ts(job), "opt, opt+freq and opt+freq+sp");
+        job_only("recalc_fc", macqc::job_has_optimization(job), "opt, opt+freq, opt+freq+sp, ts, ts+freq and ts+freq+sp");
+        if (entries.count("recalc_fc")) {
+            const bool ts_job = macqc::job_has_ts(job);
+            if ((ts_job ? s.input.tsHessian : s.input.optHessian) != "recalcfc") {
+                // recalc_fc = N alone selects RecalcFC=N
+                (ts_job ? s.input.tsHessian : s.input.optHessian) = "recalcfc";
+            }
+        }
         job_only("scan", macqc::job_has_scan(job), "scan");
         job_only("scan_start", macqc::job_has_scan(job), "scan");
         if (macqc::job_has_scan(job) && s.input.scan.empty())
             fail(entries.count("job") ? entries["job"].line : 1,
                  "job = scan needs 'scan = N1 N2 [N3 [N4]] S nsteps stepsize', e.g. scan = 2 1 3 S 8 10.0");
     }
-    if (!heh && !custom && !s.rGiven) s.input.R = macqc::default_bond_length(molecule);
+    if (!heh && !custom && !preset && !s.rGiven) s.input.R = macqc::default_bond_length(molecule);
     const std::string problem = macqc::validate(s.input);
     if (!problem.empty()) throw std::runtime_error(problem);
     s.sourceText = text;

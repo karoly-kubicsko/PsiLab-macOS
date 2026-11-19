@@ -97,7 +97,10 @@ json input_json_general(const Input& in) {
                 {"tsHessian", in.tsHessian},
                 {"eigenTest", in.eigenTest},
                 {"hessian", in.hessian},
-                {"initialHessian", in.initialHessian}};
+                {"initialHessian", in.initialHessian},
+                {"optHessian", in.optHessian},
+                {"recalcFC", in.recalcFC},
+                {"optAlgorithm", in.optAlgorithm}};
     }
 }
 
@@ -524,6 +527,10 @@ json optimization_json(const OptimizationResult& o) {
     j["hessianEvaluations"] = o.hessian_evaluations;
     j["negativeEigenvalues"] = o.final_negative_eigenvalues >= 0 ? json(o.final_negative_eigenvalues) : json(nullptr);
     j["eigenTestFailed"] = o.eigen_test_failed;
+    j["computedHessian"] = o.computed_hessian.empty() ? json(nullptr) : json(o.computed_hessian);
+    j["recalcFC"] = o.recalc_every;
+    j["algorithm"] = o.algorithm;
+    j["gediisSteps"] = o.gediis_steps;
     j["criteria"] = {{"maxForce", o.criteria.max_force},
                      {"rmsForce", o.criteria.rms_force},
                      {"maxDisplacement", o.criteria.max_displacement},
@@ -585,7 +592,10 @@ json optimization_json(const OptimizationResult& o) {
                        {"followedMode", s.followed_mode},
                        {"lambdaP", s.lambda_p},
                        {"lambdaN", s.lambda_n},
-                       {"hessianComputed", s.hessian_computed}};
+                       {"hessianComputed", s.hessian_computed},
+                       {"stepType", s.step_type},
+                       {"gediisCoefficients", s.gediis_coefficients},
+                       {"gediisSteps", s.gediis_steps}};
         } else {
             h["ts"] = nullptr;
         }
@@ -1029,6 +1039,11 @@ Input parse_input_json(const std::string& text) {
     in.hessian = get_string(j, "hessian", in.hessian);
     in.initialHessian = get_string(j, "initialHessian", in.initialHessian);
     for (char& c : in.initialHessian) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+    in.optHessian = get_string(j, "optHessian", in.optHessian);
+    for (char& c : in.optHessian) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+    in.optAlgorithm = get_string(j, "optAlgorithm", in.optAlgorithm);
+    for (char& c : in.optAlgorithm) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+    if (j.contains("recalcFC") && j["recalcFC"].is_number_integer()) in.recalcFC = j["recalcFC"].get<int>();
     for (char& c : in.hessian) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
     if (auto it = j.find("scanStart"); it != j.end() && !it->is_null()) in.scanStart = get_number(j, "scanStart", 0.0);
     return in;

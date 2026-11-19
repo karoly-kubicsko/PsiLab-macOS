@@ -37,19 +37,7 @@ struct CustomMoleculeHeader: View {
                 .multilineTextAlignment(.trailing)
                 .accessibilityLabel("Molecule name")
         }
-        Stepper(value: $model.customCharge, in: -20...20) {
-            LabeledContent("Charge", value: String(format: "%+ld", m.charge))
-        }
-        if m.multiplicity != 1 {
-            Label("Multiplicity \(m.multiplicity) in the file: ΨLab computes closed-shell singlets (restricted Hartree–Fock and the methods built on it).",
-                  systemImage: "xmark.octagon.fill")
-                .font(.caption)
-                .foregroundStyle(.red)
-        } else if m.electrons % 2 != 0 {
-            Label("\(m.electrons) electrons, an odd number: change the charge for a closed-shell singlet.", systemImage: "xmark.octagon.fill")
-                .font(.caption)
-                .foregroundStyle(.red)
-        }
+        // 15.0: charge and multiplicity are set below the molecule menu (every molecule)
         ForEach(m.warnings, id: \.self) { w in
             Text(w)
                 .font(.caption)

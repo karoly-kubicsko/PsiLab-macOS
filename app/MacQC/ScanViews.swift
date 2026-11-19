@@ -140,7 +140,7 @@ struct RelaxedScanView: View {
                 // ΨLab 12.0: the 3D viewer
                 Molecule3DView(atoms: atomsMoved(atoms, to: aligned[index]), framing: aligned,
                                accessibilityText: "Molecule at this scan point")
-                    .frame(minWidth: 260, maxWidth: .infinity, minHeight: 300, maxHeight: 300)
+                    .frame(minWidth: 360, maxWidth: .infinity, minHeight: Viewer3DSize.height, maxHeight: Viewer3DSize.height)
                 VStack(alignment: .leading, spacing: 6) {
                     Text("Point \(index + 1) of \(points.count)")
                         .font(.headline)

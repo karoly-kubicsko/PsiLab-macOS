@@ -9,6 +9,12 @@
 //       sigma(I_a,I_b) += <I_a|a+_i|K_a><I_b|a+_k|K_b> E_ik(K_a,K_b).
 // The lowest root is found with the Davidson method (diagonal preconditioner); trial
 // vectors are kept symmetric, C = C^T, which removes the odd-spin (triplet) components.
+// 15.0: spin adaptation. The determinant basis is kept for sigma = H C (the string-driven
+// algorithm, which is faster than CSF-based sigma vectors), and every Davidson vector is
+// projected onto the requested total spin S = M_S with Loewdin's projector built from S^2 =
+// S_- S_+ + M_S (M_S + 1). The CI is then exactly the CI in the space of the configuration state
+// functions (CSFs) of that spin: spin-pure, also for open shells and when a state of higher spin
+// lies lower; the number of CSFs (Weyl-Paldus) is reported with the number of determinants.
 #pragma once
 
 #include <cstddef>
@@ -42,6 +48,9 @@ private:
 
 // Number of strings C(n, N) as a floating-point number (no overflow).
 double binomial_count(int n, int N);
+// 15.0: number of configuration state functions of N electrons in n orbitals with total spin S
+// (Weyl-Paldus dimension formula).
+double csf_count(int n, int N, double S);
 
 struct FCISize {
     int orbitals = 0, alpha = 0, beta = 0;
@@ -92,6 +101,11 @@ struct FCIResultGeneral {
     double total_energy = 0.0;
     double correlation_energy = 0.0;  // E_FCI - E_RHF
     double s2 = 0.0;                  // <S^2>
+    // 15.0: the Davidson vectors are projected onto the requested spin S (Loewdin), so the CI
+    // is that of the configuration state functions of S; their number (Weyl-Paldus)
+    bool spin_adapted = false;
+    double spin = 0.0;
+    double csfs = 0.0;
     double hf_weight = 0.0;           // |C_RHF|^2
     int orbitals = 0, alpha = 0, beta = 0;
     std::size_t alpha_strings = 0, beta_strings = 0, determinants = 0;

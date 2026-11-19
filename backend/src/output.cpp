@@ -321,11 +321,22 @@ std::string optimization_step_block(const OptimizationStep& st, const Convergenc
                        "radius %.4f, predicted energy change %.3e E_h\n",
                        st.lambda_p, st.lambda_n, st.step_norm, st.step_scaled ? " (scaled to the trust radius)" : "",
                        st.trust_radius, st.predicted_change);
-    else if (!st.converged)
+    else if (!st.converged && st.step_type == "GEDIIS + RFO") {
+        std::string co;
+        for (std::size_t i = 0; i < st.gediis_coefficients.size(); ++i)
+            co += strprintf("%s step %d: %.4f", i ? "," : "", st.gediis_steps[i], st.gediis_coefficients[i]);
+        s += "    GEDIIS interpolation (Li and Frisch 2006), coefficients" + co +
+             strprintf("; interpolated energy %.10f E_h\n", st.gediis_energy);
+        s += strprintf("    GEDIIS + RFO step: RFO from the interpolated point, lambda = %.6e, |step| = %.6f, trust radius "
+                       "%.4f, predicted energy change %.3e E_h\n",
+                       st.rfo_lambda, st.step_norm, st.trust_radius, st.predicted_change);
+    } else if (!st.converged) {
+        if (!st.gediis_note.empty()) s += "    GEDIIS: " + st.gediis_note + "\n";
         s += strprintf("    RFO step: lambda = %.6e, |step| = %.6f%s, trust radius %.4f, predicted energy change %.3e "
                        "E_h\n",
                        st.rfo_lambda, st.step_norm, st.step_scaled ? " (scaled to the trust radius)" : "", st.trust_radius,
                        st.predicted_change);
+    }
     s += "\n    Convergence             Value      Threshold   Converged?\n";
     for (const auto& item : st.convergence) {
         if (!item.applicable) {
@@ -381,6 +392,10 @@ std::string optimization_result_block(const OptimizationResult& r) {
     if (r.removed_functions_changed)
         s += "    Warning: the number of removed near-linear dependencies changed during the optimisation.\n";
     s += "    Initial Hessian: " + r.initial_hessian + strprintf("; total time %s\n", duration_string(r.seconds).c_str());
+    if (r.hessian_evaluations > 0 && !r.computed_hessian.empty())
+        s += strprintf("    Computed Hessians: %d\n", r.hessian_evaluations);
+    if (r.algorithm == "gediis")
+        s += strprintf("    Steps: hybrid GEDIIS/RFO, %d of %d steps with GEDIIS\n", r.gediis_steps, r.steps);
     return s;
 }
 

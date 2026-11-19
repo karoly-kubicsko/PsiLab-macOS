@@ -260,3 +260,12 @@ target_compile_definitions(macqc_basis_tests PRIVATE
 add_test(NAME macqc_basis_tests COMMAND macqc_basis_tests)
 set_tests_properties(macqc_basis_tests PROPERTIES
   ENVIRONMENT "PSILAB_BASIS_DIR=${CMAKE_CURRENT_SOURCE_DIR}/basis" TIMEOUT 3600)
+# ΨLab 15.0: MPn, CI, QCI and CC on RHF and UHF references (brute-force references), derivatives.
+add_executable(macqc_so_tests backend/tests/test_so_methods.cpp)
+target_link_libraries(macqc_so_tests PRIVATE macqc)
+target_include_directories(macqc_so_tests PRIVATE third_party)
+target_compile_definitions(macqc_so_tests PRIVATE
+  MACQC_TEST_DATA_DIR="${CMAKE_CURRENT_SOURCE_DIR}/backend/tests/data")
+add_test(NAME macqc_so_tests COMMAND macqc_so_tests)
+set_tests_properties(macqc_so_tests PROPERTIES
+  ENVIRONMENT "PSILAB_BASIS_DIR=${CMAKE_CURRENT_SOURCE_DIR}/basis" TIMEOUT 3600)

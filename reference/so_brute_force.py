@@ -246,7 +246,7 @@ class Problem:
         for it in range(maxit):
             R, E = residual(x)
             step = {r: -R[r] / Dn[r] for r in x}
-            err = max(np.max(np.abs(s)) for s in step.values()) if step else 0.0
+            err = max((float(np.max(np.abs(s))) for s in step.values() if s.size), default=0.0)
             if err < tol:
                 return x, E
             xn = {r: x[r] + step[r] for r in x}

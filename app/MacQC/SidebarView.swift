@@ -26,8 +26,20 @@ struct SidebarView: View {
                 // the built-in molecules, the kept custom molecules (by name; 9.0) and
                 // "Custom molecule…", which opens a structure file
                 Picker("Molecule", selection: $model.moleculeSelection) {
-                    ForEach(MoleculeChoice.builtIn) { choice in
-                        Text(choice.title).tag(MoleculeSelection.builtIn(choice))
+                    // 15.0: the molecules of earlier versions, further molecules and the atoms H–Ar
+                    // (fixed geometries)
+                    Section("Molecules") {
+                        ForEach(MoleculeChoice.builtIn) { choice in
+                            Text(choice.title).tag(MoleculeSelection.builtIn(choice))
+                        }
+                        ForEach(MoleculePresets.molecules) { p in
+                            Text(p.title).tag(MoleculeSelection.preset(p.key))
+                        }
+                    }
+                    Section("Atoms") {
+                        ForEach(MoleculePresets.atoms) { p in
+                            Text(p.title).tag(MoleculeSelection.preset(p.key))
+                        }
                     }
                     if !model.savedMolecules.isEmpty {
                         Divider()
@@ -42,10 +54,20 @@ struct SidebarView: View {
                 .accessibilityLabel("Molecule")
                 if model.molecule == .custom, let m = model.customMolecule {
                     CustomMoleculeHeader(model: model, molecule: m, confirmRemove: $confirmRemove)
+                } else if model.molecule == .preset, let p = model.selectedPreset {
+                    Text(p.note)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                 } else {
                     Text(model.molecule.subtitle)
                         .font(.caption)
                         .foregroundStyle(.secondary)
+                }
+                if model.isGeneral {
+                    spinControls
+                } else if model.molecule == .heh {
+                    Toggle("Szabo–Ostlund calculation", isOn: $model.hehSzaboOstlund)
+                        .help("Off: HeH⁺ in STO-nG as a general molecule (every method and job, charge and multiplicity).")
                 }
             }
 
@@ -110,7 +132,7 @@ struct SidebarView: View {
 
         Section("Basis") {
             basisPicker
-            Text("STO-nG: the Slater functions of Szabo and Ostlund, Hartree–Fock and Full CI. A Gaussian basis set (6-31G … aug-cc-pCV5Z) gives HeH⁺ every method and job type.")
+            Text("STO-nG: the Slater functions of Szabo and Ostlund, Hartree–Fock and Full CI. Any other basis set (6-31G … aug-cc-pCV5Z), or STO-nG with the Szabo–Ostlund calculation switched off, gives HeH⁺ every method and job type.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
             LabeledContent("ζ (He)") {
@@ -140,14 +162,9 @@ struct SidebarView: View {
     /// Basis-set menu of the selected molecule (HeH⁺: STO-1G, STO-2G, STO-3G first), 14.0: in
     /// sections by family (6-31G, 6-311G, def2, aug-cc-pVXZ, aug-cc-pCVXZ).
     private var basisPicker: some View {
+        // 15.0: STO-1G, STO-2G and STO-3G are a family of the library (every molecule); HeH⁺ in
+        // STO-nG is the Szabo–Ostlund calculation unless that option is off
         Picker("Basis set", selection: $model.currentBasis) {
-            if model.molecule == .heh {
-                Section("Szabo–Ostlund (STO-nG)") {
-                    ForEach(BasisSets.szaboOstlund, id: \.self) { name in
-                        Text(name).tag(name)
-                    }
-                }
-            }
             basisFamilySections(value: { $0 })
         }
         .disabled(model.isRunning || model.isScanning)
@@ -172,9 +189,12 @@ struct SidebarView: View {
             : "Gaussian functions from basissetexchange.org, spherical (5D, 7F) except the Cartesian d functions (6D) of the 6-31G family."
         switch model.molecule {
         case .heh:
-            return kind + " He is not in the 6-311++G sets and has no core-valence sets (they fall back to aug-cc-pVXZ). STO-nG returns to the Szabo–Ostlund calculation."
+            return kind + " He is not in the 6-311++G sets and has no core-valence sets (they fall back to aug-cc-pVXZ)."
+                + (BasisSets.isSzaboOstlund(model.currentBasis) ? " STO-nG: switch the Szabo–Ostlund calculation on (Molecule) for the original HF and Full CI program." : "")
+        case .preset:
+            return kind + " STO-1G covers H–Ca, STO-2G and STO-3G H–Xe; 6-31G H–Kr; aug-cc-pVXZ H–Ar."
         case .custom:
-            return kind + " Elements: def2 H–Rn with effective core potentials from Rb on (TZVPPD, QZVPPD without Ce–Lu; mTZVP, mTZVPP also Th–Lr); 6-31G, 6-31G* H–Kr; 6-31+G… H–Ar; 6-311G, 6-311G* H–Ca, Ga–Kr and I (the diffuse ones up to Ca); aug-cc-pVXZ H–Ar and Sc–Kr (Sc–Zn up to QZ), aug-cc-pCVXZ Li–Ar."
+            return kind + " Elements: STO-1G H–Ca, STO-2G and STO-3G H–Xe; def2 H–Rn with effective core potentials from Rb on (TZVPPD, QZVPPD without Ce–Lu; mTZVP, mTZVPP also Th–Lr); 6-31G, 6-31G* H–Kr; 6-31+G… H–Ar; 6-311G, 6-311G* H–Ca, Ga–Kr and I (the diffuse ones up to Ca); aug-cc-pVXZ H–Ar and Sc–Kr (Sc–Zn up to QZ), aug-cc-pCVXZ Li–Ar."
         default:
             return kind + " The core-valence sets (CV) add tight functions for the 1s core."
         }
@@ -211,7 +231,7 @@ struct SidebarView: View {
         switch model.molecule {
         case .h2, .lih, .h2o: return "Experimental geometry"
         case .heh: return "Szabo–Ostlund R = 0.7743 Å"
-        case .h2o2, .nh3, .custom: return "Default geometry"
+        case .h2o2, .nh3, .custom, .preset: return "Default geometry"
         }
     }
 
@@ -231,7 +251,14 @@ struct SidebarView: View {
 
     @ViewBuilder
     private var generalSections: some View {
-        if model.molecule == .custom {
+        if model.molecule == .preset {
+            Section("Geometry") {
+                Text("Fixed geometry of the molecule menu (\(model.selectedPreset?.note ?? "")); an optimisation starts from it.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                SaveOptimizedGeometryBox(model: model)
+            }
+        } else if model.molecule == .custom {
             Section(model.job.usesOptimizer ? "Starting geometry (Å)" : "Geometry (Å)") {
                 if let m = model.customMolecule {
                     CustomCoordinateTable(molecule: m)
@@ -314,12 +341,26 @@ struct SidebarView: View {
 
         Section("Method and basis set") {
             Picker("Method", selection: $model.method) {
-                ForEach(MethodChoice.allCases) { choice in
-                    Text(choice.title).tag(choice)
+                ForEach(MethodChoice.families) { family in
+                    Section(family.title) {
+                        ForEach(family.methods) { choice in
+                            Text(choice.title).tag(choice)
+                        }
+                    }
                 }
             }
             .pickerStyle(.menu)
             Text(model.method.explanation + (model.method == .hf ? "" : " All electrons are correlated."))
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            // 15.0: the reference (RHF, UHF, ROHF)
+            Picker("Reference", selection: $model.reference) {
+                ForEach(ReferenceChoice.allCases) { r in
+                    Text(r.title).tag(r)
+                }
+            }
+            .pickerStyle(.menu)
+            Text(referenceText)
                 .font(.caption)
                 .foregroundStyle(.secondary)
             basisPicker
@@ -333,8 +374,12 @@ struct SidebarView: View {
             Section("Single-point energy") {
                 Picker("SP method", selection: $model.spMethod) {
                     Text("Same (\(model.method.title))").tag(MethodChoice?.none)
-                    ForEach(MethodChoice.allCases) { choice in
-                        Text(choice.title).tag(MethodChoice?.some(choice))
+                    ForEach(MethodChoice.families) { family in
+                        Section(family.title) {
+                            ForEach(family.methods) { choice in
+                                Text(choice.title).tag(MethodChoice?.some(choice))
+                            }
+                        }
                     }
                 }
                 .pickerStyle(.menu)
@@ -387,7 +432,10 @@ struct SidebarView: View {
                      : "Max force 4.5e-4, RMS force 3.0e-4 E_h/bohr; max step 1.8e-3, RMS step 1.2e-3 bohr; energy change 1e-6 E_h.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
-                if model.method.hasAnalyticCorrelatedHessian && !model.job.hasTransitionState {
+                if model.job.hasOptimization && !model.job.hasTransitionState {
+                    optimizerControls
+                }
+                if model.method.hasAnalyticCorrelatedHessian && !model.job.hasTransitionState && model.optHessianMode == .automatic {
                     Toggle("Analytic initial Hessian", isOn: $model.analyticInitialHessian)
                     Text(model.analyticInitialHessian
                          ? "The first step uses the analytic \(model.method.title) Hessian (exact curvature; Lindh's model Hessian if it does not fit in memory); later steps update it (BFGS)."
@@ -521,14 +569,22 @@ struct SidebarView: View {
 
     private var transitionStateSection: some View {
         Section("Transition-state search") {
-            Picker("Hessian", selection: $model.tsCalcAll) {
-                Text("CalcFC").tag(false)
-                Text("CalcAll").tag(true)
+            Picker("Hessian", selection: $model.tsHessianMode) {
+                Text("CalcFC").tag(HessianMode.calcFC)
+                Text("CalcAll").tag(HessianMode.calcAll)
+                Text("RecalcFC").tag(HessianMode.recalcFC)
             }
             .pickerStyle(.segmented)
-            Text(model.tsCalcAll
+            if model.tsHessianMode == .recalcFC {
+                Stepper(value: $model.recalcFC, in: 1...100) {
+                    LabeledContent("Every N steps", value: "\(model.recalcFC)")
+                }
+            }
+            Text(model.tsHessianMode == .calcAll
                  ? "CalcAll: the Hessian is computed at every step (exact, more expensive)."
-                 : "CalcFC: the Hessian is computed at the first step, then updated (Bofill).")
+                 : model.tsHessianMode == .recalcFC
+                    ? "RecalcFC=\(model.recalcFC): the Hessian is computed at step 1 and every \(model.recalcFC) steps, updated (Bofill) in between."
+                    : "CalcFC: the Hessian is computed at the first step, then updated (Bofill).")
                 .font(.caption)
                 .foregroundStyle(.secondary)
             Toggle("Eigenvalue test", isOn: $model.eigenTest)
@@ -564,6 +620,93 @@ struct SidebarView: View {
             .multilineTextAlignment(.trailing)
             .monospacedDigit()
             .frame(width: 96)
+    }
+
+    // MARK: Charge, multiplicity, reference and optimiser (15.0)
+
+    /// Charge and multiplicity of the selected molecule (steppers), with the electron count.
+    @ViewBuilder
+    private var spinControls: some View {
+        Stepper(value: $model.charge, in: -10...20) {
+            LabeledContent("Charge", value: model.charge > 0 ? "+\(model.charge)" : "\(model.charge)")
+        }
+        .disabled(model.isRunning || model.isScanning)
+        .accessibilityLabel("Charge")
+        Stepper(value: $model.multiplicity, in: 1...20) {
+            LabeledContent("Multiplicity", value: "\(model.multiplicity) (\(AppModel.spinName(model.multiplicity)))")
+        }
+        .disabled(model.isRunning || model.isScanning)
+        .accessibilityLabel("Multiplicity")
+        if let problem = model.spinProblem {
+            Label(problem, systemImage: "xmark.octagon.fill")
+                .font(.caption)
+                .foregroundStyle(.red)
+        } else {
+            Text("\(model.electronCount) electrons (\((model.electronCount + model.multiplicity - 1) / 2) α, \((model.electronCount - model.multiplicity + 1) / 2) β)")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+        if model.charge != model.defaultCharge || model.multiplicity != model.defaultMultiplicity {
+            Button("Charge \(model.defaultCharge > 0 ? "+" : "")\(model.defaultCharge), multiplicity \(model.defaultMultiplicity) (the molecule's)") {
+                model.charge = model.defaultCharge
+                model.multiplicity = model.defaultMultiplicity
+            }
+            .secondaryActionStyle()
+            .controlSize(.small)
+            .disabled(model.isRunning || model.isScanning)
+        }
+    }
+
+    private var referenceText: String {
+        if model.reference == .automatic {
+            let open = model.multiplicity != 1
+            return ReferenceChoice.automatic.explanation + " Here: " + (open ? (model.method == .fci ? "ROHF" : "UHF") : "RHF") + "."
+        }
+        return model.reference.explanation
+    }
+
+    /// Computed Hessians (Gaussian's CalcFC, CalcAll, RecalcFC=N) and the step (RFO or GEDIIS) of
+    /// minimisations.
+    @ViewBuilder
+    private var optimizerControls: some View {
+        Picker("Hessian", selection: $model.optHessianMode) {
+            Text("Initial").tag(HessianMode.automatic)
+            Text("CalcFC").tag(HessianMode.calcFC)
+            Text("CalcAll").tag(HessianMode.calcAll)
+            Text("RecalcFC").tag(HessianMode.recalcFC)
+        }
+        .pickerStyle(.segmented)
+        if model.optHessianMode == .recalcFC {
+            Stepper(value: $model.recalcFC, in: 1...100) {
+                LabeledContent("Every N steps", value: "\(model.recalcFC)")
+            }
+        }
+        Text(optHessianText)
+            .font(.caption)
+            .foregroundStyle(.secondary)
+        Picker("Step", selection: $model.gediis) {
+            Text("RFO").tag(false)
+            Text("GEDIIS").tag(true)
+        }
+        .pickerStyle(.segmented)
+        Text(model.gediis
+             ? "Hybrid GEDIIS/RFO (Li and Frisch 2006, Gaussian's default): once the RMS force is below 0.01, the energy-represented DIIS interpolation of the last five points, then an RFO step from there; RFO when it is not downhill or too long."
+             : "Rational-function optimisation (RFO) steps with a trust radius in redundant internal coordinates.")
+            .font(.caption)
+            .foregroundStyle(.secondary)
+    }
+
+    private var optHessianText: String {
+        switch model.optHessianMode {
+        case .automatic:
+            return "The initial Hessian (analytic where possible, else Lindh's model), then BFGS updates."
+        case .calcFC:
+            return "CalcFC: the Hessian of the method is computed at the first step (analytic where available), then BFGS updates."
+        case .calcAll:
+            return "CalcAll: the Hessian is computed at every step (Newton steps; expensive)."
+        case .recalcFC:
+            return "RecalcFC=\(model.recalcFC): the Hessian is computed at step 1 and every \(model.recalcFC) steps, BFGS updates in between."
+        }
     }
 
     // MARK: Run bar

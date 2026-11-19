@@ -43,7 +43,7 @@ struct Input {
     int multiplicity = 1;
     std::string title;
     std::string geometryFile;           // terminal version: the structure file the atoms were read from
-    std::string method = "RHF";         // "RHF" (HF), "CCSD", "CCSD(T)", "CCSDT", "CCSDTQ" or "FCI"; 15.0: "UHF",
+    std::string method = "HF";          // 15.0 default "HF" (14.0: "RHF"); "RHF" (HF), "CCSD", "CCSD(T)", "CCSDT", "CCSDTQ" or "FCI"; 15.0: "UHF",
                                         // "ROHF", "MP2" ... "MP5", "CISD" ... "QCISDTQ", prefixes U/RO
     // 15.0: the reference ("RHF", "UHF", "ROHF"; "": RHF for closed-shell singlets, UHF otherwise);
     // "charge" and "multiplicity" apply to every molecule (given: chargeGiven, multiplicityGiven);
@@ -77,7 +77,7 @@ struct Input {
     std::string scan;
     std::optional<double> scanStart;    // value of the first point (angstrom or degrees); default: the input geometry
     // ΨLab 7.0 transition states (jobs "ts", "ts+freq")
-    std::string tsHessian = "calcfc";   // calcfc (Hessian at the first point) | calcall (at every point)
+    std::string tsHessian = "calcfc";   // calcfc (Hessian at the first point) | calcall (at every point) | recalcfc (15.0)
     bool eigenTest = true;              // exactly one negative Hessian eigenvalue (Gaussian: EigenTest)
     // ΨLab 10.0: the Hessian of frequency jobs and transition-state searches with Full CI, CCSD and
     // CCSD(T): "analytic" (where it fits in memory) or "numerical" (differences of analytic gradients)
@@ -85,6 +85,15 @@ struct Input {
     // 10.0: the initial Hessian of minimisations: "auto" (analytic for HF, Lindh's model Hessian
     // otherwise), "analytic" (also for Full CI, CCSD, CCSD(T)) or "model" (Lindh)
     std::string initialHessian = "auto";
+    // 15.0 (Gaussian Opt=CalcFC, CalcAll, RecalcFC=N): the computed Hessians of minimisations,
+    // "auto" (the initial Hessian of initialHessian, then BFGS updates) | "calcfc" | "calcall" |
+    // "recalcfc" (at the first step and every recalcFC-th step thereafter, BFGS updates between);
+    // tsHessian also takes "recalcfc" (Bofill updates between)
+    std::string optHessian = "auto";
+    int recalcFC = 0;
+    // 15.0: the step of minimisations, "rfo" (default) or "gediis" (the hybrid GEDIIS/RFO step of
+    // Li and Frisch 2006, Gaussian's default)
+    std::string optAlgorithm = "rfo";
     std::string echo;                   // input text for the output file ("": generated from the keys)
 };
 

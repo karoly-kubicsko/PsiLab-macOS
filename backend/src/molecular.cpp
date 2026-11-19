@@ -108,12 +108,22 @@ std::string orbital_list(const std::vector<int>& o) {
 }
 
 std::string fci_section_impl(const FCIResultGeneral& f, double rhf_energy, int level) {
-    std::string s = "\nFull CI         all electrons correlated, M_S = 0 determinants, lowest singlet state\n";
+    const int mult = f.alpha - f.beta + 1;
+    static const char* spin_names[] = {"singlet", "doublet", "triplet", "quartet", "quintet", "sextet", "septet"};
+    const std::string spin_name = mult >= 1 && mult <= 7 ? spin_names[mult - 1] : format("multiplicity %d", mult);
+    std::string s = format("\nFull CI         all electrons correlated, M_S = %s determinants, lowest %s state\n",
+                           f.alpha == f.beta ? "0" : format("%g", 0.5 * (f.alpha - f.beta)).c_str(), spin_name.c_str());
     s += format("    %d electrons (%d alpha, %d beta) in %d orbitals: %s alpha x %s beta strings = %s determinants\n",
                 f.alpha + f.beta, f.alpha, f.beta, f.orbitals, thousands(f.alpha_strings).c_str(),
                 thousands(f.beta_strings).c_str(), thousands(f.determinants).c_str());
-    s += format("    integral transformation to the RHF orbitals: %.2f s\n", f.transform_seconds);
-    s += "    Davidson method: diagonal preconditioner, singlet projection (C = C^T),\n";
+    if (f.spin_adapted)
+        s += format("    spin-adapted: %s configuration state functions with S = %g (Weyl-Paldus), the Davidson\n"
+                    "    vectors projected onto S = %g (Loewdin projector from S^2), sigma = H c in the determinants\n",
+                    thousands(static_cast<std::size_t>(std::llround(f.csfs))).c_str(), f.spin, f.spin);
+    s += format("    integral transformation to the %s orbitals: %.2f s\n", f.alpha == f.beta ? "RHF" : "ROHF",
+                f.transform_seconds);
+    s += f.alpha == f.beta ? "    Davidson method: diagonal preconditioner, singlet projection (C = C^T),\n"
+                           : "    Davidson method: diagonal preconditioner,\n";
     s += "    converged when |H c - E c| < 1.0e-06 and |dE| < 1.0e-10 E_h\n";
     if (level >= 2) {
         s += "    iter        total energy (E_h)        residual   subspace\n";
@@ -311,6 +321,28 @@ std::string validate_molecular(const MolecularInput& in) {
         }
         if (nel < 1) return format("the molecule has %d electrons with charge %+d; it needs at least one", nel, in.charge);
         if (in.multiplicity < 1 || in.multiplicity > 20) return "the multiplicity must be between 1 and 20";
+    }
+    {
+        // 15.0: the electrons must fit the multiplicity
+        int nuclear = 0, charge = in.charge_given ? in.charge : 0;
+        if (m == "custom") {
+            for (const Atom& a : in.atoms) nuclear += a.Z;
+            charge = in.charge;
+        } else if (const MoleculePreset* pre = m.empty() ? find_molecule_preset(in.molecule) : nullptr) {
+            for (const auto& a : pre->atoms) nuclear += atomic_number(a.first);
+            if (!in.charge_given) charge = pre->charge;
+        } else {
+            nuclear = m == "H2" ? 2 : m == "LiH" ? 4 : (m == "H2O" || m == "NH3") ? 10 : m == "H2O2" ? 18 : 3;
+            if (m == "HeH+" && !in.charge_given) charge = 1;
+        }
+        const int mult = in.multiplicity_given || m == "custom" ? in.multiplicity
+                         : (m.empty() && find_molecule_preset(in.molecule)) ? find_molecule_preset(in.molecule)->multiplicity
+                                                                             : 1;
+        try {
+            alpha_beta_electrons(nuclear - charge, mult);
+        } catch (const std::exception& e) {
+            return e.what();
+        }
     }
     if (canonical_basis_name(in.basis).empty()) {
         std::string list;

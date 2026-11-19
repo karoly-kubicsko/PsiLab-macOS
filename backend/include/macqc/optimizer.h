@@ -29,8 +29,21 @@
 // fixed (0.3 bohr/rad, as in Gaussian for transition states). Between computed Hessians the
 // Hessian is updated by Bofill's formula (Int. J. Quantum Chem. 52, 1257 (1994)): the
 // Murtagh-Sargent (SR1) and Powell (PSB) updates mixed with phi = (xi.s)^2 / ((xi.xi)(s.s)),
-// xi = y - H s. The eigenvalue test (on by default, Gaussian's EigenTest) stops the search when
+// xi = y - H s. 15.0: also RecalcFC=N (Gaussian: the Hessian computed at the first step and every
+// N-th step thereafter, updated in between). The eigenvalue test (on by default, Gaussian's EigenTest) stops the search when
 // the Hessian does not have exactly one negative eigenvalue.
+//
+// 15.0, minimisations: computed Hessians as for transition states (Gaussian Opt=CalcFC, CalcAll,
+// RecalcFC=N), made positive definite for the RFO step (negative eigenvalues replaced by their
+// magnitude), BFGS updates in between. Optionally (algorithm = "gediis") the hybrid GEDIIS/RFO step
+// of Li and Frisch (J. Chem. Theory Comput. 2, 835 (2006)), which Gaussian uses by default for
+// minimisations: once the RMS force is below 1e-2, the energy-represented DIIS interpolation of the
+// last (up to five) points, the coefficients c_i >= 0, sum c_i = 1, minimising
+//   E(c) = sum_i c_i E_i - 1/2 sum_ij c_i c_j (g_i - g_j).(q_i - q_j),
+// (used while the RMS force is below 1e-2 and the RMS RFO step above 2.5e-3, the thresholds of
+// the hybrid method), followed by the RFO step from the interpolated point with the interpolated gradient
+// (q* = sum c_i q_i, g* = sum c_i g_i); a step that is longer than the trust radius, goes uphill
+// or does not move away from the current point falls back to the plain RFO step.
 #pragma once
 
 #include <functional>
@@ -83,7 +96,13 @@ struct OptimizationOptions {
     std::string initial_hessian_label = "Hessian of the previous scan point";
     // 7.0 transition-state search (see above)
     bool transition_state = false;
-    std::string ts_hessian = "calcfc";   // calcfc (computed at the first point) | calcall (every point)
+    std::string ts_hessian = "calcfc";   // calcfc (computed at the first point) | calcall (every point) |
+                                         // recalcfc (15.0: the first point and every recalc_every-th step)
+    // 15.0, minimisations: "" (the initial Hessian of initial_hessian, then BFGS) | calcfc | calcall |
+    // recalcfc (computed Hessians as for transition states, see above)
+    std::string computed_hessian;
+    int recalc_every = 0;                // RecalcFC=N
+    std::string algorithm = "rfo";       // minimisations: rfo | gediis (hybrid GEDIIS/RFO)
     bool eigen_test = true;              // stop unless the Hessian has exactly one negative eigenvalue
     bool numerical_hessian = false;      // 10.0: computed Hessians by differences even where analytic
 };
@@ -126,7 +145,14 @@ struct OptimizationStep {
     double followed_eigenvalue = 0.0, followed_gradient = 0.0, followed_overlap = 1.0;
     std::vector<double> followed_mode;
     double lambda_p = 0.0, lambda_n = 0.0;
-    bool hessian_computed = false;       // CalcFC first step or CalcAll
+    bool hessian_computed = false;       // CalcFC first step, CalcAll or RecalcFC
+    // 15.0: the kind of step (RFO, P-RFO, GEDIIS + RFO) and the GEDIIS coefficients (of the
+    // points of the steps gediis_steps, the last being this one)
+    std::string step_type = "RFO";
+    std::vector<double> gediis_coefficients;
+    std::vector<int> gediis_steps;
+    double gediis_energy = 0.0;          // the interpolated energy E(c)
+    std::string gediis_note;             // why GEDIIS was not used at this step (when tried)
     std::string hessian_description;     // how the computed Hessian was obtained
 };
 
@@ -160,6 +186,10 @@ struct OptimizationResult {
     // 7.0 transition states
     bool transition_state = false;
     std::string ts_hessian;
+    std::string computed_hessian;        // 15.0: calcfc | calcall | recalcfc (or empty)
+    int recalc_every = 0;
+    std::string algorithm = "rfo";
+    int gediis_steps = 0;                // steps taken with GEDIIS
     int hessian_evaluations = 0;         // computed Hessians
     int final_negative_eigenvalues = -1; // of the last Hessian (computed or updated)
     bool eigen_test_failed = false;

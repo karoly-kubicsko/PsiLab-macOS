@@ -55,6 +55,11 @@ struct JobSettings {
     // 10.0: "analytic" or "numerical" Hessians of Full CI, CCSD and CCSD(T)
     std::string hessian = "analytic";
     std::string initial_hessian = "auto";  // minimisations: auto | analytic | lindh
+    // 15.0: computed Hessians of minimisations ("" | calcfc | calcall | recalcfc; ts_hessian also
+    // takes recalcfc), N of RecalcFC=N, the step of minimisations (rfo | gediis)
+    std::string opt_hessian;
+    int recalc_fc = 0;
+    std::string opt_algorithm = "rfo";
 };
 
 // The scanned coordinate: type (Stretch, Bend, Dihedral) and 0-based atoms.
@@ -209,6 +214,6 @@ std::string job_estimate_text(const MolecularResult& prepared, const JobEstimate
 MolecularResult final_point_result(const JobResult& job, const MolecularInput& input);
 
 // The program version.
-constexpr const char* kProgramVersion = "14.0";
+constexpr const char* kProgramVersion = "15.0";
 
 }  // namespace macqc

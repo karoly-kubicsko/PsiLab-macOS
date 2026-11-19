@@ -345,10 +345,33 @@ OptimizationResult optimize_geometry(const Molecule& start, const BasisSet& basi
     const bool constrained = !pcs.empty();
     const bool ts = oo.transition_state;
     if (ts && constrained) throw std::invalid_argument("a transition-state search with frozen coordinates is not available");
-    if (ts && oo.ts_hessian != "calcfc" && oo.ts_hessian != "calcall")
-        throw std::invalid_argument("ts_hessian must be calcfc or calcall");
+    if (ts && oo.ts_hessian != "calcfc" && oo.ts_hessian != "calcall" && oo.ts_hessian != "recalcfc")
+        throw std::invalid_argument("ts_hessian must be calcfc, calcall or recalcfc");
+    if (!oo.computed_hessian.empty() && oo.computed_hessian != "calcfc" && oo.computed_hessian != "calcall" &&
+        oo.computed_hessian != "recalcfc")
+        throw std::invalid_argument("computed_hessian must be calcfc, calcall or recalcfc");
+    if (oo.algorithm != "rfo" && oo.algorithm != "gediis") throw std::invalid_argument("algorithm must be rfo or gediis");
+    // 15.0: computed Hessians (CalcFC, CalcAll, RecalcFC=N) for transition states and minimisations
+    const std::string hmode = ts ? oo.ts_hessian : oo.computed_hessian;
+    if (hmode == "recalcfc" && oo.recalc_every < 1) throw std::invalid_argument("RecalcFC=N needs N >= 1");
+    const bool use_gediis = !ts && !constrained && oo.algorithm == "gediis";
     res.transition_state = ts;
     res.ts_hessian = ts ? oo.ts_hessian : "";
+    res.computed_hessian = hmode;
+    res.recalc_every = hmode == "recalcfc" ? oo.recalc_every : 0;
+    res.algorithm = ts ? "p-rfo" : (use_gediis ? "gediis" : "rfo");
+    auto hmode_label = [&]() -> std::string {
+        if (hmode == "calcall") return "CalcAll";
+        if (hmode == "recalcfc") return format("RecalcFC=%d", oo.recalc_every);
+        return "CalcFC";
+    };
+    // GEDIIS history (minimisations): internal coordinates, projected gradients, energies, steps
+    struct GPoint {
+        std::vector<double> q, g;
+        double e = 0.0;
+        int step = 0;
+    };
+    std::vector<GPoint> gediis_points;
     std::vector<double> followed_prev;  // the mode followed at the previous step (transition states)
     const double constraint_threshold = 0.01 * cc.max_displacement;
 
@@ -408,6 +431,7 @@ OptimizationResult optimize_geometry(const Molecule& start, const BasisSet& basi
             need_initial = true;
             q_prev.clear();
             rec.warnings.push_back("The internal coordinates were rebuilt (a bend crossed the linear threshold).");
+            gediis_points.clear();
         }
         const std::vector<double> q = ic.values(x);
         const std::size_t nq = q.size(), n3 = 3 * x.atoms.size();
@@ -433,14 +457,53 @@ OptimizationResult optimize_geometry(const Molecule& start, const BasisSet& basi
         rec.constrained = cp.index;
         rec.constraint_deviation = cp.deviation;
 
-        // ---- Hessian: computed (transition states), initial (carried over, analytic or model) or updated
-        const bool ts_compute = ts && (need_initial || q_prev.size() != nq || oo.ts_hessian == "calcall");
-        if (ts_compute) {
+        // A minimisation needs a positive definite Hessian: negative eigenvalues (in the non-redundant
+        // space) are replaced by their magnitude; the most negative direction of the first such
+        // Hessian is kept, to leave a saddle point along it if the gradient there vanishes.
+        auto make_positive_definite = [&](Matrix& Hm, std::string& note) {
+            const Matrix PHP = mat_mul(mat_mul(P, Hm), P);
+            const EigenResult eh = symmetric_eigen(PHP);
+            Matrix Hn(nq, nq);
+            int negative = 0;
+            double lowest = 0.0;
+            for (std::size_t k = 0; k < nq; ++k) {
+                double lam = eh.values[k];
+                double proj = 0.0;
+                for (std::size_t i = 0; i < nq; ++i)
+                    for (std::size_t j = 0; j < nq; ++j) proj += eh.vectors(i, k) * P(i, j) * eh.vectors(j, k);
+                if (proj < 0.5) continue;  // redundant direction
+                if (lam < 0.0) {
+                    if (negative == 0) lowest = lam;
+                    ++negative;
+                    if (negative_direction.empty() && step == 1) {
+                        negative_direction.assign(nq, 0.0);
+                        for (std::size_t i = 0; i < nq; ++i) negative_direction[i] = eh.vectors(i, k);
+                        negative_curvature = lam;
+                    }
+                    lam = std::max(-lam, 0.005);
+                }
+                lam = std::max(lam, 0.005);
+                for (std::size_t i = 0; i < nq; ++i)
+                    for (std::size_t j = 0; j < nq; ++j) Hn(i, j) += lam * eh.vectors(i, k) * eh.vectors(j, k);
+            }
+            Hm = Hn;
+            if (negative)
+                note += format("; %d negative eigenvalue%s (lowest %.4f) replaced by %s magnitude for the minimisation",
+                               negative, negative == 1 ? "" : "s", lowest, negative == 1 ? "its" : "their");
+        };
+
+        // ---- Hessian: computed (CalcFC, CalcAll, RecalcFC=N), initial (carried over, analytic or
+        // model) or updated
+        const bool have_previous = !q_prev.empty() && q_prev.size() == nq;
+        const bool compute_now =
+            !hmode.empty() && (need_initial || !have_previous || hmode == "calcall" ||
+                               (hmode == "recalcfc" && (step - 1) % std::max(1, oo.recalc_every) == 0));
+        if (compute_now) {
             HessianOptions ho;
             ho.reference = &g;
             ho.dipoles = false;
             ho.force_numerical = oo.numerical_hessian;
-            const std::string ctx = format("Step %d · Hessian (%s)", step, oo.ts_hessian == "calcall" ? "CalcAll" : "CalcFC");
+            const std::string ctx = format("Step %d · Hessian (%s)", step, hmode_label().c_str());
             report_progress_text(ctx);
             const HessianResult hr = run_hessian(x, bx, method, eo, ho, cb, &orbitals, [&](int i, int n, const std::string& what) {
                 report_progress_text(ctx + format(": displacement %d of %d (%s)", i, n, what.c_str()));
@@ -449,14 +512,22 @@ OptimizationResult optimize_geometry(const Molecule& start, const BasisSet& basi
             ++res.hessian_evaluations;
             rec.hessian_computed = true;
             rec.hessian_description = hr.description;
-            rec.hessian_update = std::string("computed Hessian (") + (oo.ts_hessian == "calcall" ? "CalcAll" : "CalcFC") +
-                                 "): " + hr.description + ", transformed to internal coordinates";
-            if (res.initial_hessian.empty()) res.initial_hessian = std::string("computed (") +
-                                                                    (oo.ts_hessian == "calcall" ? "CalcAll, every step" : "CalcFC") +
-                                                                    "): " + hr.description;
-            if (!q_prev.empty() && q_prev.size() == nq && std::fabs(predicted_prev) > 1.0e-14) {
+            rec.hessian_update = "computed Hessian (" + hmode_label() + "): " + hr.description +
+                                 ", transformed to internal coordinates";
+            if (!ts) make_positive_definite(H, rec.hessian_update);
+            if (res.initial_hessian.empty())
+                res.initial_hessian = "computed (" +
+                                      (hmode == "calcall" ? std::string("CalcAll, every step")
+                                       : hmode == "recalcfc" ? format("RecalcFC=%d: at step 1 and every %d steps", oo.recalc_every, oo.recalc_every)
+                                                             : std::string("CalcFC")) +
+                                      "): " + hr.description;
+            if (have_previous && std::fabs(predicted_prev) > 1.0e-14) {
                 rec.ratio = rec.delta_e / predicted_prev;
                 rec.has_ratio = true;
+                if (!ts) {
+                    if (rec.ratio < 0.25) trust = std::max(oo.min_trust, 0.25 * step_prev);
+                    else if (rec.ratio > 0.75 && step_prev > 0.8 * trust) trust = std::min(oo.max_trust, 2.0 * trust);
+                }
             }
             need_initial = false;
         } else if (need_initial || q_prev.size() != nq) {
@@ -530,38 +601,7 @@ OptimizationResult optimize_geometry(const Molecule& start, const BasisSet& basi
                     }
                 rec.hessian_update = "initial Hessian: " + label + " in internal coordinates";
                 res.initial_hessian = label;
-                // A minimisation needs a positive definite Hessian: negative eigenvalues (in the
-                // non-redundant space) are replaced by their magnitude; the most negative direction
-                // is kept, to leave a saddle point along it if the gradient there vanishes.
-                const Matrix PHP = mat_mul(mat_mul(P, H), P);
-                const EigenResult eh = symmetric_eigen(PHP);
-                Matrix Hn(nq, nq);
-                int negative = 0;
-                for (std::size_t k = 0; k < nq; ++k) {
-                    double lam = eh.values[k];
-                    double proj = 0.0;
-                    for (std::size_t i = 0; i < nq; ++i)
-                        for (std::size_t j = 0; j < nq; ++j) proj += eh.vectors(i, k) * P(i, j) * eh.vectors(j, k);
-                    if (proj < 0.5) continue;  // redundant direction
-                    if (lam < 0.0) {
-                        ++negative;
-                        if (negative_direction.empty()) {
-                            negative_direction.assign(nq, 0.0);
-                            for (std::size_t i = 0; i < nq; ++i) negative_direction[i] = eh.vectors(i, k);
-                            negative_curvature = lam;
-                        }
-                        lam = std::max(-lam, 0.005);
-                    }
-                    lam = std::max(lam, 0.005);
-                    for (std::size_t i = 0; i < nq; ++i)
-                        for (std::size_t j = 0; j < nq; ++j) Hn(i, j) += lam * eh.vectors(i, k) * eh.vectors(j, k);
-                }
-                H = Hn;
-                if (negative)
-                    rec.hessian_update += format("; %d negative eigenvalue%s (lowest %.4f) replaced by %s magnitude for the "
-                                                 "minimisation",
-                                                 negative, negative == 1 ? "" : "s", negative_curvature,
-                                                 negative == 1 ? "its" : "their");
+                make_positive_definite(H, rec.hessian_update);
             } else {
                 const std::vector<double> d = kind == "schlegel" ? schlegel_model_hessian(x, ic) : lindh_model_hessian(x, ic);
                 for (std::size_t i = 0; i < nq; ++i) H(i, i) = d[i];
@@ -635,6 +675,7 @@ OptimizationResult optimize_geometry(const Molecule& start, const BasisSet& basi
         if (ts) {
             // ---- partitioned RFO (Baker 1986) in the eigenvectors of the projected Hessian
             rec.ts_step = true;
+            rec.step_type = "P-RFO";
             const Matrix PHP = mat_mul(mat_mul(P, H), P);
             const EigenResult eh = symmetric_eigen(PHP);
             std::vector<std::size_t> modes;  // non-redundant eigenvectors, ascending eigenvalues
@@ -720,25 +761,161 @@ OptimizationResult optimize_geometry(const Molecule& start, const BasisSet& basi
             for (std::size_t i = 0; i < nq; ++i)
                 for (std::size_t j = 0; j < nq; ++j) Ht(i, j) = PH(i, j) + 1000.0 * ((i == j ? 1.0 : 0.0) - Pt(i, j));
         }
-        Matrix A(nq + 1, nq + 1);
-        for (std::size_t i = 0; i < nq; ++i) {
-            for (std::size_t j = 0; j < nq; ++j) A(i, j) = Ht(i, j);
-            A(i, nq) = A(nq, i) = gt[i];
-        }
-        const EigenResult ea = symmetric_eigen(A);
-        const double last = ea.vectors(nq, 0);
-        rec.rfo_lambda = ea.values[0];
-        if (std::fabs(last) > 1.0e-8) {
-            for (std::size_t i = 0; i < nq; ++i) dq[i] = ea.vectors(i, 0) / last;
-        } else {
-            for (std::size_t i = 0; i < nq; ++i) dq[i] = -gt[i];
-            rec.warnings.push_back("The RFO step was degenerate; a steepest-descent step is used.");
-        }
-        {
-            std::vector<double> pdq(nq, 0.0);
+        // the RFO step for a gradient gv, projected onto the (constrained) space
+        auto rfo_step = [&](const std::vector<double>& gv, double* lambda, bool* degenerate) {
+            Matrix A(nq + 1, nq + 1);
+            for (std::size_t i = 0; i < nq; ++i) {
+                for (std::size_t j = 0; j < nq; ++j) A(i, j) = Ht(i, j);
+                A(i, nq) = A(nq, i) = gv[i];
+            }
+            const EigenResult ea = symmetric_eigen(A);
+            const double last = ea.vectors(nq, 0);
+            if (lambda) *lambda = ea.values[0];
+            std::vector<double> d(nq, 0.0);
+            if (std::fabs(last) > 1.0e-8) {
+                for (std::size_t i = 0; i < nq; ++i) d[i] = ea.vectors(i, 0) / last;
+                if (degenerate) *degenerate = false;
+            } else {
+                for (std::size_t i = 0; i < nq; ++i) d[i] = -gv[i];
+                if (degenerate) *degenerate = true;
+            }
+            std::vector<double> pd(nq, 0.0);
             for (std::size_t i = 0; i < nq; ++i)
-                for (std::size_t j = 0; j < nq; ++j) pdq[i] += Pt(i, j) * dq[j];
-            dq = pdq;
+                for (std::size_t j = 0; j < nq; ++j) pd[i] += Pt(i, j) * d[j];
+            return pd;
+        };
+        {
+            bool degenerate = false;
+            dq = rfo_step(gt, &rec.rfo_lambda, &degenerate);
+            if (degenerate) rec.warnings.push_back("The RFO step was degenerate; a steepest-descent step is used.");
+        }
+        // ---- 15.0: hybrid GEDIIS/RFO (Li and Frisch 2006)
+        if (use_gediis) {
+            gediis_points.push_back({q, gt, rec.energy, step});
+            if (gediis_points.size() > 5) gediis_points.erase(gediis_points.begin());
+            double rms_force = 0.0;
+            for (double v : gt) rms_force += v * v;
+            rms_force = std::sqrt(rms_force / static_cast<double>(std::max<std::size_t>(1, nq)));
+            const std::size_t m = gediis_points.size();
+            if (m < 2) {
+                rec.gediis_note = "GEDIIS needs a previous point";
+            } else if (rms_force > 1.0e-2) {
+                rec.gediis_note = format("RMS force %.2e above 1e-2: RFO step", rms_force);
+            } else if (std::sqrt([&] { double v = 0.0; for (double d : dq) v += d * d; return v; }() /
+                                 static_cast<double>(std::max<std::size_t>(1, nq))) < 2.5e-3) {
+                // near convergence the quasi-Newton (RFO) step is kept (Li and Frisch: GDIIS region)
+                rec.gediis_note = "RMS RFO step below 2.5e-3 (near convergence): RFO step";
+            } else {
+                // displacements relative to the current point (periodic dihedrals through difference())
+                std::vector<std::vector<double>> dqs(m);
+                for (std::size_t i = 0; i < m; ++i) dqs[i] = ic.difference(gediis_points[i].q, q);
+                std::vector<double> E(m);
+                for (std::size_t i = 0; i < m; ++i) E[i] = gediis_points[i].e - rec.energy;  // relative energies
+                Matrix M(m, m);  // E(c) = c.E + c' M c, M_ij = -1/2 (g_i - g_j).(dq_i - dq_j)
+                for (std::size_t i = 0; i < m; ++i)
+                    for (std::size_t j = 0; j < m; ++j) {
+                        double v = 0.0;
+                        for (std::size_t k = 0; k < nq; ++k)
+                            v += (gediis_points[i].g[k] - gediis_points[j].g[k]) * (dqs[i][k] - dqs[j][k]);
+                        M(i, j) = -0.5 * v;
+                    }
+                auto objective = [&](const std::vector<double>& c) {
+                    double v = 0.0;
+                    for (std::size_t i = 0; i < m; ++i) {
+                        v += c[i] * E[i];
+                        for (std::size_t j = 0; j < m; ++j) v += c[i] * c[j] * M(i, j);
+                    }
+                    return v;
+                };
+                // minimum over the simplex c_i >= 0, sum c_i = 1: every subset S of points, the
+                // stationary point of E on the face of S (2 M_SS c_S + E_S = mu 1, sum c_S = 1)
+                std::vector<double> best_c(m, 0.0);
+                best_c[m - 1] = 1.0;
+                double best = objective(best_c);
+                for (unsigned mask = 1; mask < (1u << m); ++mask) {
+                    std::vector<std::size_t> S;
+                    for (std::size_t i = 0; i < m; ++i)
+                        if (mask & (1u << i)) S.push_back(i);
+                    const std::size_t k = S.size();
+                    std::vector<double> c(m, 0.0);
+                    if (k == 1) {
+                        c[S[0]] = 1.0;
+                    } else {
+                        Matrix K(k + 1, k + 1);
+                        std::vector<double> rhs(k + 1, 0.0);
+                        for (std::size_t a = 0; a < k; ++a) {
+                            for (std::size_t b = 0; b < k; ++b) K(a, b) = 2.0 * M(S[a], S[b]);
+                            K(a, k) = K(k, a) = -1.0;
+                            rhs[a] = -E[S[a]];
+                        }
+                        rhs[k] = -1.0;
+                        // solve the symmetric indefinite system by its eigen-decomposition
+                        const EigenResult ek = symmetric_eigen(K);
+                        double scale = 0.0;
+                        for (double v : ek.values) scale = std::max(scale, std::fabs(v));
+                        bool singular = false;
+                        std::vector<double> sol(k + 1, 0.0);
+                        for (std::size_t r = 0; r <= k; ++r) {
+                            if (std::fabs(ek.values[r]) < 1.0e-10 * std::max(scale, 1.0e-300)) {
+                                singular = true;
+                                break;
+                            }
+                            double proj = 0.0;
+                            for (std::size_t a = 0; a <= k; ++a) proj += ek.vectors(a, r) * rhs[a];
+                            for (std::size_t a = 0; a <= k; ++a) sol[a] += ek.vectors(a, r) * proj / ek.values[r];
+                        }
+                        if (singular) continue;
+                        bool feasible = true;
+                        for (std::size_t a = 0; a < k; ++a) {
+                            if (sol[a] < -1.0e-12) feasible = false;
+                            c[S[a]] = std::max(0.0, sol[a]);
+                        }
+                        if (!feasible) continue;
+                    }
+                    const double v = objective(c);
+                    if (v < best - 1.0e-14) {
+                        best = v;
+                        best_c = c;
+                    }
+                }
+                rec.gediis_energy = best + rec.energy;
+                if (best_c[m - 1] > 1.0 - 1.0e-10) {
+                    rec.gediis_note = "GEDIIS interpolation gave the current point: RFO step";
+                } else {
+                    std::vector<double> d0(nq, 0.0), gs(nq, 0.0);
+                    for (std::size_t i = 0; i < m; ++i)
+                        for (std::size_t k = 0; k < nq; ++k) {
+                            d0[k] += best_c[i] * dqs[i][k];
+                            gs[k] += best_c[i] * gediis_points[i].g[k];
+                        }
+                    std::vector<double> pd0(nq, 0.0);
+                    for (std::size_t i = 0; i < nq; ++i)
+                        for (std::size_t j = 0; j < nq; ++j) pd0[i] += Pt(i, j) * d0[j];
+                    double lam = 0.0;
+                    bool degenerate = false;
+                    const std::vector<double> d1 = rfo_step(gs, &lam, &degenerate);
+                    std::vector<double> total(nq);
+                    for (std::size_t i = 0; i < nq; ++i) total[i] = pd0[i] + d1[i];
+                    double downhill = 0.0;
+                    for (std::size_t i = 0; i < nq; ++i) downhill += total[i] * gt[i];
+                    if (degenerate) {
+                        rec.gediis_note = "the RFO step from the GEDIIS point was degenerate: RFO step";
+                    } else if (norm(total) > trust) {
+                        rec.gediis_note = format("GEDIIS step %.3f longer than the trust radius %.3f: RFO step", norm(total), trust);
+                    } else if (downhill >= 0.0) {
+                        rec.gediis_note = "GEDIIS step not downhill: RFO step";
+                    } else {
+                        dq = total;
+                        rec.rfo_lambda = lam;
+                        rec.step_type = "GEDIIS + RFO";
+                        for (std::size_t i = 0; i < m; ++i) {
+                            rec.gediis_coefficients.push_back(best_c[i]);
+                            rec.gediis_steps.push_back(gediis_points[i].step);
+                        }
+                        ++res.gediis_steps;
+                    }
+                }
+            }
         }
         if (step == 1 && !negative_direction.empty()) {
             std::vector<double> nd(nq, 0.0);

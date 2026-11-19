@@ -421,40 +421,120 @@ void symmetrize(std::vector<double>& v, std::size_t N) {
         }
 }
 
-// <S^2> = |S_+ Psi|^2 for M_S = 0.
-double spin_squared(const std::vector<double>& C, const StringSpace& A, const StringSpace& B) {
-    const int n = A.orbitals(), na = A.electrons(), nb = B.electrons();
-    if (na != nb) return std::numeric_limits<double>::quiet_NaN();
-    if (nb == 0 || na == n) return 0.0;
-    const StringSpace Ap(n, na + 1), Bm(n, nb - 1);
-    const std::size_t Nb = B.size(), Nbm = Bm.size();
-    std::vector<double> T(Ap.size() * Nbm, 0.0);
-    std::vector<std::uint16_t> buf(static_cast<std::size_t>(na) + 1);
-    for (int p = 0; p < n; ++p) {
-        std::vector<std::pair<std::size_t, std::pair<std::size_t, double>>> la, lb;  // source, (target, sign)
+// S_+ = sum_p a+_p,alpha a_p,beta as lists per orbital p: the alpha strings without p (source,
+// (target string with p, sign)) and the beta strings with p (source, (target without p, sign)).
+// The global sign (-1)^n_alpha of moving a_p,beta past the alpha electrons is the same for every
+// term and cancels in S_- S_+ = S_+^T S_+ and in |S_+ Psi|^2.
+struct SpinRaising {
+    int n = 0, na = 0, nb = 0;
+    std::size_t Nap = 0, Nbm = 0;
+    std::vector<std::vector<std::pair<std::size_t, std::pair<std::size_t, double>>>> la, lb;
+};
+
+SpinRaising spin_raising(const StringSpace& A, const StringSpace& B) {
+    SpinRaising s;
+    s.n = A.orbitals();
+    s.na = A.electrons();
+    s.nb = B.electrons();
+    if (s.nb == 0 || s.na == s.n) return s;
+    const StringSpace Ap(s.n, s.na + 1), Bm(s.n, s.nb - 1);
+    s.Nap = Ap.size();
+    s.Nbm = Bm.size();
+    s.la.resize(static_cast<std::size_t>(s.n));
+    s.lb.resize(static_cast<std::size_t>(s.n));
+    std::vector<std::uint16_t> buf(static_cast<std::size_t>(std::max(s.na, s.nb)) + 1);
+    for (int p = 0; p < s.n; ++p) {
+        auto& la = s.la[static_cast<std::size_t>(p)];
+        auto& lb = s.lb[static_cast<std::size_t>(p)];
         for (std::size_t J = 0; J < A.size(); ++J) {
             const std::uint16_t* o = A.occupation(J);
-            if (std::binary_search(o, o + na, static_cast<std::uint16_t>(p))) continue;
-            const int pos = insert_sorted(o, na, p, buf.data());
+            if (std::binary_search(o, o + s.na, static_cast<std::uint16_t>(p))) continue;
+            const int pos = insert_sorted(o, s.na, p, buf.data());
             la.push_back({J, {Ap.index(buf.data()), (pos % 2) ? -1.0 : 1.0}});
         }
-        for (std::size_t J = 0; J < Nb; ++J) {
+        for (std::size_t J = 0; J < B.size(); ++J) {
             const std::uint16_t* o = B.occupation(J);
-            const auto it = std::lower_bound(o, o + nb, static_cast<std::uint16_t>(p));
-            if (it == o + nb || *it != p) continue;
+            const auto it = std::lower_bound(o, o + s.nb, static_cast<std::uint16_t>(p));
+            if (it == o + s.nb || *it != p) continue;
             const int t = static_cast<int>(it - o);
             int m = 0;
-            for (int k = 0; k < nb; ++k)
+            for (int k = 0; k < s.nb; ++k)
                 if (k != t) buf[static_cast<std::size_t>(m++)] = o[k];
             lb.push_back({J, {Bm.index(buf.data()), (t % 2) ? -1.0 : 1.0}});
         }
-        for (const auto& a : la)
-            for (const auto& b : lb)
-                T[a.second.first * Nbm + b.second.first] += a.second.second * b.second.second * C[a.first * Nb + b.first];
     }
-    double s = 0.0;
-    for (double x : T) s += x * x;
     return s;
+}
+
+// T = S_+ C (in the (n_alpha + 1, n_beta - 1) space).
+std::vector<double> raise(const SpinRaising& s, const std::vector<double>& C, std::size_t Nb) {
+    std::vector<double> T(s.Nap * s.Nbm, 0.0);
+    for (std::size_t p = 0; p < s.la.size(); ++p)
+        for (const auto& a : s.la[p])
+            for (const auto& b : s.lb[p])
+                T[a.second.first * s.Nbm + b.second.first] += a.second.second * b.second.second * C[a.first * Nb + b.first];
+    return T;
+}
+
+// S^2 C = S_- S_+ C + M (M + 1) C, M = (n_alpha - n_beta) / 2.
+std::vector<double> apply_spin_squared(const SpinRaising& s, const std::vector<double>& C, std::size_t Nb) {
+    const double M = 0.5 * (s.na - s.nb);
+    std::vector<double> out(C.size());
+    for (std::size_t i = 0; i < C.size(); ++i) out[i] = M * (M + 1.0) * C[i];
+    if (s.la.empty()) return out;
+    const std::vector<double> T = raise(s, C, Nb);
+    for (std::size_t p = 0; p < s.la.size(); ++p)
+        for (const auto& a : s.la[p])
+            for (const auto& b : s.lb[p])
+                out[a.first * Nb + b.first] += a.second.second * b.second.second * T[a.second.first * s.Nbm + b.second.first];
+    return out;
+}
+
+// <S^2> = |S_+ Psi|^2 + M (M + 1) (normalised Psi).
+double spin_squared(const std::vector<double>& C, const StringSpace& A, const StringSpace& B) {
+    const SpinRaising s = spin_raising(A, B);
+    const double M = 0.5 * (s.na - s.nb);
+    double nn = 0.0;
+    for (double x : C) nn += x * x;
+    double t = 0.0;
+    if (!s.la.empty())
+        for (double x : raise(s, C, B.size())) t += x * x;
+    return nn > 0.0 ? t / nn + M * (M + 1.0) : 0.0;
+}
+
+// 15.0: Loewdin's spin projector onto S = M (the high-spin component of the requested
+// multiplicity): P = prod_{S' != S} (S^2 - S'(S'+1)) / (S(S+1) - S'(S'+1)) over the spins
+// S' = M + 1 ... S_max present in the space (only even S' - S for symmetric singlet vectors, whose
+// odd-S components C = C^T already removes). Applied to the Davidson vectors, it keeps the CI
+// in the space spanned by the configuration state functions of the requested spin.
+struct SpinProjector {
+    SpinRaising s;
+    std::vector<double> contaminants;  // S'
+    double target = 0.0;
+    std::size_t Nb = 0;
+
+    void apply(std::vector<double>& v) const {
+        for (double Sp : contaminants) {
+            std::vector<double> w = apply_spin_squared(s, v, Nb);
+            const double a = Sp * (Sp + 1.0), den = target * (target + 1.0) - a;
+            for (std::size_t i = 0; i < v.size(); ++i) v[i] = (w[i] - a * v[i]) / den;
+        }
+    }
+};
+
+SpinProjector spin_projector(const StringSpace& A, const StringSpace& B, bool symmetric) {
+    SpinProjector P;
+    P.s = spin_raising(A, B);
+    P.Nb = B.size();
+    const int n = A.orbitals(), na = A.electrons(), nb = B.electrons();
+    P.target = 0.5 * (na - nb);
+    const int N = na + nb;
+    const double smax = 0.5 * std::min(N, 2 * n - N);
+    for (double Sp = P.target + 1.0; Sp <= smax + 1e-9; Sp += 1.0) {
+        if (symmetric && (static_cast<int>(std::lround(Sp - P.target)) % 2 != 0)) continue;
+        P.contaminants.push_back(Sp);
+    }
+    return P;
 }
 
 }  // namespace
@@ -491,6 +571,14 @@ std::size_t StringSpace::index(const std::uint16_t* o) const {
     std::size_t idx = 0;
     for (int k = 0; k < N_; ++k) idx += binom_[o[k]][static_cast<std::size_t>(k) + 1];
     return idx;
+}
+
+double csf_count(int n, int N, double S) {
+    // Weyl-Paldus: (2S + 1) / (n + 1) * C(n + 1, N/2 - S) * C(n + 1, N/2 + S + 1)
+    const double a = 0.5 * N - S, b = 0.5 * N + S + 1.0;
+    if (a < -1e-9 || S < -1e-9) return 0.0;
+    return (2.0 * S + 1.0) / (n + 1.0) * binomial_count(n + 1, static_cast<int>(std::lround(a))) *
+           binomial_count(n + 1, static_cast<int>(std::lround(b)));
 }
 
 double binomial_count(int n, int N) {
@@ -586,6 +674,18 @@ FCIResultGeneral run_fci_determinants(const MOIntegrals& mo, int na, int nb, dou
         fixed_fci_bytes(mo.n, static_cast<double>(mo.stride > 0 ? 0.5 * (std::sqrt(8.0 * mo.stride + 1.0) - 1.0) : mo.n),
                         static_cast<double>(Na), static_cast<double>(Nb), symmetric, ka, kb, H.dense()),
         opt.memory_limit_mb * 1048576.0);
+    // 15.0: spin adaptation (Loewdin projection onto the requested spin, i.e. the CSF space)
+    const SpinProjector projector = spin_projector(H.alpha(), H.beta(), symmetric);
+    r.spin_adapted = true;
+    r.spin = projector.target;
+    r.csfs = csf_count(mo.n, na + nb, projector.target);
+    auto project = [&](std::vector<double>& v) {
+        if (projector.contaminants.empty()) return;
+        std::vector<double> w = v;
+        projector.apply(w);
+        const double nw = std::sqrt(dot(w, w));
+        if (nw > 1e-8) v.swap(w);  // otherwise keep the vector (it has no component of this spin)
+    };
     std::vector<std::vector<double>> bv, sv;
     std::vector<double> x(Nd, 0.0), sx(Nd, 0.0), res(Nd, 0.0);
     {
@@ -600,6 +700,11 @@ FCIResultGeneral run_fci_determinants(const MOIntegrals& mo, int na, int nb, dou
                 b0[start] = std::sqrt(0.5);
                 b0[ib * Nb + ia] = std::sqrt(0.5);
             }
+        }
+        project(b0);
+        {
+            const double n0 = std::sqrt(dot(b0, b0));
+            for (double& v : b0) v /= n0;
         }
         bv.push_back(b0);
         sv.emplace_back();
@@ -679,6 +784,7 @@ FCIResultGeneral run_fci_determinants(const MOIntegrals& mo, int na, int nb, dou
             t[i] = -res[i] / d;
         }
         if (symmetric) symmetrize(t, Na);
+        project(t);
         for (int pass = 0; pass < 2; ++pass)
             for (const auto& b : bv) axpy(-dot(b, t), b, t);
         const double tn = std::sqrt(dot(t, t));

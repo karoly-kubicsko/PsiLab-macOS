@@ -412,18 +412,26 @@ JobEstimate estimate_job(const MolecularResult& p, const JobSettings& s, const M
         st.evaluations = typical_steps;
         st.evaluation_kind = "steps";
         st.seconds = typical_steps * tg;
-        if (job_has_ts(t)) {
-            // the Hessian computed at the first point (CalcFC) or at every point (CalcAll)
+        const std::string hmode = job_has_ts(t) ? s.ts_hessian : s.opt_hessian;
+        if (!hmode.empty()) {
+            // the Hessian computed at the first point (CalcFC), at every point (CalcAll) or at the
+            // first and every N-th point (15.0: RecalcFC=N)
             const JobStepEstimate h = hessian_estimate();
-            const bool all = s.ts_hessian == "calcall";
+            const bool all = hmode == "calcall";
+            const int computed = all ? typical_steps
+                                     : hmode == "recalcfc" ? 1 + (typical_steps - 1) / std::max(1, s.recalc_fc) : 1;
             std::string hh = h.how;
             const auto ir = hh.find("; IR");
             if (ir != std::string::npos) hh = hh.substr(0, ir);
             const auto dip = hh.find(", analytic dipole");
             if (dip != std::string::npos) hh = hh.substr(0, dip);
-            st.how += std::string("; P-RFO steps, Bofill updates; Hessian computed ") +
-                      (all ? "at every step (CalcAll)" : "at the first step (CalcFC)") + ": " + hh;
-            st.seconds += (all ? typical_steps : 1) * h.seconds;
+            st.how += std::string(job_has_ts(t) ? "; P-RFO steps, Bofill updates" : "; RFO steps, BFGS updates") +
+                      "; Hessian computed " +
+                      (all ? std::string("at every step (CalcAll)")
+                       : hmode == "recalcfc" ? strprintf("at step 1 and every %d steps (RecalcFC=%d)", s.recalc_fc, s.recalc_fc)
+                                             : std::string("at the first step (CalcFC)")) +
+                      ": " + hh;
+            st.seconds += computed * h.seconds;
             st.analytic = st.analytic && h.analytic;
         } else if (m == "RHF" && nbf <= 100) {
             st.seconds += 6.0 * tg;  // analytic initial Hessian
@@ -1213,7 +1221,10 @@ JobResult run_job(const MolecularInput& input, const JobSettings& s, const Outpu
             if (ts) {
                 w.line("    Berny-type search for a first-order saddle point (Gaussian: Opt=TS) in redundant internal");
                 w.line(std::string("    coordinates: Hessian computed ") +
-                       (s.ts_hessian == "calcall" ? "at every step (CalcAll)" : "at the first step (CalcFC), then Bofill updates") +
+                       (s.ts_hessian == "calcall" ? std::string("at every step (CalcAll)")
+                        : s.ts_hessian == "recalcfc"
+                            ? strprintf("at step 1 and every %d steps (RecalcFC=%d), Bofill updates between", s.recalc_fc, s.recalc_fc)
+                            : std::string("at the first step (CalcFC), then Bofill updates")) +
                        "; partitioned RFO steps (Baker 1986) that");
                 w.line("    maximise along the followed Hessian eigenvector (the lowest at the start, then the one most");
                 w.line(strprintf("    like the previous one) and minimise along the others; trust radius %.2f bohr/rad (fixed);",
@@ -1222,9 +1233,18 @@ JobResult run_job(const MolecularInput& input, const JobSettings& s, const Outpu
                                  s.eigen_test ? "on (exactly one negative eigenvalue)" : "off (NoEigenTest)",
                                  s.tight ? "tight" : "normal", s.max_steps));
             } else {
-                w.line(strprintf("    Redundant internal coordinates, RFO steps with a trust radius, BFGS updates; %s "
+                w.line(strprintf("    Redundant internal coordinates, %s steps with a trust radius, BFGS updates; %s "
                                  "convergence, at most %d steps",
+                                 s.opt_algorithm == "gediis" ? "hybrid GEDIIS/RFO (Li and Frisch 2006)" : "RFO",
                                  s.tight ? "tight" : "normal", s.max_steps));
+                if (!s.opt_hessian.empty())
+                    w.line(std::string("    Hessian computed ") +
+                           (s.opt_hessian == "calcall" ? std::string("at every step (CalcAll)")
+                            : s.opt_hessian == "recalcfc"
+                                ? strprintf("at step 1 and every %d steps (RecalcFC=%d), BFGS updates between", s.recalc_fc,
+                                            s.recalc_fc)
+                                : std::string("at the first step (CalcFC), then BFGS updates")) +
+                           " (negative eigenvalues replaced by their magnitude)");
             }
             w.line(strprintf("    thresholds: max force %.1e, RMS force %.1e E_h/bohr; max step %.1e, RMS step %.1e bohr; "
                              "energy change %.0e E_h",
@@ -1235,6 +1255,9 @@ JobResult run_job(const MolecularInput& input, const JobSettings& s, const Outpu
             oo.transition_state = ts;
             oo.initial_hessian = s.initial_hessian;
             oo.ts_hessian = s.ts_hessian;
+            oo.computed_hessian = ts ? "" : s.opt_hessian;
+            oo.recalc_every = s.recalc_fc;
+            oo.algorithm = s.opt_algorithm;
             oo.numerical_hessian = s.hessian == "numerical";
             oo.eigen_test = s.eigen_test;
             oo.on_step_start = [&](int step, const Molecule& geom) {

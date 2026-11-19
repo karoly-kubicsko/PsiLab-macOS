@@ -108,7 +108,7 @@ struct OptimizationView: View {
                                reference: showStart && index > 0 ? start : nil,
                                framing: aligned,
                                accessibilityText: "Molecule at this optimisation step")
-                    .frame(minWidth: 260, maxWidth: .infinity, minHeight: 300, maxHeight: 300)
+                    .frame(minWidth: 360, maxWidth: .infinity, minHeight: Viewer3DSize.height, maxHeight: Viewer3DSize.height)
                 VStack(alignment: .leading, spacing: 6) {
                     Text("Step \(step.step) of \(history.count)")
                         .font(.headline)
@@ -814,7 +814,7 @@ struct FrequencyPage: View {
                                              displacedCoordinates(equilibrium, m.displacement, -a)],
                                    vibration: vibration,
                                    accessibilityText: "Animation of normal mode \(index + 1)")
-                        .frame(minWidth: 300, maxWidth: .infinity, minHeight: 320, maxHeight: 320)
+                        .frame(minWidth: 380, maxWidth: .infinity, minHeight: Viewer3DSize.modeHeight, maxHeight: Viewer3DSize.modeHeight)
                     Text(m.irIntensity.map { String(format: "IR intensity %.2f km/mol", $0) } ?? "IR intensity –")
                         .font(.caption)
                         .monospacedDigit()
@@ -840,7 +840,7 @@ struct FrequencyPage: View {
             }
             .padding(2)
         }
-        .frame(maxHeight: 350)
+        .frame(maxHeight: Viewer3DSize.modeHeight + 30)
     }
 
     private func modeTile(_ index: Int) -> some View {
