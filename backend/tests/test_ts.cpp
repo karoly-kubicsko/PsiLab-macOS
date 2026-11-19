@@ -270,7 +270,12 @@ int main() {
         };
         CHECK(contains(err({{"molecule", "LiH"}, {"job", "ts"}}), "A diatomic molecule has no transition state"));
         CHECK(contains(err({{"molecule", "NH3"}, {"method", "CCSDT"}, {"job", "ts"}}), "CCSDT transition-state searches for NH3"));
-        CHECK(contains(err({{"molecule", "H2O"}, {"job", "ts"}, {"tsHessian", "readfc"}}), "tsHessian must be calcfc or calcall"));
+        CHECK(contains(err({{"molecule", "H2O"}, {"job", "ts"}, {"tsHessian", "readfc"}}),
+                       "tsHessian must be calcfc, calcall or recalcfc"));  // 15.0: RecalcFC=N
+        CHECK(contains(err({{"molecule", "H2O"}, {"job", "ts"}, {"tsHessian", "recalcfc"}}), "RecalcFC=N needs N >= 1"));
+        CHECK(contains(err({{"molecule", "H2O"}, {"job", "opt"}, {"optHessian", "readfc"}}),
+                       "optHessian must be auto, calcfc, calcall or recalcfc"));
+        CHECK(contains(err({{"molecule", "H2O"}, {"job", "opt"}, {"optAlgorithm", "gdiis"}}), "optAlgorithm must be rfo or gediis"));
         const json e = run({{"molecule", "NH3"}, {"method", "CCSD(T)"}, {"job", "ts+freq"}, {"estimateOnly", true}});
         CHECK(e["error"].is_null());
         const json& st = e["job"]["estimate"]["steps"];
