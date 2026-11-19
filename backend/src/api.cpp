@@ -247,6 +247,10 @@ json molecular_json(const MolecularResult& m) {
         fc["alphaStrings"] = f.alpha_strings;
         fc["betaStrings"] = f.beta_strings;
         fc["determinants"] = f.determinants;
+        if (f.spin_adapted) {  // 15.0
+            fc["csfs"] = f.csfs;
+            fc["spin"] = f.spin;
+        }
         json lead = json::array();
         for (const auto& d : f.leading)
             lead.push_back({{"coefficient", d.coefficient}, {"alpha", d.alpha}, {"beta", d.beta},

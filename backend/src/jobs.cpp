@@ -85,7 +85,9 @@ double gradient_seconds(const MolecularResult& p, bool* analytic, std::string* h
             const double n = nbf;
             const double n5 = 6.0 * std::pow(n, 5) / (4.0e9 * std::max(1, e.threads));
             if (m == "FCI") {
-                *how = "analytic gradient (Full CI densities, Z-vector)";
+                *how = p.reference.empty() || p.reference == "RHF"
+                           ? "analytic gradient (Full CI densities, Z-vector)"
+                           : "analytic gradient (Full CI spin densities; orbital-invariant energy, no Z-vector)";
                 return 1.3 * (e.total_seconds * 1.3 + 2.5 * e.rhf_seconds + n5) + 0.2;
             }
             *how = "analytic gradient (" + m + " Lambda equations, relaxed densities, Z-vector)";
@@ -307,6 +309,16 @@ JobEstimate estimate_job(const MolecularResult& p, const JobSettings& s, const M
     const CostEstimate& e = p.estimate;
     if (!p.refusal.empty()) est.refusal = p.refusal;
     const int nbf = p.basis.n_functions, nocc = p.molecule.electrons() / 2;
+    // 15.0: alpha and beta electrons (open-shell Hessians)
+    int n_alpha = nocc, n_beta = nocc;
+    try {
+        const auto ab = alpha_beta_electrons(p.molecule.electrons(), p.input.multiplicity);
+        n_alpha = ab.first;
+        n_beta = ab.second;
+    } catch (const std::exception&) {
+    }
+    const double hessian_mb = analytic_hessian_bytes(m, p.reference, n_alpha, n_beta, nbf, nbf,
+                                                     static_cast<int>(p.molecule.atoms.size())) / 1048576.0;
     if (t == "energy") {
         JobStepEstimate st{"Energy", m, p.input.basis, "single point", true, 1, "energies", e.total_seconds, 0.0};
         est.steps.push_back(st);
@@ -326,7 +338,7 @@ JobEstimate estimate_job(const MolecularResult& p, const JobSettings& s, const M
     // ("auto" or "analytic", where it fits into memory; no dipole derivatives): extra seconds
     const bool correlated_hessian_fits =
         analytic && m != "RHF" && analytic_hessian_method(m, p.reference) && p.molecule.atoms.size() >= 2 &&
-        analytic_hessian_bytes(m, nocc, nbf, nbf, static_cast<int>(p.molecule.atoms.size())) / 1048576.0 <= p.input.fci_memory_mb;
+        hessian_mb <= p.input.fci_memory_mb;
     const bool analytic_initial = correlated_hessian_fits && s.initial_hessian != "lindh";
     const double initial_hessian_seconds =
         analytic_initial
@@ -348,8 +360,7 @@ JobEstimate estimate_job(const MolecularResult& p, const JobSettings& s, const M
             st.seconds = 7.0 * tg;
         } else if (analytic && m != "RHF" && analytic_hessian_method(m, p.reference) && s.hessian != "numerical" &&
                    !fewer_than_two_atoms(p) &&
-                   analytic_hessian_bytes(m, nocc, nbf, nbf, static_cast<int>(p.molecule.atoms.size())) / 1048576.0 <=
-                       p.input.fci_memory_mb) {
+                   hessian_mb <= p.input.fci_memory_mb) {
             // 10.0: analytic correlated Hessian, responses along the internal directions and the
             // field components (dipole derivatives)
             st.analytic = true;
@@ -357,12 +368,18 @@ JobEstimate estimate_job(const MolecularResult& p, const JobSettings& s, const M
             const int responses = dirs + 3;
             st.evaluations = responses;
             st.evaluation_kind = "responses";
-            st.how = strprintf("analytic Hessian: %s responses along the %d internal direction%s and the 3 electric-field "
-                               "components (IR intensities), CPHF orbital response of all %zu coordinates, Z-vector",
-                               m == "FCI" ? "CI-vector" : "amplitude", dirs, dirs == 1 ? "" : "s",
-                               3 * p.molecule.atoms.size());
+            const bool open = !(p.reference.empty() || p.reference == "RHF");
+            if (m == "FCI" && open)
+                st.how = strprintf("analytic Hessian: CI-vector responses along the %d internal direction%s and the 3 "
+                                   "electric-field components (IR intensities); orbital-invariant energy, no CPHF or Z-vector",
+                                   dirs, dirs == 1 ? "" : "s");
+            else
+                st.how = strprintf("analytic Hessian: %s responses along the %d internal direction%s and the 3 electric-field "
+                                   "components (IR intensities), %s orbital response of all %zu coordinates, Z-vector",
+                                   m == "FCI" ? "CI-vector" : "amplitude", dirs, dirs == 1 ? "" : "s",
+                                   open ? ("coupled-perturbed " + p.reference).c_str() : "CPHF", 3 * p.molecule.atoms.size());
             st.seconds = ((m == "FCI" ? 0.6 : 1.5) * responses + 3.0) * tg;
-            st.memory_mb = analytic_hessian_bytes(m, nocc, nbf, nbf, static_cast<int>(p.molecule.atoms.size())) / 1048576.0;
+            st.memory_mb = hessian_mb;
         } else if (analytic && uses_cartesian_displacements(p.molecule)) {
             // 9.0: custom molecules, Cartesian directions orthogonal to translations and rotations
             st.analytic = false;

@@ -1,4 +1,5 @@
 #include "macqc/hessian.h"
+#include "macqc/open_shell_correlated.h"
 
 #include "macqc/scf_derivatives.h"
 #include "macqc/so_derivatives.h"
@@ -254,7 +255,8 @@ NumericalHessianCost numerical_hessian_cost(const Molecule& mol, bool analytic_g
 
 bool analytic_hessian_method(const std::string& m, const std::string& reference) {
     if (m == "RHF") return true;
-    if (!(reference.empty() || reference == "RHF")) return false;
+    // 15.0: the spin-orbital engine's methods and Full CI on UHF and ROHF references (open_shell_correlated.h)
+    if (!(reference.empty() || reference == "RHF")) return uses_so_engine(m, reference) || m == "FCI";
     return m == "FCI" || m == "CCSD" || m == "CCSD(T)" || uses_so_engine(m, "RHF");
 }
 
@@ -290,6 +292,15 @@ double analytic_hessian_bytes(const std::string& m, int nocc, int nmo, int nbasi
         b += ccsd_density_bytes(nocc, nmo - nocc, m == "CCSD(T)");
     }
     return b;
+}
+
+double analytic_hessian_bytes(const std::string& m, const std::string& reference, int n_alpha, int n_beta, int nmo,
+                              int nbasis, int natoms) {
+    if (reference.empty() || reference == "RHF") return analytic_hessian_bytes(m, n_alpha, nmo, nbasis, natoms);
+    if (!analytic_hessian_method(m, reference)) return 0.0;
+    if (m == "FCI") return open_shell_fci_hessian_bytes(n_alpha, n_beta, nmo, nbasis, natoms);
+    const int nocc[2] = {n_alpha, n_beta};
+    return open_shell_hessian_bytes(m, nocc, nmo, nbasis, natoms);
 }
 
 HessianResult run_hessian(const Molecule& mol, const BasisSet& basis, const std::string& method,
@@ -369,6 +380,117 @@ HessianResult run_hessian(const Molecule& mol, const BasisSet& basis, const std:
                 }
                 r.cphf_iterations = ch.cphf_iterations;
                 r.cphf_converged = ch.cphf_converged;
+                r.seconds = seconds_since(t0);
+                return r;
+            }
+        }
+    }
+    // ---- 15.0: analytic Hessians of the spin-orbital engine's methods on UHF and ROHF references
+    if (scf_ref != "RHF" && uses_so_engine(method, scf_ref) && !ho.force_numerical && !ho.from_energies) {
+        const RHFResult& scf = ref.point.rhf;
+        const bool uhf = scf_ref == "UHF";
+        const std::string label = (uhf ? "U" : "RO") + method;
+        const double need = analytic_hessian_bytes(method, scf_ref, scf.n_alpha, scf.n_beta, scf.n_mo, basis.n_functions,
+                                                   static_cast<int>(mol.atoms.size())) / 1048576.0;
+        if (!ref.analytic) correlated_reason = "the gradient at the geometry is numerical (" + ref.numerical_reason + ")";
+        else if (scf.removed_functions > 0) correlated_reason = "near-linear dependencies were removed";
+        else if (mol.atoms.size() < 2) correlated_reason = "a single atom";
+        else if (need > eo.fci_memory_mb)
+            correlated_reason = format("the analytic Hessian would need about %.1f GB (limit %.1f GB)", need / 1024.0,
+                                       eo.fci_memory_mb / 1024.0);
+        else if (!ref.point.so || !ref.point.so->state)
+            correlated_reason = "the amplitudes at the geometry are not available";
+        if (correlated_reason.empty()) {
+            report_progress(JobStage::Hessian, 1);
+            report_progress(JobStage::Transformation);
+            const MOIntegrals aa = transform_to_mo(basis, scf.H, scf.C, eo.threads);
+            MOIntegrals bb, ab;
+            if (uhf) {
+                bb = transform_to_mo(basis, scf.H, scf.Cb, eo.threads);
+                ab = transform_to_mo_mixed(basis, scf.C, scf.Cb, eo.threads);
+            }
+            SOOptions so;
+            so.threads = eo.threads;
+            so.max_iter = eo.cc_max_iter;
+            so.amplitude_tol = std::min(eo.cc_amplitude_tol, ho.response_tol);
+            so.energy_tol = eo.cc_energy_tol;
+            so.memory_mb = eo.fci_memory_mb;
+            SOResult res = *ref.point.so;
+            const CorrelatedHessianResult ch = open_shell_correlated_hessian(
+                mol, basis, scf, aa, uhf ? bb : aa, uhf ? ab : aa, res, so, eo.threads, eo.memory_mb, ho.dipoles);
+            if (!(ch.method_converged && ch.cphf_converged && ch.zvector_converged))
+                correlated_reason = "the response equations of the analytic Hessian did not converge";
+            else {
+                const std::size_t m = ch.perturbations;
+                r.hessian = ch.hessian;
+                r.analytic = true;
+                r.description = format("analytic (%s: amplitude responses along %zu internal direction%s from the "
+                                       "automatically differentiated Lagrangian of the spin-orbital engine (2n+2 rule), "
+                                       "coupled-perturbed %s orbital responses, Z-vector; translations and rotations by "
+                                       "invariance)",
+                                       label.c_str(), m, m == 1 ? "" : "s", scf_ref.c_str());
+                r.has_dipole_derivatives = ho.dipoles && ch.has_dipole_derivatives;
+                if (r.has_dipole_derivatives) {
+                    r.dipole_derivatives = ch.dipole_derivatives;
+                    r.dipole_description = "analytic (electric-field perturbations: coupled-perturbed " + scf_ref +
+                                           " and amplitude responses)";
+                }
+                r.cphf_iterations = ch.cphf_iterations;
+                r.cphf_converged = ch.cphf_converged;
+                r.seconds = seconds_since(t0);
+                return r;
+            }
+        }
+    }
+    // ---- 15.0: analytic Full CI Hessians on UHF and ROHF references (orbital-invariant energy: CI vector
+    // responses in the space of the requested spin, no CPHF or Z-vector)
+    if (scf_ref != "RHF" && method == "FCI" && !ho.force_numerical && !ho.from_energies) {
+        const RHFResult& scf = ref.point.rhf;
+        const double need = analytic_hessian_bytes(method, scf_ref, scf.n_alpha, scf.n_beta, scf.n_mo, basis.n_functions,
+                                                   static_cast<int>(mol.atoms.size())) / 1048576.0;
+        if (!ref.analytic) correlated_reason = "the gradient at the geometry is numerical (" + ref.numerical_reason + ")";
+        else if (scf.removed_functions > 0) correlated_reason = "near-linear dependencies were removed";
+        else if (mol.atoms.size() < 2) correlated_reason = "a single atom";
+        else if (need > eo.fci_memory_mb)
+            correlated_reason = format("the analytic Hessian would need about %.1f GB (limit %.1f GB)", need / 1024.0,
+                                       eo.fci_memory_mb / 1024.0);
+        if (correlated_reason.empty()) {
+            report_progress(JobStage::Hessian, 1);
+            report_progress(JobStage::Transformation);
+            const MOIntegrals mo = transform_to_mo(basis, scf.H, scf.C, eo.threads);
+            FCIOptions fo;
+            fo.threads = eo.threads;
+            fo.memory_limit_mb = eo.fci_memory_mb;
+            fo.residual_tol = std::min(eo.fci_residual_tol, 1.0e-9);
+            fo.energy_tol = 1.0e-12;
+            fo.max_iter = 200;
+            fo.keep_vector = true;
+            const FCIResultGeneral f =
+                run_fci_determinants(mo, scf.n_alpha, scf.n_beta, scf.nuclear_repulsion, scf.total_energy, fo, cb.fci);
+            CorrelatedHessianResult ch;
+            if (!f.converged) correlated_reason = "the Full CI vector at the geometry did not converge";
+            else {
+                ch = open_shell_fci_hessian(mol, basis, scf, mo, f.vector, f.electronic_energy, eo.threads, eo.memory_mb,
+                                            eo.fci_memory_mb, ho.dipoles);
+                if (!(ch.method_converged && ch.zvector_converged))
+                    correlated_reason = "the response equations of the analytic Hessian did not converge";
+            }
+            if (correlated_reason.empty()) {
+                const std::size_t m = ch.perturbations;
+                r.hessian = ch.hessian;
+                r.analytic = true;
+                r.description = format("analytic (Full CI on %s orbitals: CI vector responses in the space of S = %.1f along "
+                                       "%zu internal direction%s; the energy is invariant to the orbital rotations, so the "
+                                       "orbitals follow the geometry by symmetric orthonormalisation without CPHF or "
+                                       "Z-vector; translations and rotations by invariance)",
+                                       scf_ref.c_str(), f.spin, m, m == 1 ? "" : "s");
+                r.has_dipole_derivatives = ho.dipoles && ch.has_dipole_derivatives;
+                if (r.has_dipole_derivatives) {
+                    r.dipole_derivatives = ch.dipole_derivatives;
+                    r.dipole_description = "analytic (electric-field perturbations: CI vector responses)";
+                }
+                r.cphf_iterations = 0;
+                r.cphf_converged = true;
                 r.seconds = seconds_since(t0);
                 return r;
             }
@@ -476,8 +598,8 @@ HessianResult run_hessian(const Molecule& mol, const BasisSet& basis, const std:
     else if (ho.force_numerical || ho.from_energies)
         r.numerical_reason = "requested";
     else if (scf_ref != "RHF")
-        r.numerical_reason = "no analytic Hessian of correlated methods on an open-shell (" + scf_ref +
-                             ") reference in this version: differences of analytic gradients";
+        r.numerical_reason = "no analytic Hessian of " + method + " on an open-shell (" + scf_ref +
+                             ") reference in this version";
     else
         r.numerical_reason = "no analytic Hessian for " + method + " in this version";
 

@@ -977,6 +977,115 @@ CorrelatedDensity fci_densities(int n_orbitals, int na, int nb, const std::vecto
     return d;
 }
 
+SODensities fci_spin_densities(int n_orbitals, int na, int nb, const std::vector<double>& x, const std::vector<double>& y,
+                               int threads) {
+    const int nt = resolve_threads(threads);
+    const std::size_t n = static_cast<std::size_t>(n_orbitals), n2 = n * n;
+    const StringSpace Sa(n_orbitals, na), Sb(n_orbitals, nb);
+    const std::size_t Na = Sa.size(), Nb = Sb.size();
+    if (x.size() != Na * Nb || y.size() != Na * Nb) throw std::invalid_argument("fci_spin_densities: CI vector has the wrong length");
+    SODensities d;
+    d.n[0] = d.n[1] = n_orbitals;
+    d.lambda_converged = true;
+    // ---- one-particle: D^s_pq = 1/2 (<x|a+_ps a_qs|y> + <y|a+_ps a_qs|x>)
+    {
+        Matrix ga(n, n), gb(n, n);
+        const Lists<Excitation> exa = single_excitations(Sa);
+        for (std::size_t J = 0; J < Na; ++J) {
+            const double* yj = y.data() + J * Nb;
+            for (const Excitation* e = exa.begin(J); e != exa.end(J); ++e) {
+                const double* xi = x.data() + static_cast<std::size_t>(e->target) * Nb;
+                double s = 0.0;
+                for (std::size_t b = 0; b < Nb; ++b) s += xi[b] * yj[b];
+                ga(e->p, e->q) += e->sign * s;
+            }
+        }
+        const Lists<Excitation> exb = single_excitations(Sb);
+        for (std::size_t J = 0; J < Nb; ++J)
+            for (const Excitation* e = exb.begin(J); e != exb.end(J); ++e) {
+                double s = 0.0;
+                for (std::size_t a = 0; a < Na; ++a) s += x[a * Nb + e->target] * y[a * Nb + J];
+                gb(e->p, e->q) += e->sign * s;
+            }
+        d.D[0] = Matrix(n, n);
+        d.D[1] = Matrix(n, n);
+        for (std::size_t p = 0; p < n; ++p)
+            for (std::size_t q = 0; q < n; ++q) {
+                d.D[0](p, q) = 0.5 * (ga(p, q) + ga(q, p));
+                d.D[1](p, q) = 0.5 * (gb(p, q) + gb(q, p));
+            }
+    }
+    d.Gaa.assign(n2 * n2, 0.0);
+    d.Gbb.assign(n2 * n2, 0.0);
+    d.Gab.assign(n2 * n2, 0.0);
+    // M[(p n + r)][(q n + s)] -> G[p][q][r][s] with factor f
+    auto store = [&](const std::vector<double>& M, double f, std::vector<double>& G) {
+        for (std::size_t p = 0; p < n; ++p)
+            for (std::size_t r = 0; r < n; ++r)
+                for (std::size_t q = 0; q < n; ++q)
+                    for (std::size_t s = 0; s < n; ++s) G[((p * n + q) * n + r) * n + s] += f * M[(p * n + r) * n2 + q * n + s];
+    };
+    // symmetric bilinear product sum_K (A_x[i][K] A_y[j][K] + A_y[i][K] A_x[j][K]) / 2
+    auto bilinear = [&](const std::vector<double>& Ax, const std::vector<double>& Ay, std::size_t cols) {
+        std::vector<double> M(n2 * n2, 0.0);
+        if (cols == 0) return M;
+        gemm(false, true, n2, n2, cols, 0.5, Ax.data(), cols, Ay.data(), cols, 0.0, M.data(), n2, nt);
+        gemm(false, true, n2, n2, cols, 0.5, Ay.data(), cols, Ax.data(), cols, 1.0, M.data(), n2, nt);
+        return M;
+    };
+    // ---- alpha-beta: G_ab,pqrs = <a+_pa a+_rb a_sb a_qa>, A_xy(Ka, Kb) = <Ka Kb| a_yb a_xa |Psi>
+    if (na >= 1 && nb >= 1) {
+        const StringSpace Sa1(n_orbitals, na - 1), Sb1(n_orbitals, nb - 1);
+        const std::size_t Ma = Sa1.size(), Mb = Sb1.size();
+        const Lists<Hop> anna = annihilations(Sa, Sa1), annb = annihilations(Sb, Sb1);
+        auto inter = [&](const std::vector<double>& c) {
+            std::vector<double> A(n2 * Ma * Mb, 0.0);
+            for (std::size_t Ia = 0; Ia < Na; ++Ia) {
+                check_cancelled();
+                for (const Hop* ha = anna.begin(Ia); ha != anna.end(Ia); ++ha)
+                    for (std::size_t Ib = 0; Ib < Nb; ++Ib) {
+                        const double v = c[Ia * Nb + Ib];
+                        if (v == 0.0) continue;
+                        for (const Hop* hb = annb.begin(Ib); hb != annb.end(Ib); ++hb)
+                            A[((static_cast<std::size_t>(ha->orb) * n + hb->orb) * Ma + ha->target) * Mb + hb->target] +=
+                                ha->sign * hb->sign * v;
+                    }
+            }
+            return A;
+        };
+        const std::vector<double> Ax = inter(x), Ay = inter(y);
+        store(bilinear(Ax, Ay, Ma * Mb), 1.0, d.Gab);
+    }
+    // ---- same spin: G_ss,pqrs = 1/2 <a+_ps a+_rs a_ss a_qs>, B_xy(K2, J) = <K2| a_y a_x |I> C
+    for (int sp = 0; sp < 2; ++sp) {
+        const int ne = sp ? nb : na;
+        if (ne < 2) continue;
+        const StringSpace& S = sp ? Sb : Sa;
+        const StringSpace S1(n_orbitals, ne - 1), S2(n_orbitals, ne - 2);
+        const std::size_t M2 = S2.size(), No = sp ? Na : Nb;  // the other spin's strings
+        const Lists<Hop> ann1 = annihilations(S, S1), ann2 = annihilations(S1, S2);
+        auto inter = [&](const std::vector<double>& c) {
+            std::vector<double> B(n2 * M2 * No, 0.0);
+            for (std::size_t I = 0; I < S.size(); ++I) {
+                check_cancelled();
+                for (const Hop* h1 = ann1.begin(I); h1 != ann1.end(I); ++h1)
+                    for (const Hop* h2 = ann2.begin(h1->target); h2 != ann2.end(h1->target); ++h2) {
+                        const double sg = h1->sign * h2->sign;
+                        double* row = B.data() + ((static_cast<std::size_t>(h1->orb) * n + h2->orb) * M2 + h2->target) * No;
+                        if (sp == 0)
+                            for (std::size_t J = 0; J < No; ++J) row[J] += sg * c[I * Nb + J];
+                        else
+                            for (std::size_t J = 0; J < No; ++J) row[J] += sg * c[J * Nb + I];
+                    }
+            }
+            return B;
+        };
+        const std::vector<double> Bx = inter(x), By = inter(y);
+        store(bilinear(Bx, By, M2 * No), 0.5, sp ? d.Gbb : d.Gaa);
+    }
+    return d;
+}
+
 FCIResponse fci_vector_responses(const MOIntegrals& mo, int na, int nb, const std::vector<double>& c,
                                  double E, std::size_t count, const std::function<MOIntegrals(std::size_t)>& perturbation,
                                  int threads, double memory_limit_mb, double tol, int max_iter) {
@@ -992,8 +1101,12 @@ FCIResponse fci_vector_responses(const MOIntegrals& mo, int na, int nb, const st
         if (d < 1.0e-4) d = 1.0e-4;  // the ground state lies below every diagonal element
         prec[i] = 1.0 / d;
     }
+    // 15.0: the responses stay in the space of the requested spin (Loewdin projector, as the Davidson
+    // vectors): an open-shell state need not be the lowest of its M_S space
+    const SpinProjector projector = spin_projector(H.alpha(), H.beta(), symmetric);
     auto project = [&](std::vector<double>& w) {
         if (symmetric) symmetrize(w, Na);
+        projector.apply(w);
         axpy(-dot(c, w), c, w);
     };
     FCIResponse out;

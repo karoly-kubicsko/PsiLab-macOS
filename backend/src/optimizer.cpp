@@ -542,16 +542,18 @@ OptimizationResult optimize_geometry(const Molecule& start, const BasisSet& basi
             // "auto": the analytic RHF Hessian up to analytic_hessian_max_functions; 10.0: the analytic
             // Full CI, CCSD and CCSD(T) Hessians where they are possible (otherwise Lindh's model)
             if (kind == "auto")
-                kind = (method == "RHF" ? bx.n_functions <= oo.analytic_hessian_max_functions : analytic_hessian_method(method))
+                kind = (method == "RHF" ? bx.n_functions <= oo.analytic_hessian_max_functions
+                                        : analytic_hessian_method(method, g.point.rhf.reference))
                            ? "analytic"
                            : "lindh";
-            if (kind == "analytic" && !analytic_hessian_method(method)) kind = "lindh";
+            if (kind == "analytic" && !analytic_hessian_method(method, g.point.rhf.reference)) kind = "lindh";
             std::string model_reason;  // why a requested analytic correlated Hessian was not possible
             Matrix Hcorr;
             if (!carried && kind == "analytic" && method != "RHF") {
                 const RHFResult& rr = g.point.rhf;
-                const double need = analytic_hessian_bytes(method, rr.n_occupied, static_cast<int>(rr.C.cols()),
-                                                           static_cast<int>(rr.C.rows()), static_cast<int>(x.atoms.size())) /
+                const double need = analytic_hessian_bytes(method, rr.reference, rr.n_alpha, rr.n_beta,
+                                                           static_cast<int>(rr.C.cols()), static_cast<int>(rr.C.rows()),
+                                                           static_cast<int>(x.atoms.size())) /
                                     1048576.0;
                 if (!g.analytic) model_reason = "the gradient is numerical";
                 else if (need > eo.fci_memory_mb)

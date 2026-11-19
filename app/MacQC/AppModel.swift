@@ -143,6 +143,21 @@ final class AppModel {
     var charges: [String: Int] = [:]
     var multiplicities: [String: Int] = [:]
     var reference: ReferenceChoice = .automatic
+
+    /// 15.0: the reference the calculation uses (the choice, or Gaussian's default: RHF for
+    /// closed-shell singlets, UHF for open shells, ROHF for open-shell Full CI).
+    var effectiveReference: ReferenceChoice {
+        if reference != .automatic { return reference }
+        if multiplicity == 1 { return .rhf }
+        return method == .fci ? .rohf : .uhf
+    }
+
+    /// 15.0: an analytic Hessian beyond the SCF for the method on this reference. UHF and ROHF:
+    /// every correlated method (CCSDT and CCSDTQ included) and Full CI; RHF: all but CCSDT, CCSDTQ.
+    var hasAnalyticCorrelatedHessian: Bool {
+        if method == .hf { return false }
+        return effectiveReference == .rhf ? method.hasAnalyticCorrelatedHessian : true
+    }
     var hehSzaboOstlund = true
 
     // Job (ΨLab 5.0)
@@ -585,7 +600,7 @@ final class AppModel {
             input.eigenTest = eigenTest
             input.hessian = analyticHessian ? "analytic" : "numerical"
             // "auto": the analytic Hessian (HF, Full CI, CCSD, CCSD(T)) where possible, else Lindh's model
-            input.initialHessian = method.hasAnalyticCorrelatedHessian && !analyticInitialHessian ? "model" : "auto"
+            input.initialHessian = hasAnalyticCorrelatedHessian && !analyticInitialHessian ? "model" : "auto"
         } else {
             input.molecule = MoleculeChoice.heh.rawValue
             input.basis = hehBasis   // STO-1G, STO-2G or STO-3G: the Szabo–Ostlund calculation
@@ -1058,7 +1073,7 @@ final class AppModel {
             lines.append("Note: \(note)")
         }
         lines.append("")
-        lines.append("Hartree-Fock (RHF)")
+        lines.append("Hartree-Fock (\(out.referenceLabel))")
         lines.append("  converged:            \(rhf.converged ? "yes" : "no") (\(rhf.iterations) iterations)")
         lines.append("  total energy:         " + Fmt.energy10(rhf.totalEnergy) + " E_h")
         lines.append("  electronic energy:    " + Fmt.energy10(rhf.electronicEnergy) + " E_h")

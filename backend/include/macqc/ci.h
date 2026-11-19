@@ -25,6 +25,7 @@
 
 #include "macqc/correlated_gradient.h"
 #include "macqc/mo_integrals.h"
+#include "macqc/so_methods.h"
 
 namespace macqc {
 
@@ -133,6 +134,13 @@ FCIResultGeneral run_fci_determinants(const MOIntegrals& mo, int n_alpha, int n_
 // ones; each is one matrix product.
 CorrelatedDensity fci_densities(int n_orbitals, int n_alpha, int n_beta, const std::vector<double>& vector,
                                 int threads = 0);
+// 15.0: spin-resolved densities of any n_alpha, n_beta in the convention of the spin-orbital engine
+// (so_methods.h: E = sum_s D_s h_s + sum G_aa (pq|rs) + G_bb (pq|rs) + G_ab (pq|rs)_ab), of the
+// symmetrised bilinear form 1/2 (<x|O|y> + <y|O|x>) of two CI vectors (x = y: the ordinary
+// densities): D^s_pq = <a+_ps a_qs>, G_ss,pqrs = <a+_ps a+_rs a_ss a_qs> / 2, G_ab,pqrs =
+// <a+_pa a+_rb a_sb a_qa>.
+SODensities fci_spin_densities(int n_orbitals, int n_alpha, int n_beta, const std::vector<double>& x,
+                               const std::vector<double>& y, int threads = 0);
 // Memory (bytes) of fci_densities.
 double fci_density_bytes(int n_orbitals, int n_alpha);
 

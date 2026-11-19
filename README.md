@@ -21,12 +21,13 @@ CISDTQ, spin-adapted Full CI), quadratic CI (QCISD … QCISDTQ) and coupled clus
   Hartree–Fock identical to the book's program, Full CI with all states and their spin.
 
 For these molecules it **optimises geometries** (redundant internal coordinates, analytic gradients
-for HF, CCSD, CCSD(T) and Full CI), finds **transition states** (Gaussian's Opt=TS: partitioned RFO
-with a computed Hessian, CalcFC or CalcAll), runs **relaxed potential-energy scans** of a bond, an
-angle or a dihedral angle (Gaussian's Opt=ModRedundant), computes **harmonic frequencies, IR
-intensities and thermochemistry** (analytic Hessians and dipole derivatives for HF, CCSD,
-CCSD(T) and Full CI; numerical Hessians from energies for CCSDT and CCSDTQ; point groups up to
-D₃ₕ) and runs nine job types,
+for HF, MP2–MP5, CISD … CISDTQ, QCISD … QCISDTQ, CCSD, CCSD(T) and Full CI, and (15.0) on UHF and
+ROHF references also for CCSDT and CCSDTQ), finds **transition states** (Gaussian's Opt=TS:
+partitioned RFO with a computed Hessian, CalcFC or CalcAll), runs **relaxed potential-energy scans**
+of a bond, an angle or a dihedral angle (Gaussian's Opt=ModRedundant), computes **harmonic
+frequencies, IR intensities and thermochemistry** (analytic Hessians and dipole derivatives for the
+same methods on RHF, UHF and ROHF references; numerical Hessians from energies for closed-shell
+CCSDT and CCSDTQ; point groups up to D₃ₕ) and runs nine job types,
 from *energy* to *TS optimisation + frequencies + single-point energy*, each with a complete
 output file that is written while the job runs.
 
@@ -252,16 +253,44 @@ tangents, the Lagrangian's second derivatives by forward-over-reverse). Status:
 
 | Method | RHF reference (closed shells) | UHF reference | ROHF reference |
 |---|---|---|---|
-| HF (the SCF) | analytic gradient and Hessian | analytic gradient and Hessian (CPUHF) | analytic gradient and Hessian |
-| MP2–MP5, CISD … CISDTQ, QCISD … QCISDTQ | analytic gradient and Hessian | analytic gradient; Hessian from differences of analytic gradients | numerical |
-| CCSD, CCSD(T) | analytic (10.0) | analytic gradient; Hessian from analytic gradients | numerical |
-| Full CI | analytic (10.0) | — (ROHF) | numerical |
+| HF (the SCF) | analytic gradient and Hessian | analytic gradient and Hessian (coupled-perturbed UHF) | analytic gradient and Hessian |
+| MP2–MP5, CISD … CISDTQ, QCISD … QCISDTQ | analytic gradient and Hessian | analytic gradient and Hessian | analytic gradient and Hessian |
+| CCSD, CCSD(T) | analytic (10.0) | analytic gradient and Hessian | analytic gradient and Hessian |
+| CCSDT, CCSDTQ | numerical (general-order engine of 4.0) | analytic gradient and Hessian | analytic gradient and Hessian |
+| Full CI | analytic (10.0) | analytic gradient and Hessian (in the α orbitals) | analytic gradient and Hessian |
+
+**Open-shell references** (`open_shell_correlated.cpp`). The energy is the Lagrangian L = ⟨Γ(t, λ),
+H(C)⟩ + z·g(C), where g are the stationarity conditions of the SCF on its non-redundant rotations —
+UHF: the occupied–virtual pairs of each spin; ROHF: the closed–open, closed–virtual and open–virtual
+pairs of the common orbitals (non-canonical form, ε = Σ_σ F^σ N^σ) — and z their multipliers. z·g
+is linear in the Hamiltonian, so its one- and two-particle density (Coulomb and exchange parts) joins
+Γ; the Z-vector equations A z = −(Y − Yᵀ) use the UHF or ROHF orbital Hessian (applied with Fock
+builds) and make the generalized Fock matrix Y of Γ_tot symmetric. Gradient: dE/dx = ⟨Γ_tot, H̃ˣ⟩ −
+½⟨Y, S̃ˣ⟩ + V_nnˣ. Hessian (2n + 2 rule: first-order amplitudes tˣ and orbital responses Uˣ = −½S̃ˣ +
+κˣ from the coupled-perturbed UHF or ROHF equations, zeroth-order λ and z): Eˣʸ = ⟨Γ_tot, Hˣʸ⟩ +
+⟨Y[H^[x]], Uʸ⟩ + ⟨Y[H̃ʸ], Uˣ⟩ − ⟨Y, UˣᵀUʸ + S̃ˣUʸ + S̃ʸUˣ + UˣUʸ⟩ − ⟨W, Sˣʸ⟩ + ⟨dΓ[tˣ], H^[y]⟩ +
+⟨dΓ[tʸ], H^[x]⟩ + tˣ L_tt tʸ + V_nnˣʸ, with H^[x] = H̃ˣ + H(Uˣ); the internal directions are
+computed, translations and rotations follow from invariance, and three electric-field perturbations
+give the dipole derivatives (IR intensities). **Full CI** on an open-shell reference uses the
+orbitals of one set (ROHF, or the α orbitals of UHF; its energy is invariant to every orbital
+rotation): spin-resolved densities of the CI vector, no Z-vector and no CPHF (the orbitals follow
+the geometry by symmetric orthonormalisation), CI vector responses cˣ = −(H − E)⁻¹ Q H^[x] c kept
+in the space of the requested spin by Löwdin's projector, and Eˣʸ = ⟨Γ, H^[xy]⟩ + 2⟨cˣ|H^[y]|c⟩.
 
 Checked against 4-point differences (H₂O/6-31G, distorted): gradients of MP3, MP4, CISD, CISD(T),
 QCISD, QCISD(T), CCSD(T), CISDT and QCISDT within 2.5e-10 Eₕ/bohr, Hessians within 2.0e-9 Eₕ/bohr²
-and dipole derivatives within 5.4e-9 e; UHF gradients (OH, O₂) within 2e-10 Eₕ/bohr; UHF and ROHF
-SCF Hessians within 6.5e-10 and 1.5e-8. Example: H₂O QCISD(T)/6-31G *opt+freq*, analytic Hessian
-at the first step and for the frequencies, 1669.16, 3602.37, 3765.72 cm⁻¹, 28 s on 4 cores.
+and dipole derivatives within 5.4e-9 e. Open shells (`macqc_so_tests`): the orbital part alone (the
+SCF energy as the "method") reproduces the UHF and ROHF SCF gradients and Hessians within 4e-13 and
+4e-12; UHF gradients (MP3, QCISD, CISD(T)) and ROHF gradients (MP2, CCSD(T)) of OH agree with
+differences of energies within 4.1e-10 Eₕ/bohr; Hessians against differences of the analytic
+gradients: OH UCCSD 2.3e-9, OH ROCISD 2.1e-9, H₂O⁺ UMP3 6.2e-10, H₂O⁺ ROQCISD(T) 5.9e-10 (STO-3G),
+H₂O⁺/6-31G UMP3, UMP4, UCISD, UQCISD(T), UCCSD(T), UCISDT, ROMP3, ROMP4, ROCISD, ROQCISD(T) and
+ROCCSD(T) within 1.2e-9 Eₕ/bohr², dipole derivatives within 1.6e-9; open-shell Full CI: OH gradient
+4.0e-10, Hessians of OH (UHF orbitals) 2.1e-9, H₂O⁺ (ROHF) 6.5e-10 and O₂ ³Σg⁻ (UHF) 3.7e-9, dipole
+derivatives within 2e-10. Examples: H₂O QCISD(T)/6-31G *opt+freq*, analytic Hessian at the first
+step and for the frequencies, 1669.16, 3602.37, 3765.72 cm⁻¹, 28 s on 4 cores; NO₂ ROMP2/STO-3G
+*opt+freq* (analytic ROHF-based gradients and Hessian) 681.97, 1321.81, 2230.60 cm⁻¹; NO Full
+CI/STO-3G (ROHF, 3300 CSFs) *opt+freq* with CalcFC 1709.59 cm⁻¹, 18 s.
 
 **Optimiser (task 2).** ΨLab optimises in redundant internal coordinates with rational-function
 (RFO) steps, a trust radius and BFGS updates (minima), and with Baker's partitioned RFO and Bofill

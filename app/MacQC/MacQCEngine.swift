@@ -355,6 +355,36 @@ nonisolated struct MacQCRHF: Codable, Sendable, Equatable {
     var integralSeconds: Double
     var scfSeconds: Double
     var scfHistory: [MacQCRHFIteration]
+    // ΨLab 15.0: the reference (RHF, UHF, ROHF), spin and ⟨S²⟩ (open shells)
+    var reference: String?
+    var multiplicity: Int?
+    var alphaElectrons: Int?
+    var betaElectrons: Int?
+    var S2: Double?
+    var S2Exact: Double?
+}
+
+/// ΨLab 15.0: a method of the spin-orbital engine (MP2–MP5, CISD … CISDTQ, QCISD … QCISDTQ, and
+/// coupled cluster on open-shell references): energies, the energy terms (E(2), E(3), (T), …).
+nonisolated struct MacQCCorrelatedTerm: Codable, Sendable, Equatable {
+    var label: String
+    var value: Double
+}
+
+nonisolated struct MacQCCorrelated: Codable, Sendable, Equatable {
+    var method: String
+    var label: String?            // with the reference prefix, e.g. "UMP2"
+    var reference: String?
+    var converged: Bool
+    var iterations: Int
+    var referenceEnergy: Double
+    var correlationEnergy: Double
+    var totalEnergy: Double
+    var t1Diagnostic: Double?
+    var terms: [MacQCCorrelatedTerm]?
+    var seconds: Double?
+
+    var title: String { label ?? method }
 }
 
 nonisolated struct MacQCDeterminant: Codable, Sendable, Equatable {
@@ -392,6 +422,9 @@ nonisolated struct MacQCFullCI: Codable, Sendable, Equatable {
     var history: [MacQCDavidsonIteration]
     var transformSeconds: Double
     var ciSeconds: Double
+    // ΨLab 15.0: spin adaptation (configuration state functions of the requested spin)
+    var csfs: Double?
+    var spin: Double?
 }
 
 nonisolated struct MacQCCCAmplitude: Codable, Sendable, Equatable {
@@ -833,6 +866,8 @@ nonisolated struct MacQCOutput: Codable, Sendable, Equatable {
     var rhf: MacQCRHF?
     var fullCI: MacQCFullCI?
     var coupledCluster: MacQCCoupledCluster?
+    var correlated: MacQCCorrelated?   // 15.0: the spin-orbital engine's methods
+    var reference: String?             // 15.0: RHF, UHF or ROHF
     // ΨLab 5.0 (H2, LiH, H2O): the job and its output file; rhf / fullCI / coupledCluster /
     // molecule / basis describe the final energy calculation of the job.
     var job: MacQCJobInfo?
@@ -845,7 +880,10 @@ nonisolated struct MacQCOutput: Codable, Sendable, Equatable {
     var output: String?
 
     /// Energy of the correlated method of this result (Full CI or coupled cluster).
-    var correlatedEnergy: Double? { coupledCluster?.totalEnergy ?? fullCI?.totalEnergy }
+    var correlatedEnergy: Double? { coupledCluster?.totalEnergy ?? correlated?.totalEnergy ?? fullCI?.totalEnergy }
+
+    /// 15.0: the reference of the SCF ("RHF", "UHF", "ROHF").
+    var referenceLabel: String { rhf?.reference ?? reference ?? "RHF" }
 
     /// Title of the method of this result: "HF", "CCSD(T)", "Full CI", …
     var methodTitle: String { MethodChoice.title(of: input.method) }

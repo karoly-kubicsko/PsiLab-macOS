@@ -1,4 +1,5 @@
 #include "macqc/gradient.h"
+#include "macqc/open_shell_correlated.h"
 
 #include <chrono>
 #include <cmath>
@@ -226,8 +227,10 @@ bool analytic_gradient_method(const std::string& m, const std::string& reference
     const bool closed = reference.empty() || reference == "RHF";
     if (m == "RHF") return true;  // the SCF of every reference
     if (closed) return m == "CCSD" || m == "CCSD(T)" || m == "FCI" || uses_so_engine(m, "RHF");
-    if (reference == "UHF") return uses_so_engine(m, "UHF");
-    return false;  // ROHF-based correlated methods: no ROHF Z-vector
+    // 15.0: UHF (coupled-perturbed UHF) and ROHF (ROHF orbital Hessian) Z-vectors, open_shell_correlated.h;
+    // Full CI (orbital-invariant: no Z-vector)
+    if (reference == "UHF" || reference == "ROHF") return uses_so_engine(m, reference) || m == "FCI";
+    return false;
 }
 
 double analytic_gradient_bytes(const std::string& m, int nocc, int nmo, int nbasis) {
@@ -525,15 +528,17 @@ GradientResult run_gradient(const Molecule& mol, const BasisSet& basis, const st
     std::string reason;
     if (force_numerical) reason = "requested";
     else if (!analytic_gradient_method(method, ref))
-        reason = ref == "ROHF" ? "no analytic gradient of " + labelled(method, ref) +
-                                     " (correlated methods on an ROHF reference need the ROHF Z-vector; use UHF)"
-                               : "no analytic gradient for " + method + " in this version (the general-order engine has "
-                                 "no Lambda equations)";
+        reason = "no analytic gradient for " + labelled(method, ref) + " in this version";
     else if (method != "RHF" && sp.rhf.removed_functions > 0)
         reason = format("%d near-linear dependencies were removed; the analytic %s gradient does not contain the "
                         "rotation of the kept orbital space",
                         sp.rhf.removed_functions, method.c_str());
-    else if (method != "RHF" && so) {
+    else if (method == "FCI" && sp.rhf.open_shell()) {
+        const double need = open_shell_fci_gradient_bytes(sp.rhf.n_alpha, sp.rhf.n_beta, nmo, nbf) / (1024.0 * 1024.0);
+        if (need > o.fci_memory_mb)
+            reason = format("the analytic gradient would need about %.1f GB (limit %.1f GB)", need / 1024.0,
+                            o.fci_memory_mb / 1024.0);
+    } else if (method != "RHF" && so) {
         const int on[2] = {sp.rhf.n_alpha, sp.rhf.n_beta};
         const int vn[2] = {nmo - sp.rhf.n_alpha, nmo - sp.rhf.n_beta};
         const double need = (1.6 * estimate_so_method(method, on, vn).memory_bytes +
@@ -560,6 +565,44 @@ GradientResult run_gradient(const Molecule& mol, const BasisSet& basis, const st
                             std::string(sp.rhf.removed_functions ? ", rotation of the kept orbital space" : "") + ")";
             g.dipole = dipole_moment(mol, basis, sp.rhf.P);
             g.has_dipole = true;
+        } else if (method == "FCI" && sp.rhf.open_shell()) {
+            // 15.0: Full CI on an open-shell reference (orbitals of one set: ROHF, or the alpha orbitals of
+            // UHF); the energy is invariant to the orbital rotations, so no Z-vector
+            report_progress(JobStage::Transformation);
+            const MOIntegrals mo = transform_to_mo(basis, sp.rhf.H, sp.rhf.C, o.threads);
+            FCIOptions fo = fci_options(o, true);
+            fo.residual_tol = std::min(fo.residual_tol, 1.0e-9);
+            sp.fci = run_fci_determinants(mo, sp.rhf.n_alpha, sp.rhf.n_beta, sp.rhf.nuclear_repulsion, sp.rhf.total_energy,
+                                          fo, cb.fci);
+            sp.energy = sp.fci->total_energy;
+            sp.converged = sp.fci->converged;
+            if (!sp.fci->converged)
+                sp.warnings.push_back(format("The Full CI (Davidson) did not converge in %d iterations.", sp.fci->iterations));
+            if (sp.converged) {
+                if (cb.note) cb.note("Full CI spin densities from the CI vector");
+                const OpenShellGradient og = open_shell_fci_gradient(mol, basis, sp.rhf, mo, sp.fci->vector, o.threads, o.memory_mb);
+                CorrelatedGradientResult cg;
+                cg.gradient = og.gradient;
+                cg.nuclear = og.nuclear;
+                cg.one_electron = og.one_electron;
+                cg.two_electron = og.two_electron;
+                cg.overlap = og.overlap;
+                cg.relaxed_density_ao = og.relaxed_density_ao;
+                cg.relaxed_dipole = og.relaxed_dipole;
+                cg.orbital_lagrangian_oo_vv = og.redundant_asymmetry;
+                cg.zvector_converged = true;
+                cg.density_energy = og.density_energy;
+                cg.seconds = og.seconds;
+                g.correlated = cg;
+                g.gradient = og.gradient;
+                g.dipole = og.relaxed_dipole;
+                g.has_dipole = true;
+            }
+            sp.fci->vector.clear();
+            sp.fci->vector.shrink_to_fit();
+            g.description = "analytic (Full CI on " + ref +
+                            " orbitals: spin-resolved one- and two-particle densities of the CI vector; the energy is "
+                            "invariant to the orbital rotations, so there is no Z-vector)";
         } else if (so) {
             report_progress(JobStage::Transformation);
             const SOSetup setup(sp.rhf, basis, o.threads);
@@ -611,6 +654,30 @@ GradientResult run_gradient(const Molecule& mol, const BasisSet& basis, const st
                     cg.density_energy = ug.density_energy;
                     cg.seconds = ug.seconds;
                     g.correlated = cg;
+                } else if (ref == "ROHF") {
+                    // 15.0: the ROHF Z-vector (non-redundant closed-open, closed-virtual and open-virtual
+                    // rotations of the common orbitals)
+                    const SODensities d = so_densities(*sp.so, sopt, prog);
+                    g.lambda_converged = d.lambda_converged;
+                    g.lambda_iterations = d.lambda_iterations;
+                    g.lambda_residual = d.lambda_residual;
+                    const OpenShellGradient og = open_shell_correlated_gradient(mol, basis, sp.rhf, setup.aa, setup.aa, setup.aa, d,
+                                                                                o.threads, o.memory_mb, cb.cphf);
+                    CorrelatedGradientResult cg;
+                    cg.gradient = og.gradient;
+                    cg.nuclear = og.nuclear;
+                    cg.one_electron = og.one_electron;
+                    cg.two_electron = og.two_electron;
+                    cg.overlap = og.overlap;
+                    cg.relaxed_density_ao = og.relaxed_density_ao;
+                    cg.relaxed_dipole = og.relaxed_dipole;
+                    cg.orbital_lagrangian_oo_vv = og.redundant_asymmetry;
+                    cg.zvector_converged = og.zvector_converged;
+                    cg.zvector_iterations = og.zvector_iterations;
+                    cg.zvector_residual = og.zvector_residual;
+                    cg.density_energy = og.density_energy;
+                    cg.seconds = og.seconds;
+                    g.correlated = cg;
                 } else {
                     SODensities d;
                     g.correlated = so_closed_shell_gradient(mol, basis, sp.rhf, setup.aa, *sp.so, sopt, &d, o.threads,
@@ -630,7 +697,7 @@ GradientResult run_gradient(const Molecule& mol, const BasisSet& basis, const st
             g.description = "analytic (" + labelled(method, ref) +
                             ": Lagrangian of the spin-orbital engine differentiated automatically, relaxed one- and "
                             "two-particle densities, orbital response by Z-vector" +
-                            std::string(ref == "UHF" ? " (coupled-perturbed UHF)" : "") + ")";
+                            std::string(ref == "UHF" ? " (coupled-perturbed UHF)" : ref == "ROHF" ? " (ROHF orbital Hessian)" : "") + ")";
             g.seconds = seconds_since(t0);
             return g;
         } else {

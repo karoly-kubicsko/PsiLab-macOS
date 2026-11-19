@@ -335,7 +335,7 @@ struct SidebarView: View {
         if model.job.hasTransitionState {
             transitionStateSection
         }
-        if (model.job.hasFrequencies || model.job.hasTransitionState) && model.method.hasAnalyticCorrelatedHessian {
+        if (model.job.hasFrequencies || model.job.hasTransitionState) && model.hasAnalyticCorrelatedHessian {
             hessianSection
         }
 
@@ -435,7 +435,7 @@ struct SidebarView: View {
                 if model.job.hasOptimization && !model.job.hasTransitionState {
                     optimizerControls
                 }
-                if model.method.hasAnalyticCorrelatedHessian && !model.job.hasTransitionState && model.optHessianMode == .automatic {
+                if model.hasAnalyticCorrelatedHessian && !model.job.hasTransitionState && model.optHessianMode == .automatic {
                     Toggle("Analytic initial Hessian", isOn: $model.analyticInitialHessian)
                     Text(model.analyticInitialHessian
                          ? "The first step uses the analytic \(model.method.title) Hessian (exact curvature; Lindh's model Hessian if it does not fit in memory); later steps update it (BFGS)."
@@ -558,8 +558,15 @@ struct SidebarView: View {
 
     private var analyticHessianText: String {
         let what = model.method == .fci ? "CI-vector" : "amplitude"
+        let reference = model.effectiveReference
+        var orbitals = "orbital response by CPHF"
+        if reference == .uhf || reference == .rohf {
+            orbitals = model.method == .fci
+                ? "no orbital response (the Full CI energy does not depend on the orbitals)"
+                : "orbital response by coupled-perturbed \(reference.title)"
+        }
         return "Analytic: \(what) responses along the internal directions and to an electric field (IR intensities), "
-            + "orbital response by CPHF; exact second derivatives. Numerical only if it does not fit in memory."
+            + "\(orbitals); exact second derivatives. Numerical only if it does not fit in memory."
     }
 
     private var numericalHessianText: String {

@@ -51,6 +51,7 @@ add_library(macqc STATIC
   backend/src/so_methods.cpp
   backend/src/so_derivatives.cpp
   backend/src/uhf_correlated.cpp
+  backend/src/open_shell_correlated.cpp
   backend/src/molecular.cpp
   backend/src/gemm.cpp
   backend/src/accelerators.cpp

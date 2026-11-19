@@ -121,6 +121,16 @@ jobs:
           grep -q "RecalcFC=2" o2.out
           grep -q "Stationary point found" o2.out
           grep -q "Normal termination" o2.out
+          grep -q "Hessian: analytic (UMP2" o2.out
+          # analytic ROHF-based correlated Hessian; analytic open-shell Full CI Hessian (UHF orbitals)
+          printf 'molecule = NO2\nbasis = STO-3G\nmethod = MP2\nreference = ROHF\njob = opt+freq\n' > no2.inp
+          ./build/psilab no2.inp > no2.out
+          grep -q "Hessian: analytic (ROMP2" no2.out
+          grep -q "Normal termination" no2.out
+          printf 'molecule = H2O\ncharge = 1\nmultiplicity = 2\nbasis = STO-3G\nmethod = FCI\nreference = UHF\njob = opt+freq\n' > h2op.inp
+          ./build/psilab h2op.inp > h2op.out
+          grep -q "Hessian: analytic (Full CI on UHF orbitals" h2op.out
+          grep -q "Normal termination" h2op.out
           printf 'molecule = N\nbasis = 6-31G*\nmethod = ROHF\n' > n.inp
           ./build/psilab n.inp > n.out
           grep -q "quartet, reference ROHF" n.out
