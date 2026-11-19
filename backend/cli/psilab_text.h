@@ -2,7 +2,7 @@
 //
 // Input: one "key = value" per line, '#' starts a comment. Keys (case-insensitive):
 //   molecule   HeH+ (default) | H2 | LiH | H2O | H2O2 | NH3 | custom (9.0); 15.0: the atoms H-Ar and
-//              H2+, H3+, H5+, N2, O2, F2, Cl2, NO, NO2 (geometries of the molecule menu)
+//              H2+, H3+, H5+, N2, O2, F2, Cl2, NO, NO2, CO, CO2, N2O, H2CO, CH4 (geometries of the molecule menu)
 //   charge, multiplicity (15.0: every molecule)   reference  RHF | UHF | ROHF (15.0)
 //   opt_hessian  auto | calcfc | calcall | recalcfc=N (15.0, minimisations)   recalc_fc  N
 //   opt_algorithm  rfo | gediis (15.0, minimisations)   szabo_ostlund  no: HeH+ in STO-nG as a general molecule

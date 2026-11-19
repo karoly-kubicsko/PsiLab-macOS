@@ -35,7 +35,7 @@ void usage(const char* prog) {
                  "Input: one 'key = value' per line, '#' starts a comment. Keys:\n"
                  "  molecule = HeH+ | H2 | LiH | H2O | H2O2 | NH3 | custom   (default HeH+)\n"
                  "             15.0: the atoms H He Li Be B C N O F Ne Na Mg Al Si P S Cl Ar (ground-state\n"
-                 "             multiplicity) and H2+ H3+ H5+ N2 O2 F2 Cl2 NO NO2 (fixed geometries)\n"
+                 "             multiplicity) and H2+ H3+ H5+ N2 O2 F2 Cl2 NO NO2 CO CO2 N2O H2CO CH4 (fixed geometries)\n"
                  "  R = <number> [bohr | angstrom]       bond length (H2O, H2O2: O-H; NH3: N-H)\n"
                  "  charge = <n>   multiplicity = <2S+1>   (15.0: every molecule; default: the molecule's)\n"
                  "  reference = RHF | UHF | ROHF   (15.0; default RHF for closed-shell singlets, else UHF)\n"

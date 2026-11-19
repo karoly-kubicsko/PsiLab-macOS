@@ -19,7 +19,7 @@ nonisolated enum MoleculeChoice: String, CaseIterable, Identifiable, Sendable {
     case nh3 = "NH3"
     /// ΨLab 9.0: a molecule from a structure file (the app keeps them; see CustomMolecules.swift).
     case custom = "custom"
-    /// ΨLab 15.0: an atom (H–Ar) or a molecule of the menu with a fixed geometry (H₂⁺, H₃⁺, H₅⁺,
+    /// ΨLab 15.0: an atom (H–Ar) or a molecule of the menu with a fixed geometry (CO, CO₂, N₂O, H₂CO, CH₄, H₂⁺, H₃⁺, H₅⁺,
     /// N₂, O₂, F₂, Cl₂, NO, NO₂); the selected one is `AppModel.presetKey` (see `MoleculePresets`).
     case preset = "preset"
 
@@ -507,6 +507,17 @@ nonisolated enum MoleculePresets {
                        note: "15 electrons, X ²Π (doublet), r_e = 1.1508 Å"),
         MoleculePreset(key: "NO2", title: "NO₂", symbols: ["N", "O", "O"], charge: 0, multiplicity: 2,
                        note: "23 electrons, X ²A₁ (doublet), C₂ᵥ, r(N–O) = 1.1934 Å, ∠ONO = 134.1°"),
+        // the closed-shell molecules of the structure files in examples/ (fixed experimental geometries)
+        MoleculePreset(key: "CO", title: "CO", symbols: ["C", "O"], charge: 0, multiplicity: 1,
+                       note: "14 electrons, X ¹Σ⁺, r(C–O) = 1.1283 Å"),
+        MoleculePreset(key: "CO2", title: "CO₂", symbols: ["C", "O", "O"], charge: 0, multiplicity: 1,
+                       note: "22 electrons, X ¹Σg⁺, linear, r(C–O) = 1.160 Å"),
+        MoleculePreset(key: "N2O", title: "N₂O", symbols: ["N", "N", "O"], charge: 0, multiplicity: 1,
+                       note: "22 electrons, X ¹Σ⁺, linear N–N–O, r(N–N) = 1.1273 Å, r(N–O) = 1.1851 Å"),
+        MoleculePreset(key: "H2CO", title: "H₂CO", symbols: ["C", "O", "H", "H"], charge: 0, multiplicity: 1,
+                       note: "16 electrons, X ¹A₁, C₂ᵥ, r(C–O) = 1.2033 Å, r(C–H) = 1.1005 Å, ∠HCH = 116.2°"),
+        MoleculePreset(key: "CH4", title: "CH₄", symbols: ["C", "H", "H", "H", "H"], charge: 0, multiplicity: 1,
+                       note: "10 electrons, X ¹A₁, T_d, r(C–H) = 1.0870 Å"),
     ]
 
     static let all: [MoleculePreset] = atoms + molecules

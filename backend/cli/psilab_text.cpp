@@ -241,7 +241,7 @@ Settings parse_input_text(const std::string& text, const std::string& base_direc
         const Entry& e = entries["molecule"];
         molecule = macqc::canonical_molecule_name(e.value);
         if (molecule.empty()) {
-            // 15.0: the atoms H-Ar and the molecules of the menu (H2+, H3+, H5+, N2, O2, F2, Cl2, NO, NO2)
+            // 15.0: the atoms H-Ar and the molecules of the menu (H2+, H3+, H5+, N2, O2, F2, Cl2, NO, NO2, CO, CO2, N2O, H2CO, CH4)
             if (const macqc::MoleculePreset* pr = macqc::find_molecule_preset(e.value)) molecule = pr->key;
         }
         if (molecule.empty()) {

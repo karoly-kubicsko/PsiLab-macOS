@@ -147,6 +147,40 @@ std::vector<MoleculePreset> build_presets() {
         p.source = "r_e = 1.1934 A, 134.1 degrees (microwave spectroscopy)";
         v.push_back(p);
     }
+    // ΨLab 15.0: closed-shell molecules of the structure files in examples/ (coordinates in
+    // angstrom, as in the files; experimental geometries)
+    auto molecule = [&](const char* key, const char* title, const char* state,
+                        std::vector<std::pair<std::string, std::array<double, 3>>> atoms, const char* source) {
+        MoleculePreset p;
+        p.key = key;
+        p.title = title;
+        p.multiplicity = 1;
+        p.state = state;
+        p.atoms = std::move(atoms);
+        p.source = source;
+        v.push_back(p);
+    };
+    molecule("CO", "CO", "X 1Sigma+", {{"C", {0.0, 0.0, 0.0}}, {"O", {0.0, 0.0, 1.1283}}},
+             "r = 1.1283 A (examples/carbon-monoxide.xyz)");
+    molecule("CO2", "CO$_2$", "X 1Sigma_g+",
+             {{"C", {0.0, 0.0, 0.0}}, {"O", {0.0, 0.0, 1.16}}, {"O", {0.0, 0.0, -1.16}}},
+             "linear, r(C-O) = 1.160 A (examples/carbon-dioxide.xyz)");
+    molecule("N2O", "N$_2$O", "X 1Sigma+",
+             {{"N", {0.0, 0.0, -1.1273}}, {"N", {0.0, 0.0, 0.0}}, {"O", {0.0, 0.0, 1.1851}}},
+             "linear N-N-O, r(N-N) = 1.1273 A, r(N-O) = 1.1851 A (examples/dinitrogen-monoxide.xyz)");
+    molecule("H2CO", "H$_2$CO", "X 1A1",
+             {{"C", {0.0, 0.0, 0.0}},
+              {"O", {0.0, 0.0, 1.2033}},
+              {"H", {0.0, 0.934192, -0.581709}},
+              {"H", {0.0, -0.934192, -0.581709}}},
+             "C2v, r(C-O) = 1.2033 A, r(C-H) = 1.1005 A, H-C-H 116.2 degrees (examples/formaldehyde.xyz)");
+    molecule("CH4", "CH$_4$", "X 1A1",
+             {{"C", {0.0, 0.0, 0.0}},
+              {"H", {0.62758, 0.62758, 0.62758}},
+              {"H", {-0.62758, -0.62758, 0.62758}},
+              {"H", {-0.62758, 0.62758, -0.62758}},
+              {"H", {0.62758, -0.62758, -0.62758}}},
+             "Td, r(C-H) = 1.0870 A (examples/methane.xyz)");
     return v;
 }
 
@@ -169,7 +203,9 @@ const MoleculePreset* find_molecule_preset(const std::string& name) {
         if (compact_lower(p.key) == s) return &p;
     static const std::pair<const char*, const char*> names[] = {
         {"nitrogen", "N2"}, {"oxygen", "O2"}, {"fluorine", "F2"}, {"chlorine", "Cl2"},
-        {"nitricoxide", "NO"}, {"nitrogenmonoxide", "NO"}, {"nitrogendioxide", "NO2"}};
+        {"nitricoxide", "NO"}, {"nitrogenmonoxide", "NO"}, {"nitrogendioxide", "NO2"},
+        {"carbonmonoxide", "CO"}, {"carbondioxide", "CO2"}, {"dinitrogenmonoxide", "N2O"}, {"nitrousoxide", "N2O"},
+        {"formaldehyde", "H2CO"}, {"methanal", "H2CO"}, {"ch2o", "H2CO"}, {"methane", "CH4"}};
     for (const auto& n : names)
         if (s == n.first)
             for (const MoleculePreset& p : molecule_presets())

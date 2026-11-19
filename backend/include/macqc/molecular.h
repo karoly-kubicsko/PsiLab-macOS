@@ -30,7 +30,7 @@ struct MolecularInput {
     // 15.0: charge and multiplicity of every molecule (built-in molecules and presets take their own
     // unless these are set), the reference ("RHF", "UHF", "ROHF"; "" = RHF for closed-shell singlets,
     // UHF otherwise, ROHF orbitals for an open-shell Full CI) and the preset of the molecule menu
-    // (atoms H-Ar, H2+, H3+, H5+, N2, O2, F2, Cl2, NO, NO2: find_molecule_preset).
+    // (atoms H-Ar, H2+, H3+, H5+, N2, O2, F2, Cl2, NO, NO2, CO, CO2, N2O, H2CO, CH4: find_molecule_preset).
     bool charge_given = false;
     bool multiplicity_given = false;
     std::string reference;

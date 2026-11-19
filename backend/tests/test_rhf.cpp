@@ -469,7 +469,7 @@ static void test_api() {
     const json lih = run_json(R"({"molecule":"LiH","basis":"aug-cc-pCV5Z"})");
     CHECK(lih["error"].is_string() && lih["error"].get<std::string>().find("not available for Li") != std::string::npos);
     CHECK(lih["rhf"].is_null());
-    const char* bad[] = {R"({"molecule":"CH4"})",
+    const char* bad[] = {R"({"molecule":"C6H6"})",
                          R"({"molecule":"H2O","basis":"6-31G**"})",
                          R"({"molecule":"H2O","angle":200})",
                          R"({"molecule":"H2","R":-1})",

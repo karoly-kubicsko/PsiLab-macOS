@@ -214,8 +214,9 @@ spin-adapted Full CI and hardware acceleration.**
 **Molecules and spin (tasks 0 and 4).** The molecule menu (and `psilab`'s `molecule` key) adds the
 **atoms H, He, Li, Be, B, C, N, O, F, Ne, Na, Mg, Al, Si, P, S, Cl, Ar** in their ground-state
 multiplicities (²S, ¹S, ²S, ¹S, ²P, ³P, ⁴S, ³P, ²P, ¹S, …) and the molecules **H₂⁺, H₃⁺, H₅⁺, N₂, O₂,
-F₂, Cl₂, NO, NO₂** (experimental rₑ for the diatomics, NO₂ 1.1934 Å and 134.1°, H₃⁺ an equilateral
-triangle of 1.65 bohr, H₅⁺ the C₂ᵥ MP2/aug-cc-pVTZ structure). **Charge and multiplicity** can be
+F₂, Cl₂, NO, NO₂, CO, CO₂, N₂O, H₂CO, CH₄** (experimental rₑ for the diatomics, NO₂ 1.1934 Å and 134.1°, H₃⁺ an equilateral
+triangle of 1.65 bohr, H₅⁺ the C₂ᵥ MP2/aug-cc-pVTZ structure; CO, CO₂, N₂O, H₂CO and CH₄ with the
+geometries of the structure files in `examples/`, listed by formula only). **Charge and multiplicity** can be
 set for every molecule: two steppers under the molecule menu of the app (with the numbers of α and
 β electrons and an immediate check that they fit), `charge` and `multiplicity` in `psilab`.
 **References**: RHF, **UHF** (Pople–Nesbet, DIIS on both Fock matrices, ⟨S²⟩ and Mulliken spin
@@ -610,7 +611,7 @@ initial_hessian = auto       # 10.0, minimisations: auto/analytic (HF, FCI, CCSD
 Version 15.0 adds open shells, the atoms H–Ar, more molecules and methods, and optimiser options:
 
 ```text
-molecule = O2                # also H2+, H3+, H5+, N2, F2, Cl2, NO, NO2 and the atoms H ... Ar
+molecule = O2                # also H2+, H3+, H5+, N2, F2, Cl2, NO, NO2, CO, CO2, N2O, H2CO, CH4, atoms H ... Ar
 charge   = 0                 # every molecule (default: the molecule's own)
 multiplicity = 3             # 2S+1 (default: the ground state, e.g. 3 for O2, 4 for N)
 reference = UHF              # RHF | UHF | ROHF (default RHF for singlets, UHF otherwise)

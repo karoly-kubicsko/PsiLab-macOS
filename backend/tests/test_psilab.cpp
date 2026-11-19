@@ -88,7 +88,8 @@ int main() {
     CHECK(std::fabs(w2.input.R - 1.0 / psilab::kBohrToAngstrom) < 1e-12 && w2.input.angle == 100.0);
     CHECK(w2.input.threads == 2 && w2.input.memoryMB == 2048.0 && w2.input.basis == "aug-cc-pVDZ");
     CHECK(std::fabs(psilab::parse_input_text("molecule = LiH\n").input.R - 1.5949 / psilab::kBohrToAngstrom) < 1e-12);
-    CHECK(rejects("molecule = CH4\n", "molecule must be HeH+, H2, LiH, H2O, H2O2, NH3, custom, H, He"));
+    CHECK(psilab::parse_input_text("molecule = methane\n").input.molecule == "CH4");  // 15.0: a molecule of the menu
+    CHECK(rejects("molecule = C6H6\n", "molecule must be HeH+, H2, LiH, H2O, H2O2, NH3, custom, H, He"));
     CHECK(rejects("molecule = H2\nzeta_H = 1.2\n", "line 2: 'zeta_H' applies to HeH+ in an STO-nG basis (Szabo-Ostlund) only"));
     CHECK(rejects("molecule = H2\nangle = 100\n", "applies to H2O, H2O2 and NH3 only"));
     CHECK(rejects("angle = 100\n", "applies to H2O, H2O2 and NH3 only"));

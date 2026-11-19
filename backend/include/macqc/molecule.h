@@ -84,7 +84,7 @@ constexpr int kMaxAtomicNumber = 118;
 std::string canonical_molecule_name(const std::string& name);
 
 // 15.0: molecules and atoms of the molecule menu that are given by their Cartesian coordinates:
-// the atoms H-Ar in their ground states and H2+, H3+, H5+, N2, O2, F2, Cl2, NO, NO2 at their
+// the atoms H-Ar in their ground states and H2+, H3+, H5+, N2, O2, F2, Cl2, NO, NO2, CO, CO2, N2O, H2CO, CH4 at their
 // equilibrium structures. They run as custom molecules with these atoms, charge and multiplicity.
 struct MoleculePreset {
     std::string key;        // "O2", "NO2", "H5+", "N" (atoms: the element symbol)

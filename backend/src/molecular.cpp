@@ -307,7 +307,7 @@ bool coupled_cluster_method(const std::string& canonical, CCMethod* method) {
 std::string validate_molecular(const MolecularInput& in) {
     const std::string m = canonical_molecule_name(in.molecule);
     if (m.empty() && !find_molecule_preset(in.molecule))
-        return "molecule must be HeH+, H2, LiH, H2O, H2O2, NH3, an atom H-Ar, H2+, H3+, H5+, N2, O2, F2, Cl2, NO, NO2 "
+        return "molecule must be HeH+, H2, LiH, H2O, H2O2, NH3, an atom H-Ar, H2+, H3+, H5+, N2, O2, F2, Cl2, NO, NO2, CO, CO2, N2O, H2CO, CH4 "
                "or custom";
     if (in.multiplicity < 1 || in.multiplicity > 20) return "the multiplicity must be between 1 and 20";
     if (m == "custom") {
