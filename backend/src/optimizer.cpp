@@ -1,5 +1,7 @@
 #include "macqc/optimizer.h"
 
+#include "macqc/scf_derivatives.h"
+
 #include <algorithm>
 #include <chrono>
 #include <cmath>
@@ -509,7 +511,7 @@ OptimizationResult optimize_geometry(const Molecule& start, const BasisSet& basi
                 Matrix Hc;
                 std::string label = "analytic RHF Hessian";
                 if (method == "RHF") {
-                    Hc = rhf_hessian(x, bx, g.point.rhf, eo.threads, eo.memory_mb, 1e-8).hessian;
+                    Hc = scf_hessian(x, bx, g.point.rhf, eo.threads, eo.memory_mb, 1e-8).hessian;
                 } else {
                     Hc = Hcorr;
                     label = "analytic " + method + " Hessian";

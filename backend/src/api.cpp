@@ -49,14 +49,16 @@ json custom_atoms_json(const std::vector<Atom>& atoms) {
 }
 
 json input_json(const Input& in) {
-    if (!is_heh_input(in) && !canonical_molecule_name(in.molecule).empty()) {
+    if (!is_heh_input(in) && (!canonical_molecule_name(in.molecule).empty() || find_molecule_preset(in.molecule))) {
         json j = input_json_general(in);
-        if (canonical_molecule_name(in.molecule) == "custom") {
+        if (canonical_molecule_name(in.molecule) == "custom" || !in.atoms.empty()) {
             j["atoms"] = custom_atoms_json(in.atoms);
-            j["charge"] = in.charge;
-            j["multiplicity"] = in.multiplicity;
             j["title"] = in.title;
         }
+        if (canonical_molecule_name(in.molecule) == "custom" || in.chargeGiven) j["charge"] = in.charge;
+        if (canonical_molecule_name(in.molecule) == "custom" || in.multiplicityGiven) j["multiplicity"] = in.multiplicity;
+        j["reference"] = in.reference.empty() ? json(nullptr) : json(in.reference);
+        if (canonical_molecule_name(in.molecule) == "HeH+") j["szaboOstlund"] = false;
         return j;
     }
     return {{"R", in.R},           {"zeta1", in.zeta1},         {"zeta2", in.zeta2},
@@ -138,6 +140,9 @@ json molecular_json(const MolecularResult& m) {
     mol["ROO"] = m.molecule.name == "H2O2" ? json(m.input.r_oo) : json(nullptr);
     mol["dihedral"] = m.molecule.name == "H2O2" ? json(m.input.dihedral) : json(nullptr);
     mol["nuclearRepulsion"] = m.molecule.nuclear_repulsion();
+    mol["multiplicity"] = m.input.multiplicity;  // 15.0
+    mol["reference"] = m.reference;
+    mol["preset"] = m.input.preset.empty() ? json(nullptr) : json(m.input.preset);
     json atoms = json::array();
     for (const Atom& a : m.molecule.atoms)
         atoms.push_back({{"symbol", a.symbol}, {"Z", a.Z}, {"position", {a.position[0], a.position[1], a.position[2]}}});
@@ -202,6 +207,18 @@ json molecular_json(const MolecularResult& m) {
                                  {"reason", c.reason.empty() ? json(nullptr) : json(c.reason)}};
     } else {
         est["coupledCluster"] = nullptr;
+    }
+    if (e.so) {
+        const CostEstimate::SOCost& c = *e.so;
+        est["correlated"] = {{"method", c.method},
+                             {"engine", "spin-orbital, dense spin blocks"},
+                             {"amplitudes", c.amplitudes},
+                             {"memoryMB", c.memory_bytes / (1024.0 * 1024.0)},
+                             {"seconds", c.seconds},
+                             {"feasible", c.feasible},
+                             {"reason", c.reason.empty() ? json(nullptr) : json(c.reason)}};
+    } else {
+        est["correlated"] = nullptr;
     }
 
     json out;
@@ -319,9 +336,52 @@ json molecular_json(const MolecularResult& m) {
                             {"gradient", it.gradient},
                             {"diis", it.diis}});
         r["scfHistory"] = hist;
+        // 15.0: the reference and the spin
+        r["reference"] = h.reference;
+        r["multiplicity"] = h.multiplicity;
+        r["alphaElectrons"] = h.n_alpha;
+        r["betaElectrons"] = h.n_beta;
+        r["S2"] = h.s2;
+        r["S2Exact"] = h.s2_exact;
+        r["orbitalEnergiesBeta"] = h.reference == "UHF" ? json(h.orbital_energies_b) : json(nullptr);
+        if (h.reference == "UHF") {
+            const int nb = h.n_beta, nmb = static_cast<int>(h.orbital_energies_b.size());
+            r["homoBeta"] = nb >= 1 ? json(h.orbital_energies_b[nb - 1]) : json(nullptr);
+            r["lumoBeta"] = nb < nmb ? json(h.orbital_energies_b[nb]) : json(nullptr);
+        }
         out["rhf"] = r;
     } else {
         out["rhf"] = nullptr;
+    }
+    out["reference"] = m.reference;
+    if (m.so) {
+        const SOResult& c = *m.so;
+        json cj;
+        cj["method"] = c.method;
+        cj["label"] = method_label(c.method, c.reference);
+        cj["reference"] = c.reference;
+        cj["converged"] = c.converged;
+        cj["iterations"] = c.iterations;
+        cj["referenceEnergy"] = c.reference_energy;
+        cj["correlationEnergy"] = c.correlation_energy;
+        cj["totalEnergy"] = c.total_energy;
+        cj["t1Diagnostic"] = c.t1_diagnostic;
+        json terms = json::array();
+        for (const auto& t : c.terms) terms.push_back({{"label", t.label}, {"value", t.value}});
+        cj["terms"] = terms;
+        json amps = json::array();
+        for (const auto& a : c.amplitudes)
+            amps.push_back({{"name", a.name}, {"rank", a.rank}, {"count", a.count}, {"norm", a.norm}});
+        cj["amplitudes"] = amps;
+        json hist = json::array();
+        for (const auto& it : c.history)
+            hist.push_back({{"iteration", it.iteration}, {"totalEnergy", it.energy}, {"deltaE", it.delta_e},
+                            {"residual", it.residual}, {"stage", it.stage}});
+        cj["history"] = hist;
+        cj["seconds"] = c.seconds;
+        out["correlated"] = cj;
+    } else {
+        out["correlated"] = nullptr;
     }
     return out;
 }
@@ -850,16 +910,34 @@ Input parse_input_json(const std::string& text) {
     if (!j.is_object()) throw std::runtime_error("input JSON must be an object");
     Input in;
     in.molecule = get_string(j, "molecule", in.molecule);
-    const std::string canonical = canonical_molecule_name(in.molecule);
-    if (canonical.empty()) throw std::runtime_error("\"molecule\" must be HeH+, H2, LiH, H2O, H2O2 or NH3");
-    in.molecule = canonical;
+    std::string canonical = canonical_molecule_name(in.molecule);
+    const MoleculePreset* preset = canonical.empty() ? find_molecule_preset(in.molecule) : nullptr;
+    if (canonical.empty() && !preset)
+        throw std::runtime_error("\"molecule\" must be HeH+, H2, LiH, H2O, H2O2, NH3, an atom H-Ar, H2+, H3+, H5+, N2, O2, "
+                                 "F2, Cl2, NO, NO2 or custom");
+    in.molecule = preset ? preset->key : canonical;
+    // 15.0: charge and multiplicity of every molecule, the reference
+    if (auto it = j.find("charge"); it != j.end() && !it->is_null()) {
+        in.charge = get_int(j, "charge", 0);
+        in.chargeGiven = true;
+    }
+    if (auto it = j.find("multiplicity"); it != j.end() && !it->is_null()) {
+        in.multiplicity = get_int(j, "multiplicity", 1);
+        in.multiplicityGiven = true;
+    }
+    in.reference = get_string(j, "reference", "");
+    if (!in.reference.empty() && canonical_reference_name(in.reference).empty())
+        throw std::runtime_error("\"reference\" must be RHF, UHF or ROHF");
+    in.szaboOstlund = get_bool(j, "szaboOstlund", true);
     if (canonical != "HeH+") in.R = 0.0;  // default bond length of the molecule unless given
     if (canonical == "HeH+") {
         // 7.0: a basis set of the library (correlation-consistent; 14.0 also Pople and def2)
         // selects the general path; STO-1G/2G/3G (or no basis) the Szabo-Ostlund calculation
         const std::string b = get_string(j, "basis", "");
-        if (!b.empty() && !canonical_basis_name(b).empty()) {
-            in.hehGeneral = true;
+        const std::string cb = canonical_basis_name(b);
+        const bool sto = cb == "STO-1G" || cb == "STO-2G" || cb == "STO-3G";
+        if (!b.empty() && !cb.empty() && (!sto || !in.szaboOstlund)) {
+            in.hehGeneral = true;  // 15.0: STO-nG for HeH+ also in the general calculation (szaboOstlund false)
         } else if (!b.empty()) {
             std::string t;
             for (char c : b)
@@ -870,7 +948,7 @@ Input parse_input_json(const std::string& text) {
         }
     }
     if (canonical != "HeH+" && canonical != "custom") in.angle = default_angle(canonical);
-    if (canonical == "custom") {
+    if (canonical == "custom" || (preset && j.find("atoms") != j.end())) {
         // 9.0: "atoms": [{"symbol": "C", "x": 0, "y": 0, "z": 1.16}, ...] in angstrom (or with
         // "position": [x, y, z]; "Z" instead of "symbol"), "charge", "multiplicity", "title"
         auto it = j.find("atoms");
@@ -908,11 +986,12 @@ Input parse_input_json(const std::string& text) {
             }
             in.atoms.push_back(at);
         }
-        in.charge = get_int(j, "charge", 0);
-        in.multiplicity = get_int(j, "multiplicity", 1);
+        in.charge = get_int(j, "charge", preset ? preset->charge : 0);
+        in.multiplicity = get_int(j, "multiplicity", preset ? preset->multiplicity : 1);
         in.title = get_string(j, "title", "");
         in.R = 0.0;
     }
+    if (preset) in.R = 0.0;
     in.R = get_number(j, "R", in.R);
     in.zeta1 = get_number(j, "zeta1", in.zeta1);
     in.zeta2 = get_number(j, "zeta2", in.zeta2);
@@ -961,7 +1040,7 @@ json output_json(const Output& out, const OrbitalData* orbitals = nullptr) {
     json j;
     j["input"] = input_json(out.input);
     j["error"] = out.error.empty() ? json(nullptr) : json(out.error);
-    if (!is_heh_input(out.input) && !canonical_molecule_name(out.input.molecule).empty()) {
+    if (!is_heh_input(out.input) && general_molecule_name(out.input.molecule)) {
         // General molecules: {"input","error","molecule","basis","estimate","notes",
         // "warnings","refusal","rhf","fullCI","coupledCluster","job","optimization",
         // "frequencies","thermochemistry","singlePoint","output","hf":null,"fci":null,"report"}.

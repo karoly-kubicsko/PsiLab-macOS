@@ -109,16 +109,6 @@ struct OrbitalSet {
 
 }  // namespace
 
-// Krylov (Galerkin) solver for several symmetric linear systems A x = b at once, shared by the
-// open-shell response equations: `apply` maps a batch of vectors to A times them (one call per
-// iteration, so the Fock builds of all perturbations can share one pass over the integrals).
-struct LinearBatchSolution {
-    std::vector<std::vector<double>> x;
-    bool converged = false;
-    int iterations = 0;
-    double residual = 0.0;
-};
-
 LinearBatchSolution solve_symmetric_batch(
     const std::function<std::vector<std::vector<double>>(const std::vector<std::vector<double>>&)>& apply,
     const std::vector<double>& diagonal, const std::vector<std::vector<double>>& rhs, double tol, int max_iter,

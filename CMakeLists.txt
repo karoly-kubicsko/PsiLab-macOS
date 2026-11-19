@@ -47,6 +47,10 @@ add_library(macqc STATIC
   backend/src/scf_open.cpp
   backend/src/scf_open_derivatives.cpp
   backend/src/scf_open_hessian.cpp
+  backend/src/so_engine.cpp
+  backend/src/so_methods.cpp
+  backend/src/so_derivatives.cpp
+  backend/src/uhf_correlated.cpp
   backend/src/molecular.cpp
   backend/src/gemm.cpp
   backend/src/mo_integrals.cpp

@@ -43,7 +43,16 @@ struct Input {
     int multiplicity = 1;
     std::string title;
     std::string geometryFile;           // terminal version: the structure file the atoms were read from
-    std::string method = "RHF";         // "RHF" (HF), "CCSD", "CCSD(T)", "CCSDT", "CCSDTQ" or "FCI"
+    std::string method = "RHF";         // "RHF" (HF), "CCSD", "CCSD(T)", "CCSDT", "CCSDTQ" or "FCI"; 15.0: "UHF",
+                                        // "ROHF", "MP2" ... "MP5", "CISD" ... "QCISDTQ", prefixes U/RO
+    // 15.0: the reference ("RHF", "UHF", "ROHF"; "": RHF for closed-shell singlets, UHF otherwise);
+    // "charge" and "multiplicity" apply to every molecule (given: chargeGiven, multiplicityGiven);
+    // a preset of the molecule menu ("O2", "NO2", "H5+", an atom "N") runs as a custom molecule;
+    // HeH+ with STO-nG is the Szabo-Ostlund calculation unless szaboOstlund is false.
+    std::string reference;
+    bool chargeGiven = false;
+    bool multiplicityGiven = false;
+    bool szaboOstlund = true;
     std::string basisDirectory;         // "" -> default_basis_directory()
     int threads = 0;                    // 0 -> all hardware threads
     double memoryMB = 1024.0;           // limit for keeping the two-electron integrals in memory

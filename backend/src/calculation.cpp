@@ -22,6 +22,9 @@ MolecularInput molecular_input(const Input& in) {
     m.atoms = in.atoms;
     m.charge = in.charge;
     m.multiplicity = in.multiplicity;
+    m.charge_given = in.chargeGiven || canonical_molecule_name(in.molecule) == "custom";
+    m.multiplicity_given = in.multiplicityGiven || canonical_molecule_name(in.molecule) == "custom";
+    m.reference = in.reference;
     m.title = in.title;
     m.basis = in.basis;
     m.method = in.method;
@@ -40,6 +43,9 @@ MolecularInput molecular_input(const Input& in) {
 int atom_count(const Input& in) {
     const std::string m = canonical_molecule_name(in.molecule);
     if (m == "custom") return static_cast<int>(in.atoms.size());
+    if (m.empty())
+        if (const MoleculePreset* p = find_molecule_preset(in.molecule))
+            return in.atoms.empty() ? static_cast<int>(p->atoms.size()) : static_cast<int>(in.atoms.size());
     return (m == "H2O2" || m == "NH3") ? 4 : (m == "H2O" ? 3 : 2);
 }
 
@@ -280,8 +286,9 @@ std::string input_echo(const Input& in) {
 }
 
 std::string validate(const Input& in) {
-    if (canonical_molecule_name(in.molecule).empty())
-        return "molecule must be HeH+, H2, LiH, H2O, H2O2, NH3 or custom";
+    if (!general_molecule_name(in.molecule))
+        return "molecule must be HeH+, H2, LiH, H2O, H2O2, NH3, an atom H-Ar, H2+, H3+, H5+, N2, O2, F2, Cl2, NO, NO2 "
+               "or custom";
     if (!is_heh_input(in)) {
         const std::string e = validate_molecular(molecular_input(in));
         return e.empty() ? job_input_error(in) : e;
@@ -303,7 +310,7 @@ std::string validate(const Input& in) {
 }
 
 Output run_calculation(const Input& in, const OutputSink& sink) {
-    if (!canonical_molecule_name(in.molecule).empty() && !is_heh_input(in)) return run_molecular_calculation(in, sink);
+    if (general_molecule_name(in.molecule) && !is_heh_input(in)) return run_molecular_calculation(in, sink);
     Output out;
     out.input = in;
     try {

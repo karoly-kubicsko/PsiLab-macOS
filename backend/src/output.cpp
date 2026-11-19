@@ -163,54 +163,87 @@ std::vector<double> lowdin_charges(const Molecule& mol, const BasisSet& b, const
 
 std::string scf_result_block(const RHFResult& h, const Molecule& mol, const BasisSet& b, bool full_orbitals) {
     std::string s;
-    s += h.converged ? strprintf("    SCF converged in %d iterations (integrals %.2f s, SCF %.2f s, %d threads)\n",
-                                 h.iterations, h.integral_seconds, h.scf_seconds, h.threads)
+    const std::string ref = h.reference.empty() ? "RHF" : h.reference;
+    s += h.converged ? strprintf("    SCF%s converged in %d iterations (integrals %.2f s, SCF %.2f s, %d threads)\n",
+                                 ref == "RHF" ? "" : (" (" + ref + ")").c_str(), h.iterations, h.integral_seconds,
+                                 h.scf_seconds, h.threads)
                      : strprintf("    SCF NOT converged after %d iterations\n", h.iterations);
     s += strprintf("    overlap matrix: smallest eigenvalue %.3e; %s\n", h.smallest_overlap_eigenvalue,
                    h.removed_functions ? strprintf("%d near-linear dependencies removed", h.removed_functions).c_str()
                                        : "no functions removed");
+    if (h.open_shell())
+        s += strprintf("    %d alpha and %d beta electrons, multiplicity %d: <S^2> = %.6f (S(S+1) = %.6f%s)\n", h.n_alpha,
+                       h.n_beta, h.multiplicity, h.s2, h.s2_exact,
+                       ref == "UHF" ? strprintf(", spin contamination %.6f", h.s2 - h.s2_exact).c_str() : ", a pure spin state");
     s += "\n    Energy components (E_h)\n";
-    s += strprintf("      total energy (RHF)        %20.10f\n", h.total_energy);
+    s += ref == "RHF" ? strprintf("      total energy (RHF)        %20.10f\n", h.total_energy)
+                      : strprintf("      total energy (%s)%*s%20.10f\n", ref.c_str(), static_cast<int>(11 - ref.size()), "", h.total_energy);
     s += strprintf("      electronic energy         %20.10f\n", h.electronic_energy);
     s += strprintf("      nuclear repulsion         %20.10f\n", h.nuclear_repulsion);
     s += strprintf("      kinetic energy            %20.10f\n", h.kinetic_energy);
     s += strprintf("      nuclear attraction        %20.10f\n", h.nuclear_attraction_energy);
     s += strprintf("      electron repulsion        %20.10f\n", h.two_electron_energy);
     s += strprintf("      virial ratio -V/T         %20.10f\n", h.virial_ratio);
-    const int nocc = h.n_occupied;
-    const int nall = static_cast<int>(h.orbital_energies.size());
-    const int nshow = full_orbitals ? nall : std::min(nall, nocc + 5);
-    s += strprintf("\n    Orbital energies (E_h), %d doubly occupied (*)%s\n", nocc,
-                   nshow < nall ? strprintf(", the lowest %d virtual orbitals of %d", nshow - nocc, nall - nocc).c_str() : "");
-    for (int k = 0; k < nshow; ++k) {
-        s += strprintf("  %5d%s %14.8f", k + 1, k < nocc ? "*" : " ", h.orbital_energies[static_cast<std::size_t>(k)]);
-        if (k % 4 == 3 || k + 1 == nshow) s += "\n";
-    }
-    if (nocc >= 1 && nocc < nall)
-        s += strprintf("    HOMO %.8f E_h, LUMO %.8f E_h, gap %.8f E_h (%.4f eV)\n", h.orbital_energies[static_cast<std::size_t>(nocc - 1)],
-                       h.orbital_energies[static_cast<std::size_t>(nocc)],
-                       h.orbital_energies[static_cast<std::size_t>(nocc)] - h.orbital_energies[static_cast<std::size_t>(nocc - 1)],
-                       (h.orbital_energies[static_cast<std::size_t>(nocc)] - h.orbital_energies[static_cast<std::size_t>(nocc - 1)]) *
-                           codata2018::kHartree / codata2018::kElementaryCharge);
-    // Mulliken charges and the SCF dipole moment from the density of the final orbitals
-    const std::size_t N = h.C.rows();
-    Matrix P(N, N);
-    for (std::size_t i = 0; i < N; ++i)
-        for (std::size_t j = 0; j < N; ++j) {
-            double t = 0.0;
-            for (int k = 0; k < nocc; ++k) t += h.C(i, static_cast<std::size_t>(k)) * h.C(j, static_cast<std::size_t>(k));
-            P(i, j) = 2.0 * t;
+    auto orbital_table = [&](const std::vector<double>& eps, int nocc, const char* what, const char* occ_text) {
+        std::string t;
+        const int nall = static_cast<int>(eps.size());
+        const int nshow = full_orbitals ? nall : std::min(nall, nocc + 5);
+        t += strprintf("\n    %s (E_h), %d %s (*)%s\n", what, nocc, occ_text,
+                       nshow < nall ? strprintf(", the lowest %d virtual orbitals of %d", nshow - nocc, nall - nocc).c_str() : "");
+        for (int k = 0; k < nshow; ++k) {
+            t += strprintf("  %5d%s %14.8f", k + 1, k < nocc ? "*" : " ", eps[static_cast<std::size_t>(k)]);
+            if (k % 4 == 3 || k + 1 == nshow) t += "\n";
         }
+        if (nocc >= 1 && nocc < nall)
+            t += strprintf("    HOMO %.8f E_h, LUMO %.8f E_h, gap %.8f E_h (%.4f eV)\n", eps[static_cast<std::size_t>(nocc - 1)],
+                           eps[static_cast<std::size_t>(nocc)],
+                           eps[static_cast<std::size_t>(nocc)] - eps[static_cast<std::size_t>(nocc - 1)],
+                           (eps[static_cast<std::size_t>(nocc)] - eps[static_cast<std::size_t>(nocc - 1)]) *
+                               codata2018::kHartree / codata2018::kElementaryCharge);
+        return t;
+    };
+    if (ref == "UHF") {
+        s += orbital_table(h.orbital_energies, h.n_alpha, "Alpha orbital energies", "occupied");
+        s += orbital_table(h.orbital_energies_b, h.n_beta, "Beta orbital energies", "occupied");
+    } else if (ref == "ROHF") {
+        s += orbital_table(h.orbital_energies, h.n_alpha,
+                           strprintf("ROHF orbital energies (eigenvalues of the Roothaan effective Fock matrix; %d doubly "
+                                     "and %d singly occupied)",
+                                     h.n_beta, h.n_alpha - h.n_beta)
+                               .c_str(),
+                           "occupied");
+    } else {
+        s += orbital_table(h.orbital_energies, h.n_occupied, "Orbital energies", "doubly occupied");
+    }
+    // Mulliken charges and the SCF dipole moment from the density of the final orbitals
+    const Matrix& P = h.P;
     const std::vector<double> q = mulliken_charges(mol, b, P, h.S);
     const std::vector<double> ql = lowdin_charges(mol, b, P, h.S);
-    s += "\n    Atomic charges (SCF density)      Mulliken        Löwdin\n";
-    double sum = 0.0, suml = 0.0;
+    std::vector<double> spin;
+    if (h.open_shell()) {
+        Matrix Ps(P.rows(), P.cols());
+        for (std::size_t i = 0; i < P.rows(); ++i)
+            for (std::size_t j = 0; j < P.cols(); ++j) Ps(i, j) = h.Pa(i, j) - h.Pb(i, j);
+        // spin populations: the "charges" of the spin density without the nuclei
+        const std::vector<double> qs = mulliken_charges(mol, b, Ps, h.S);
+        for (std::size_t a = 0; a < qs.size(); ++a) spin.push_back(mol.atoms[a].nuclear_charge() - qs[a]);
+    }
+    s += spin.empty() ? "\n    Atomic charges (SCF density)      Mulliken        Löwdin\n"
+                      : "\n    Atomic charges (SCF density)      Mulliken        Löwdin   Mulliken spin\n";
+    double sum = 0.0, suml = 0.0, sums = 0.0;
     for (std::size_t a = 0; a < q.size(); ++a) {
-        s += strprintf("      %-28s %12.6f  %12.6f\n", atom_label(mol, a).c_str(), q[a], ql[a]);
+        s += strprintf("      %-28s %12.6f  %12.6f", atom_label(mol, a).c_str(), q[a], ql[a]);
+        if (!spin.empty()) {
+            s += strprintf("  %12.6f", spin[a]);
+            sums += spin[a];
+        }
+        s += "\n";
         sum += q[a];
         suml += ql[a];
     }
-    s += strprintf("      %-28s %12.6f  %12.6f\n", "sum", sum + 0.0, suml + 0.0);
+    s += strprintf("      %-28s %12.6f  %12.6f", "sum", sum + 0.0, suml + 0.0);
+    if (!spin.empty()) s += strprintf("  %12.6f", sums + 0.0);
+    s += "\n";
     const std::array<double, 3> mu = dipole_moment(mol, b, P);
     const double nm = std::sqrt(mu[0] * mu[0] + mu[1] * mu[1] + mu[2] * mu[2]);
     s += "\n    Dipole moment (SCF density, origin at 0)\n";

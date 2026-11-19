@@ -12,6 +12,7 @@
 #pragma once
 
 #include <array>
+#include <functional>
 #include <vector>
 
 #include "macqc/basis.h"
@@ -36,5 +37,20 @@ RHFGradientResult scf_gradient(const Molecule& mol, const BasisSet& basis, const
 RHFHessianResult scf_hessian(const Molecule& mol, const BasisSet& basis, const RHFResult& scf, int threads = 0,
                              double memory_mb = 1024.0, double cphf_tol = 1.0e-9,
                              const CPHFCallback& progress = CPHFCallback());
+
+// Krylov (Galerkin) solver for several symmetric linear systems A x = b at once (the open-shell
+// response and Z-vector equations): `apply` maps a batch of vectors to A times them (one call per
+// iteration, so the Fock builds of all right-hand sides share one pass over the integrals);
+// `diagonal` preconditions.
+struct LinearBatchSolution {
+    std::vector<std::vector<double>> x;
+    bool converged = false;
+    int iterations = 0;
+    double residual = 0.0;
+};
+LinearBatchSolution solve_symmetric_batch(
+    const std::function<std::vector<std::vector<double>>(const std::vector<std::vector<double>>&)>& apply,
+    const std::vector<double>& diagonal, const std::vector<std::vector<double>>& rhs, double tol, int max_iter,
+    const CPHFCallback& progress = CPHFCallback());
 
 }  // namespace macqc

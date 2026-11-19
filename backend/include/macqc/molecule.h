@@ -83,6 +83,27 @@ constexpr int kMaxAtomicNumber = 118;
 // Canonical molecule name ("H2", "LiH", "H2O", "H2O2", "NH3", "HeH+"; "custom") for any spelling, or "".
 std::string canonical_molecule_name(const std::string& name);
 
+// 15.0: molecules and atoms of the molecule menu that are given by their Cartesian coordinates:
+// the atoms H-Ar in their ground states and H2+, H3+, H5+, N2, O2, F2, Cl2, NO, NO2 at their
+// equilibrium structures. They run as custom molecules with these atoms, charge and multiplicity.
+struct MoleculePreset {
+    std::string key;        // "O2", "NO2", "H5+", "N" (atoms: the element symbol)
+    std::string title;      // name in LaTeX notation, e.g. "O$_2$", "H$_5^+$"
+    int charge = 0;
+    int multiplicity = 1;
+    std::string state;      // ground state, e.g. "X 3Sigma_g-", "4S"
+    std::vector<std::pair<std::string, std::array<double, 3>>> atoms;  // symbol, position in angstrom
+    std::string source;     // where the structure comes from
+    bool atom = false;      // a single atom
+};
+const std::vector<MoleculePreset>& molecule_presets();
+// The preset of a name in any case ("o2", "H5+", "h5plus", "Cl", "chlorine atom"), or nullptr.
+const MoleculePreset* find_molecule_preset(const std::string& name);
+// A molecule of the general path: built-in, custom or a preset.
+inline bool general_molecule_name(const std::string& name) {
+    return !canonical_molecule_name(name).empty() || find_molecule_preset(name) != nullptr;
+}
+
 // Default geometries (experimental structures), in bohr / degrees:
 // H2 r_e = 0.74144 Å; LiH r_e = 1.5949 Å; H2O r(OH) = 0.9572 Å, angle 104.52°;
 // H2O2 (gas phase) r(OO) = 1.4556 Å, r(OH) = 0.9670 Å, angle O-O-H 102.32°, dihedral

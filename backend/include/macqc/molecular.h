@@ -11,6 +11,7 @@
 #include "macqc/ci.h"
 #include "macqc/molecule.h"
 #include "macqc/rhf.h"
+#include "macqc/so_methods.h"
 
 namespace macqc {
 
@@ -26,6 +27,14 @@ struct MolecularInput {
     int charge = 0;
     int multiplicity = 1;
     std::string title;
+    // 15.0: charge and multiplicity of every molecule (built-in molecules and presets take their own
+    // unless these are set), the reference ("RHF", "UHF", "ROHF"; "" = RHF for closed-shell singlets,
+    // UHF otherwise, ROHF orbitals for an open-shell Full CI) and the preset of the molecule menu
+    // (atoms H-Ar, H2+, H3+, H5+, N2, O2, F2, Cl2, NO, NO2: find_molecule_preset).
+    bool charge_given = false;
+    bool multiplicity_given = false;
+    std::string reference;
+    std::string preset;
     std::string basis = "aug-cc-pVDZ";
     // "RHF" (shown as HF), "CCSD", "CCSD(T)", "CCSDT", "CCSDTQ" or "FCI"; the correlated
     // methods follow RHF and correlate all electrons.
@@ -52,6 +61,16 @@ struct CostEstimate {
     double rhf_seconds = 0.0;    // rough estimate of the wall time
     std::optional<FCISize> fci;  // method FCI only
     std::optional<CCSize> cc;    // coupled-cluster methods only
+    // 15.0: the spin-orbital engine (MPn, CI, QCI, open-shell coupled cluster)
+    struct SOCost {
+        std::string method;      // label with the reference, e.g. "UMP4", "QCISD(T)"
+        double amplitudes = 0.0; // stored amplitudes (dense spin blocks)
+        double memory_bytes = 0.0;
+        double seconds = 0.0;
+        bool feasible = true;
+        std::string reason;
+    };
+    std::optional<SOCost> so;
     double total_seconds = 0.0;  // RHF (+ Full CI or coupled cluster)
 };
 
@@ -66,13 +85,30 @@ struct MolecularResult {
     std::optional<RHFResult> rhf;
     std::optional<FCIResultGeneral> fci;
     std::optional<CCResult> cc;
+    std::optional<SOResult> so;         // 15.0
+    std::string reference = "RHF";      // 15.0: the reference used (effective)
     std::string report;
 };
 
-// Canonical method name ("RHF", "CCSD", "CCSD(T)", "CCSDT", "CCSDTQ", "FCI") of a name
+// Canonical method name ("RHF", "CCSD", "CCSD(T)", "CCSDT", "CCSDTQ", "FCI"; 15.0: "MP2" ... "MP5",
+// "CISD", "CISD(T)", "CISDT", "CISDTQ", "QCISD", "QCISD(T)", "QCISDT", "QCISDTQ") of a name
 // given in any case, with or without spaces and hyphens ("HF" and "SCF" mean RHF,
-// "Full CI" means FCI); "" if unknown.
+// "Full CI" means FCI; 15.0: "UHF" and "ROHF" also mean the SCF, "UMP2" MP2 and so on, the prefix
+// giving the reference, see parse_method_spec); "" if unknown. "RHF" stands for the SCF method.
 std::string canonical_method_name(const std::string& method);
+
+// 15.0: a method name with Gaussian's reference prefixes: "UHF" -> {RHF (the SCF), UHF},
+// "ROMP2" -> {MP2, ROHF}, "UCCSD(T)" -> {CCSD(T), UHF}, "HF" -> {RHF, ""}, "RHF" -> {RHF, RHF}.
+struct MethodSpec {
+    std::string method;     // canonical, "" if unknown
+    std::string reference;  // "", "RHF", "UHF" or "ROHF"
+};
+MethodSpec parse_method_spec(const std::string& text);
+// The reference a calculation uses: the requested one, else RHF for a singlet, UHF for open shells
+// (ROHF orbitals for Full CI). Throws std::runtime_error if RHF is requested for an open shell.
+std::string effective_reference(const std::string& canonical_method, const std::string& requested, int multiplicity);
+// "MP2", "UMP2", "ROMP2", "UHF", "ROHF", "RHF": the method with the prefix of its reference.
+std::string method_label(const std::string& canonical_method, const std::string& reference);
 // True for the coupled-cluster methods; sets *method to the CC method.
 bool coupled_cluster_method(const std::string& canonical, CCMethod* method = nullptr);
 
@@ -101,6 +137,9 @@ void run_molecular(MolecularResult& result, const RHFProgress& progress = RHFPro
 // The Full CI and coupled-cluster sections of the report (also used by the job output).
 std::string fci_report_section(const FCIResultGeneral& f, double rhf_energy, int level);
 std::string cc_report_section(const CCResult& c, int level);
+// 15.0: the section of a method of the spin-orbital engine (energies by order or component,
+// amplitude norms, T1 diagnostic, convergence).
+std::string so_report_section(const SOResult& r, int level);
 
 // Report text (also stored in result.report by run_molecular).
 std::string molecular_report(const MolecularResult& result);

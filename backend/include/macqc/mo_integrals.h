@@ -16,10 +16,17 @@ struct MOIntegrals {
     std::size_t npair = 0;     // n (n + 1) / 2
     std::size_t stride = 0;    // row length of `eri`
     std::vector<double> eri;   // (pq|rs) = eri[pair(p,q) * stride + pair(r,s)]
+    // 15.0: integrals (pq|rs) of two orbital sets, p, q of the bra set (n_bra orbitals) and r, s of
+    // the ket set (n orbitals): eri[pair(r,s) * stride + pair(p,q)], read with mixed_value(); no h.
+    bool mixed = false;
+    int n_bra = 0;
 
     static std::size_t pair(std::size_t p, std::size_t q) { return p >= q ? p * (p + 1) / 2 + q : q * (q + 1) / 2 + p; }
     double operator()(std::size_t p, std::size_t q, std::size_t r, std::size_t s) const {
         return eri[pair(p, q) * stride + pair(r, s)];
+    }
+    double mixed_value(std::size_t p, std::size_t q, std::size_t r, std::size_t s) const {
+        return eri[pair(r, s) * stride + pair(p, q)];
     }
 };
 
@@ -30,5 +37,8 @@ double mo_transform_bytes(std::size_t n_basis, std::size_t n_mo);
 // Transforms the AO integrals of `basis` with the MO coefficients C (N x n, columns = MOs).
 // h_ao is the AO core Hamiltonian. Uses `threads` threads (0: all cores).
 MOIntegrals transform_to_mo(const BasisSet& basis, const Matrix& h_ao, const Matrix& C, int threads);
+
+// 15.0 (UHF): (pq|rs) with p, q orbitals of Cbra (alpha) and r, s orbitals of Cket (beta).
+MOIntegrals transform_to_mo_mixed(const BasisSet& basis, const Matrix& Cbra, const Matrix& Cket, int threads);
 
 }  // namespace macqc
