@@ -6,6 +6,7 @@
 #include <cstddef>
 #include <functional>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "macqc/basis.h"
@@ -25,6 +26,10 @@ public:
 
     Matrix build(const Matrix& P) const;
 
+    // 15.0 (open shells): the Coulomb and exchange matrices of several symmetric densities in one
+    // pass over the integrals, J(D)_pq = sum_rs (pq|rs) D_rs, K(D)_pr = sum_qs (pq|rs) D_qs.
+    void build_jk(const std::vector<Matrix>& D, std::vector<Matrix>& J, std::vector<Matrix>& K) const;
+
     bool stored() const { return stored_; }
     std::size_t unique_integrals() const { return unique_; }
     std::size_t significant_shell_quartets() const { return quartets_; }
@@ -40,6 +45,8 @@ public:
 private:
     Matrix build_stored(const Matrix& P) const;
     Matrix build_direct(const Matrix& P) const;
+    void build_jk_stored(const std::vector<Matrix>& D, std::vector<Matrix>& J, std::vector<Matrix>& K) const;
+    void build_jk_direct(const std::vector<Matrix>& D, std::vector<Matrix>& J, std::vector<Matrix>& K) const;
 
     const BasisSet& basis_;
     ShellPairList pairs_;
@@ -74,6 +81,16 @@ struct RHFOptions {
     // core Hamiltonian of the electrons and -F . sum_A Z_A R_A to the nuclear energy, so that
     // E(F) = E(0) - mu . F + ... (finite-field dipole moments; energies only, no gradients).
     std::array<double, 3> field{0.0, 0.0, 0.0};
+    // 15.0: the reference determinant. "RHF" (closed-shell singlet), "UHF" (different orbitals for
+    // the alpha and the beta electrons) or "ROHF" (doubly and singly occupied orbitals of one set);
+    // run_scf chooses the routine. The spin multiplicity 2S + 1 fixes n_alpha - n_beta = 2S.
+    std::string reference = "RHF";
+    int multiplicity = 1;
+    // UHF: starting beta orbitals (with guess_orbitals for the alpha ones); nullptr: the alpha ones.
+    const Matrix* guess_orbitals_b = nullptr;
+    // Open shells: a level shift (E_h) of the virtual orbitals in the first iterations, which
+    // stabilises the aufbau of atoms with degenerate open shells; 0: automatic.
+    double level_shift = 0.0;
 };
 
 struct RHFIteration {
@@ -112,6 +129,27 @@ struct RHFResult {
     double scf_seconds = 0.0;
     bool guess_from_orbitals = false;  // the SCF started from RHFOptions::guess_orbitals
     std::string guess;                 // 14.0: "orbitals", "sad" or "core"
+
+    // 15.0, open shells. For RHF: reference "RHF", n_alpha = n_beta = n_occupied, Cb empty.
+    // UHF: C and orbital_energies are the alpha orbitals, Cb and orbital_energies_b the beta ones;
+    // n_occupied = n_beta. ROHF: one set C, the first n_beta orbitals doubly and the next
+    // n_alpha - n_beta singly occupied; orbital_energies are the eigenvalues of the Roothaan
+    // effective Fock matrix (PySCF's choice of the blocks). P = Pa + Pb in every case.
+    std::string reference = "RHF";
+    int multiplicity = 1;
+    int n_alpha = 0, n_beta = 0;
+    Matrix Cb;
+    std::vector<double> orbital_energies_b;
+    Matrix Pa, Pb;                      // alpha and beta densities (open shells; RHF: P/2 each)
+    Matrix Fa, Fb;                      // alpha and beta Fock matrices (AO) at convergence (open shells)
+    double s2 = 0.0;                    // <S^2> of the determinant
+    double s2_exact = 0.0;              // S(S+1)
+    bool open_shell() const { return reference != "RHF"; }
+    // The beta orbitals: Cb for UHF, C otherwise.
+    const Matrix& beta_orbitals() const { return Cb.rows() ? Cb : C; }
+    const std::vector<double>& beta_orbital_energies() const {
+        return orbital_energies_b.empty() ? orbital_energies : orbital_energies_b;
+    }
 };
 
 // Progress callback: called after each SCF iteration (may be empty).
@@ -121,5 +159,27 @@ using RHFProgress = std::function<void(const RHFIteration&)>;
 // Non-convergence is reported through RHFResult::converged.
 RHFResult run_rhf(const Molecule& mol, const BasisSet& basis, const RHFOptions& options,
                   const RHFProgress& progress = RHFProgress());
+
+// 15.0: unrestricted Hartree-Fock (Pople-Nesbet equations; DIIS on both Fock matrices with one
+// set of coefficients) and restricted open-shell Hartree-Fock (one set of orbitals; the Roothaan
+// effective Fock matrix with PySCF's blocks: (F_a + F_b)/2 in the closed-closed, open-open,
+// virtual-virtual and closed-virtual blocks, F_b closed-open, F_a open-virtual). Both start from
+// the SAD density split evenly into alpha and beta, from given orbitals, or from the core
+// Hamiltonian, and report <S^2>. Throws for impossible electron counts and multiplicities.
+RHFResult run_uhf(const Molecule& mol, const BasisSet& basis, const RHFOptions& options,
+                  const RHFProgress& progress = RHFProgress());
+RHFResult run_rohf(const Molecule& mol, const BasisSet& basis, const RHFOptions& options,
+                   const RHFProgress& progress = RHFProgress());
+// RHF, UHF or ROHF according to options.reference.
+RHFResult run_scf(const Molecule& mol, const BasisSet& basis, const RHFOptions& options,
+                  const RHFProgress& progress = RHFProgress());
+
+// Numbers of alpha and beta electrons for `electrons` and the multiplicity 2S + 1; throws with an
+// explanation if they do not fit (e.g. an even number of electrons in a doublet).
+std::pair<int, int> alpha_beta_electrons(int electrons, int multiplicity);
+// The superposition of atomic densities of the molecule (the SAD guess of the SCF), total density.
+Matrix sad_guess_density(const Molecule& mol, const BasisSet& basis, int threads, double memory_mb);
+// Canonical name of a reference ("RHF", "UHF", "ROHF") for any spelling, or "".
+std::string canonical_reference_name(const std::string& name);
 
 }  // namespace macqc

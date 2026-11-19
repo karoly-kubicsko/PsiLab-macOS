@@ -44,6 +44,9 @@ add_library(macqc STATIC
   backend/src/output.cpp
   backend/src/jobs.cpp
   backend/src/rhf.cpp
+  backend/src/scf_open.cpp
+  backend/src/scf_open_derivatives.cpp
+  backend/src/scf_open_hessian.cpp
   backend/src/molecular.cpp
   backend/src/gemm.cpp
   backend/src/mo_integrals.cpp
