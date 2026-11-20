@@ -108,7 +108,7 @@ struct OptimizationView: View {
                            reference: showStart && index > 0 ? start : nil,
                            framing: aligned,
                            accessibilityText: "Molecule at this optimisation step")
-                .frame(minWidth: 480, maxWidth: .infinity, minHeight: Viewer3DSize.height, maxHeight: Viewer3DSize.height)
+                .viewer3DFrame(Viewer3DSize.steps, minWidth: 480)
             HStack(spacing: 8) {
                 Button {
                     select(0, in: opt)
@@ -816,7 +816,7 @@ struct FrequencyPage: View {
                                      displacedCoordinates(equilibrium, m.displacement, -a)],
                            vibration: vibration,
                            accessibilityText: "Animation of normal mode \(index + 1)")
-                .frame(minWidth: 480, maxWidth: .infinity, minHeight: Viewer3DSize.modeHeight, maxHeight: Viewer3DSize.modeHeight)
+                .viewer3DFrame(Viewer3DSize.mode, minWidth: 480)
             Text(m.irIntensity.map { String(format: "IR intensity %.2f km/mol", $0) } ?? "IR intensity –")
                 .font(.caption)
                 .monospacedDigit()

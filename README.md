@@ -224,6 +224,12 @@ Checked: SCF energies against PySCF with the same basis files agree to 1.6·10�
 (RHF: H₂O cc-pVDZ, TZ, QZ, cc-pCVDZ, TZ; N₂ cc-pV5Z, cc-pCVQZ; CO cc-pCV5Z, 290 functions; Cl₂
 cc-pVDZ; CaH₂ cc-pCVDZ; HeH⁺ cc-pCVTZ; KrH⁺ cc-pVDZ; UHF: triplet O₂ cc-pVTZ).
 
+**Taller 3D viewers.** The height of the molecule viewers follows the height of the tab: 78 % of the
+visible area for the optimisation steps, the scan points and the normal modes (at least 560 and
+580 pt, before 480 and 500 pt; at most 1000 pt) and 60 % in the Summary tab (at least 420 pt, before
+280 pt; at most 800 pt). With the window filling the screen of a 16-inch MacBook Pro, about 630 pt
+and 490 pt (1536 × 960 pt display, Dock shown).
+
 ### 15.0
 **Open shells, many more methods, analytic derivatives for them, new molecules, optimiser options,
 spin-adapted Full CI and hardware acceleration.**
