@@ -144,7 +144,7 @@ void set_energy_result(Output& out, JobResult jr) {
     else if (!std::isfinite(h.total_energy))
         out.error = "SCF produced non-finite energies";
     else if (m.fci && !m.fci->converged)
-        out.error = "Full CI did not converge in " + std::to_string(m.fci->iterations) + " iterations";
+        out.error = "Full-CI did not converge in " + std::to_string(m.fci->iterations) + " iterations";
 }
 
 Output run_molecular_calculation(const Input& in0, const OutputSink& sink) {
@@ -327,7 +327,7 @@ std::string input_echo(const Input& in) {
     }
     kv("threads", in.threads == 0 ? "all cores" : std::to_string(in.threads));
     kv("memory", strprintf("%.0f MB (two-electron integrals in memory up to this size)", in.memoryMB));
-    kv("fci_memory", strprintf("%.0f MB (limit of Full CI, coupled cluster and correlated gradients)", in.fciMemoryMB));
+    kv("fci_memory", strprintf("%.0f MB (limit of Full-CI, coupled cluster and correlated gradients)", in.fciMemoryMB));
     return s;
 }
 

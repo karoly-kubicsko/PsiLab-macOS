@@ -516,7 +516,7 @@ static void test_jobs() {
     CHECK(cancelled["rhf"].is_null());
     macqc_job_free(job);
 
-    // A Full CI job reports its stages and ends in stage 5 (done).
+    // A Full-CI job reports its stages and ends in stage 5 (done).
     job = macqc_job_create();
     int seen = 0;
     raw = nullptr;

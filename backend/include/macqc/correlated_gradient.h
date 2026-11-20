@@ -6,7 +6,7 @@
 // with every dependence on the Fock matrix and the orbital energies written through h and
 // (pq|rs) (f = h + 2J - K of the reference). The method must be invariant to rotations among
 // the occupied and among the virtual orbitals (CCSD, CCSD(T) with the full Fock matrix,
-// CCSDT, CCSDTQ, Full CI are). The gradient is then
+// CCSDT, CCSDTQ, Full-CI are). The gradient is then
 //   dE/dx = sum D h^(x) + sum G (pq|rs)^(x) - sum W S^x + dV_nn/dx
 // with the orbital response of the canonical RHF orbitals handled by one Z-vector (CPHF)
 // equation:

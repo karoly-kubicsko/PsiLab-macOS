@@ -4,12 +4,12 @@
 //    PySCF + geomeTRIC geometries (optimization_reference.json) and PySCF frequencies and
 //    thermochemistry (frequency_reference.json);
 //  - opt+freq with every feasible correlated method for H2 and LiH; exact identities:
-//    H2: CCSD = CCSDT = CCSDTQ = Full CI and (T) = 0 (2 electrons); LiH: CCSDTQ = Full CI
+//    H2: CCSD = CCSDT = CCSDTQ = Full-CI and (T) = 0 (2 electrons); LiH: CCSDTQ = Full-CI
 //    (4 electrons); numerical-gradient methods against analytic ones;
 //  - H2O opt+freq with CCSD and CCSD(T) (aug-cc-pVDZ) against PySCF + geomeTRIC;
 //  - opt+freq+sp: the single point equals an energy job at the optimised geometry, and the
 //    final G, H, U are the single-point energy plus the thermal corrections of the frequencies;
-//  - refusals (H2O CCSDTQ frequencies and optimisation, H2O Full CI) with the estimate's counts
+//  - refusals (H2O CCSDTQ frequencies and optimisation, H2O Full-CI) with the estimate's counts
 //    of energies and gradients of numerical Hessians;
 //  - the streamed output file: read while the job runs with macqc_job_output, it equals the
 //    "output" of the result; progress text; cancellation during an optimisation;
@@ -279,16 +279,16 @@ int main() {
     }
 
     // ---- correlated methods for H2 and LiH: exact identities
-    // H2 (2 electrons): opt+freq with every method; CCSD = CCSDT = CCSDTQ = Full CI, (T) = 0.
-    // LiH (4 electrons): opt+freq with CCSD, CCSD(T) and Full CI; in the full mode also CCSDT and
-    // CCSDTQ (numerical gradients and Hessians from energies) with CCSDTQ = Full CI.
+    // H2 (2 electrons): opt+freq with every method; CCSD = CCSDT = CCSDTQ = Full-CI, (T) = 0.
+    // LiH (4 electrons): opt+freq with CCSD, CCSD(T) and Full-CI; in the full mode also CCSDT and
+    // CCSDTQ (numerical gradients and Hessians from energies) with CCSDTQ = Full-CI.
     std::printf("Correlated methods: H2 (2 electrons) and LiH (4 electrons), aug-cc-pVDZ\n");
     {
         const std::vector<std::string> methods = {"CCSD", "CCSD(T)", "CCSDT", "CCSDTQ", "FCI"};
         for (const std::string mol : {"H2", "LiH"}) {
             std::vector<json> res(methods.size());
             std::vector<bool> ran(methods.size(), false);
-            // Full CI first: its geometry is the reference of the frequency-only runs
+            // Full-CI first: its geometry is the reference of the frequency-only runs
             for (int k = static_cast<int>(methods.size()) - 1; k >= 0; --k) {
                 const std::string& m = methods[static_cast<std::size_t>(k)];
                 const bool numerical = m == "CCSDT" || m == "CCSDTQ";
@@ -299,7 +299,7 @@ int main() {
                 const json r = run_logged(mol + " " + m + "/aug-cc-pVDZ " + in["job"].get<std::string>(), in);
                 CHECK(r["error"].is_null());
                 CHECK(r["frequencies"]["modes"].size() == 1);
-                // 10.0: CCSD, CCSD(T) and Full CI analytic; CCSDT and CCSDTQ from 2 displaced energies
+                // 10.0: CCSD, CCSD(T) and Full-CI analytic; CCSDT and CCSDTQ from 2 displaced energies
                 // (LiH also 4 finite-field energies for the dipole)
                 CHECK(r["frequencies"]["analytic"].get<bool>() == !numerical);
                 if (numerical) CHECK(r["frequencies"]["energyEvaluations"].get<int>() == (mol == "LiH" ? 6 : 2));
@@ -325,16 +325,16 @@ int main() {
                 if (!r["optimization"].is_null()) {
                     const double dr = std::fabs(r["optimization"]["finalGeometry"]["R"].get<double>() - r_fci) * kBohr;
                     const double de = std::fabs(r["optimization"]["finalEnergy"].get<double>() - e_fci);
-                    check_max("  " + mol + " " + methods[k] + " = Full CI: R_e (angstrom)", dr, numerical ? 5e-5 : 1e-6);
-                    check_max("  " + mol + " " + methods[k] + " = Full CI: energy at R_e (E_h)", de, numerical ? 1e-8 : 1e-9);
+                    check_max("  " + mol + " " + methods[k] + " = Full-CI: R_e (angstrom)", dr, numerical ? 5e-5 : 1e-6);
+                    check_max("  " + mol + " " + methods[k] + " = Full-CI: energy at R_e (E_h)", de, numerical ? 1e-8 : 1e-9);
                 } else {
-                    check_max("  " + mol + " " + methods[k] + " = Full CI: energy at the Full CI R_e (E_h)",
+                    check_max("  " + mol + " " + methods[k] + " = Full-CI: energy at the Full-CI R_e (E_h)",
                               std::fabs(r["frequencies"]["energy"].get<double>() - e_fci), 1e-9);
                 }
-                check_max("  " + mol + " " + methods[k] + " = Full CI: wavenumber (cm-1)", dw, numerical ? 0.5 : 0.05);
+                check_max("  " + mol + " " + methods[k] + " = Full-CI: wavenumber (cm-1)", dw, numerical ? 0.5 : 0.05);
             }
             if (mol == "LiH") {
-                // LiH CCSD(T) and Full CI against PySCF + geomeTRIC
+                // LiH CCSD(T) and Full-CI against PySCF + geomeTRIC
                 for (const std::string m : {"CCSD(T)", "FCI"}) {
                     const json* ref = find_case(opt_ref, "LiH", "aug-cc-pVDZ", m);
                     const json& r = res[m == "FCI" ? 4 : 1];
@@ -551,7 +551,7 @@ int main() {
         };
         const std::vector<std::pair<std::string, json>> jobs = {
             {"H2O RHF opt+freq", {{"molecule", "H2O"}, {"method", "RHF"}, {"job", "opt+freq"}, {"R", 1.0}, {"angle", 110.0}}},
-            {"LiH Full CI energy", {{"molecule", "LiH"}, {"method", "FCI"}}},
+            {"LiH Full-CI energy", {{"molecule", "LiH"}, {"method", "FCI"}}},
             {"H2O CCSD energy", {{"molecule", "H2O"}, {"method", "CCSD"}}},
         };
         for (const auto& [label, input] : jobs) {

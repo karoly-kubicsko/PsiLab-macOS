@@ -2,7 +2,7 @@
 //
 //  - RHF: analytic (second-derivative integrals and CPHF, rhf_derivatives.h), with the analytic
 //    dipole derivatives; when near-linear dependencies were removed, numerical (below).
-//  - CCSD, CCSD(T), Full CI (and RHF with removed functions): central differences of analytic
+//  - CCSD, CCSD(T), Full-CI (and RHF with removed functions): central differences of analytic
 //    gradients along internal coordinates; for H2O with C2v symmetry the symmetry-adapted
 //    coordinates S1 (symmetric stretch), S2 (bend) and S3 (antisymmetric stretch), otherwise
 //    R(O-H1), R(O-H2) and the angle; for diatomics R. Two gradients per coordinate. The

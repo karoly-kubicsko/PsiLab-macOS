@@ -22,10 +22,10 @@ double seconds_since(Clock::time_point t) { return std::chrono::duration<double>
 
 std::string human_time(double s) { return estimate_duration(s); }
 
-std::string method_label(const std::string& m) { return m == "RHF" ? "HF" : (m == "FCI" ? "Full CI" : m); }
-// 15.0: with the reference: HF (closed shell), UHF, ROHF; UMP2, ROCCSD(T); Full CI
+std::string method_label(const std::string& m) { return m == "RHF" ? "HF" : (m == "FCI" ? "Full-CI" : m); }
+// 15.0: with the reference: HF (closed shell), UHF, ROHF; UMP2, ROCCSD(T); Full-CI
 std::string job_label(const std::string& m, const std::string& ref) {
-    if (m == "FCI") return "Full CI";
+    if (m == "FCI") return "Full-CI";
     if (ref.empty() || ref == "RHF") return method_label(m);
     return macqc::method_label(m, ref);
 }
@@ -80,8 +80,8 @@ double gradient_seconds(const MolecularResult& p, bool* analytic, std::string* h
             const double n5 = 6.0 * std::pow(n, 5) / (4.0e9 * std::max(1, e.threads));
             if (m == "FCI") {
                 *how = p.reference.empty() || p.reference == "RHF"
-                           ? "analytic gradient (Full CI densities, Z-vector)"
-                           : "analytic gradient (Full CI spin densities; orbital-invariant energy, no Z-vector)";
+                           ? "analytic gradient (Full-CI densities, Z-vector)"
+                           : "analytic gradient (Full-CI spin densities; orbital-invariant energy, no Z-vector)";
                 return 1.3 * (e.total_seconds * 1.3 + 2.5 * e.rhf_seconds + n5) + 0.2;
             }
             *how = "analytic gradient (" + m + " Lambda equations, relaxed densities, Z-vector)";
@@ -328,7 +328,7 @@ JobEstimate estimate_job(const MolecularResult& p, const JobSettings& s, const M
     if (e.fci) est.memory_mb = std::max(est.memory_mb, e.fci->memory_bytes / (1024.0 * 1024.0));
     if (e.cc) est.memory_mb = std::max(est.memory_mb, e.cc->memory_bytes / (1024.0 * 1024.0));
     const int typical_steps = 6;
-    // 10.0: the analytic Full CI, CCSD or CCSD(T) Hessian at the first point of a minimisation
+    // 10.0: the analytic Full-CI, CCSD or CCSD(T) Hessian at the first point of a minimisation
     // ("auto" or "analytic", where it fits into memory; no dipole derivatives): extra seconds
     const bool correlated_hessian_fits =
         analytic && m != "RHF" && analytic_hessian_method(m, p.reference) && p.molecule.atoms.size() >= 2 &&
@@ -568,7 +568,7 @@ void write_header(OutputWriter& w, const JobSettings& s, const std::string& echo
     const std::string rule(88, '=');
     w.line(rule);
     w.line("                                ΨLab " + std::string(kProgramVersion));
-    w.line("  Hartree–Fock (RHF, UHF, ROHF), Møller–Plesset, CI, QCI, coupled cluster and Full CI");
+    w.line("  Hartree–Fock (RHF, UHF, ROHF), Møller–Plesset, CI, QCI, coupled cluster and Full-CI");
     w.line(rule);
     w.line("  Program      ΨLab " + std::string(kProgramVersion) + " (C++17 backend; integrals, SCF, CC, CI, derivatives)");
     w.line("  Started      " + local_time_string());
@@ -613,7 +613,7 @@ void write_estimate(OutputWriter& w, const MolecularResult& p, const JobEstimate
     };
     auto bytes = [](double b) { return estimate_memory_mb(b / 1048576.0); };
     if (e.fci)
-        w.line(strprintf("    Full CI: %s determinants (%d electrons in %d orbitals), about %s", count(e.fci->determinants).c_str(),
+        w.line(strprintf("    Full-CI: %s determinants (%d electrons in %d orbitals), about %s", count(e.fci->determinants).c_str(),
                          e.fci->alpha + e.fci->beta, e.fci->orbitals, bytes(e.fci->memory_bytes).c_str()));
     if (e.cc)
         w.line(strprintf("    %s: %d occupied, %d virtual orbitals, %s amplitudes, about %s", e.cc->method.c_str(),
@@ -797,7 +797,7 @@ std::string summary_lines(const MolecularResult& m) {
                 if (t.label.rfind("E(", 0) == 0) s += strprintf("    %s correction:  %.10f E_h\n", t.label.c_str(), t.value);
         if (m.so) s += strprintf("    %s total energy:  %.10f E_h\n", job_label(m.so->method, m.reference).c_str(), m.so->total_energy);
         if (m.cc) s += strprintf("    %s total energy:  %.10f E_h\n", m.cc->method.c_str(), m.cc->total_energy);
-        if (m.fci) s += strprintf("    Full CI total energy:  %.10f E_h\n", m.fci->total_energy);
+        if (m.fci) s += strprintf("    Full-CI total energy:  %.10f E_h\n", m.fci->total_energy);
     }
     return s;
 }

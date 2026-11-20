@@ -36,6 +36,10 @@ targets:
       - path: ../basis
         type: folder
         buildPhase: resources
+      # 17.0: the startup example (H2, Full-CI/aug-cc-pCV5Z//Full-CI/aug-cc-pCVQZ opt+freq+sp),
+      # copied as Contents/Resources/h2-fullci-aug-cc-pcv5z-opt-aug-cc-pcvqz-optfreqsp.out.
+      - path: ../examples/outputs/h2-fullci-aug-cc-pcv5z-opt-aug-cc-pcvqz-optfreqsp.out
+        buildPhase: resources
 
     dependencies:
       - sdk: Accelerate.framework
@@ -74,8 +78,8 @@ targets:
         PRODUCT_NAME: "ΨLab"
         PRODUCT_MODULE_NAME: PsiLab
         PRODUCT_BUNDLE_IDENTIFIER: org.psilab.PsiLab
-        MARKETING_VERSION: "16.0"
-        CURRENT_PROJECT_VERSION: "15"
+        MARKETING_VERSION: "17.0"
+        CURRENT_PROJECT_VERSION: "16"
         GENERATE_INFOPLIST_FILE: YES
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         # The icon phase below reads the asset catalog and writes into the bundle.
@@ -93,7 +97,7 @@ targets:
         CLANG_CXX_LANGUAGE_STANDARD: c++17
         CLANG_CXX_LIBRARY: libc++
         OTHER_CPLUSPLUSFLAGS: "$(inherited) -ffp-contract=off"
-        # Matrix products (coupled cluster, Full CI, integral transformation) with Apple's BLAS.
+        # Matrix products (coupled cluster, Full-CI, integral transformation) with Apple's BLAS.
         GCC_PREPROCESSOR_DEFINITIONS: "$(inherited) MACQC_USE_ACCELERATE=1"
         # Ad-hoc signing: runs locally (Apple Silicon requires some signature).
         CODE_SIGN_STYLE: Manual
@@ -101,6 +105,6 @@ targets:
         ENABLE_HARDENED_RUNTIME: YES
       configs:
         Release:
-          # The integral and Full CI kernels profit from -O3 (vectorisation); the results of
+          # The integral and Full-CI kernels profit from -O3 (vectorisation); the results of
           # HeH+ stay identical because -ffp-contract=off keeps IEEE arithmetic.
           GCC_OPTIMIZATION_LEVEL: "3"

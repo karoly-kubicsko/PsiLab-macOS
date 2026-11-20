@@ -79,6 +79,8 @@ struct OpenedOutputFile: Equatable {
     /// "ΨLab 13.0" and the time the file was written, from its archive (empty if unknown).
     var program: String
     var written: String
+    /// 17.0: the startup example of the app's resources (not a file the user opened).
+    var example = false
 }
 
 /// The "archive" object of an archive: the program and the time it was written.
@@ -114,16 +116,19 @@ extension AppModel {
     }
 
     /// Reads an output file or a JSON export and shows its results (the inputs in the sidebar stay
-    /// as they are). `showSummary`: select the Summary tab.
-    func loadOutputFile(from url: URL, showSummary: Bool = true) {
+    /// as they are). `showSummary`: select the Summary tab; `example`: the startup example (17.0).
+    func loadOutputFile(from url: URL, showSummary: Bool = true, example: Bool = false) {
         let name = url.lastPathComponent
-        let text: String
+        var text: String
         do {
             text = try String(contentsOf: url, encoding: .utf8)
         } catch {
             errorMessage = "“\(name)” could not be read: \(error.localizedDescription)"
             return
         }
+        // 17.0: the method is written Full-CI (files of earlier versions: Full CI); no key of the
+        // archive contains the name, so the results read the same.
+        text = text.replacingOccurrences(of: "Full CI", with: "Full-CI")
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         let isJSON = url.pathExtension.lowercased() == "json" || trimmed.hasPrefix("{")
         guard let json = isJSON ? trimmed : OutputArchive.json(in: text) else {
@@ -147,7 +152,7 @@ extension AppModel {
         outputText = out.isGeneral ? (out.output ?? "") : ""
         outputGeneration += 1
         openedFile = OpenedOutputFile(name: name, program: header?.archive?.program ?? "",
-                                      written: header?.archive?.written ?? "")
+                                      written: header?.archive?.written ?? "", example: example)
         if out.scan != nil { scanPage = .relaxed }
         if showSummary { selectedTab = .summary }
     }
@@ -171,12 +176,7 @@ extension AppModel {
         panel.title = "Save Coordinates as Gaussian Input"
         panel.allowedContentTypes = [UTType(filenameExtension: "gjf") ?? .plainText]
         panel.canCreateDirectories = true
-        var stem = m.formula.replacingOccurrences(of: " ", with: "")
-        if let level = m.level {
-            stem += "-" + level.replacingOccurrences(of: "/", with: "-").replacingOccurrences(of: " ", with: "")
-                .replacingOccurrences(of: ",", with: "")
-        }
-        panel.nameFieldStringValue = stem + ".gjf"
+        panel.nameFieldStringValue = m.fileStem + ".gjf"
         guard panel.runModal() == .OK, let url = panel.url else { return }
         do {
             try m.gaussianInputText(method: method, basis: basis, orbitals: orbitals)
@@ -190,9 +190,17 @@ extension AppModel {
     /// its basis functions, else the level of the sidebar.
     var gaussianLevel: (method: String, basis: String, orbitals: MacQCOrbitals?) {
         if let out = result, out.isGeneral, out.optimization != nil {
-            return (out.input.method, out.input.basis, out.orbitals)
+            return (out.input.method, out.input.basis, optimizationOrbitals)
         }
         return (method.rawValue, currentBasis, orbitalsForBasis(currentBasis))
+    }
+
+    /// 17.0: the basis functions of the displayed result if they are those of the optimisation's
+    /// basis set (after opt+freq+sp they are those of the single point, which may use another set).
+    var optimizationOrbitals: MacQCOrbitals? {
+        guard let out = result, out.isGeneral else { return nil }
+        let finalBasis = out.basis?.name ?? (out.singlePoint != nil && !out.input.spBasis.isEmpty ? out.input.spBasis : out.input.basis)
+        return finalBasis.lowercased() == out.input.basis.lowercased() ? out.orbitals : nil
     }
 
     /// The basis functions of the displayed result if it used `basis` (the functions of an element
@@ -204,7 +212,7 @@ extension AppModel {
 }
 
 extension SavedMolecule {
-    /// Gaussian's keyword for a ΨLab method; nil where Gaussian has none (CCSDT, CCSDTQ, Full CI).
+    /// Gaussian's keyword for a ΨLab method; nil where Gaussian has none (CCSDT, CCSDTQ, Full-CI).
     /// ΨLab correlates all electrons: Gaussian's coupled cluster freezes the core unless asked
     /// for Full.
     static func gaussianMethod(_ method: String) -> String? {
@@ -260,7 +268,12 @@ extension SavedMolecule {
         let name = SavedMolecule.gaussianTitle(title).isEmpty ? SavedMolecule.gaussianTitle(formula)
                                                               : SavedMolecule.gaussianTitle(title)
         var lines: [String] = []
-        if let l = levelText {
+        if let label = structureLabel, let l = level {
+            // 17.0: a step of an optimisation or a point of a relaxed scan
+            var line = "! \(name): " + label + " at " + l + " with PsiLab"
+            if let e = energy { line += String(format: ", E = %.10f E_h", e) }
+            lines.append(line)
+        } else if let l = levelText {
             var line = "! \(name): " + (transitionState ? "transition state at " : "geometry optimised at ") + l + " with PsiLab"
             if let e = energy { line += String(format: ", E = %.10f E_h", e) }
             lines.append(line)

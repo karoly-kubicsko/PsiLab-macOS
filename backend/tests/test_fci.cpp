@@ -1,8 +1,8 @@
-// Tests of the general determinant Full CI (CTest):
+// Tests of the general determinant Full-CI (CTest):
 //  - occupation-string addressing;
 //  - the string-driven sigma algorithm against a brute-force Hamiltonian matrix built with
 //    spin-orbital Slater-Condon rules (1, 2 and 5 electrons per spin, truncated orbital spaces);
-//  - Full CI energies against PySCF (backend/tests/data/fci_reference.json) and against
+//  - Full-CI energies against PySCF (backend/tests/data/fci_reference.json) and against
 //    exact non-relativistic energies from the literature (variational bound, monotone);
 //  - size estimates, refusals and the JSON API.
 // PSILAB_TEST_MAX_DET (default 500000) limits the PySCF comparison; larger cases take minutes.
@@ -247,11 +247,11 @@ static void test_reference() {
         check_near(m + "/" + b + " |C0|^2", r.hf_weight, c["hf_weight"].get<double>(), 1e-6);
         check_near(m + "/" + b + " <S^2>", r.s2, 0.0, 1e-8);
     }
-    std::printf("Full CI against PySCF: %d cases run, %d larger cases skipped (PSILAB_TEST_MAX_DET)\n", run, skipped);
+    std::printf("Full-CI against PySCF: %d cases run, %d larger cases skipped (PSILAB_TEST_MAX_DET)\n", run, skipped);
     CHECK(run >= 4);
 }
 
-// Exact non-relativistic (Born-Oppenheimer) energies: Full CI in a finite basis lies above
+// Exact non-relativistic (Born-Oppenheimer) energies: Full-CI in a finite basis lies above
 // them and approaches them as the basis grows.
 static void test_exact_bounds() {
     struct Exact {
@@ -310,7 +310,7 @@ static void test_limits_and_api() {
     CHECK(ok["fullCI"]["leadingDeterminants"].size() >= 3);
     CHECK(ok["fullCI"]["naturalOccupations"].size() == 32);
     CHECK(ok["estimate"]["fci"]["feasible"].get<bool>());
-    CHECK(ok["report"].get<std::string>().find("Full CI energies") != std::string::npos);
+    CHECK(ok["report"].get<std::string>().find("Full-CI energies") != std::string::npos);
     check_near("api FCI = RHF + correlation", ok["fullCI"]["totalEnergy"].get<double>(),
                ok["rhf"]["totalEnergy"].get<double>() + ok["fullCI"]["correlationEnergy"].get<double>(), 1e-12);
 

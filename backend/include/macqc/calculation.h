@@ -56,7 +56,7 @@ struct Input {
     std::string basisDirectory;         // "" -> default_basis_directory()
     int threads = 0;                    // 0 -> all hardware threads
     double memoryMB = 1024.0;           // limit for keeping the two-electron integrals in memory
-    double fciMemoryMB = 4096.0;        // hard memory limit of Full CI and coupled cluster
+    double fciMemoryMB = 4096.0;        // hard memory limit of Full-CI and coupled cluster
     int scfMaxIter = 100;
     double energyConvergence = 1.0e-10;
     double gradientConvergence = 1.0e-7;
@@ -79,11 +79,11 @@ struct Input {
     // ΨLab 7.0 transition states (jobs "ts", "ts+freq")
     std::string tsHessian = "calcfc";   // calcfc (Hessian at the first point) | calcall (at every point) | recalcfc (15.0)
     bool eigenTest = true;              // exactly one negative Hessian eigenvalue (Gaussian: EigenTest)
-    // ΨLab 10.0: the Hessian of frequency jobs and transition-state searches with Full CI, CCSD and
+    // ΨLab 10.0: the Hessian of frequency jobs and transition-state searches with Full-CI, CCSD and
     // CCSD(T): "analytic" (where it fits in memory) or "numerical" (differences of analytic gradients)
     std::string hessian = "analytic";
     // 10.0: the initial Hessian of minimisations: "auto" (analytic for HF, Lindh's model Hessian
-    // otherwise), "analytic" (also for Full CI, CCSD, CCSD(T)) or "model" (Lindh)
+    // otherwise), "analytic" (also for Full-CI, CCSD, CCSD(T)) or "model" (Lindh)
     std::string initialHessian = "auto";
     // 15.0 (Gaussian Opt=CalcFC, CalcAll, RecalcFC=N): the computed Hessians of minimisations,
     // "auto" (the initial Hessian of initialHessian, then BFGS updates) | "calcfc" | "calcall" |

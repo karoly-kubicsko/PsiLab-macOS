@@ -3,7 +3,7 @@
 //
 // Analytic gradients: RHF (derivative integrals, energy-weighted density, exact term for
 // removed near-linear dependencies); CCSD and CCSD(T) (Lambda equations, relaxed densities,
-// Z-vector); Full CI (relaxed densities). CCSDT and CCSDTQ, and the correlated methods when
+// Z-vector); Full-CI (relaxed densities). CCSDT and CCSDTQ, and the correlated methods when
 // near-linear dependencies were removed or the analytic gradient does not fit into memory,
 // use central differences of energies along (symmetry-adapted) internal coordinates; the
 // result says which was used and why.
@@ -29,7 +29,7 @@ namespace macqc {
 struct ElectronicOptions {
     int threads = 0;                 // 0: all cores
     double memory_mb = 1024.0;       // AO two-electron integrals kept in memory up to this size
-    double fci_memory_mb = 4096.0;   // memory limit of Full CI, coupled cluster and correlated gradients
+    double fci_memory_mb = 4096.0;   // memory limit of Full-CI, coupled cluster and correlated gradients
     int scf_max_iter = 100;
     double scf_energy_tol = 1.0e-10;
     double scf_gradient_tol = 1.0e-9;

@@ -4,7 +4,7 @@
 // two-particle densities D, G of its energy Lagrangian in the canonical RHF orbitals,
 //   L = sum D h + sum G (pq|rs) + V_nn,
 // and in addition their first-order responses D^(y), G^(y) to every nuclear coordinate y
-// (from the response of its own parameters, e.g. the Full CI vector or the coupled-cluster
+// (from the response of its own parameters, e.g. the Full-CI vector or the coupled-cluster
 // amplitudes and multipliers, to the perturbed Hamiltonian H^(y) built here). The Hessian is
 // the derivative of the analytic gradient,
 //   E^xy = sum D h^(xy) + sum G g^(xy) + sum D^(y) h^(x) + sum G^(y) g^(x) + V_nn^xy,
@@ -122,7 +122,7 @@ struct CorrelatedHessianResult {
     bool cphf_converged = true;
     int cphf_iterations = 0;
     double cphf_residual = 0.0;
-    bool method_converged = true;     // e.g. the Full CI vector responses
+    bool method_converged = true;     // e.g. the Full-CI vector responses
     int method_iterations = 0;
     double method_residual = 0.0;
     double orbital_seconds = 0.0, method_seconds = 0.0;
@@ -135,7 +135,7 @@ CorrelatedHessianResult correlated_hessian(const Molecule& mol, const BasisSet& 
                                            const OrbitalResponse& resp, const DensityResponse& dresp,
                                            int threads = 0, double memory_mb = 1024.0);
 
-// Full CI (stage 10.2): the Hessian of the Full CI energy with the normalised CI vector `c` of
+// Full-CI (stage 10.2): the Hessian of the Full-CI energy with the normalised CI vector `c` of
 // the RHF orbitals (`fci_electronic_energy` without V_nn). The CI vector responses solve
 // (H - E) c^y = -(H^(y) - E^(y)) c; the density responses are the bilinear densities
 // D(c, c^y) + D(c^y, c) = [D(c + c^y) - D(c - c^y)] / 2 (exact: the densities are quadratic).

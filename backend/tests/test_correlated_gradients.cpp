@@ -1,14 +1,14 @@
 // Tests of the correlated gradients of ΨLab 5.0 (CTest):
-//  - CCSD, CCSD(T) and Full CI analytic gradients (Lambda equations, relaxed densities,
+//  - CCSD, CCSD(T) and Full-CI analytic gradients (Lambda equations, relaxed densities,
 //    Z-vector) against 4-point central finite differences of the energy, at distorted
 //    geometries (H2O without symmetry);
 //  - the same gradients against PySCF (pyscf.grad.ccsd, pyscf.grad.ccsd_t, CASCI with all
-//    orbitals = Full CI): backend/tests/data/correlated_gradient_reference.json from
+//    orbitals = Full-CI): backend/tests/data/correlated_gradient_reference.json from
 //    reference/pyscf_correlated_gradient_reference.py;
 //  - the densities reproduce the energies; the Lagrangian is invariant to occupied-occupied
-//    and virtual-virtual rotations; the Full CI orbital response vanishes;
+//    and virtual-virtual rotations; the Full-CI orbital response vanishes;
 //  - numerical gradients (central differences along symmetry-adapted internal coordinates)
-//    against the analytic ones, and exactness (CCSDT = Full CI for two electrons).
+//    against the analytic ones, and exactness (CCSDT = Full-CI for two electrons).
 #include <array>
 #include <chrono>
 #include <cmath>
@@ -159,7 +159,7 @@ static void test_pyscf() {
         for (std::size_t x = 0; x < rg.size(); ++x) w = std::max(w, std::fabs(g.gradient[x] - rg[x]));
         // PySCF's Z-vector solvers stop at residuals of ~1e-8 (it warns), hence 5e-8. Its CASCI
         // gradient for H2/aug-cc-pVTZ differs from its own CCSD gradient (exact for two
-        // electrons, equal energies) by 2.5e-7; there ΨLab's Full CI gradient is compared with
+        // electrons, equal energies) by 2.5e-7; there ΨLab's Full-CI gradient is compared with
         // PySCF's CCSD gradient at 5e-8 and with the CASCI one at 5e-7.
         const bool two_electron_fci = c["method"] == "FCI" && c["geometry"] == "H2-1.30";
         check_max(label + ": gradient" + (two_electron_fci ? " (PySCF CASCI)" : ""), w, two_electron_fci ? 5e-7 : 5e-8);
@@ -217,7 +217,7 @@ static void test_numerical() {
         check_max(c.label + " " + c.method + ": numerical vs analytic", w, 3e-5);
         std::printf("     %s\n", n.description.c_str());
     }
-    // Exactness: for two electrons CCSDT (numerical) equals Full CI (analytic).
+    // Exactness: for two electrons CCSDT (numerical) equals Full-CI (analytic).
     {
         const Molecule mol = geometry("H2-1.30");
         const BasisSet b = build_basis(mol, "aug-cc-pVDZ", default_basis_directory());
@@ -225,10 +225,10 @@ static void test_numerical() {
         const GradientResult f = run_gradient(mol, b, "FCI", o);
         CHECK(!t.analytic && f.analytic);
         CHECK(!t.numerical_reason.empty());
-        check_max("H2 CCSDT (numerical) = Full CI (analytic) energy", std::fabs(t.point.energy - f.point.energy), 1e-9);
+        check_max("H2 CCSDT (numerical) = Full-CI (analytic) energy", std::fabs(t.point.energy - f.point.energy), 1e-9);
         double w = 0.0;
         for (std::size_t x = 0; x < t.gradient.size(); ++x) w = std::max(w, std::fabs(t.gradient[x] - f.gradient[x]));
-        check_max("H2 CCSDT (numerical) = Full CI (analytic) gradient", w, 3e-5);
+        check_max("H2 CCSDT (numerical) = Full-CI (analytic) gradient", w, 3e-5);
         std::printf("     CCSDT: %s\n     reason: %s\n", t.description.c_str(), t.numerical_reason.c_str());
     }
     // Removed near-linear dependencies: the correlated gradient falls back to numerical.

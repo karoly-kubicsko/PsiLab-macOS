@@ -618,7 +618,7 @@ FCISize estimate_fci(int n, int N, int na, int nb, int threads, double memory_li
         s.feasible = false;
         char buf[512];
         std::snprintf(buf, sizeof buf,
-                      "Full CI is not possible here: %d electrons (%d alpha, %d beta) in %d orbitals give %s "
+                      "Full-CI is not possible here: %d electrons (%d alpha, %d beta) in %d orbitals give %s "
                       "determinants (%s alpha x %s beta strings); one CI vector alone would need %s. "
                       "\xCE\xA8Lab's limit is %s determinants.",
                       na + nb, na, nb, n, human_count(s.determinants).c_str(), human_count(s.alpha_strings).c_str(),
@@ -629,7 +629,7 @@ FCISize estimate_fci(int n, int N, int na, int nb, int threads, double memory_li
         s.feasible = false;
         char buf[512];
         std::snprintf(buf, sizeof buf,
-                      "Full CI would need about %s of memory (%s determinants, %d orbitals), more than the "
+                      "Full-CI would need about %s of memory (%s determinants, %d orbitals), more than the "
                       "limit of %s.",
                       human_bytes(s.memory_bytes).c_str(), human_count(s.determinants).c_str(), n,
                       human_bytes(memory_limit_mb * 1048576.0).c_str());
@@ -638,16 +638,16 @@ FCISize estimate_fci(int n, int N, int na, int nb, int threads, double memory_li
     return s;
 }
 
-// ------------------------------------------------------------------ Full CI
+// ------------------------------------------------------------------ Full-CI
 
 FCIResultGeneral run_fci_determinants(const MOIntegrals& mo, int na, int nb, double nuclear_repulsion, double rhf_energy,
                                       const FCIOptions& opt, const FCIProgress& progress) {
     const auto t0 = Clock::now();
     const int threads = resolve_threads(opt.threads);
     report_progress(JobStage::FullCI);
-    if (na < 1 || nb < 1 || na > mo.n || nb > mo.n) throw std::runtime_error("Full CI: invalid number of electrons");
+    if (na < 1 || nb < 1 || na > mo.n || nb > mo.n) throw std::runtime_error("Full-CI: invalid number of electrons");
     if (binomial_count(mo.n, na) * binomial_count(mo.n, nb) > kMaxFCIDeterminants)
-        throw std::runtime_error("Full CI: determinant space above the limit");
+        throw std::runtime_error("Full-CI: determinant space above the limit");
 
     const FCIHamiltonian H(mo, na, nb, threads, opt.memory_limit_mb * 1048576.0);
     const std::size_t Na = H.alpha_strings(), Nb = H.beta_strings(), Nd = H.size();
@@ -1138,7 +1138,7 @@ FCIResponse fci_vector_responses(const MOIntegrals& mo, int na, int nb, const st
             axpy(-E, p, Ap);
             project(Ap);
             const double pAp = dot(p, Ap);
-            if (!(pAp > 0.0)) throw std::runtime_error("Full CI response: H - E is not positive in the complement of the ground state");
+            if (!(pAp > 0.0)) throw std::runtime_error("Full-CI response: H - E is not positive in the complement of the ground state");
             const double alpha = rz / pAp;
             axpy(alpha, p, y);
             axpy(-alpha, Ap, r);

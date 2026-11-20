@@ -21,7 +21,7 @@ enum DetailTab: Hashable {
 enum MethodsPage: String, CaseIterable, Identifiable {
     case hartreeFock = "Hartree–Fock"
     case coupledCluster = "Coupled cluster"
-    case fullCI = "Full CI"
+    case fullCI = "Full-CI"
     case orbitals = "Orbitals"
     var id: String { rawValue }
 }
@@ -53,7 +53,7 @@ enum VibrationPage: String, CaseIterable, Identifiable {
 }
 
 /// One point of the potential-curve scan: the (R)HF energy and that of the correlated method
-/// (Full CI or coupled cluster; missing in an HF-only scan).
+/// (Full-CI or coupled cluster; missing in an HF-only scan).
 struct CurvePoint: Identifiable, Sendable {
     var R: Double
     var hf: Double
@@ -123,7 +123,7 @@ final class AppModel {
     var scans: [MoleculeChoice: ScanSettings] = [:]   // missing = the molecule's default scan
     var tsHessianMode: HessianMode = .calcFC          // 15.0: CalcFC, CalcAll or RecalcFC=N
     var eigenTest = true                              // exactly one negative eigenvalue
-    var analyticHessian = true                        // 10.0: Full CI, CCSD, CCSD(T) Hessians analytic
+    var analyticHessian = true                        // 10.0: Full-CI, CCSD, CCSD(T) Hessians analytic
     var analyticInitialHessian = true                 // 10.0: minimisations start from the analytic Hessian
     // 15.0: computed Hessians of minimisations (Opt=CalcFC, CalcAll, RecalcFC=N), N, and the step
     var optHessianMode: HessianMode = .automatic
@@ -148,7 +148,7 @@ final class AppModel {
     var reference: ReferenceChoice = .automatic
 
     /// 15.0: the reference the calculation uses (the choice, or Gaussian's default: RHF for
-    /// closed-shell singlets, UHF for open shells, ROHF for open-shell Full CI).
+    /// closed-shell singlets, UHF for open shells, ROHF for open-shell Full-CI).
     var effectiveReference: ReferenceChoice {
         if reference != .automatic { return reference }
         if multiplicity == 1 { return .rhf }
@@ -156,12 +156,14 @@ final class AppModel {
     }
 
     /// 15.0: an analytic Hessian beyond the SCF for the method on this reference. UHF and ROHF:
-    /// every correlated method (CCSDT and CCSDTQ included) and Full CI; RHF: all but CCSDT, CCSDTQ.
+    /// every correlated method (CCSDT and CCSDTQ included) and Full-CI; RHF: all but CCSDT, CCSDTQ.
     var hasAnalyticCorrelatedHessian: Bool {
         if method == .hf { return false }
         return effectiveReference == .rhf ? method.hasAnalyticCorrelatedHessian : true
     }
-    var hehSzaboOstlund = true
+    /// 17.0: off by default (HeH⁺ in STO-nG is then a general molecule); on with the switch in the
+    /// sidebar or the launch argument -psilabSzaboOstlund YES.
+    var hehSzaboOstlund = false
 
     // Job (ΨLab 5.0)
     var job: JobChoice = .energy
@@ -536,7 +538,44 @@ final class AppModel {
             loadOutputFile(from: URL(fileURLWithPath: (path as NSString).expandingTildeInPath),
                            showSummary: defaults.string(forKey: "psilabTab") == nil)
         }
+        // 17.0: -psilabSzaboOstlund YES: HeH⁺ in STO-nG as the Szabo–Ostlund calculation (off by default)
+        if defaults.object(forKey: "psilabSzaboOstlund") != nil {
+            hehSzaboOstlund = defaults.bool(forKey: "psilabSzaboOstlund")
+        }
+        // 17.0: without launch arguments of ΨLab the app opens with the results of H₂,
+        // Full-CI/aug-cc-pCV5Z//Full-CI/aug-cc-pCVQZ (opt+freq+sp), read from the bundled output file.
+        if !AppModel.hasPsiLabLaunchArguments {
+            showStartupExample()
+        }
     }
+
+    /// 17.0: the app was launched with arguments of ΨLab (-psilabMolecule, -psilabOpenOutput, …;
+    /// the UI test uses them); otherwise it opens with the startup example.
+    static var hasPsiLabLaunchArguments: Bool {
+        ProcessInfo.processInfo.arguments.dropFirst().contains { $0.hasPrefix("-psilab") }
+    }
+
+    /// 17.0: the startup example: H₂ optimised and its frequencies computed with Full-CI/aug-cc-pCVQZ,
+    /// then a Full-CI/aug-cc-pCV5Z single point at the optimised geometry (tight convergence, hybrid
+    /// GEDIIS/RFO steps). The sidebar holds the inputs of that job, so that Run repeats it; its
+    /// results are read from the output file in the app's resources (no calculation at launch).
+    func showStartupExample() {
+        molecule = .h2
+        method = .fci
+        basis = "aug-cc-pCVQZ"
+        job = .optFreqSP
+        spMethod = nil
+        spBasis = "aug-cc-pCV5Z"
+        tightConvergence = true
+        gediis = true
+        bondLengths[.h2] = nil   // 0.74144 Å, the starting geometry of the example
+        guard let url = Bundle.main.url(forResource: AppModel.startupExampleName, withExtension: "out") else { return }
+        openedAtLaunch = true
+        loadOutputFile(from: url, example: true)
+    }
+
+    /// The output file of the startup example in the app's resources (examples/outputs).
+    static let startupExampleName = "h2-fullci-aug-cc-pcv5z-opt-aug-cc-pcvqz-optfreqsp"
 
     // MARK: Inputs
 
@@ -607,7 +646,7 @@ final class AppModel {
             input.optAlgorithm = gediis && !job.hasTransitionState ? "gediis" : "rfo"
             input.eigenTest = eigenTest
             input.hessian = analyticHessian ? "analytic" : "numerical"
-            // "auto": the analytic Hessian (HF, Full CI, CCSD, CCSD(T)) where possible, else Lindh's model
+            // "auto": the analytic Hessian (HF, Full-CI, CCSD, CCSD(T)) where possible, else Lindh's model
             input.initialHessian = hasAnalyticCorrelatedHessian && !analyticInitialHessian ? "model" : "auto"
         } else {
             input.molecule = MoleculeChoice.heh.rawValue
@@ -1052,7 +1091,7 @@ final class AppModel {
         }
         if let fci = out.fci {
             lines.append("")
-            lines.append("Full CI")
+            lines.append("Full-CI")
             lines.append("  total energy:         " + Fmt.energyWithUnit(fci.totalEnergy))
             lines.append("  correlation energy:   " + Fmt.energyWithUnit(fci.correlationEnergy))
             for (i, s) in fci.states.enumerated() {
@@ -1093,7 +1132,7 @@ final class AppModel {
         }
         if let f = out.fullCI {
             lines.append("")
-            lines.append("Full CI")
+            lines.append("Full-CI")
             lines.append(String(format: "  determinants:         %@ (%ld orbitals, %ld electrons)",
                                 Fmt.count(f.determinants), f.orbitals, f.alphaElectrons + f.betaElectrons))
             lines.append("  converged:            \(f.converged ? "yes" : "no") (\(f.iterations) Davidson iterations)")
@@ -1194,7 +1233,7 @@ final class AppModel {
         if !out.report.isEmpty {
             let title = out.isGeneral
                 ? "DETAILED REPORT"
-                : "DETAILED REPORT (Hartree–Fock as in Szabo & Ostlund, Appendix B; then Full CI)"
+                : "DETAILED REPORT (Hartree–Fock as in Szabo & Ostlund, Appendix B; then Full-CI)"
             parts.append(rule + "\n" + title + "\n" + rule + "\n" + out.report)
         }
         if let curve = curveTableText() {

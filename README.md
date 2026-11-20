@@ -1,10 +1,10 @@
 # ΨLab — a native macOS quantum-chemistry app
 
-**Current version: 16.0** — see [Versions](#versions).
+**Current version: 17.0** — see [Versions](#versions).
 
 ΨLab computes small molecules — closed and (15.0) open shells, with RHF, UHF and ROHF references —
 with Hartree–Fock, Møller–Plesset perturbation theory (MP2–MP5), configuration interaction (CISD …
-CISDTQ, spin-adapted Full CI), quadratic CI (QCISD … QCISDTQ) and coupled cluster (CCSD … CCSDTQ):
+CISDTQ, spin-adapted Full-CI), quadratic CI (QCISD … QCISDTQ) and coupled cluster (CCSD … CCSDTQ):
 
 - **H₂, LiH, H₂O, H₂O₂, NH₃ and HeH⁺** (and custom molecules of H–Rn and Th–Lr) in 44 Gaussian
   basis sets from basissetexchange.org: the correlation-consistent sets cc-pVXZ, aug-cc-pVXZ,
@@ -12,17 +12,17 @@ CISDTQ, spin-adapted Full CI), quadratic CI (QCISD … QCISDTQ) and coupled clus
   and cc-pCVXZ), the minimal STO-1G, STO-2G and STO-3G (15.0) and (14.0) the Pople sets
   6-31G … 6-31++G** (Cartesian d functions, 6D, as in Gaussian) and 6-311G … 6-311++G(3df,3pd) and
   the Karlsruhe sets def2-SVP … def2-QZVPPD for every element the Basis Set Exchange defines them
-  for, with the **effective core potentials** of the def2 sets beyond Kr, with the methods **HF, CCSD, CCSD(T), CCSDT, CCSDTQ and Full CI** (all electrons correlated):
-  RHF and CCSD(T) for all of them, CCSDT and CCSDTQ where they fit into memory, Full CI where it
+  for, with the **effective core potentials** of the def2 sets beyond Kr, with the methods **HF, CCSD, CCSD(T), CCSDT, CCSDTQ and Full-CI** (all electrons correlated):
+  RHF and CCSD(T) for all of them, CCSDT and CCSDTQ where they fit into memory, Full-CI where it
   is feasible (H₂, HeH⁺, LiH). Before a calculation ΨLab shows its size (basis functions,
   two-electron integrals, amplitudes, determinants), memory and estimated time; it warns about
-  long calculations and refuses impossible ones with an explanation (e.g. Full CI for H₂O:
+  long calculations and refuses impossible ones with an explanation (e.g. Full-CI for H₂O:
   5.6·10¹¹ determinants already in aug-cc-pVDZ).
 - **HeH⁺** also in a minimal STO-nG basis (n = 1, 2, 3), the Szabo–Ostlund calculation:
-  Hartree–Fock identical to the book's program, Full CI with all states and their spin.
+  Hartree–Fock identical to the book's program, Full-CI with all states and their spin.
 
 For these molecules it **optimises geometries** (redundant internal coordinates, analytic gradients
-for HF, MP2–MP5, CISD … CISDTQ, QCISD … QCISDTQ, CCSD, CCSD(T) and Full CI, and (15.0) on UHF and
+for HF, MP2–MP5, CISD … CISDTQ, QCISD … QCISDTQ, CCSD, CCSD(T) and Full-CI, and (15.0) on UHF and
 ROHF references also for CCSDT and CCSDTQ), finds **transition states** (Gaussian's Opt=TS:
 partitioned RFO with a computed Hessian, CalcFC or CalcAll), runs **relaxed potential-energy scans**
 of a bond, an angle or a dihedral angle (Gaussian's Opt=ModRedundant), computes **harmonic
@@ -34,7 +34,7 @@ output file that is written while the job runs.
 
 It shows energies, orbital energies, SCF, coupled-cluster and Davidson iterations, the largest
 cluster amplitudes, the leading CI determinants and natural-orbital occupations, the **molecular
-orbitals** (canonical RHF orbitals and Full CI natural orbitals as rotatable isosurfaces or as
+orbitals** (canonical RHF orbitals and Full-CI natural orbitals as rotatable isosurfaces or as
 contour plots), a **3D molecule viewer** in the manner of PyMOL (ball and stick, sticks, spheres
 or lines; rotate and zoom with the mouse, depth cueing, labels, bond lengths, click atoms to measure
 distances, angles and dihedral angles) for the molecule, every optimisation step (played step by
@@ -82,14 +82,14 @@ same calculations run in the terminal on Linux and macOS
   - jobs 7–9, the **transition-state search**: the Hessian computed at the first step (CalcFC) or at
     every step (CalcAll), and the eigenvalue test (exactly one negative eigenvalue; off = Gaussian's
     NoEigenTest);
-  - the **method** — HF, CCSD, CCSD(T), CCSDT, CCSDTQ or Full CI (a menu, in this order) — and
+  - the **method** — HF, CCSD, CCSD(T), CCSDT, CCSDTQ or Full-CI (a menu, in this order) — and
     the **basis set** (aug-cc-pVDZ … aug-cc-pV5Z, aug-cc-pCVDZ … aug-cc-pCV5Z; for HeH⁺ also
     STO-1G/2G/3G, which return to the Szabo–Ostlund calculation);
   - jobs 5 and 9: the method and basis set of the single point; frequency jobs: temperature (K)
     and pressure (Pa; buttons for 1 atm and 1 bar); optimisations, TS searches and the points of a
     scan: normal or tight convergence and the maximum number of steps;
   - *Size of the calculation*, updated as you type: basis functions per atom, two-electron
-    integrals (kept in memory or integral-direct), coupled-cluster amplitudes and memory, Full CI
+    integrals (kept in memory or integral-direct), coupled-cluster amplitudes and memory, Full-CI
     determinants and memory, and for jobs each step — how it is computed (analytic, or numerical
     with the number of energies or gradients, in orange) and its time — and the estimated time of
     the whole job.
@@ -124,10 +124,10 @@ same calculations run in the terminal on Linux and macOS
   - *Methods*, with the pages *Hartree–Fock* (energy components and virial ratio, orbital
     energies, SCF iterations; for HeH⁺ also the integrals and the S/H/F/C/P matrices), *Coupled
     cluster* (energies, (T) correction, T1 diagnostic, amplitude counts and norms, largest
-    amplitudes, convergence), *Full CI* (energies, ⟨S²⟩, leading determinants, natural-orbital
+    amplitudes, convergence), *Full-CI* (energies, ⟨S²⟩, leading determinants, natural-orbital
     occupations, Davidson iterations; for HeH⁺ the CI vector, singlet weights and all states) and
     (8.0) *Orbitals*: the canonical RHF orbitals (all occupied ones and up to ten virtual ones) and,
-    after Full CI, its natural orbitals, as an energy-level diagram (occupied levels ↑↓, degenerate
+    after Full-CI, its natural orbitals, as an energy-level diagram (occupied levels ↑↓, degenerate
     ones side by side, HOMO and LUMO marked) and a table (ε in Eₕ and eV, occupation); the chosen
     orbital as **isosurfaces** ψ = ±c (blue positive, red negative, with the molecule; drag to
     rotate, scroll to zoom; isovalue 0.002–0.5 a.u., default 0.05) or as a **contour plot** in the
@@ -175,7 +175,7 @@ same calculations run in the terminal on Linux and macOS
     output* is on), selectable, with a search field (Return: next match; arrows: next and
     previous); for HeH⁺ the FORTRAN-style report.
 
-  *View* switches tabs and pages: Summary ⌘1, Hartree–Fock ⌘2, Coupled Cluster ⌘3, Full CI ⌘4,
+  *View* switches tabs and pages: Summary ⌘1, Hartree–Fock ⌘2, Coupled Cluster ⌘3, Full-CI ⌘4,
   Orbitals ⌥⌘O, Optimisation ⌘5, Frequencies ⌘6, Thermochemistry ⌘7, Relaxed Scan ⌘0, Potential
   Curve ⌘8, Output ⌘9.
 - **Menus**: *File ▸ Export Results as Text…* (⇧⌘E) saves, for the general calculations, the
@@ -186,7 +186,7 @@ same calculations run in the terminal on Linux and macOS
   table with its minima; *Edit ▸ Copy Summary as Text* (⇧⌘C) copies the short summary.
   13.0: **File ▸ Open Output File…** (⇧⌘O) opens an output file — the app's text export or a
   `psilab` .out file of version 13.0 or later — or a JSON export of any version and shows all its
-  results in every tab as after the calculation: summary, Hartree–Fock, coupled cluster and Full CI
+  results in every tab as after the calculation: summary, Hartree–Fock, coupled cluster and Full-CI
   pages, the **orbitals** (computed again from the basis set and the MO coefficients of the file:
   isosurfaces, contour plots, level diagram), optimisation steps, frequencies and normal modes,
   thermochemistry, scans and the output text. A banner names the file; the sidebar keeps its inputs
@@ -195,7 +195,7 @@ same calculations run in the terminal on Linux and macOS
   the name, the level and the energy and what the route cannot say; the route `#p method/basis`
   for the level of the optimisation — `HF`, `CCSD(Full)` or `CCSD(T,Full)` (all electrons
   correlated, as in ΨLab; Gaussian freezes the core by default), `HF` where Gaussian has no such
-  method (CCSDT, CCSDTQ, Full CI); by name the sets Gaussian has built in, with the same default
+  method (CCSDT, CCSDTQ, Full-CI); by name the sets Gaussian has built in, with the same default
   function types as ΨLab (14.0: the 6-31G family with 6D 7F, the 6-311G family, `Def2SVP`,
   `Def2TZVP`, `Def2TZVPP`, `Def2QZVP`, `Def2QZVPP`; aug-cc-pVXZ); aug-cc-pCVXZ (and 14.0:
   def2-mTZVP, def2-mTZVPP, def2-TZVPPD, def2-QZVPPD) as `Gen 5D 7F` with the functions ΨLab used
@@ -209,10 +209,46 @@ same calculations run in the terminal on Linux and macOS
 
 ## Versions
 
+### 17.0
+**Start-up, the Summary viewer and saving the structures of a job.**
+
+**The app opens with H₂ at Full-CI/aug-cc-pCV5Z//Full-CI/aug-cc-pCVQZ.** Without launch arguments
+ΨLab no longer starts with the Szabo–Ostlund calculation of HeH⁺: it shows the results of an
+opt+freq+sp job of H₂ — geometry optimisation and harmonic frequencies with Full-CI/aug-cc-pCVQZ
+(tight convergence, hybrid GEDIIS/RFO steps), then a Full-CI/aug-cc-pCV5Z single point at the
+optimised geometry (Level1//Level2: the single-point energy at Level1 on the geometry optimised at
+Level2). The results are read from the output file of that job in the app's resources
+(`examples/outputs/h2-fullci-aug-cc-pcv5z-opt-aug-cc-pcvqz-optfreqsp.out`, written by ΨLab 16.0 on
+12 threads in 1 min 24 s: R(H–H) = 0.741995 Å, ω = 4399.92 cm⁻¹, E = −1.1742521028 E_h); every tab
+shows them, a banner says that they are the example, and the sidebar holds the inputs of the job,
+so that Run repeats it. The Summary header writes such a job as Level1//Level2.
+
+**The Szabo–Ostlund calculation is off by default.** HeH⁺ in STO-nG is a general molecule unless the
+switch *Szabo–Ostlund calculation* (Atom/Molecule) is on; the switch now stays visible for HeH⁺ in
+STO-nG in both states (in 15.0 and 16.0 it disappeared once switched off). Launch argument:
+`-psilabSzaboOstlund YES`.
+
+**Full-CI.** The method is written Full-CI everywhere (menus, tabs, output files of the app and of
+`psilab`); output files of earlier versions are shown the same way when opened.
+
+**Summary tab.** The 3D viewer is as tall as those of the optimisation steps (78 % of the visible
+height, at least 560 pt, at most 1000 pt; before 60 %, 420–800 pt), and a caption under it says how
+to use it, as on the Optimisation tab.
+
+**Saving the structures of an optimisation or a relaxed scan.** Under the 3D viewer of the
+Optimisation tab and of the relaxed scan: *Save Step as XYZ…* / *Save Point as XYZ…*, *Save Step as
+GJF…* / *Save Point as GJF…* (the shown step or point as an .xyz file or a Gaussian input with the
+route for the level of the optimisation; the comment lines give the step or point — for a scan point
+also the scanned coordinate — the level and the energy), and *Save All Steps as XYZ…* / *Save All
+Points as XYZ…* (every structure in one multi-structure .xyz file, the frames of a trajectory for
+Molden, Avogadro, Jmol, VMD or ASE). The Gaussian input of a geometry optimised in an opt+freq+sp
+job with a different single-point basis set now writes the basis set of the optimisation (before:
+the functions of the single-point set could be written out under the name of the optimisation's).
+
 ### 16.0
 **The changes asked for after 15.0** (the 15.0 release does not contain them): the
 *Atom/Molecule* menu and the geometry parameters of the new molecules, the Dunning sets cc-pVXZ and
-cc-pCVXZ before the Karlsruhe sets, the size of impossible calculations, a wider sidebar, Full CI at
+cc-pCVXZ before the Karlsruhe sets, the size of impossible calculations, a wider sidebar, Full-CI at
 the end of the method menu, en dashes in the output files and taller 3D viewers.
 
 **The Dunning sets cc-pVXZ and cc-pCVXZ.** The basis-set menu (and `psilab`'s `basis` key) adds
@@ -249,18 +285,18 @@ and Li; among H–Ar they differ for Na and Mg only; `backend/tools/basis_identi
 table from the basis files). Checked: the basis functions per element, their sum and the number of
 unique two-electron integrals agree with an independent count from the basis files for all 36 basis
 sets of 15.0 and all 38 atoms and molecules. The estimated time and memory are shown also for
-impossible calculations, readably (Full CI of Cl₂ in aug-cc-pCV5Z: 1.98·10⁶⁰ determinants, about
+impossible calculations, readably (Full-CI of Cl₂ in aug-cc-pCV5Z: 1.98·10⁶⁰ determinants, about
 1.7·10⁵⁰ TB and 1.0·10⁷⁴ years; beyond 10³⁰⁰ "more than").
 
 **Sidebar width, method menu, en dashes.** The sidebar is at least 340 pt wide, so the segmented
 Hessian control of optimisations (Initial, CalcFC, CalcAll, RecalcFC) fits; the method menu ends
-with Full CI (after coupled cluster). The output files and messages write names and ranges with en
+with Full-CI (after coupled cluster). The output files and messages write names and ranges with en
 dashes: Hartree–Fock, Møller–Plesset, Szabo–Ostlund, the bonds and internal coordinates R(O1–H2),
 D(H3–O1–O2–H4), and element ranges such as H–Ar (columns are padded by characters, not bytes).
 
 ### 15.0
 **Open shells, many more methods, analytic derivatives for them, new molecules, optimiser options,
-spin-adapted Full CI and hardware acceleration.**
+spin-adapted Full-CI and hardware acceleration.**
 
 **Molecules and spin (tasks 0 and 4).** The molecule menu (and `psilab`'s `molecule` key) adds the
 **atoms H, He, Li, Be, B, C, N, O, F, Ne, Na, Mg, Al, Si, P, S, Cl, Ar** in their ground-state
@@ -273,11 +309,11 @@ set for every molecule: two steppers under the molecule menu of the app (with th
 **References**: RHF, **UHF** (Pople–Nesbet, DIIS on both Fock matrices, ⟨S²⟩ and Mulliken spin
 populations) and **ROHF** (Roothaan's effective Fock operator with the canonicalisation of PySCF,
 a pure spin state). The default is RHF for closed-shell singlets and UHF otherwise, as in
-Gaussian (ROHF for open-shell Full CI); the app's *Reference* menu, `psilab`'s `reference` key or
+Gaussian (ROHF for open-shell Full-CI); the app's *Reference* menu, `psilab`'s `reference` key or
 Gaussian's prefixes (`UMP2`, `ROCCSD(T)`, `UHF`, `ROHF`) choose another.
 
 **Methods (task 1)**: **MP2, MP3, MP4 (SDTQ), MP5, CISD, CISD(T), CISDT, CISDTQ, QCISD,
-QCISD(T), QCISDT, QCISDTQ** next to HF, CCSD … CCSDTQ and Full CI, all electrons correlated, on
+QCISD(T), QCISDT, QCISDTQ** next to HF, CCSD … CCSDTQ and Full-CI, all electrons correlated, on
 RHF, UHF and ROHF references. They run in a new **spin-orbital tensor engine**
 (`so_engine.cpp`, `so_methods.cpp`): block-sparse tensors over the α/β spin blocks, contractions
 through the blocked GEMM, a computation graph with common-subexpression elimination, and
@@ -307,7 +343,7 @@ tangents, the Lagrangian's second derivatives by forward-over-reverse). Status:
 | MP2–MP5, CISD … CISDTQ, QCISD … QCISDTQ | analytic gradient and Hessian | analytic gradient and Hessian | analytic gradient and Hessian |
 | CCSD, CCSD(T) | analytic (10.0) | analytic gradient and Hessian | analytic gradient and Hessian |
 | CCSDT, CCSDTQ | numerical (general-order engine of 4.0) | analytic gradient and Hessian | analytic gradient and Hessian |
-| Full CI | analytic (10.0) | analytic gradient and Hessian (in the α orbitals) | analytic gradient and Hessian |
+| Full-CI | analytic (10.0) | analytic gradient and Hessian (in the α orbitals) | analytic gradient and Hessian |
 
 **Open-shell references** (`open_shell_correlated.cpp`). The energy is the Lagrangian L = ⟨Γ(t, λ),
 H(C)⟩ + z·g(C), where g are the stationarity conditions of the SCF on its non-redundant rotations —
@@ -321,7 +357,7 @@ builds) and make the generalized Fock matrix Y of Γ_tot symmetric. Gradient: dE
 ⟨Y[H^[x]], Uʸ⟩ + ⟨Y[H̃ʸ], Uˣ⟩ − ⟨Y, UˣᵀUʸ + S̃ˣUʸ + S̃ʸUˣ + UˣUʸ⟩ − ⟨W, Sˣʸ⟩ + ⟨dΓ[tˣ], H^[y]⟩ +
 ⟨dΓ[tʸ], H^[x]⟩ + tˣ L_tt tʸ + V_nnˣʸ, with H^[x] = H̃ˣ + H(Uˣ); the internal directions are
 computed, translations and rotations follow from invariance, and three electric-field perturbations
-give the dipole derivatives (IR intensities). **Full CI** on an open-shell reference uses the
+give the dipole derivatives (IR intensities). **Full-CI** on an open-shell reference uses the
 orbitals of one set (ROHF, or the α orbitals of UHF; its energy is invariant to every orbital
 rotation): spin-resolved densities of the CI vector, no Z-vector and no CPHF (the orbitals follow
 the geometry by symmetric orthonormalisation), CI vector responses cˣ = −(H − E)⁻¹ Q H^[x] c kept
@@ -335,7 +371,7 @@ SCF energy as the "method") reproduces the UHF and ROHF SCF gradients and Hessia
 differences of energies within 4.1e-10 Eₕ/bohr; Hessians against differences of the analytic
 gradients: OH UCCSD 2.3e-9, OH ROCISD 2.1e-9, H₂O⁺ UMP3 6.2e-10, H₂O⁺ ROQCISD(T) 5.9e-10 (STO-3G),
 H₂O⁺/6-31G UMP3, UMP4, UCISD, UQCISD(T), UCCSD(T), UCISDT, ROMP3, ROMP4, ROCISD, ROQCISD(T) and
-ROCCSD(T) within 1.2e-9 Eₕ/bohr², dipole derivatives within 1.6e-9; open-shell Full CI: OH gradient
+ROCCSD(T) within 1.2e-9 Eₕ/bohr², dipole derivatives within 1.6e-9; open-shell Full-CI: OH gradient
 4.0e-10, Hessians of OH (UHF orbitals) 2.1e-9, H₂O⁺ (ROHF) 6.5e-10 and O₂ ³Σg⁻ (UHF) 3.7e-9, dipole
 derivatives within 2e-10. Examples: H₂O QCISD(T)/6-31G *opt+freq*, analytic Hessian at the first
 step and for the frequencies, 1669.16, 3602.37, 3765.72 cm⁻¹, 28 s on 4 cores; NO₂ ROMP2/STO-3G
@@ -368,7 +404,7 @@ fits against Szabo and Ostlund's exponents and the BSE's STO-2G/STO-3G. **HeH⁺
 set** in the general calculation; in STO-nG it remains the Szabo–Ostlund calculation unless the
 app's *Szabo–Ostlund calculation* switch (or `szabo_ostlund = no`) is off.
 
-**Spin-adapted Full CI (task 6).** The Full CI keeps the determinant (string) basis for σ = Hc —
+**Spin-adapted Full-CI (task 6).** The Full-CI keeps the determinant (string) basis for σ = Hc —
 the vectorised α/β-string algorithm (Knowles–Handy, Olsen) is the fastest way to apply H — and
 projects every Davidson vector onto the requested total spin with Löwdin's projector built from
 Ŝ² = Ŝ₋Ŝ₊ + M(M + 1). The solution therefore lies in the space of the **configuration state
@@ -432,7 +468,7 @@ spherical f functions (7F)"), and its appendix labels Cartesian functions by com
 `macqc_basis_tests`): RHF energies of H₂O in all 25 sets and of molecules with Li, C, N, Cl, K, Ca,
 Zn (6D 7F) and Br within 2.3e-12 Eₕ, CCSD(T) within 7e-11 Eₕ, analytic RHF and CCSD gradients within
 3.1e-9 Eₕ/bohr, the RHF/6-31G\* Hessian within 7.9e-10 Eₕ/bohr², dipole moment and orbital values
-within 3e-9; the analytic Hessians of RHF, CCSD, CCSD(T) and Full CI with Cartesian d functions agree
+within 3e-9; the analytic Hessians of RHF, CCSD, CCSD(T) and Full-CI with Cartesian d functions agree
 with 4-point differences of analytic gradients within 1.1e-9 Eₕ/bohr². Gaussian input files name
 the sets Gaussian has built in and write out the others (`Gen 5D 7F`).
 **All elements**: every set covers every element for which the Basis Set Exchange defines it — the
@@ -483,10 +519,10 @@ H = U + pV, instead of "H = U + kT"; for the ideal gas pV = RT per mole (k_BT pe
 values are unchanged. The *Starting geometry* (*Geometry*) section of the sidebar gives the bond
 length in Å only (no longer also in bohr), and so does the Geometry section of HeH⁺ in the
 Szabo–Ostlund STO-nG basis (R = 0.7743 Å, the book's 1.4632 bohr). The README gives the measured timings of the analytic
-Full CI Hessian of LiH against the numerical route of earlier versions (6.0 s vs 4.1 s).
+Full-CI Hessian of LiH against the numerical route of earlier versions (6.0 s vs 4.1 s).
 
 ### 10.0
-**Analytic Hessians of CCSD, CCSD(T) and Full CI.** Frequency jobs and transition-state searches
+**Analytic Hessians of CCSD, CCSD(T) and Full-CI.** Frequency jobs and transition-state searches
 (CalcFC, CalcAll) with these methods compute exact second derivatives instead of differences of
 analytic gradients, with analytic dipole derivatives (IR intensities) and the relaxed dipole
 moment. The sidebar of a frequency or TS job has a *Hessian* section (*Analytic* by default,
@@ -494,7 +530,7 @@ moment. The sidebar of a frequency or TS job has a *Hessian* section (*Analytic*
 `hessian = analytic | numerical`); the analytic Hessian falls back to the numerical one when it
 would not fit into the memory limit. Minimisations (optimisations, the first point of a relaxed
 scan) start from the analytic Hessian of the method — as before for HF, now also for CCSD,
-CCSD(T) and Full CI — where it fits into the memory limit, otherwise from Lindh's model Hessian
+CCSD(T) and Full-CI — where it fits into the memory limit, otherwise from Lindh's model Hessian
 (*Analytic initial Hessian* in the Optimisation section, on by default; terminal:
 `initial_hessian = auto | analytic | model`). The analytic Hessians agree with 4-point differences of
 analytic gradients within 1e-10–1e-8 Eₕ/bohr² (the accuracy of the differences), including
@@ -518,10 +554,10 @@ singlets); structures may contain any element (Z = 1 … 118), the basis sets co
 
 ### 8.0
 **Molecular orbitals** in the app (*Methods ▸ Orbitals*): the canonical RHF orbitals (all occupied
-ones and up to ten virtual ones) and, after Full CI, the natural orbitals, as an energy-level
+ones and up to ten virtual ones) and, after Full-CI, the natural orbitals, as an energy-level
 diagram and a table, and the chosen orbital as rotatable isosurfaces ψ = ±c or as a contour plot.
 The backend computes the orbitals on grids and their isosurfaces (marching tetrahedra, vertices on
-the exact isovalue); basis functions up to h, the orbitals and the Full CI natural orbitals agree
+the exact isovalue); basis functions up to h, the orbitals and the Full-CI natural orbitals agree
 with PySCF. See [Molecular orbitals](#molecular-orbitals-version-80).
 
 ### 7.0
@@ -548,19 +584,19 @@ amplitude, arrows). The calculations and their results are those of 5.0; the out
 
 ### 5.0
 Geometry optimisation, harmonic frequencies, IR intensities and thermochemistry, five job types,
-analytic gradients (RHF, CCSD, CCSD(T), Full CI) and the analytic RHF Hessian, and a complete
+analytic gradients (RHF, CCSD, CCSD(T), Full-CI) and the analytic RHF Hessian, and a complete
 output file written while the job runs — see
 [Version 5.0 (next version)](#version-50-next-version) at the end of this file.
 
 ### 4.0
 - **Coupled cluster**: CCSD, CCSD(T), CCSDT and CCSDTQ for H₂, LiH and H₂O, all electrons
   correlated, on the RHF orbitals; the method menu offers HF, CCSD, CCSD(T), CCSDT, CCSDTQ and
-  Full CI. CCSD and CCSD(T): closed-shell, spin-adapted equations with the (vv|vv) ladder over AO
+  Full-CI. CCSD and CCSD(T): closed-shell, spin-adapted equations with the (vv|vv) ladder over AO
   integrals (H₂O CCSD(T) up to aug-cc-pCV5Z); CCSDT and CCSDTQ: a general-order spin-orbital
   engine whose 183 diagrams are generated and checked by `backend/tools/cc_diagrams.py`.
 - Verified: CCSD and CCSD(T) agree with PySCF within 3e-10 Eₕ (H₂, LiH and H₂O, seven cases);
   CCSD, CCSDT and CCSDTQ agree with brute-force coupled cluster in the determinant space to 1e-12;
-  CCSDTQ reproduces Full CI for LiH (four electrons) and every method reproduces Full CI for H₂.
+  CCSDTQ reproduces Full-CI for LiH (four electrons) and every method reproduces Full-CI for H₂.
 - Estimates of amplitudes, memory and time; refusals above the memory limit (60 % of the RAM in
   the app) or three days; a *CC* tab; potential curves with any method; Accelerate in the app.
 - Terminal version: `method = HF | CCSD | CCSD(T) | CCSDT | CCSDTQ | FCI`. The energies of all
@@ -571,16 +607,16 @@ output file written while the job runs — see
 - **H₂, LiH and H₂O** in eight correlation-consistent basis sets (aug-cc-pVXZ, aug-cc-pCVXZ,
   X = D … 5), read from Gaussian94 files from basissetexchange.org (`basis/`): a general Gaussian
   integral engine up to h functions, restricted Hartree–Fock (DIIS, integrals in memory or
-  integral-direct, multithreaded) and a determinant-based Full CI (H₂ in all basis sets, LiH up to
+  integral-direct, multithreaded) and a determinant-based Full-CI (H₂ in all basis sets, LiH up to
   aug-cc-pCVTZ with 11 million determinants).
-- Verified against PySCF (all 23 RHF energies and every Full CI energy identical to 10 decimals),
-  against dense-matrix Full CI, and against published Hartree–Fock limits and exact energies.
+- Verified against PySCF (all 23 RHF energies and every Full-CI energy identical to 10 decimals),
+  against dense-matrix Full-CI, and against published Hartree–Fock limits and exact energies.
 - Size, memory and time estimates before running; warnings for long calculations; impossible
-  ones are refused with an explanation (Full CI for H₂O, LiH from aug-cc-pVQZ on, LiH in
+  ones are refused with an explanation (Full-CI for H₂O, LiH from aug-cc-pVQZ on, LiH in
   aug-cc-pCV5Z which is not defined for Li).
 - App: molecule, method and basis-set pickers, geometry inputs (bond length; H₂O bond length and
   angle), live size estimate, progress and cancellation of running calculations, new Summary,
-  Hartree–Fock and Full CI views for the new molecules, a Report tab, potential curves for all
+  Hartree–Fock and Full-CI views for the new molecules, a Report tab, potential curves for all
   molecules.
 - Terminal version: `molecule`, `basis`, `angle`, `method = RHF | FCI`, `threads`, `memory`,
   `fci_memory`, `basis_dir` and `psilab --estimate`.
@@ -591,7 +627,7 @@ output file written while the job runs — see
   plain-text output file; installs as `psilab input.inp output.txt`.
 - **Bond length in Å and bohr**: the sidebar shows R (Å) and below it R (bohr), both editable;
   the summary, the minima and the exported text give both units.
-- **Export Results as Text** (⇧⌘E): summary, full Hartree–Fock and Full CI report and the
+- **Export Results as Text** (⇧⌘E): summary, full Hartree–Fock and Full-CI report and the
   potential-curve table; JSON export moved to ⌥⇧⌘E.
 - **App icon** and the new name **ΨLab** (formerly MacQC).
 - Potential curve: FCI blue circles, HF orange diamonds; the minima are listed in a readout box
@@ -600,8 +636,8 @@ output file written while the job runs — see
 ### 1.0
 - Native macOS app (SwiftUI, Liquid Glass on macOS 26, runs on macOS 14+ on Apple Silicon and Intel).
 - HeH⁺ in an STO-1G/2G/3G basis: restricted Hartree–Fock (a C++ port of the Szabo & Ostlund
-  program, output identical to it) and Full CI with ⟨S²⟩ spin labels and singlet weights.
-- Tabs Summary, Hartree–Fock, Full CI and Potential curve (scan R = 0.8 … 5.0 bohr with minima).
+  program, output identical to it) and Full-CI with ⟨S²⟩ spin labels and singlet weights.
+- Tabs Summary, Hartree–Fock, Full-CI and Potential curve (scan R = 0.8 … 5.0 bohr with minima).
 - Light, Dark and System appearance; Export Results as JSON; Copy Summary as Text.
 
 ## Terminal version (Linux and macOS)
@@ -619,7 +655,7 @@ sudo cmake --install build                       # installs /usr/local/bin/psila
 ```
 
 On macOS the matrix products go through Apple's Accelerate, as in the app, which is much faster
-for coupled cluster, Full CI and the integral transformations than the portable blocked GEMM
+for coupled cluster, Full-CI and the integral transformations than the portable blocked GEMM
 (about 5 GFlop/s); `-DMACQC_USE_ACCELERATE=OFF` keeps the portable code. The output file names the
 code path in its header (*Matrices*). Both builds are tested in CI (Linux and macOS).
 
@@ -660,7 +696,7 @@ angle    = 104.52            # H-O-H in degrees (H2O only)
 method   = RHF               # HF (RHF), CCSD, CCSD(T), CCSDT, CCSDTQ, or FCI (H2 and LiH up to aug-cc-pCVTZ)
 threads  = 0                 # 0: all processor cores
 memory   = 1024 MB           # two-electron integrals are kept in memory up to this size
-fci_memory = 4 GB            # memory limit of Full CI and coupled cluster
+fci_memory = 4 GB            # memory limit of Full-CI and coupled cluster
 job      = energy            # energy | opt | freq | opt+freq | opt+freq+sp (version 5.0)
 sp_method = CCSD(T)          # opt+freq+sp: method of the final single point (default: method)
 sp_basis = aug-cc-pVTZ       # opt+freq+sp: its basis set (default: basis)
@@ -716,12 +752,12 @@ G, H and ZPE, the final energy) when the job ends.
 `psilab --estimate input.inp` prints the size of the calculation (basis functions, two-electron
 integrals, memory) and a rough time estimate without computing; a calculation estimated to take
 longer than 30 s prints a warning first. Calculations that cannot be done are refused with an
-explanation (for example LiH in aug-cc-pCV5Z, which is not defined for Li, or Full CI for H₂O,
+explanation (for example LiH in aug-cc-pCV5Z, which is not defined for Li, or Full-CI for H₂O,
 which would need 5.6·10¹¹ determinants already in aug-cc-pVDZ). The basis-set files are
 found in `basis_dir` (input key), `$PSILAB_BASIS_DIR`, the installed copy
 (`<prefix>/share/psilab/basis`, put there by `cmake --install`) or the source tree.
 The output file contains the same text as the app's *File ▸ Export Results as Text*: for HeH⁺ the
-summary, the full Hartree–Fock and Full CI report and, with `scan = yes`, the potential-curve table
+summary, the full Hartree–Fock and Full-CI report and, with `scan = yes`, the potential-curve table
 (R in bohr and Å) with the HF and FCI minima; for H₂, LiH and H₂O the output file of the job
 (version 5.0, see below). Mistakes in the input are reported with their line number;
 the exit status is 0 on success, 1 if the calculation failed (e.g. no SCF convergence, an
@@ -746,7 +782,7 @@ For HeH⁺ (two electrons, one s-type STO-nG contracted function per atom, n = 1
    the Abramowitz–Stegun `erf` approximation (optionally `std::erf`), the analytic 2×2
    diagonalisation with its `E2 <= E1` swap rule, and the convergence test
    `sqrt(Σ(P − Pold)² / 4) < 1e-4` (max. 25 iterations, `P = 0` start).
-2. **Full CI** in the converged HF MO basis: `h` and `(pq|rs)` are transformed to the MO basis, the
+2. **Full-CI** in the converged HF MO basis: `h` and `(pq|rs)` are transformed to the MO basis, the
    4 determinants with M_s = 0 in 4 spin orbitals are coupled with Slater–Condon rules, the
    Hamiltonian is diagonalised with a built-in Jacobi solver, ⟨S²⟩ is evaluated for every
    eigenvector (singlet/triplet labels), and the ground state's singlet configuration weights
@@ -760,7 +796,7 @@ Reference values (R = 1.4632 bohr, STO-3G, ζ = 2.0925 / 1.24): E_HF,total = −
 
 ΨLab 3.0 adds H₂, LiH and H₂O (closed shell) in the correlation-consistent basis sets aug-cc-pVXZ
 and aug-cc-pCVXZ (X = D, T, Q, 5), up to h functions (l = 5) and up to 341 basis functions (H₂O in
-aug-cc-pCV5Z), with restricted Hartree–Fock and Full CI, in the app and in `psilab`.
+aug-cc-pCV5Z), with restricted Hartree–Fock and Full-CI, in the app and in `psilab`.
 
 - **Basis sets**: the Gaussian94 files in [`basis/`](basis/README.md), downloaded from the Basis
   Set Exchange and read at run time (`basis.cpp`, G94 parser with `D` exponents, SP shells, scale
@@ -782,7 +818,7 @@ aug-cc-pCV5Z), with restricted Hartree–Fock and Full CI, in the app and in `ps
   before the calculation (warning above 30 s), the text report (geometry, basis per atom, SCF
   iterations, energy components, virial ratio, orbital energies).
 
-- **Full CI** (`mo_integrals.cpp`, `ci.cpp`): all electrons correlated, determinants with
+- **Full-CI** (`mo_integrals.cpp`, `ci.cpp`): all electrons correlated, determinants with
   M_S = 0, lowest singlet state. The two-electron integrals are transformed to the RHF orbitals
   integral-direct (shell quartets → (μν|rs) → (pq|rs), matrix products). The CI vector is a matrix
   C(I_α, I_β) over occupation strings; σ = HC is built from the one-spin string Hamiltonian F
@@ -792,7 +828,7 @@ aug-cc-pCV5Z), with restricted Hartree–Fock and Full CI, in the app and in `ps
   Davidson method with diagonal preconditioner; the trial vectors are kept symmetric (C = Cᵀ), which
   removes triplet components. Output: energy, correlation energy, ⟨S²⟩ (= |S₊Ψ|²), weight of the
   RHF determinant, leading determinants, natural-orbital occupation numbers.
-- **Limits**: Full CI is refused, with an explanation, above 2·10⁷ determinants (160 MB per CI
+- **Limits**: Full-CI is refused, with an explanation, above 2·10⁷ determinants (160 MB per CI
   vector) or above the memory limit (`fciMemoryMB`, default 4 GB). Determinants per case:
 
   | Basis set | H₂ | LiH | H₂O |
@@ -827,21 +863,21 @@ aug-cc-pCV5Z), with restricted Hartree–Fock and Full CI, in the app and in `ps
   H₂ 4.8e-3, 6.0e-4, 1.6e-4, 1.9e-5 Eₕ and LiH 3.2e-3, 5.6e-4, 1.4e-4, 2.0e-5 Eₕ above it for
   X = D, T, Q, 5.
 
-- Full CI energies agree with PySCF to every printed digit (10 decimals; `reference/pyscf_fci_reference.py`
+- Full-CI energies agree with PySCF to every printed digit (10 decimals; `reference/pyscf_fci_reference.py`
   → `backend/tests/data/fci_reference.json`): H₂ in aug-cc-pV{D,T,Q,5}Z (reference: PySCF CCSD, which
   is exact for two electrons) and LiH in aug-cc-pVDZ, aug-cc-pCVDZ, aug-cc-pVTZ (PySCF's determinant
-  Full CI, `fci.direct_spin0`). LiH/aug-cc-pCVTZ (11 million determinants) runs through the same
+  Full-CI, `fci.direct_spin0`). LiH/aug-cc-pCVTZ (11 million determinants) runs through the same
   code; it was not recomputed with PySCF, whose solver needed 2.2 h already for aug-cc-pVTZ (ΨLab:
   57 s). The string-driven σ algorithm is also compared with
   a dense Hamiltonian matrix built from spin-orbital Slater–Condon rules for 1, 2 and 5 electrons
   per spin (H₂, LiH and H₂O in truncated orbital spaces): agreement to 1e-12 Eₕ; ⟨S²⟩ = 0 to 1e-8.
-- Exact non-relativistic energies: Full CI lies above them and approaches them with the basis set,
+- Exact non-relativistic energies: Full-CI lies above them and approaches them with the basis set,
   e.g. H₂ at R = 1.4 bohr (exact −1.1744757142 Eₕ, Pachucki, Phys. Rev. A 82, 032509 (2010)):
   9.9e-3, 1.8e-3, 6.1e-4 Eₕ above it in aug-cc-pV{D,T,Q}Z. For LiH (exact ≈ −8.07055 Eₕ at
   3.015 bohr, explicitly correlated Gaussians) the core-valence set aug-cc-pCVDZ recovers most of the
   Li 1s correlation that aug-cc-pVDZ misses (1.9e-2 instead of 4.9e-2 Eₕ above the exact energy).
 
-Full CI energies at the default geometries (E_h):
+Full-CI energies at the default geometries (E_h):
 
 | Basis set | H₂ | LiH |
 |---|---|---|
@@ -853,7 +889,7 @@ Full CI energies at the default geometries (E_h):
 | aug-cc-pCVTZ | (= aug-cc-pVTZ) | −8.0652388024 |
 
 Timings with 4 threads (2.1 GHz x86-64; RHF, integral transformation and Davidson): H₂/aug-cc-pV5Z
-21 s (1.6 GB), LiH/aug-cc-pVTZ 57 s (1.5 GB), LiH/aug-cc-pCVTZ 2.7 min (2.8 GB); all other Full CI
+21 s (1.6 GB), LiH/aug-cc-pVTZ 57 s (1.5 GB), LiH/aug-cc-pCVTZ 2.7 min (2.8 GB); all other Full-CI
 cases take a few seconds. The built-in estimates are 20–40 % above these times and within 5 % of
 the memory.
 
@@ -907,7 +943,7 @@ all electrons correlated (no frozen core); the Fock matrix is used in full.
   refused above `fciMemoryMB` (60 % of the RAM in the app, at most 48 GB) or above three days.
   CCSDTQ for H₂O needs about 5.5 GB in aug-cc-pVDZ and is refused in larger basis sets; CCSDT
   for H₂O runs up to aug-cc-pVTZ (about 4 GB, estimated 77 min on 4 threads). For two electrons
-  every method equals Full CI; for four electrons (LiH) CCSDTQ equals Full CI. ΨLab adds a note
+  every method equals Full-CI; for four electrons (LiH) CCSDTQ equals Full-CI. ΨLab adds a note
   in both cases.
 
 Verification:
@@ -920,7 +956,7 @@ Verification:
   in the determinant space (`backend/tests/gen_cc_reference.py`, no coupled-cluster equations
   coded): random integrals with a non-diagonal Fock matrix (6 electrons in 7 orbitals), H₂O/STO-3G
   and LiH/6-31G.
-- Exactness: CCSD, CCSDT and CCSDTQ equal Full CI for H₂, and CCSDTQ equals Full CI for
+- Exactness: CCSD, CCSDT and CCSDTQ equal Full-CI for H₂, and CCSDTQ equals Full-CI for
   LiH/aug-cc-pVDZ (−8.0212084789 Eₕ, 246,016 determinants).
 
 Energies at the default geometries (Eₕ, aug-cc-pVDZ):
@@ -932,7 +968,7 @@ Energies at the default geometries (Eₕ, aug-cc-pVDZ):
 | CCSD(T) | −1.1646244795 | −8.0212069372 | −76.2760053269 |
 | CCSDT | −1.1646244795 | −8.0212097170 | −76.2762366785 |
 | CCSDTQ | −1.1646244795 | −8.0212084789 | (about 5.5 GB) |
-| Full CI | −1.1646244795 | −8.0212084789 | not possible |
+| Full-CI | −1.1646244795 | −8.0212084789 | not possible |
 
 Timings with 4 threads (2.1 GHz x86-64, portable matrix products; the app uses Accelerate):
 H₂O CCSD(T) in aug-cc-pVDZ 0.5 s, aug-cc-pVTZ 6 s, aug-cc-pVQZ 51 s; H₂O CCSDT/aug-cc-pVDZ
@@ -996,7 +1032,7 @@ H₂O/aug-cc-pVQZ gradient 10 s, Hessian 73 s (61 s derivative integrals, 12 s C
 
 #### Correlated gradients (stage 2)
 
-The gradients of CCSD, CCSD(T) and Full CI are analytic; CCSDT and CCSDTQ are differentiated
+The gradients of CCSD, CCSD(T) and Full-CI are analytic; CCSDT and CCSDTQ are differentiated
 numerically (`gradient.cpp`, `correlated_gradient.cpp`, `cc_gradient.cpp`, `ci.cpp`).
 
 - **Relaxed densities** (`correlated_gradient.cpp`): a method supplies its one- and
@@ -1016,9 +1052,9 @@ numerically (`gradient.cpp`, `correlated_gradient.cpp`, `cc_gradient.cpp`, `ci.c
   source terms, and the densities the (T) contributions, with triples denominators from the full
   Fock matrix (so the Lagrangian stays rotation-invariant); these terms are evaluated per ordered
   triple of occupied orbitals with v³ blocks (no o³v³ arrays).
-- **Full CI** (`ci.cpp`): the two-particle density from the CI vector through (N−1)-electron
+- **Full-CI** (`ci.cpp`): the two-particle density from the CI vector through (N−1)-electron
   intermediates A_xy(K) = ⟨K| a_y,β a_x,α |Ψ⟩ (opposite spins) and (N−2)-electron ones (same spin),
-  each one matrix product. Full CI is invariant to all orbital rotations, so the Z-vector
+  each one matrix product. Full-CI is invariant to all orbital rotations, so the Z-vector
   vanishes (checked).
 - **Numerical gradients**: CCSDT and CCSDTQ, and correlated methods when near-linear
   dependencies were removed or the analytic gradient would not fit into the memory limit, use
@@ -1033,24 +1069,24 @@ Verification (`backend/tests/test_correlated_gradients.cpp`; PySCF values from
 `backend/tests/data/correlated_gradient_reference.json`):
 
 - Against 4-point finite differences of the energy: CCSD and CCSD(T) for H₂O/aug-cc-pVDZ without
-  symmetry within 1.7e-10 and 8.6e-11 Eₕ/bohr; LiH/aug-cc-pVDZ CCSD, CCSD(T) and Full CI within
-  6e-11; H₂/aug-cc-pVTZ Full CI within 4e-10; in the *full* CI job also H₂O/aug-cc-pVTZ CCSD(T)
-  within 2.7e-10 and LiH/aug-cc-pCVDZ Full CI within 1e-10.
+  symmetry within 1.7e-10 and 8.6e-11 Eₕ/bohr; LiH/aug-cc-pVDZ CCSD, CCSD(T) and Full-CI within
+  6e-11; H₂/aug-cc-pVTZ Full-CI within 4e-10; in the *full* CI job also H₂O/aug-cc-pVTZ CCSD(T)
+  within 2.7e-10 and LiH/aug-cc-pCVDZ Full-CI within 1e-10.
 - Against PySCF 2.15 (`pyscf.grad.ccsd`, `pyscf.grad.ccsd_t`, CASCI with all orbitals active):
   energies within 5e-12 Eₕ, gradients within 7.5e-10 Eₕ/bohr (CCSD, CCSD(T) of H₂O and LiH; CCSD of
-  H₂) and 4.9e-9 (Full CI of LiH). For H₂/aug-cc-pVTZ, PySCF's CASCI gradient differs from PySCF's
-  own CCSD gradient (exact for two electrons, energies equal to 1e-12) by 2.5e-7; ΨLab's Full CI
+  H₂) and 4.9e-9 (Full-CI of LiH). For H₂/aug-cc-pVTZ, PySCF's CASCI gradient differs from PySCF's
+  own CCSD gradient (exact for two electrons, energies equal to 1e-12) by 2.5e-7; ΨLab's Full-CI
   gradient agrees with the CCSD one within 3e-10.
 - The densities reproduce the energies within 3e-12 Eₕ; the blocked (T) terms agree with the
   full-array formulation within 2e-18; numerical gradients agree with the analytic ones within
-  1e-5 Eₕ/bohr; the numerical CCSDT gradient of H₂ equals the analytic Full CI one within 8e-6.
+  1e-5 Eₕ/bohr; the numerical CCSDT gradient of H₂ equals the analytic Full-CI one within 8e-6.
 
-Timings with 4 threads: H₂O CCSD(T) gradient in aug-cc-pVDZ 1.5 s, aug-cc-pVTZ 24 s; LiH Full CI
+Timings with 4 threads: H₂O CCSD(T) gradient in aug-cc-pVDZ 1.5 s, aug-cc-pVTZ 24 s; LiH Full-CI
 gradient in aug-cc-pVTZ 89 s.
 
 ### Analytic Hessians (version 10.0)
 
-`correlated_hessian.cpp` (general part, Full CI), `cc_hessian.cpp` (CCSD, CCSD(T)),
+`correlated_hessian.cpp` (general part, Full-CI), `cc_hessian.cpp` (CCSD, CCSD(T)),
 `gto_derivatives.cpp` (first-derivative two-electron integrals of all coordinates in packed form),
 `ci.cpp` (CI vector responses), `cc_closed_shell.cpp` and `cc_gradient.cpp` (residuals of the
 amplitude and Λ equations, Lagrangian densities, the bilinear form of the (T) expression).
@@ -1070,7 +1106,7 @@ amplitude and Λ equations, Lagrangian densities, the bilinear form of the (T) e
   Cartesian directions orthogonal to the translations and rotations; the other columns of the
   Hessian follow exactly from the invariance (H u = 0 for a translation, the rotated gradient for a
   rotation), with the gradient ⟨D, H^(x)⟩ + V_nn^x from the same quantities.
-- **Full CI**: the CI vector responses (H − E) c^q = −(H^(q) − E^(q)) c by projected
+- **Full-CI**: the CI vector responses (H − E) c^q = −(H^(q) − E^(q)) c by projected
   preconditioned conjugate gradients; the density responses are the bilinear densities
   [D(c + c^q) − D(c − c^q)] / 2 (exact, the densities are quadratic).
 - **CCSD**: only the amplitude responses J t^q = −Ω(t; H^(q)) are solved: with the derivative of
@@ -1092,7 +1128,7 @@ amplitude and Λ equations, Lagrangian densities, the bilinear form of the (T) e
   in one pass over the triples.
 - **Dipole derivatives**: the three components of a uniform field are further perturbations
   (CPHF with the dipole integrals, h~^F = r, no overlap or two-electron derivative); the mixed
-  derivatives d²E/dq dF give dμ/dq (Full CI from the existing CI responses, CC with three more
+  derivatives d²E/dq dF give dμ/dq (Full-CI from the existing CI responses, CC with three more
   amplitude responses), completed with the translations and rotations; the relaxed dipole moment
   comes with them.
 
@@ -1101,7 +1137,7 @@ bohr, of analytic gradients and their relaxed dipoles; aug-cc-pVDZ):
 
 | | Hessian (Eₕ/bohr²) | dipole derivatives (e) |
 |---|---|---|
-| Full CI: H₂, HeH⁺, H₃⁺ (C1), LiH | ≤ 1.4e-9 | ≤ 2.3e-10 |
+| Full-CI: H₂, HeH⁺, H₃⁺ (C1), LiH | ≤ 1.4e-9 | ≤ 2.3e-10 |
 | CCSD: LiH, H₂O, HOF (C1) | 1.2e-10, 9.3e-9, 1.6e-9 | 3.8e-10, 6.5e-8, – |
 | CCSD(T): LiH, H₂O, HOF (C1), NH₃ (C₃ᵥ) | 1.2e-10, 1.1e-8, 1.5e-9, 4.8e-9 | 8.3e-10, 6.6e-8, –, – |
 
@@ -1110,7 +1146,7 @@ relaxed dipole moments agree with those of the analytic gradients within 2e-10 e
 
 Timings of the frequency step (4 threads, including the energy and gradient at the geometry),
 analytic vs the numerical route of earlier versions (2-point differences of analytic gradients
-along the internal directions): Full CI LiH/aug-cc-pVDZ 6.0 s vs 4.1 s (2 gradients);
+along the internal directions): Full-CI LiH/aug-cc-pVDZ 6.0 s vs 4.1 s (2 gradients);
 H₂O/aug-cc-pVDZ CCSD 13 s vs 8 s, CCSD(T) 21 s vs 11 s (6 gradients). The analytic Hessian also
 solves 3 field responses for the IR intensities. For molecules this small the differences are
 cheaper but about 10⁴ times less accurate; the cost of the analytic route grows with 3N − 3
@@ -1133,7 +1169,7 @@ Chem. 17, 49 (1996)).
   change); iterative back-transformation x ← x + Bᵀ G⁻ (q_target − q(x)) to 1e-10 bohr.
 - **Hessian**: initial Hessian analytic (the RHF Hessian of stage 1 in internal coordinates,
   including the gradient term Σ g_q ∂²q/∂x², when the method is RHF and the basis has at most 100
-  functions; 10.0: also the analytic CCSD, CCSD(T) and Full CI Hessians, without dipole
+  functions; 10.0: also the analytic CCSD, CCSD(T) and Full-CI Hessians, without dipole
   derivatives, where they fit into the memory limit), otherwise Lindh's model Hessian (Chem. Phys. Lett. 241, 423 (1995)); Schlegel's is
   available. Negative eigenvalues of an analytic initial Hessian are replaced by their magnitude;
   if the start is a saddle point with no gradient along the negative-curvature direction (e.g. H₂O
@@ -1156,7 +1192,7 @@ Verification (`backend/tests/test_optimizer.cpp`; references from
 
 - Tight optimisations from the default geometries against PySCF analytic gradients minimised by
   geomeTRIC (an independent optimiser): H₂O RHF/aug-cc-pVDZ and aug-cc-pVTZ, CCSD/aug-cc-pVDZ,
-  CCSD(T)/aug-cc-pVDZ; LiH RHF, CCSD(T) and Full CI/aug-cc-pVDZ; H₂ Full CI/aug-cc-pVTZ. Bond
+  CCSD(T)/aug-cc-pVDZ; LiH RHF, CCSD(T) and Full-CI/aug-cc-pVDZ; H₂ Full-CI/aug-cc-pVTZ. Bond
   lengths agree within 8e-6 Å, angles within 6e-4°, energies within 1e-10 Eₕ. (PySCF's own
   gradient scanner for CCSD(T) passes the CCSD Λ multipliers to the (T) gradient and returns the
   CCSD energy; the reference script uses a scanner with the CCSD(T) Λ equations instead — with
@@ -1165,14 +1201,14 @@ Verification (`backend/tests/test_optimizer.cpp`; references from
   C₂ᵥ; 179°; exactly 180° (a saddle point, left along the bend, C₂ᵥ kept); 0.8 Å and 70°.
 - Wilson B matrices (also linear bends) against finite differences to 1e-10; back-transformation
   residual below 1e-15; a CCSDT optimisation of H₂ with numerical gradients reaches the analytic
-  Full CI optimum within 7e-6 Å; the step limit stops with a message.
+  Full-CI optimum within 7e-6 Å; the step limit stops with a message.
 
 ### Harmonic frequencies and thermochemistry (version 5.0)
 
 `hessian.cpp`, `frequencies.cpp`, `constants.cpp`.
 
 - **Hessian**: RHF analytic (stage 1: second-derivative integrals and CPHF, with analytic dipole
-  derivatives). 10.0: CCSD, CCSD(T) and Full CI analytic as well (see
+  derivatives). 10.0: CCSD, CCSD(T) and Full-CI analytic as well (see
   [Analytic Hessians](#analytic-hessians-version-100)); with `hessian = numerical`, as in
   versions 5–9, central differences of analytic gradients along internal
   coordinates (step 0.005 bohr / rad); for C₂ᵥ H₂O the symmetry-adapted S1 (A1, symmetric stretch),
@@ -1216,7 +1252,7 @@ Verification (`backend/tests/test_frequencies.cpp`; `reference/pyscf_frequency_r
   5e-3 J/(mol K).
 - Numerical Hessians: finite differences of analytic RHF gradients reproduce the analytic
   wavenumbers within 0.05 cm⁻¹ and the IR intensities within 6e-4 km/mol; for CCSD(T) (H₂O) and
-  Full CI (LiH) the gradient-based and the energy-based Hessians agree within 0.03 cm⁻¹, and the IR
+  Full-CI (LiH) the gradient-based and the energy-based Hessians agree within 0.03 cm⁻¹, and the IR
   intensities from relaxed dipoles and from finite-field dipoles within 0.007 km/mol; relaxed
   dipole moments equal −dE/dF within 1e-9 e·bohr.
 - At linear H₂O the degenerate bend is imaginary (twice) and left out of the thermochemistry with
@@ -1237,9 +1273,9 @@ Verification (`backend/tests/test_frequencies.cpp`; `reference/pyscf_frequency_r
 If the optimisation of job 4 or 5 does not converge within `max_steps`, the job stops after it
 with an error termination that says why ("the frequency and single-point steps were not run:
 they need a stationary point"). Every method can be used where its energy is possible: analytic
-gradients for RHF, CCSD, CCSD(T) and Full CI; numerical gradients (central differences of
+gradients for RHF, CCSD, CCSD(T) and Full-CI; numerical gradients (central differences of
 energies along internal coordinates) for CCSDT and CCSDTQ; analytic RHF Hessians; numerical
-Hessians from analytic gradients (CCSD, CCSD(T), Full CI) or from energies (CCSDT, CCSDTQ). The
+Hessians from analytic gradients (CCSD, CCSD(T), Full-CI) or from energies (CCSDT, CCSDTQ). The
 estimate lists each step with how it is computed, the number of energies, gradients or steps,
 the time and the memory; jobs that would take more than three days are refused, and so are
 CCSDTQ optimisations and frequencies of H₂O (no analytic CCSDTQ gradient: each step would need
@@ -1255,7 +1291,7 @@ The **output file** is written while the job runs and is identical in the app's 
 2. molecule: electrons, charge, Cartesian coordinates in Å and bohr, bond lengths and angle,
    nuclear repulsion; basis set per element (primitives → contraction, functions), number of
    functions and shells, storage of the two-electron integrals;
-3. estimates: size of Full CI or coupled cluster, each step of the job, total time, warnings or the
+3. estimates: size of Full-CI or coupled cluster, each step of the job, total time, warnings or the
    refusal;
 4. every energy calculation as it happens: SCF iterations (energy, change, orbital gradient,
    DIIS); CC iterations (energy, correlation energy, change, largest amplitude change) or Davidson
@@ -1263,7 +1299,7 @@ The **output file** is written while the job runs and is identical in the app's 
 5. at the energy job's geometry or the optimised geometry: energy components (kinetic, nuclear
    attraction, electron repulsion, virial ratio), all orbital energies with HOMO, LUMO and gap,
    Mulliken and Löwdin charges, dipole moment (SCF density; relaxed density for correlated
-   gradients), the coupled-cluster or Full CI report (T1 diagnostic, leading amplitudes or
+   gradients), the coupled-cluster or Full-CI report (T1 diagnostic, leading amplitudes or
    determinants, natural occupations);
 6. optimisation, every step: the Cartesian geometry it uses, the energy and its change, the
    Cartesian gradient and how it was computed, the table of internal coordinates (name,
@@ -1287,7 +1323,7 @@ The **output file** is written while the job runs and is identical in the app's 
     one of their element are named once) each shell with the numbers of its spherical functions,
     the exponents (bohr⁻²) and the contraction coefficients of normalised primitives (every
     contracted function normalised) — and the **molecular orbitals of the Orbitals tab**: the RHF
-    canonical orbitals (all occupied ones and ten virtual ones) and, after Full CI, its natural
+    canonical orbitals (all occupied ones and ten virtual ones) and, after Full-CI, its natural
     orbitals, five per block with number, HOMO/LUMO label, energy and occupation, and the AO
     coefficient of every basis function (labelled by atom, shell and m, real solid harmonics
     m = −l … l; 14.0: Cartesian functions by their component, e.g. `O1 3dxy`);
@@ -1321,14 +1357,14 @@ Verification (`backend/tests/test_jobs.cpp`, `backend/tests/test_psilab.cpp`):
   single point equals an energy job at the optimised geometry (8e-10 Eₕ; the energy job converges
   the amplitudes to 1e-8, the job to 1e-9), and E + ZPE,
   U, H, G, A equal the single-point energy plus the thermal corrections (1e-10 Eₕ);
-- correlated methods (aug-cc-pVDZ): `opt+freq` with CCSD, CCSD(T), CCSDT, CCSDTQ and Full CI for
-  H₂, where CCSD = CCSDT = CCSDTQ = Full CI exactly (two electrons): R_e, the wavenumber and the
-  energy agree (analytic CCSD against analytic Full CI within 1e-6 Å and 0.05 cm⁻¹; numerical
-  CCSDT and CCSDTQ within 5e-5 Å and 0.5 cm⁻¹); LiH `opt+freq` with CCSD, CCSD(T) and Full CI (in the
-  *full* CI job also CCSDT and CCSDTQ, about 90 s per energy, with CCSDTQ = Full CI for four
-  electrons); LiH CCSD(T) and Full CI and H₂O
+- correlated methods (aug-cc-pVDZ): `opt+freq` with CCSD, CCSD(T), CCSDT, CCSDTQ and Full-CI for
+  H₂, where CCSD = CCSDT = CCSDTQ = Full-CI exactly (two electrons): R_e, the wavenumber and the
+  energy agree (analytic CCSD against analytic Full-CI within 1e-6 Å and 0.05 cm⁻¹; numerical
+  CCSDT and CCSDTQ within 5e-5 Å and 0.5 cm⁻¹); LiH `opt+freq` with CCSD, CCSD(T) and Full-CI (in the
+  *full* CI job also CCSDT and CCSDTQ, about 90 s per energy, with CCSDTQ = Full-CI for four
+  electrons); LiH CCSD(T) and Full-CI and H₂O
   CCSD and CCSD(T) geometries against PySCF + geomeTRIC;
-- refusals (CCSDTQ frequencies and optimisation of H₂O, Full CI of H₂O, an impossible single
+- refusals (CCSDTQ frequencies and optimisation of H₂O, Full-CI of H₂O, an impossible single
   point in job 5), the counts of the numerical Hessians in the estimates (H₂O CCSDT: 9 energies +
   10 finite-field energies; CCSD(T): 6 gradients; diatomics: 2);
 - the streamed output: read with `macqc_job_output` while the job runs, it is identical to the
@@ -1354,7 +1390,7 @@ Diatomics have nothing else to relax: their scan is a series of single points.
 
 **Transition states** (jobs `ts`, `ts+freq`, `ts+freq+sp`) follow Gaussian's `Opt=TS`: the Hessian
 is computed at the first point (CalcFC) or at every point (CalcAll) — analytic for RHF, central
-differences of analytic gradients for CCSD, CCSD(T) and Full CI — and transformed to internal
+differences of analytic gradients for CCSD, CCSD(T) and Full-CI — and transformed to internal
 coordinates as H_q = G⁻B(H_x − K)BᵀG⁻; between computed Hessians Bofill updates (Murtagh–Sargent and
 Powell mixed with φ = (ξ·s)²/((ξ·ξ)(s·s))). The partitioned RFO step (Baker, *J. Comput. Chem.* 7,
 385 (1986)) maximises along the followed mode (the lowest at the first step, then the one with the
@@ -1396,7 +1432,7 @@ is 5.77 kcal/mol. The scripts are `reference/pyscf_scan_reference.py`,
 ### Molecular orbitals (version 8.0)
 
 **Molecular orbitals**: the result contains the basis and the canonical RHF orbitals (all occupied
-ones and up to ten virtual ones) and, after Full CI, the natural orbitals (eigenvectors of the Full
+ones and up to ten virtual ones) and, after Full-CI, the natural orbitals (eigenvectors of the Full
 CI one-particle density, in AO coefficients C_RHF·U). The backend evaluates an orbital on a grid —
 spherical shells as Σ_m M(m, c) x^a y^b z^c Σ_p c_p e^(−α_p r²), the same solid harmonics as the
 integrals (14.0: Cartesian shells as N_abc x^a y^b z^c Σ_p c_p e^(−α_p r²)) — and extracts the isosurfaces ψ = ±c by marching tetrahedra (six tetrahedra around the
@@ -1419,7 +1455,7 @@ the orbitals:
 |---|---|
 | Basis functions l = 0 … 5 (O, Li, He, H aug-cc-pV5Z; N aug-cc-pCV5Z): Σ_m φ_lm(r) φ_lm(r′) | ≤ 1.1·10⁻¹⁵ (relative) |
 | RHF orbitals of H₂O, NH₃, H₂O₂ at 24 points (up to the sign; NH₃ e pairs by Σψ²); density | ≤ 1.6·10⁻⁷; ≤ 6·10⁻¹⁰ (relative) |
-| Full CI natural orbitals of LiH: occupations; density Σ n_k χ_k²; Cᵀ S C = 1 | 1.6·10⁻⁸; 7.5·10⁻⁹; 4·10⁻¹⁴ |
+| Full-CI natural orbitals of LiH: occupations; density Σ n_k χ_k²; Cᵀ S C = 1 | 1.6·10⁻⁸; 7.5·10⁻⁹; 4·10⁻¹⁴ |
 | Isosurfaces: |ψ| at the vertices of the H₂O HOMO after the Newton steps; a Gaussian sphere closed, oriented, volume | 1.5·10⁻⁷ (relative); 0.15 % |
 
 ### Layout
@@ -1428,7 +1464,7 @@ the orbitals:
 backend/include/macqc/   public headers (macqc_api.h is the C API)
 backend/src/             linalg, integrals, scf, fci, report, calculation, api (HeH+, STO-nG);
                          molecule, basis, gto_integrals, ecp (14.0), rhf, molecular (H2, LiH, H2O);
-                         gemm, mo_integrals, ci (Full CI for H2, LiH); job (cancel/progress);
+                         gemm, mo_integrals, ci (Full-CI for H2, LiH); job (cancel/progress);
                          cc_closed_shell (CCSD, (T)), cc_general (CCSDT, CCSDTQ), cc_estimate;
                          gto_derivatives (derivative integrals), rhf_derivatives (RHF gradient,
                          Hessian, CPHF, dipole derivatives); tensor (einsum), cc_gradient (CCSD
@@ -1481,7 +1517,7 @@ text report is compared with them byte for byte (print levels 0, 1, 2; STO-1G/2G
 ### Text report
 
 The HF part reproduces the output of `reference/hartree_fock_sto3g.py` exactly (headings, spacing,
-MATOUT layout, Fortran `D` numbers). The Full CI section is appended after it:
+MATOUT layout, Fortran `D` numbers). The Full-CI section is appended after it:
 determinants, (level 2: MO `h`, CI Hamiltonian and MO integrals), all eigenvalues with ⟨S²⟩ and
 spin label, the ground-state CI vector, singlet weights, FCI energies and the correlation energy.
 Print level 0 is silent (empty report, use the JSON fields), level 1 is the summary, level 2 prints
@@ -1500,7 +1536,7 @@ void  macqc_job_cancel(macqc_job* job);    // from another thread; the run then 
                                            // "error": "calculation cancelled"
 void  macqc_job_progress(const macqc_job* job, int* stage, int* iteration,
                          double* energy, double* residual);
-      // stage 0 idle, 1 integrals, 2 SCF, 3 integral transformation, 4 Full CI, 5 done,
+      // stage 0 idle, 1 integrals, 2 SCF, 3 integral transformation, 4 Full-CI, 5 done,
       // 6 coupled-cluster iterations (residual = largest amplitude change), 7 (T) correction
       // (iteration = percent done); 5.0: 8 gradient, 9 Hessian, 10 CPHF, 11 Lambda equations,
       // 12 geometry optimisation, 13 numerical Hessian
@@ -1543,10 +1579,10 @@ above unchanged):
 `R` is in bohr (H₂O: O–H) and defaults to the experimental equilibrium bond length; `angle`
 (degrees, H₂O) defaults to 104.52; `method` is `"RHF"` (also `"HF"`), `"CCSD"`, `"CCSD(T)"`,
 `"CCSDT"`, `"CCSDTQ"` or `"FCI"` (the correlated methods follow RHF); `fciMemoryMB` is the
-memory limit of Full CI and coupled cluster;
+memory limit of Full-CI and coupled cluster;
 `basisDirectory` defaults to `$PSILAB_BASIS_DIR` or the compiled-in source folder. With
 `"estimateOnly":true` only the molecule, the basis set, the size and time estimate, the warnings
-and (for a Full CI or coupled-cluster calculation that is not possible) the refusal are
+and (for a Full-CI or coupled-cluster calculation that is not possible) the refusal are
 returned, without an error.
 
 Version 5.0 adds the job keys (H₂, LiH, H₂O; HeH⁺ only runs the energy job):
@@ -1627,7 +1663,7 @@ For general molecules the output is
                        "seconds","feasible","reason"} | null},
   "notes":    ["aug-cc-pCVDZ is not defined for H ..."],
   "warnings": ["Long calculation: ... Estimated time about 6 min on 8 threads."],
-  "refusal":  null | "Full CI is not possible here: ...",
+  "refusal":  null | "Full-CI is not possible here: ...",
   "rhf": {"converged","iterations","totalEnergy","electronicEnergy","nuclearRepulsion",
           "kineticEnergy","nuclearAttractionEnergy","electronRepulsionEnergy","virialRatio",
           "orbitalEnergies","occupiedOrbitals","homo","lumo","smallestOverlapEigenvalue",
@@ -1650,8 +1686,8 @@ For general molecules the output is
 }
 ```
 
-A refused calculation (e.g. LiH/aug-cc-pCV5Z, Full CI for H₂O, CCSDTQ for H₂O/aug-cc-pVTZ) has
-`error` set and `rhf`, `fullCI` and `coupledCluster` `null`; for Full CI and coupled cluster the
+A refused calculation (e.g. LiH/aug-cc-pCV5Z, Full-CI for H₂O, CCSDTQ for H₂O/aug-cc-pVTZ) has
+`error` set and `rhf`, `fullCI` and `coupledCluster` `null`; for Full-CI and coupled cluster the
 reason is also in `refusal`. `correlationEnergy` and `ccEnergy` exclude (T); `totalEnergy`
 includes it.
 
@@ -1966,7 +2002,7 @@ to spherical f functions):
 | CCSD(T) energies (H₂O 6-31G\* and def2-SVP, NH₃ 6-311++G\*\*) | ≤ 7·10⁻¹¹ Eₕ |
 | Analytic RHF gradients (6-31+G\*\*, HCl 6-31G\*, def2-TZVP), analytic CCSD/6-31G\* gradient | ≤ 7.6·10⁻¹⁰, 3.1·10⁻⁹ Eₕ/bohr |
 | RHF/6-31G\* Hessian, dipole moment, orbital energies, HOMO and LUMO values at points | 7.9·10⁻¹⁰ Eₕ/bohr², ≤ 3·10⁻⁹ |
-| Analytic Hessians (RHF, CCSD/6-31+G\*, CCSD(T)/6-31G\*, Full CI LiH/6-31G\*) against 4-point differences of analytic gradients; dipole derivatives | ≤ 1.1·10⁻⁹ Eₕ/bohr²; ≤ 1.4·10⁻⁸ e |
+| Analytic Hessians (RHF, CCSD/6-31+G\*, CCSD(T)/6-31G\*, Full-CI LiH/6-31G\*) against 4-point differences of analytic gradients; dipole derivatives | ≤ 1.1·10⁻⁹ Eₕ/bohr²; ≤ 1.4·10⁻⁸ e |
 | Cartesian d of O: ⟨xx\|xx⟩ = ⟨xy\|xy⟩ = 1, ⟨xx\|yy⟩ = 1/3, ⟨xx\|xy⟩ = 0; unit diagonal of S in all sets | ≤ 2·10⁻¹⁵ |
 | Integral-direct against stored-integral RHF (6-31++G\*\*) | 10⁻¹³ Eₕ |
 
@@ -1987,18 +2023,18 @@ XcodeGen project spec in `xcode/project.yml`. See [`app/SETUP.md`](app/SETUP.md)
   files taken from the installed copy.
 - `.github/workflows/app.yml` builds the universal ΨLab app on a `macos-26` runner (XcodeGen +
   Xcode), checks that the basis-set files are inside the bundle, runs a UI smoke test (launch, all
-  tabs, potential-curve scans, menus, light and dark appearance; H₂O RHF, LiH Full CI, an H₂ curve,
-  the refused Full CI of H₂O, a long-calculation warning, H₂O CCSD(T), the open method menu, LiH
+  tabs, potential-curve scans, menus, light and dark appearance; H₂O RHF, LiH Full-CI, an H₂ curve,
+  the refused Full-CI of H₂O, a long-calculation warning, H₂O CCSD(T), the open method menu, LiH
   CCSDT and the refused CCSDTQ of H₂O/aug-cc-pVTZ; for 5.0 the open job menu, an H₂O RHF
   optimisation, LiH CCSD(T) frequencies and thermochemistry, H₂O optimisation + frequencies with
   a CCSD(T)/aug-cc-pVTZ single point, the Output tab while a job runs, Cancel and the refused
   CCSDTQ frequencies of H₂O; for 6.0 the molecule of the optimisation steps, still and while
   *Play steps* runs, and the animated normal modes of LiH and H₂O (two captures 0.3 s apart must
-  differ; a few screenshots are printed into the log as small JPEGs); for 7.0 HeH⁺ Full CI/aug-cc-pVTZ
+  differ; a few screenshots are printed into the log as small JPEGs); for 7.0 HeH⁺ Full-CI/aug-cc-pVTZ
   optimisation + frequencies, the relaxed torsion scan of H₂O₂ (also played), the transition
   states of NH₃ and H₂O₂ (CalcAll), the scan settings of NH₃, the refused TS search of LiH; for 8.0
   the orbitals (isosurfaces of the H₂O HOMO and LUMO, a contour plot of NH₃, the natural orbitals of
-  HeH⁺ Full CI, the Szabo–Ostlund orbitals of HeH⁺), selected with launch arguments
+  HeH⁺ Full-CI, the Szabo–Ostlund orbitals of HeH⁺), selected with launch arguments
   `-psilabMolecule`, `-psilabBasis`, `-psilabMethod`, `-psilabJob`, `-psilabSPMethod`,
   `-psilabSPBasis`, `-psilabR` (Å), `-psilabAngle`, `-psilabROO` (Å), `-psilabDihedral`,
   `-psilabScan`, `-psilabScanStart`, `-psilabTSHessian`, `-psilabEigenTest`, `-psilabTab`,
@@ -2006,7 +2042,8 @@ XcodeGen project spec in `xcode/project.yml`. See [`app/SETUP.md`](app/SETUP.md)
   `-psilabAutoRun`, `-psilabPlaySteps`, (13.0) `-psilabOpenOutput` (opens an output file at launch,
   without a calculation; the app is sandboxed, so the path must lie in its container: the smoke test
   copies the example output of H₂O CCSD opt+freq there and shows its Summary, Optimisation,
-  Frequencies and Orbitals pages)
+  Frequencies and Orbitals pages), (17.0) `-psilabSzaboOstlund` (HeH⁺ in STO-nG as the
+  Szabo–Ostlund calculation; without any `-psilab…` argument the app opens with the H₂ example)
   and the viewer settings `-viewer3D.*` (12.0); screenshots on the runner's 1024-pt-wide screen,
   where the window has its minimum width of 1000 pt) and publishes the **ΨLab-app** download.
   The first build of `main` with a new app version is published as a GitHub Release (tag
@@ -2062,7 +2099,7 @@ optimisation does not converge. Every step prints the geometry it uses.
 |---|---|---|---|
 | HF (RHF) | analytic (derivative integrals, energy-weighted density) | analytic (second-derivative integrals, CPHF) | analytic (CPHF) |
 | CCSD, CCSD(T) | analytic (Λ equations, relaxed densities, Z-vector) | central differences of analytic gradients along symmetry-adapted internal coordinates (H₂O 6, diatomics 2 gradients) | relaxed dipoles of those gradients |
-| Full CI | analytic (relaxed densities, Z-vector) | as CCSD(T) | as CCSD(T) |
+| Full-CI | analytic (relaxed densities, Z-vector) | as CCSD(T) | as CCSD(T) |
 | CCSDT, CCSDTQ | numerical (central differences of energies along internal coordinates: H₂O 4, diatomics 2 energies) | second differences of energies (H₂O 9, diatomics 2) | finite fields μ = −dE/dF (H₂O 10, LiH 4 more energies) |
 
 Correlated methods also differentiate numerically when near-linear dependencies were removed from
@@ -2079,13 +2116,13 @@ PySCF 2.15 and geomeTRIC by the scripts in `reference/`):
 | 1 | first and second derivative integrals vs finite differences | 7e-10 relative (first); S 1e-11, h 2e-9, ERI 5e-9 (second) |
 | 1 | RHF gradient vs finite differences / PySCF (aug-cc-pVDZ … aug-cc-pV5Z) | 2e-10 / 1.2e-10 Eₕ/bohr |
 | 1 | RHF Hessian vs PySCF / finite differences; dipole derivatives | 6e-10 / 1e-10 Eₕ/bohr²; 5e-10 e |
-| 2 | CCSD, CCSD(T), Full CI gradients vs finite differences | ≤ 1.7e-10 Eₕ/bohr |
-| 2 | vs PySCF (`grad.ccsd`, `grad.ccsd_t`, CASCI) | ≤ 7.5e-10 (CC), 4.9e-9 (Full CI) |
+| 2 | CCSD, CCSD(T), Full-CI gradients vs finite differences | ≤ 1.7e-10 Eₕ/bohr |
+| 2 | vs PySCF (`grad.ccsd`, `grad.ccsd_t`, CASCI) | ≤ 7.5e-10 (CC), 4.9e-9 (Full-CI) |
 | 3 | optimised geometries vs PySCF + geomeTRIC (8 cases) | ≤ 8e-6 Å, 6e-4°, 1e-10 Eₕ |
 | 4 | RHF wavenumbers vs PySCF analytic Hessian | ≤ 2e-3 cm⁻¹ |
 | 4 | thermochemistry vs the formulas evaluated by hand (CODATA 2018) / PySCF `thermo` | 1e-9 Eₕ, 5e-5 J/(mol K) / 3e-6 Eₕ |
 | 4 | numerical vs analytic Hessians; relaxed dipoles vs −dE/dF | ≤ 0.05 cm⁻¹; 1e-9 e bohr |
-| 5 | all job types through the C API vs PySCF; H₂: CCSD = CCSDT = CCSDTQ = Full CI; LiH: CCSDTQ = Full CI (*full* job) | 2e-5 Å, 0.01–0.05 cm⁻¹; 1.5e-9 Å (analytic), 7.4e-6 Å and 0.15 cm⁻¹ (numerical); 6e-12 Eₕ and 2.4e-3 cm⁻¹ |
+| 5 | all job types through the C API vs PySCF; H₂: CCSD = CCSDT = CCSDTQ = Full-CI; LiH: CCSDTQ = Full-CI (*full* job) | 2e-5 Å, 0.01–0.05 cm⁻¹; 1.5e-9 Å (analytic), 7.4e-6 Å and 0.15 cm⁻¹ (numerical); 6e-12 Eₕ and 2.4e-3 cm⁻¹ |
 | 5 | streamed output = final output file; cancellation; refusals; estimates | identical; < 1 ms during an optimisation step |
 
 **Comparison with experiment.** Harmonic constants from optimisations and frequencies with the
@@ -2093,10 +2130,10 @@ largest feasible calculations (all electrons correlated):
 
 | Quantity | ΨLab | Experiment |
 |---|---|---|
-| H₂ rₑ, Full CI/aug-cc-pV5Z | 0.741602 Å | 0.74144 Å |
-| H₂ ωₑ, Full CI/aug-cc-pV5Z | 4403.42 cm⁻¹ | 4401.21 cm⁻¹ |
-| LiH rₑ, Full CI/aug-cc-pCVTZ | 1.601196 Å | 1.5949 Å |
-| LiH ωₑ, Full CI/aug-cc-pCVTZ | 1393.36 cm⁻¹ | 1405.65 cm⁻¹ |
+| H₂ rₑ, Full-CI/aug-cc-pV5Z | 0.741602 Å | 0.74144 Å |
+| H₂ ωₑ, Full-CI/aug-cc-pV5Z | 4403.42 cm⁻¹ | 4401.21 cm⁻¹ |
+| LiH rₑ, Full-CI/aug-cc-pCVTZ | 1.601196 Å | 1.5949 Å |
+| LiH ωₑ, Full-CI/aug-cc-pCVTZ | 1393.36 cm⁻¹ | 1405.65 cm⁻¹ |
 | H₂O rₑ, θₑ, CCSD(T)/aug-cc-pVTZ | 0.958852 Å, 104.342° | 0.95782 Å, 104.48° |
 | H₂O ω₁ (A₁), ω₂ (A₁), ω₃ (B₂), CCSD(T)/aug-cc-pVTZ | 3838.53, 1641.38, 3942.48 cm⁻¹ | 3832.2, 1648.5, 3942.5 cm⁻¹ |
 | same, CCSD(T)/aug-cc-pCVTZ | 3813.59, 1645.52, 3920.97 cm⁻¹ (rₑ 0.960573 Å, θₑ 104.289°) | |
@@ -2107,7 +2144,7 @@ Database (experimental data); H₂O equilibrium structure from Császár et al.,
 214305 (2005) (rₑ = 0.95782 Å, θₑ = 104.48(5)°; the default geometry of ΨLab, 0.9572 Å and
 104.52°, is the older, widely quoted value); S°(H₂O) from the NIST-JANAF tables (188.834) and the
 CODATA key values for thermodynamics (188.835 ± 0.010); LiH and H₂ spectroscopic constants from
-Huber & Herzberg, *Constants of Diatomic Molecules* (1979). The H₂ values (Full CI in a nearly
+Huber & Herzberg, *Constants of Diatomic Molecules* (1979). The H₂ values (Full-CI in a nearly
 complete basis) differ by 2 cm⁻¹ and 2e-4 Å — what the Born–Oppenheimer approximation leaves
 out. For LiH and H₂O the differences are those of the basis sets (aug-cc-pCVTZ and aug-cc-pVTZ are
 not complete; for H₂O also the missing core-correlating functions in aug-cc-pVTZ) and, for

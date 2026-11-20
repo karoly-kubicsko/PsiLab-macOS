@@ -52,7 +52,7 @@ struct SummaryView: View {
                     .dataPanel()
 
                     if let fci = out.fci {
-                        SectionTitle("Full CI")
+                        SectionTitle("Full-CI")
                         VStack(spacing: 8) {
                             InfoRow("Ground state", fci.states.first.map { $0.spin.capitalized } ?? "–")
                             InfoRow("FCI electronic energy", Fmt.energyWithUnit(fci.electronicEnergy))

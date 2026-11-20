@@ -92,7 +92,7 @@ struct OrbitalModel {
     FockBuilder fock;
 
     // invariant: one orbital set (scf.C) without non-redundant rotations, for a method whose energy
-    // is invariant to every orbital rotation (Full CI): no Z-vector, no CPHF
+    // is invariant to every orbital rotation (Full-CI): no Z-vector, no CPHF
     bool invariant = false;
 
     OrbitalModel(const RHFResult& scf, const BasisSet& basis, int threads, double memory_mb, bool invariant_method = false)

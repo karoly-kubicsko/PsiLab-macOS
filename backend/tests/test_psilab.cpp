@@ -93,7 +93,7 @@ int main() {
     CHECK(rejects("molecule = H2\nzeta_H = 1.2\n", "line 2: 'zeta_H' applies to HeH+ in an STO-nG basis (Szabo–Ostlund) only"));
     CHECK(rejects("molecule = H2\nangle = 100\n", "applies to H2O, H2O2 and NH3 only"));
     CHECK(rejects("angle = 100\n", "applies to H2O, H2O2 and NH3 only"));
-    CHECK(rejects("method = RHF\n", "HeH+ always runs Hartree–Fock and Full CI"));
+    CHECK(rejects("method = RHF\n", "HeH+ always runs Hartree–Fock and Full-CI"));
     CHECK(rejects("molecule = H2O\nbasis = STO-4G\n", "basis must be one of STO-1G, STO-2G, STO-3G, 6-31G, 6-31G*, 6-31+G"));
     CHECK(psilab::parse_input_text("molecule = H2O\nbasis = STO-3G\n").input.basis == "STO-3G");  // 15.0
     CHECK(rejects("molecule = H2\nmethod = MP6\n", "method must be HF, RHF, UHF, ROHF, MP2, MP3, MP4, MP5, CISD"));
@@ -121,22 +121,22 @@ int main() {
                                                      });
     CHECK(h2.error.empty());
     CHECK(streamed == h2.text && pieces > 10);
-    CHECK(contains(h2.text, "\xCE\xA8Lab 16.0"));
+    CHECK(contains(h2.text, "\xCE\xA8Lab 17.0"));
     CHECK(contains(h2.text, "Job          Energy (energy)"));
     CHECK(contains(h2.text, "    | molecule = H2"));  // the input file as given
     CHECK(contains(h2.text, "Hartree–Fock (RHF) total energy:  -1.1287937367 E_h"));
     CHECK(contains(h2.text, "total energy (RHF)               -1.1287937367"));
     CHECK(contains(h2.text, "18 basis functions"));
     CHECK(contains(h2.text, "H   aug-cc-pVDZ   (5s2p)           -> [3s2p]"));
-    CHECK(contains(h2.text, "Normal termination of \xCE\xA8Lab 16.0"));
+    CHECK(contains(h2.text, "Normal termination of \xCE\xA8Lab 17.0"));
     CHECK(contains(psilab::estimate_text(psilab::parse_input_text("molecule = H2O\nbasis = aug-cc-pCVDZ\n")),
                    "aug-cc-pCVDZ is not defined for H"));
-    // Full CI: H2 runs, H2O is refused with an explanation (in the output file and the error).
+    // Full-CI: H2 runs, H2O is refused with an explanation (in the output file and the error).
     const psilab::RunResult h2fci =
         psilab::run_to_text(psilab::parse_input_text("molecule = H2\nbasis = aug-cc-pVDZ\nmethod = FCI\n"));
     CHECK(h2fci.error.empty());
-    CHECK(contains(h2fci.text, "Energy: Full CI/aug-cc-pVDZ"));
-    CHECK(contains(h2fci.text, "Full CI total energy:  -1.1646244795 E_h"));
+    CHECK(contains(h2fci.text, "Energy: Full-CI/aug-cc-pVDZ"));
+    CHECK(contains(h2fci.text, "Full-CI total energy:  -1.1646244795 E_h"));
     CHECK(contains(h2fci.text, "324 determinants"));
     CHECK(contains(h2fci.text, "Natural orbital occupation numbers"));
     // Coupled cluster: CCSD(T) for H2O (PySCF: -76.2760053269 E_h).

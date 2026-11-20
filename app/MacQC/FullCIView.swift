@@ -2,7 +2,7 @@
 //  FullCIView.swift
 //  MacQC
 //
-//  Full CI tab: determinants and CI vector, singlet configuration weights, all states.
+//  Full-CI tab: determinants and CI vector, singlet configuration weights, all states.
 //
 
 import SwiftUI
@@ -38,9 +38,9 @@ struct FullCIView: View {
                         .frame(maxWidth: 560)
                 }
                 ContentUnavailableView(
-                    "No Full CI result",
+                    "No Full-CI result",
                     systemImage: "function",
-                    description: Text("Full CI needs a converged Hartree–Fock calculation. Press Run.")
+                    description: Text("Full-CI needs a converged Hartree–Fock calculation. Press Run.")
                 )
             }
             .padding()

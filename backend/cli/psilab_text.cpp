@@ -130,7 +130,7 @@ std::string summary_text(const macqc::Output& out) {
     if (out.fci) {
         const auto& fci = *out.fci;
         lines.push_back("");
-        lines.push_back("Full CI");
+        lines.push_back("Full-CI");
         lines.push_back(format("  total energy:         %.8f E_h", fci.total_energy));
         lines.push_back(format("  correlation energy:   %.8f E_h", fci.correlation_energy));
         for (std::size_t i = 0; i < fci.states.size(); ++i)
@@ -316,7 +316,7 @@ Settings parse_input_text(const std::string& text, const std::string& base_direc
     only("angle", molecule == "H2O" || molecule == "H2O2" || molecule == "NH3", "H2O, H2O2 and NH3");
     only("R_OO", molecule == "H2O2", "H2O2");
     only("dihedral", molecule == "H2O2", "H2O2");
-    only("method", !heh, general + " (HeH+ always runs Hartree–Fock and Full CI)");
+    only("method", !heh, general + " (HeH+ always runs Hartree–Fock and Full-CI)");
     only("geometry", custom, "molecule = custom");
     // 15.0: charge and multiplicity for every molecule of the general calculation
     only("charge", !heh, general);
@@ -591,7 +591,7 @@ Settings parse_input_text(const std::string& text, const std::string& base_direc
 
 std::string example_input() {
     return
-        "# \xCE\xA8Lab input file: HeH+ with Hartree–Fock and Full CI\n"
+        "# \xCE\xA8Lab input file: HeH+ with Hartree–Fock and Full-CI\n"
         "# One 'key = value' per line; '#' starts a comment.\n"
         "\n"
         "basis     = STO-3G           # STO-1G, STO-2G or STO-3G\n"
@@ -709,7 +709,7 @@ RunResult run_to_text(const Settings& settings, const macqc::OutputSink& sink) {
     std::string text = summary_text(out);
     if (!out.report.empty())
         text += "\n\n" + rule +
-                "\nDETAILED REPORT (Hartree–Fock as in Szabo & Ostlund, Appendix B; then Full CI)\n" +
+                "\nDETAILED REPORT (Hartree–Fock as in Szabo & Ostlund, Appendix B; then Full-CI)\n" +
                 rule + "\n" + out.report;
 
     if (settings.scan) {

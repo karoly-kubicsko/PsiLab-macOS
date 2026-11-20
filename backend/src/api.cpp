@@ -1352,7 +1352,7 @@ std::string archive_text(json j) {
 
 namespace {
 // 16.0: JSON has no infinity: non-finite numbers (the estimates of impossible calculations, e.g.
-// Full CI determinant counts beyond 1e308) become the largest finite double instead of null.
+// Full-CI determinant counts beyond 1e308) become the largest finite double instead of null.
 void finite_numbers(json& j) {
     if (j.is_number_float()) {
         const double v = j.get<double>();

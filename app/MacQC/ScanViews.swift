@@ -232,12 +232,31 @@ struct RelaxedScanView: View {
                     .disabled(!model.scanMatchesMolecule || model.isRunning)
                     .help("Copies this geometry into the inputs and selects the job TS optimisation + frequencies (Gaussian's route: scan, then Opt=TS from the highest point).")
                 }
+                // 17.0: this point (or every point) as .xyz or Gaussian input
+                if let out = model.result {
+                    SaveStructureButtons(model: model, structure: pointStructure(point, of: scan),
+                                         noun: "Point", method: out.input.method, basis: out.input.basis,
+                                         allTag: "scan-points",
+                                         all: { scan.points.compactMap { pointStructure($0, of: scan) } })
+                }
             }
             Text("The optimised molecule at each scan point in 3D, the points turned onto each other (bond lengths in Å). Drag to turn the molecule, pinch or ⌥-scroll to zoom; click two, three or four atoms to measure a distance, an angle or a dihedral angle. The highest point is shown first. Choose a point with the buttons, the slider, the chart or the table, or press Play points.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }
         .dataPanel()
+    }
+
+    /// 17.0: a scan point as a structure to save: its optimised geometry, the scanned coordinate
+    /// (ASCII, for the comment lines of .xyz and Gaussian files), the level and the energy.
+    private func pointStructure(_ point: MacQCScanPoint, of scan: MacQCScan) -> SavedMolecule? {
+        let position = (scan.points.firstIndex(where: { $0.index == point.index }) ?? 0) + 1
+        let value = scan.isAngular ? String(format: "%.2f deg", point.measured) : String(format: "%.4f Angstrom", point.measured)
+        let coordinate = scan.coordinate.definition.replacingOccurrences(of: "\u{2013}", with: "-")
+        let label = (scan.relaxed ? "relaxed scan point " : "scan point ") + "\(position) of \(scan.points.count), "
+            + coordinate + " = " + value
+        return model.resultStructure(atoms: point.geometry.atoms, label: label,
+                                     fileTag: String(format: "point%02ld", position), energy: point.energy)
     }
 
     // MARK: Chart

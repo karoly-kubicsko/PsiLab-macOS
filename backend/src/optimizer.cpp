@@ -540,7 +540,7 @@ OptimizationResult optimize_geometry(const Molecule& start, const BasisSet& basi
             }
             std::string kind = oo.initial_hessian;
             // "auto": the analytic RHF Hessian up to analytic_hessian_max_functions; 10.0: the analytic
-            // Full CI, CCSD and CCSD(T) Hessians where they are possible (otherwise Lindh's model)
+            // Full-CI, CCSD and CCSD(T) Hessians where they are possible (otherwise Lindh's model)
             if (kind == "auto")
                 kind = (method == "RHF" ? bx.n_functions <= oo.analytic_hessian_max_functions
                                         : analytic_hessian_method(method, g.point.rhf.reference))

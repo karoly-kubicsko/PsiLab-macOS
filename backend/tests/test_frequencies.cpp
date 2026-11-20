@@ -5,7 +5,7 @@
 //    hand evaluation of the textbook formulas with CODATA 2018 and AME 2020
 //    (backend/tests/data/frequency_reference.json, reference/pyscf_frequency_reference.py);
 //  - numerical Hessians: finite differences of analytic gradients against the analytic RHF
-//    Hessian; for CCSD(T) and Full CI against finite differences of energies; IR intensities
+//    Hessian; for CCSD(T) and Full-CI against finite differences of energies; IR intensities
 //    from relaxed dipoles against finite-field dipoles; relaxed dipoles against -dE/dF;
 //  - imaginary frequencies left out of the thermochemistry; Eckart alignment.
 #include <array>
@@ -187,7 +187,7 @@ static void test_numerical() {
                     A.modes[1].wavenumber, A.modes[2].wavenumber, A.modes[0].ir_intensity, A.modes[1].ir_intensity,
                     A.modes[2].ir_intensity);
     }
-    // CCSD(T) and Full CI: FD of analytic gradients against FD of energies (+ finite-field dipoles)
+    // CCSD(T) and Full-CI: FD of analytic gradients against FD of energies (+ finite-field dipoles)
     struct Case {
         const char* name;
         const char* method;

@@ -197,12 +197,27 @@ struct OptimizationView: View {
                       systemImage: step.converged ? "checkmark.circle.fill" : "circle")
                     .foregroundStyle(step.converged ? Color.green : Color.secondary)
                     .font(.callout)
+                // 17.0: this step (or every step) as .xyz or Gaussian input
+                if let out = model.result {
+                    SaveStructureButtons(model: model, structure: stepStructure(step, of: opt),
+                                         noun: "Step", method: out.input.method, basis: out.input.basis,
+                                         allTag: opt.isTransitionState ? "ts-steps" : "opt-steps",
+                                         all: { opt.history.compactMap { stepStructure($0, of: opt) } })
+                }
             }
             Text("The molecule of each optimisation step in 3D, the steps turned onto each other so that the molecule keeps its place: bond lengths in Å; translucent: the starting geometry. Drag to turn the molecule, pinch or ⌥-scroll to zoom; click two, three or four atoms to measure a distance, an angle or a dihedral angle. Choose a step with the buttons, the slider or a step number in the table, or press Play steps.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }
         .dataPanel()
+    }
+
+    /// 17.0: a step of the optimisation as a structure to save (its geometry as computed, level and energy).
+    private func stepStructure(_ step: MacQCOptimizationStep, of opt: MacQCOptimization) -> SavedMolecule? {
+        let kind = opt.isTransitionState ? "transition-state search" : "optimisation"
+        return model.resultStructure(atoms: step.geometry.atoms,
+                                     label: "\(kind) step \(step.step) of \(opt.history.count)",
+                                     fileTag: "step\(step.step)", energy: step.energy)
     }
 
     private func header(_ out: MacQCOutput, _ opt: MacQCOptimization) -> some View {

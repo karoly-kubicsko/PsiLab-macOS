@@ -215,18 +215,50 @@ extension AppModel {
         panel.title = "Save Coordinates as XYZ"
         panel.allowedContentTypes = [UTType(filenameExtension: "xyz") ?? .plainText]
         panel.canCreateDirectories = true
-        var stem = m.formula.replacingOccurrences(of: " ", with: "")
-        if let level = m.level {
-            stem += "-" + level.replacingOccurrences(of: "/", with: "-").replacingOccurrences(of: " ", with: "")
-                .replacingOccurrences(of: ",", with: "")
-        }
-        panel.nameFieldStringValue = stem + ".xyz"
+        panel.nameFieldStringValue = m.fileStem + ".xyz"
         guard panel.runModal() == .OK, let url = panel.url else { return }
         do {
             try m.xyzText().write(to: url, atomically: true, encoding: .utf8)
         } catch {
             errorMessage = "Could not write the file: \(error.localizedDescription)"
         }
+    }
+
+    /// 17.0: saves several structures (every step of an optimisation, every point of a scan) as one
+    /// multi-structure .xyz file, the structures one after the other (read by Molden, Avogadro,
+    /// Jmol, VMD and ASE as the frames of a trajectory). `tag`: the end of the file name.
+    func exportXYZSequence(_ molecules: [SavedMolecule], tag: String) {
+        guard let first = molecules.first else { return }
+        let panel = NSSavePanel()
+        panel.title = "Save All Structures as XYZ"
+        panel.allowedContentTypes = [UTType(filenameExtension: "xyz") ?? .plainText]
+        panel.canCreateDirectories = true
+        var stem = first.formula.replacingOccurrences(of: " ", with: "")
+        if let level = first.level { stem += "-" + SavedMolecule.fileNamePart(level) }
+        panel.nameFieldStringValue = stem + "-" + tag + ".xyz"
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        do {
+            try molecules.map { $0.xyzText() }.joined().write(to: url, atomically: true, encoding: .utf8)
+        } catch {
+            errorMessage = "Could not write the file: \(error.localizedDescription)"
+        }
+    }
+
+    /// 17.0: a structure of the displayed result (a step of an optimisation, a point of a relaxed
+    /// scan) as a molecule to save as .xyz or Gaussian input: its atoms, the level of the
+    /// optimisation, `label` ("optimisation step 2 of 5") and its energy.
+    func resultStructure(atoms: [MacQCAtom], label: String, fileTag: String, energy: Double?) -> SavedMolecule? {
+        guard let out = result, out.isGeneral, !atoms.isEmpty else { return nil }
+        let title = out.input.isCustom ? (out.input.title ?? "") : out.moleculeNameSource
+        let source = MoleculeChoice(rawValue: out.input.molecule)?.title ?? "custom molecule"
+        var m = SavedMolecule(title: title, atoms: atoms.map { CustomAtom($0) }, source: label + " of " + source)
+        m.charge = out.molecule?.charge ?? out.input.charge ?? 0
+        m.multiplicity = out.rhf?.multiplicity ?? out.input.multiplicity ?? 1
+        m.level = MethodChoice.title(of: out.input.method) + "/" + out.input.basis
+        m.structureLabel = label
+        m.fileTag = fileTag
+        m.energy = energy
+        return m
     }
 
     // MARK: Results of custom molecules
@@ -257,6 +289,7 @@ extension AppModel {
         var m = SavedMolecule(title: title, atoms: opt.finalGeometry.atoms.map { CustomAtom($0) },
                               source: (opt.isTransitionState ? "transition-state search from " : "optimised from ") + source)
         m.charge = out.molecule?.charge ?? out.input.charge ?? 0
+        m.multiplicity = out.rhf?.multiplicity ?? out.input.multiplicity ?? 1   // 17.0
         m.level = MethodChoice.title(of: out.input.method) + "/" + out.input.basis
         m.transitionState = opt.isTransitionState
         m.energy = opt.finalEnergy

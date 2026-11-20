@@ -8,7 +8,7 @@
 //    molecules with Li, C, N, Cl, K, Ca, Zn (6D 7F), Br; CCSD(T) energies; analytic RHF and CCSD
 //    gradients; the RHF Hessian, dipole moment and orbital values of H2O in 6-31G*;
 //  - integral-direct SCF with Cartesian shells, the analytic correlated Hessians (CCSD, CCSD(T),
-//    Full CI) with Cartesian d functions against differences of analytic gradients;
+//    Full-CI) with Cartesian d functions against differences of analytic gradients;
 //  - the orbitals JSON (Cartesian shells survive the round trip; 13.0 data without "pure"), the
 //    output file (6D in the basis block, labels such as "3dxy"), the terminal input and refusals.
 #include <array>
@@ -554,7 +554,7 @@ static void test_ecp(const json& ref) {
             for (std::size_t j = 0; j < n; ++j) worst = std::max(worst, std::fabs(h.hessian(i, j) - r["hessian"][i * n + j].get<double>()));
         check_max(name + " RHF/" + basis + " analytic Hessian vs PySCF (E_h/bohr^2)", worst, 2e-7);
     }
-    // the analytic CCSD(T) Hessian with an ECP against 4-point differences of analytic gradients (Full CI
+    // the analytic CCSD(T) Hessian with an ECP against 4-point differences of analytic gradients (Full-CI
     // is impractical here: the lightest ECP atoms keep 9 or more valence electrons)
     {
         const Molecule m0 = mol_of("HI-stretched");

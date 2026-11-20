@@ -38,7 +38,7 @@ nonisolated enum Fmt {
 
     /// Integer count with thousands separators ("11,029,041"), or "5.62e+11" when very large.
     static func count(_ x: Double) -> String {
-        if !x.isFinite || x > 1.0e300 { return "more than 10³⁰⁰" }  // 16.0: impossible Full CI spaces
+        if !x.isFinite || x > 1.0e300 { return "more than 10³⁰⁰" }  // 16.0: impossible Full-CI spaces
         if x >= 1.0e10 { return String(format: "%.2e", x) }
         let formatter = NumberFormatter()
         formatter.numberStyle = .decimal
