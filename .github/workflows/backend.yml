@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
     inputs:
       full:
-        description: "Also run the large RHF, Full CI and gradient cases (up to 341 basis functions / 11 million determinants, about 1.5 h)"
+        description: "Also run the large RHF, Full-CI and gradient cases (up to 341 basis functions / 11 million determinants, about 1.5 h)"
         type: boolean
         default: false
 
@@ -47,7 +47,7 @@ jobs:
           ./build/psilab lih.inp lih.out
           head -n 25 lih.out
           printf 'molecule = H2O\nmethod = FCI\n' > h2o-fci.inp
-          if ./build/psilab h2o-fci.inp; then echo "Full CI for H2O must be refused"; exit 1; fi
+          if ./build/psilab h2o-fci.inp; then echo "Full-CI for H2O must be refused"; exit 1; fi
 
       - name: Terminal version, job types (5.0)
         run: |
@@ -122,14 +122,14 @@ jobs:
           grep -q "Stationary point found" o2.out
           grep -q "Normal termination" o2.out
           grep -q "Hessian: analytic (UMP2" o2.out
-          # analytic ROHF-based correlated Hessian; analytic open-shell Full CI Hessian (UHF orbitals)
+          # analytic ROHF-based correlated Hessian; analytic open-shell Full-CI Hessian (UHF orbitals)
           printf 'molecule = NO2\nbasis = STO-3G\nmethod = MP2\nreference = ROHF\njob = opt+freq\n' > no2.inp
           ./build/psilab no2.inp > no2.out
           grep -q "Hessian: analytic (ROMP2" no2.out
           grep -q "Normal termination" no2.out
           printf 'molecule = H2O\ncharge = 1\nmultiplicity = 2\nbasis = STO-3G\nmethod = FCI\nreference = UHF\njob = opt+freq\n' > h2op.inp
           ./build/psilab h2op.inp > h2op.out
-          grep -q "Hessian: analytic (Full CI on UHF orbitals" h2op.out
+          grep -q "Hessian: analytic (Full-CI on UHF orbitals" h2op.out
           grep -q "Normal termination" h2op.out
           printf 'molecule = N\nbasis = 6-31G*\nmethod = ROHF\n' > n.inp
           ./build/psilab n.inp > n.out
@@ -210,7 +210,7 @@ jobs:
       - name: RHF energies (cases with up to 110 basis functions)
         run: python3 reference/pyscf_rhf_reference.py --check --max-nbf 110
 
-      - name: Full CI energies (H2 up to aug-cc-pVQZ, LiH aug-cc-pVDZ)
+      - name: Full-CI energies (H2 up to aug-cc-pVQZ, LiH aug-cc-pVDZ)
         run: python3 reference/pyscf_fci_reference.py --check --max-det 300000 --max-orbitals 100
 
       - name: Coupled-cluster diagrams (signs against brute-force coupled cluster)
@@ -222,7 +222,7 @@ jobs:
       - name: RHF gradients, Hessians and dipole moments (cases up to 110 basis functions)
         run: python3 reference/pyscf_gradient_reference.py --check --max-nbf 110
 
-      - name: CCSD, CCSD(T) and Full CI gradients (H2, LiH, H2O)
+      - name: CCSD, CCSD(T) and Full-CI gradients (H2, LiH, H2O)
         run: python3 reference/pyscf_correlated_gradient_reference.py --check
 
       - name: RHF frequencies and thermochemistry (PySCF analytic Hessians)
@@ -243,7 +243,7 @@ jobs:
       - name: Transition states (geomeTRIC, transition=True)
         run: python3 reference/pyscf_ts_reference.py --check
 
-      - name: Molecular orbitals (basis functions up to h, RHF orbitals, Full CI natural orbitals)
+      - name: Molecular orbitals (basis functions up to h, RHF orbitals, Full-CI natural orbitals)
         run: python3 reference/pyscf_orbitals_reference.py --check
 
       - name: Custom molecules (9.0; elements H-Kr, ions, a single atom, CCSD(T), a gradient)
@@ -256,7 +256,7 @@ jobs:
         run: python3 reference/pyscf_ecp_reference.py --check
 
   # On request only: every RHF reference case, including H2O/aug-cc-pCV5Z (341 functions), and
-  # every Full CI case, including LiH/aug-cc-pCVTZ (11 million determinants).
+  # every Full-CI case, including LiH/aug-cc-pCVTZ (11 million determinants).
   rhf-full:
     if: github.event_name == 'workflow_dispatch' && inputs.full
     runs-on: ubuntu-latest
@@ -275,7 +275,7 @@ jobs:
           PSILAB_BASIS_DIR: ${{ github.workspace }}/basis
         run: ./build/macqc_rhf_tests
 
-      - name: All Full CI cases against PySCF
+      - name: All Full-CI cases against PySCF
         env:
           PSILAB_TEST_MAX_DET: "2e7"
           PSILAB_BASIS_DIR: ${{ github.workspace }}/basis
