@@ -154,7 +154,7 @@ std::string element_ranges(const BasisFile& f) {
             last = next->first;
             ++next;
         }
-        out += (out.empty() ? "" : ", ") + element_symbol(first) + (last == first ? "" : "-" + element_symbol(last));
+        out += (out.empty() ? "" : ", ") + element_symbol(first) + (last == first ? "" : "–" + element_symbol(last));
         it = next;
     }
     return out;
@@ -438,27 +438,27 @@ BasisSet build_basis(const Molecule& mol, const std::string& basis_name,
                           "defines it).";
                     if (family == "Karlsruhe def2" && atom.Z >= 58 && atom.Z <= 71)
                         msg += " (The diffuse def2-TZVPPD and def2-QZVPPD are not defined for the lanthanides "
-                               "Ce-Lu; use def2-TZVPP or def2-QZVPP.)";
+                               "Ce–Lu; use def2-TZVPP or def2-QZVPP.)";
                     else if (family == "Karlsruhe def2")
-                        msg += " (The def2 sets end at Rn; def2-mTZVP and def2-mTZVPP also cover Th-Lr.)";
+                        msg += " (The def2 sets end at Rn; def2-mTZVP and def2-mTZVPP also cover Th–Lr.)";
                     else if (family == "Pople 6-31G")
-                        msg += " (The diffuse 6-31+G and 6-31++G sets are defined for H-Ar, 6-31G and 6-31G* for "
-                               "H-Kr; the def2 sets cover H-Rn.)";
+                        msg += " (The diffuse 6-31+G and 6-31++G sets are defined for H–Ar, 6-31G and 6-31G* for "
+                               "H–Kr; the def2 sets cover H–Rn.)";
                     else
-                        msg += " (6-31G and 6-31G* cover H-Kr, the def2 sets H-Rn.)";
+                        msg += " (6-31G and 6-31G* cover H–Kr, the def2 sets H–Rn.)";
                 } else if (name.find("pCV") != std::string::npos && atom.Z > 18)
-                    msg += " (The core-valence sets are defined for Li-Ar; use the aug-cc-pVXZ set.)";
+                    msg += " (The core-valence sets are defined for Li–Ar; use the aug-cc-pVXZ set.)";
                 else if (atom.Z == 19 || atom.Z == 20)
                     msg += " (The Basis Set Exchange has no aug-cc-pVXZ sets for K and Ca.)";
                 else if (atom.Z >= 21 && atom.Z <= 30 && name == "aug-cc-pV5Z")
-                    msg += " (aug-cc-pV5Z of Sc-Zn contains i functions, l = 6; ΨLab's integrals go up to h functions. "
+                    msg += " (aug-cc-pV5Z of Sc–Zn contains i functions, l = 6; ΨLab's integrals go up to h functions. "
                            "Use aug-cc-pVQZ or a smaller set.)";
                 else if (atom.Z > 36)
                     msg += " (Elements beyond Kr need effective core potentials: ΨLab has the aug-cc-pVXZ sets for "
-                           "H-Ar and Sc-Kr and, 14.0, the def2 sets with their effective core potentials up to Rn: "
+                           "H–Ar and Sc–Kr and, 14.0, the def2 sets with their effective core potentials up to Rn: "
                            "use def2-SVP ... def2-QZVPPD.)";
                 if (name == "aug-cc-pCV5Z" && atom.Z == 3)
-                    msg += " (The BSE has aug-cc-pCV5Z only for B-Ar.) For " + mol.display_name() +
+                    msg += " (The BSE has aug-cc-pCV5Z only for B–Ar.) For " + mol.display_name() +
                            " choose aug-cc-pCVQZ or aug-cc-pV5Z.";
                 throw std::runtime_error(msg);
             }

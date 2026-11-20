@@ -928,7 +928,7 @@ Input parse_input_json(const std::string& text) {
     std::string canonical = canonical_molecule_name(in.molecule);
     const MoleculePreset* preset = canonical.empty() ? find_molecule_preset(in.molecule) : nullptr;
     if (canonical.empty() && !preset)
-        throw std::runtime_error("\"molecule\" must be HeH+, H2, LiH, H2O, H2O2, NH3, an atom H-Ar, H2+, H3+, H5+, N2, O2, "
+        throw std::runtime_error("\"molecule\" must be HeH+, H2, LiH, H2O, H2O2, NH3, an atom H–Ar, H2+, H3+, H5+, N2, O2, "
                                  "F2, Cl2, NO, NO2 or custom");
     in.molecule = preset ? preset->key : canonical;
     // 15.0: charge and multiplicity of every molecule, the reference

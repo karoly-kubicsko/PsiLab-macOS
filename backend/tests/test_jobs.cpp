@@ -116,7 +116,7 @@ int main() {
         json bad = run({{"molecule", "H2"}, {"job", "sweep"}});
         CHECK(contains(bad["error"].get<std::string>(), "job must be energy, opt, freq, opt+freq, opt+freq+sp, scan, ts, ts+freq or ts+freq+sp"));
         bad = run({{"molecule", "HeH+"}, {"job", "opt"}});
-        CHECK(contains(bad["error"].get<std::string>(), "HeH+ in an STO-nG basis (Szabo-Ostlund) supports only the energy job"));
+        CHECK(contains(bad["error"].get<std::string>(), "HeH+ in an STO-nG basis (Szabo–Ostlund) supports only the energy job"));
         bad = run({{"molecule", "H2"}, {"job", "freq"}, {"temperature", -5.0}});
         CHECK(contains(bad["error"].get<std::string>(), "temperature"));
         bad = run({{"molecule", "H2"}, {"job", "opt"}, {"optConvergence", "loose"}});
@@ -356,7 +356,7 @@ int main() {
         const json* ref = find_case(opt_ref, "H2O", "aug-cc-pVDZ", m);
         if (ref) {
             const json& g = r["optimization"]["finalGeometry"];
-            check_max("  H2O " + m + ": R(O-H) vs PySCF + geomeTRIC (angstrom)",
+            check_max("  H2O " + m + ": R(O–H) vs PySCF + geomeTRIC (angstrom)",
                       std::fabs(angstrom(g, "R1") - (*ref)["R1"].get<double>()), 2e-5);
             check_max("  H2O " + m + ": angle vs PySCF + geomeTRIC (deg)", std::fabs(g["angle"].get<double>() - (*ref)["angle"].get<double>()),
                       2e-3);

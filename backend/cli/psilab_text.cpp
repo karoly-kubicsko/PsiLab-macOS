@@ -79,7 +79,7 @@ int parse_basis(const std::string& text, int line) {
     if (t == "sto1g" || t == "1") return 1;
     if (t == "sto2g" || t == "2") return 2;
     if (t == "sto3g" || t == "3") return 3;
-    fail(line, "basis must be STO-1G, STO-2G or STO-3G (Szabo-Ostlund) or a basis set of the library "
+    fail(line, "basis must be STO-1G, STO-2G or STO-3G (Szabo–Ostlund) or a basis set of the library "
                "(6-31G ..., 6-311G ..., def2-..., aug-cc-pVXZ, aug-cc-pCVXZ), got '" + trim(text) + "'");
 }
 
@@ -110,11 +110,11 @@ std::string summary_text(const macqc::Output& out) {
     lines.push_back("\xCE\xA8Lab \xE2\x80\x93 HeH+ (" + basis_name(in.nGaussians) + ")");
     lines.push_back("R = " + length_both(in.R, 4) +
                     format(", zeta(He) = %.4f, zeta(H) = %.4f, %s erf", in.zeta1, in.zeta2,
-                           in.exactErf ? "exact" : "Abramowitz-Stegun"));
+                           in.exactErf ? "exact" : "Abramowitz–Stegun"));
     if (out.hf) {
         const auto& hf = *out.hf;
         lines.push_back("");
-        lines.push_back("Hartree-Fock");
+        lines.push_back("Hartree–Fock");
         lines.push_back(format("  converged:            %s (%d iterations)", hf.converged ? "yes" : "no",
                                hf.iterations));
         lines.push_back(format("  electronic energy:    %.8f E_h", hf.electronic_energy));
@@ -307,7 +307,7 @@ Settings parse_input_text(const std::string& text, const std::string& base_direc
     const std::string general =
         "H2, LiH, H2O, H2O2, NH3, the atoms and molecules of the menu, custom molecules and HeH+ in a Gaussian basis set "
         "(HeH+ with STO-nG: szabo_ostlund = no)";
-    const std::string sto = "HeH+ in an STO-nG basis (Szabo-Ostlund)";
+    const std::string sto = "HeH+ in an STO-nG basis (Szabo–Ostlund)";
     only("zeta_He", heh, sto);
     only("zeta_H", heh, sto);
     only("exact_erf", heh, sto);
@@ -316,7 +316,7 @@ Settings parse_input_text(const std::string& text, const std::string& base_direc
     only("angle", molecule == "H2O" || molecule == "H2O2" || molecule == "NH3", "H2O, H2O2 and NH3");
     only("R_OO", molecule == "H2O2", "H2O2");
     only("dihedral", molecule == "H2O2", "H2O2");
-    only("method", !heh, general + " (HeH+ always runs Hartree-Fock and Full CI)");
+    only("method", !heh, general + " (HeH+ always runs Hartree–Fock and Full CI)");
     only("geometry", custom, "molecule = custom");
     // 15.0: charge and multiplicity for every molecule of the general calculation
     only("charge", !heh, general);
@@ -591,7 +591,7 @@ Settings parse_input_text(const std::string& text, const std::string& base_direc
 
 std::string example_input() {
     return
-        "# \xCE\xA8Lab input file: HeH+ with Hartree-Fock and Full CI\n"
+        "# \xCE\xA8Lab input file: HeH+ with Hartree–Fock and Full CI\n"
         "# One 'key = value' per line; '#' starts a comment.\n"
         "\n"
         "basis     = STO-3G           # STO-1G, STO-2G or STO-3G\n"
@@ -709,7 +709,7 @@ RunResult run_to_text(const Settings& settings, const macqc::OutputSink& sink) {
     std::string text = summary_text(out);
     if (!out.report.empty())
         text += "\n\n" + rule +
-                "\nDETAILED REPORT (Hartree-Fock as in Szabo & Ostlund, Appendix B; then Full CI)\n" +
+                "\nDETAILED REPORT (Hartree–Fock as in Szabo & Ostlund, Appendix B; then Full CI)\n" +
                 rule + "\n" + out.report;
 
     if (settings.scan) {

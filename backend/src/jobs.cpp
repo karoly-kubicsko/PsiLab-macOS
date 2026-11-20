@@ -568,7 +568,7 @@ void write_header(OutputWriter& w, const JobSettings& s, const std::string& echo
     const std::string rule(88, '=');
     w.line(rule);
     w.line("                                ΨLab " + std::string(kProgramVersion));
-    w.line("  Hartree-Fock (RHF, UHF, ROHF), Moller-Plesset, CI, QCI, coupled cluster and Full CI");
+    w.line("  Hartree–Fock (RHF, UHF, ROHF), Møller–Plesset, CI, QCI, coupled cluster and Full CI");
     w.line(rule);
     w.line("  Program      ΨLab " + std::string(kProgramVersion) + " (C++17 backend; integrals, SCF, CC, CI, derivatives)");
     w.line("  Started      " + local_time_string());
@@ -680,9 +680,9 @@ ElectronicCallbacks stream_callbacks(Streams& s) {
     ElectronicCallbacks cb;
     cb.scf = [&s](const RHFIteration& it) {
         if (!s.scf_started) {
-            s.w->line(s.reference == "UHF"    ? "\n    SCF (unrestricted Hartree-Fock, DIIS)"
-                      : s.reference == "ROHF" ? "\n    SCF (restricted open-shell Hartree-Fock, Roothaan effective Fock matrix, DIIS)"
-                                              : "\n    SCF (restricted Hartree-Fock, DIIS)");
+            s.w->line(s.reference == "UHF"    ? "\n    SCF (unrestricted Hartree–Fock, DIIS)"
+                      : s.reference == "ROHF" ? "\n    SCF (restricted open-shell Hartree–Fock, Roothaan effective Fock matrix, DIIS)"
+                                              : "\n    SCF (restricted Hartree–Fock, DIIS)");
             s.w->write(scf_header());
             s.scf_started = true;
         }
@@ -789,7 +789,7 @@ std::string summary_lines(const MolecularResult& m) {
     // The short summary of versions 3.0 and 4.0 (also at the top of psilab's output file).
     std::string s;
     if (m.rhf) {
-        s += strprintf("    Hartree-Fock (%s) total energy:  %.10f E_h (%d iterations)\n", m.reference.c_str(),
+        s += strprintf("    Hartree–Fock (%s) total energy:  %.10f E_h (%d iterations)\n", m.reference.c_str(),
                        m.rhf->total_energy, m.rhf->iterations);
         if (m.rhf->open_shell()) s += strprintf("    <S^2> = %.6f (S(S+1) = %.6f)\n", m.rhf->s2, m.rhf->s2_exact);
         if (m.so)
@@ -954,8 +954,8 @@ std::string scan_summary_block(const ScanResult& sr) {
     if (sr.points.empty()) return s;
     const double emin = sr.points[static_cast<std::size_t>(sr.lowest)].energy;
     const std::string unit = pl.angular() ? "deg" : "Å";
-    s += strprintf("    Point  %16s  %20s  %12s  %11s  %6s  %s\n", (pl.coordinate.definition + "/" + unit).c_str(),
-                   "Energy (E_h)", "dE (kcal/mol)", "dE (kJ/mol)", "Steps", "Converged");
+    s += "    Point  " + pad_text(pl.coordinate.definition + "/" + unit, 16, true) +
+         strprintf("  %20s  %12s  %11s  %6s  %s\n", "Energy (E_h)", "dE (kcal/mol)", "dE (kJ/mol)", "Steps", "Converged");
     for (const auto& pt : sr.points) {
         const double de = pt.energy - emin;
         s += strprintf("    %5d  %16.6f  %20.10f  %12.4f  %11.4f  %6s  %s\n", pt.index + 1,
@@ -975,7 +975,7 @@ std::string scan_summary_block(const ScanResult& sr) {
     if (sr.relaxed && !sr.points.front().parameters.empty()) {
         const auto& names = sr.points.front().parameters;
         s += "\n    Geometry along the scan (Å and degrees)\n    Point";
-        for (const auto& p : names) s += strprintf("  %16s", p.name.c_str());
+        for (const auto& p : names) s += "  " + pad_text(p.name, 16, true);
         s += "\n";
         for (const auto& pt : sr.points) {
             s += strprintf("    %5d", pt.index + 1);

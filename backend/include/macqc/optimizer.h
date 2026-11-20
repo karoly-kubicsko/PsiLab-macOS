@@ -157,7 +157,7 @@ struct OptimizationStep {
 };
 
 struct GeometricParameter {
-    std::string name;       // e.g. "R(O1-H2)"
+    std::string name;       // e.g. "R(O1–H2)"
     double value = 0.0;     // bohr or degrees
     bool angle = false;
 };

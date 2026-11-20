@@ -330,9 +330,11 @@ nonisolated enum MethodChoice: String, CaseIterable, Identifiable, Sendable {
     static let families: [MethodFamily] = [
         MethodFamily(title: "Hartree–Fock", methods: [.hf]),
         MethodFamily(title: "Møller–Plesset perturbation theory", methods: [.mp2, .mp3, .mp4, .mp5]),
-        MethodFamily(title: "Configuration interaction", methods: [.cisd, .cisdT, .cisdt, .cisdtq, .fci]),
+        MethodFamily(title: "Configuration interaction", methods: [.cisd, .cisdT, .cisdt, .cisdtq]),
         MethodFamily(title: "Quadratic configuration interaction", methods: [.qcisd, .qcisdT, .qcisdt, .qcisdtq]),
         MethodFamily(title: "Coupled cluster", methods: [.ccsd, .ccsdT, .ccsdt, .ccsdtq]),
+        // 15.0: Full CI, the exact limit of every method above, at the end of the menu
+        MethodFamily(title: "Full configuration interaction", methods: [.fci]),
     ]
 
     /// Name in the user interface.

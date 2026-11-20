@@ -58,12 +58,12 @@ std::vector<Direction> directions(const Molecule& mol, const SimpleInternals& si
     if (si.values.size() == 6) {
         if (c2_peroxide(mol, si)) {
             const double s = 1.0 / std::sqrt(2.0);
-            out.push_back({"S1 (A) = R(O1-O2), O-O stretch", {1, 0, 0, 0, 0, 0}, false});
-            out.push_back({"S2 (A) = [R(O1-H3) + R(O2-H4)]/sqrt(2), symmetric O-H stretch", {0, s, s, 0, 0, 0}, false});
-            out.push_back({"S3 (A) = [A(O2-O1-H3) + A(O1-O2-H4)]/sqrt(2), symmetric bend", {0, 0, 0, s, s, 0}, false});
-            out.push_back({"S4 (A) = D(H3-O1-O2-H4), torsion", {0, 0, 0, 0, 0, 1}, false});
-            out.push_back({"S5 (B) = [R(O1-H3) - R(O2-H4)]/sqrt(2), antisymmetric O-H stretch", {0, s, -s, 0, 0, 0}, true});
-            out.push_back({"S6 (B) = [A(O2-O1-H3) - A(O1-O2-H4)]/sqrt(2), antisymmetric bend", {0, 0, 0, s, -s, 0}, true});
+            out.push_back({"S1 (A) = R(O1–O2), O–O stretch", {1, 0, 0, 0, 0, 0}, false});
+            out.push_back({"S2 (A) = [R(O1–H3) + R(O2–H4)]/sqrt(2), symmetric O–H stretch", {0, s, s, 0, 0, 0}, false});
+            out.push_back({"S3 (A) = [A(O2–O1–H3) + A(O1–O2–H4)]/sqrt(2), symmetric bend", {0, 0, 0, s, s, 0}, false});
+            out.push_back({"S4 (A) = D(H3–O1–O2–H4), torsion", {0, 0, 0, 0, 0, 1}, false});
+            out.push_back({"S5 (B) = [R(O1–H3) - R(O2–H4)]/sqrt(2), antisymmetric O–H stretch", {0, s, -s, 0, 0, 0}, true});
+            out.push_back({"S6 (B) = [A(O2–O1–H3) - A(O1–O2–H4)]/sqrt(2), antisymmetric bend", {0, 0, 0, s, -s, 0}, true});
         } else {
             for (std::size_t k = 0; k < 6; ++k) {
                 std::vector<double> d(6, 0.0);
@@ -76,9 +76,9 @@ std::vector<Direction> directions(const Molecule& mol, const SimpleInternals& si
     const bool c2v = std::fabs(si.values[0] - si.values[1]) < 1.0e-6 && mol.atoms[1].Z == mol.atoms[2].Z;
     if (c2v) {
         const double s = 1.0 / std::sqrt(2.0);
-        out.push_back({"S1 (A1) = [R(O1-H2) + R(O1-H3)]/sqrt(2), symmetric stretch", {s, s, 0.0}, false});
-        out.push_back({"S2 (A1) = A(H2-O1-H3), bend", {0.0, 0.0, 1.0}, false});
-        out.push_back({"S3 (B2) = [R(O1-H2) - R(O1-H3)]/sqrt(2), antisymmetric stretch", {s, -s, 0.0}, true});
+        out.push_back({"S1 (A1) = [R(O1–H2) + R(O1–H3)]/sqrt(2), symmetric stretch", {s, s, 0.0}, false});
+        out.push_back({"S2 (A1) = A(H2–O1–H3), bend", {0.0, 0.0, 1.0}, false});
+        out.push_back({"S3 (B2) = [R(O1–H2) - R(O1–H3)]/sqrt(2), antisymmetric stretch", {s, -s, 0.0}, true});
     } else {
         for (std::size_t k = 0; k < 3; ++k) {
             std::vector<double> d(3, 0.0);
@@ -324,7 +324,7 @@ HessianResult run_hessian(const Molecule& mol, const BasisSet& basis, const std:
         r.hessian = h.hessian;
         r.analytic = true;
         r.description = scf_ref == "RHF"
-                            ? "analytic (second-derivative integrals, coupled-perturbed Hartree-Fock for all 3N coordinates)"
+                            ? "analytic (second-derivative integrals, coupled-perturbed Hartree–Fock for all 3N coordinates)"
                             : "analytic (" + scf_ref + ": second-derivative integrals, coupled-perturbed " + scf_ref +
                                   " equations for all 3N coordinates)";
         r.has_dipole_derivatives = true;

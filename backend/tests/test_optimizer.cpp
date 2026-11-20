@@ -136,7 +136,7 @@ static void test_reference() {
         CHECK(r.converged);
         const Geo g = geo_of(r);
         if (name == "H2O") {
-            check_max(label + ": R(O-H) / angstrom", std::max(std::fabs(g.r1 - c["R1"].get<double>()), std::fabs(g.r2 - c["R2"].get<double>())), 2e-5);
+            check_max(label + ": R(O–H) / angstrom", std::max(std::fabs(g.r1 - c["R1"].get<double>()), std::fabs(g.r2 - c["R2"].get<double>())), 2e-5);
             check_max(label + ": angle / degree", std::fabs(g.angle - c["angle"].get<double>()), 3e-3);
             CHECK(r.symmetric_start && r.symmetric_end);
         } else {

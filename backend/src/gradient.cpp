@@ -305,8 +305,8 @@ SimpleInternals simple_internals(const Molecule& mol) {
         return s;
     }
     if (n != 3) throw std::invalid_argument("simple_internals: two, three or four atoms");
-    stretch(0, 1, "R(O1-H2)");
-    stretch(0, 2, "R(O1-H3)");
+    stretch(0, 1, "R(O1–H2)");
+    stretch(0, 2, "R(O1–H3)");
     double u[3], v[3];
     for (int k = 0; k < 3; ++k) {
         u[k] = mol.atoms[1].position[static_cast<std::size_t>(k)] - mol.atoms[0].position[static_cast<std::size_t>(k)];
@@ -327,7 +327,7 @@ SimpleInternals simple_internals(const Molecule& mol) {
             row[6 + static_cast<std::size_t>(k)] = db;
             row[static_cast<std::size_t>(k)] = -(da + db);
         }
-    s.names.push_back("A(H2-O1-H3)");
+    s.names.push_back("A(H2–O1–H3)");
     s.values.push_back(th);
     s.B.push_back(row);
     return s;
@@ -821,15 +821,15 @@ GradientResult run_gradient(const Molecule& mol, const BasisSet& basis, const st
         disps.push_back({si.names[0], {1.0}});
     } else if (symmetric && nq == 3) {
         const double s = 1.0 / std::sqrt(2.0);
-        disps.push_back({"S1 = [R(O1-H2) + R(O1-H3)]/sqrt(2) (symmetric stretch)", {s, s, 0.0}});
-        disps.push_back({"S2 = A(H2-O1-H3) (bend)", {0.0, 0.0, 1.0}});
+        disps.push_back({"S1 = [R(O1–H2) + R(O1–H3)]/sqrt(2) (symmetric stretch)", {s, s, 0.0}});
+        disps.push_back({"S2 = A(H2–O1–H3) (bend)", {0.0, 0.0, 1.0}});
     } else if (symmetric) {
         // C2-symmetric H2O2: the antisymmetric (B) derivatives vanish by symmetry
         const double s = 1.0 / std::sqrt(2.0);
-        disps.push_back({"S1 = R(O1-O2) (O-O stretch)", {1, 0, 0, 0, 0, 0}});
-        disps.push_back({"S2 = [R(O1-H3) + R(O2-H4)]/sqrt(2) (symmetric O-H stretch)", {0, s, s, 0, 0, 0}});
-        disps.push_back({"S3 = [A(O2-O1-H3) + A(O1-O2-H4)]/sqrt(2) (symmetric bend)", {0, 0, 0, s, s, 0}});
-        disps.push_back({"S4 = D(H3-O1-O2-H4) (torsion)", {0, 0, 0, 0, 0, 1}});
+        disps.push_back({"S1 = R(O1–O2) (O–O stretch)", {1, 0, 0, 0, 0, 0}});
+        disps.push_back({"S2 = [R(O1–H3) + R(O2–H4)]/sqrt(2) (symmetric O–H stretch)", {0, s, s, 0, 0, 0}});
+        disps.push_back({"S3 = [A(O2–O1–H3) + A(O1–O2–H4)]/sqrt(2) (symmetric bend)", {0, 0, 0, s, s, 0}});
+        disps.push_back({"S4 = D(H3–O1–O2–H4) (torsion)", {0, 0, 0, 0, 0, 1}});
     } else {
         for (std::size_t k = 0; k < nq; ++k) {
             std::vector<double> d(nq, 0.0);

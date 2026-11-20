@@ -333,14 +333,14 @@ std::string input_echo(const Input& in) {
 
 std::string validate(const Input& in) {
     if (!general_molecule_name(in.molecule))
-        return "molecule must be HeH+, H2, LiH, H2O, H2O2, NH3, an atom H-Ar, H2+, H3+, H5+, N2, O2, F2, Cl2, NO, NO2, CO, CO2, N2O, H2CO, CH4 "
+        return "molecule must be HeH+, H2, LiH, H2O, H2O2, NH3, an atom H–Ar, H2+, H3+, H5+, N2, O2, F2, Cl2, NO, NO2, CO, CO2, N2O, H2CO, CH4 "
                "or custom";
     if (!is_heh_input(in)) {
         const std::string e = validate_molecular(molecular_input(in));
         return e.empty() ? job_input_error(in) : e;
     }
     if (canonical_job_type(in.job) != "energy")
-        return "HeH+ in an STO-nG basis (Szabo-Ostlund) supports only the energy job; choose a Gaussian basis set "
+        return "HeH+ in an STO-nG basis (Szabo–Ostlund) supports only the energy job; choose a Gaussian basis set "
                "(6-31G ... 6-311++G(3df,3pd), def2-SVP ... def2-QZVPPD, aug-cc-pVDZ ... aug-cc-pV5Z) for the other jobs";
     auto positive = [](double v) { return std::isfinite(v) && v > 0.0; };
     if (!positive(in.R)) return "R must be a positive, finite number (bohr)";

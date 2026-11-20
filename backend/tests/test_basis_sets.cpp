@@ -139,10 +139,10 @@ static void test_library() {
     };
     // 14.0, all elements the BSE defines: I in 6-311G(*); the def2 sets up to Rn with their ECPs
     // (Rb-Rn; the diffuse ones without Ce-Lu), def2-mTZVP(P) also Th-Lr
-    const Coverage cov[] = {{"6-31G", "H-Kr", 36},       {"6-31+G*", "H-Ar", 18},   {"6-311G*", "H-Ca, Ga-Kr, I", 27},
-                            {"6-311+G", "H-Ca", 20},     {"6-311++G**", "H, Li-Ca", 19},
-                            {"6-311++G(3df,3pd)", "H, Li-Ar", 17},                  {"def2-SVP", "H-Rn", 86},
-                            {"def2-QZVPPD", "H-La, Hf-Rn", 72},                     {"def2-mTZVPP", "H-Rn, Th-Lr", 100}};
+    const Coverage cov[] = {{"6-31G", "H–Kr", 36},       {"6-31+G*", "H–Ar", 18},   {"6-311G*", "H–Ca, Ga–Kr, I", 27},
+                            {"6-311+G", "H–Ca", 20},     {"6-311++G**", "H, Li–Ca", 19},
+                            {"6-311++G(3df,3pd)", "H, Li–Ar", 17},                  {"def2-SVP", "H–Rn", 86},
+                            {"def2-QZVPPD", "H–La, Hf–Rn", 72},                     {"def2-mTZVPP", "H–Rn, Th–Lr", 100}};
     for (const char* n : requested) {
         const BasisFile f = parse_gaussian94(read_file(default_basis_directory() + "/" + basis_file_name(n)));
         CHECK(contains(f.header, "Basis Set Exchange") && contains(f.header, "Version 0.12"));
@@ -426,12 +426,12 @@ static void test_output_and_input() {
         return r["error"].is_string() ? r["error"].get<std::string>() : std::string();
     };
     const std::string he = error_of({{"molecule", "HeH+"}, {"basis", "6-311++G**"}, {"method", "RHF"}});
-    CHECK(contains(he, "6-311++G** is not available for He") && contains(he, "H, Li-Ca"));
+    CHECK(contains(he, "6-311++G** is not available for He") && contains(he, "H, Li–Ca"));
     const std::string k = error_of({{"molecule", "custom"}, {"atoms", atoms_json("2\n\nK 0 0 0\nH 0 0 2.24\n")}, {"basis", "6-31+G*"}});
-    CHECK(contains(k, "not available for K") && contains(k, "H-Ar"));
+    CHECK(contains(k, "not available for K") && contains(k, "H–Ar"));
     // 14.0: the def2 sets end at Rn (def2-mTZVP(P): Th-Lr); the diffuse ones skip Ce-Lu; Rb needs an ECP
     const std::string u = error_of({{"molecule", "custom"}, {"atoms", atoms_json("2\n\nU 0 0 0\nO 0 0 1.8\n")}, {"basis", "def2-SVP"}});
-    CHECK(contains(u, "not available for U") && contains(u, "H-Rn") && contains(u, "Th-Lr"));
+    CHECK(contains(u, "not available for U") && contains(u, "H–Rn") && contains(u, "Th–Lr"));
     const std::string ce = error_of({{"molecule", "custom"}, {"atoms", atoms_json("2\n\nCe 0 0 0\nO 0 0 1.8\n")}, {"basis", "def2-TZVPPD"}});
     CHECK(contains(ce, "not available for Ce") && contains(ce, "lanthanides"));
     const std::string rb = error_of({{"molecule", "custom"}, {"atoms", atoms_json("2\n\nRb 0 0 0\nH 0 0 2.37\n")}, {"basis", "aug-cc-pVDZ"}});

@@ -607,7 +607,7 @@ RHFResult run_rhf(const Molecule& mol, const BasisSet& basis, const RHFOptions& 
     check_ecps(mol, basis);  // 14.0: the molecule carries the ECPs of the basis set
     const int nel = mol.electrons();
     if (nel <= 0 || nel % 2 != 0)
-        throw std::runtime_error("restricted Hartree-Fock needs an even, positive number of electrons");
+        throw std::runtime_error("restricted Hartree–Fock needs an even, positive number of electrons");
     const int nocc = nel / 2;
     const std::size_t n = static_cast<std::size_t>(basis.n_functions);
     if (n < static_cast<std::size_t>(nocc)) throw std::runtime_error("the basis set has fewer functions than occupied orbitals");

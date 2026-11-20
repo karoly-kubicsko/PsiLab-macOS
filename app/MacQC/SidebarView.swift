@@ -322,7 +322,7 @@ struct SidebarView: View {
             }
             if model.molecule == .h2o2 {
                 LabeledContent("R(O–O) (Å)") {
-                    numberField("O-O bond length angstrom", value: $model.ooBondLengthAngstrom)
+                    numberField("O–O bond length angstrom", value: $model.ooBondLengthAngstrom)
                 }
             }
             if let label = model.molecule.angleLabel {

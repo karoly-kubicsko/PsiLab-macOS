@@ -127,25 +127,25 @@ int main() {
     {
         const Molecule p = default_molecule("H2O2");
         const SimpleInternals si = simple_internals(p);
-        CHECK(si.names.size() == 6 && si.names[5] == "D(H3-O1-O2-H4)");
-        check_max("H2O2 default: R(O-O) 1.4556, R(O-H) 0.9670 angstrom",
+        CHECK(si.names.size() == 6 && si.names[5] == "D(H3–O1–O2–H4)");
+        check_max("H2O2 default: R(O–O) 1.4556, R(O–H) 0.9670 angstrom",
                   std::max(std::fabs(si.values[0] * kBohrInAngstrom - 1.4556),
                            std::max(std::fabs(si.values[1] * kBohrInAngstrom - 0.9670),
                                     std::fabs(si.values[2] * kBohrInAngstrom - 0.9670))),
                   1e-12);
-        check_max("  angles O-O-H 102.32, dihedral H-O-O-H +113.70 degrees (IUPAC sign)",
+        check_max("  angles O–O–H 102.32, dihedral H–O–O–H +113.70 degrees (IUPAC sign)",
                   std::max(std::fabs(si.values[3] * kDeg - 102.32),
                            std::max(std::fabs(si.values[4] * kDeg - 102.32), std::fabs(si.values[5] * kDeg - 113.70))),
                   1e-10);
         const Molecule a = default_molecule("NH3");
         const SimpleInternals sa = simple_internals(a);
-        CHECK(sa.names[5] == "D(H4-N1-H2-H3)");
-        check_max("NH3 default: R(N-H) 1.012 angstrom, H-N-H 106.7 degrees",
+        CHECK(sa.names[5] == "D(H4–N1–H2–H3)");
+        check_max("NH3 default: R(N–H) 1.012 angstrom, H–N–H 106.7 degrees",
                   std::max(std::fabs(sa.values[0] * kBohrInAngstrom - 1.012), std::fabs(sa.values[3] * kDeg - 106.7)), 1e-10);
         const Molecule flat = make_molecule("NH3", default_bond_length("NH3"), 120.0);
         double zmax = 0.0;
         for (const auto& at : flat.atoms) zmax = std::max(zmax, std::fabs(at.position[2]));
-        check_max("NH3 with H-N-H 120 degrees is planar (|z|, bohr)", zmax, 1e-12);
+        check_max("NH3 with H–N–H 120 degrees is planar (|z|, bohr)", zmax, 1e-12);
         // Z-matrix round trips (also distorted, and planar NH3)
         double worst = 0.0;
         for (const Molecule& m0 : {p, a, flat, make_molecule("H2O2", 1.9, 95.0, 2.9, -150.0)}) {
@@ -367,7 +367,7 @@ int main() {
         }
         if (sr.molecule == "NH3") {
             const json& last = r["scan"]["points"][4];
-            check_max("  NH3 at -180 degrees is planar: 360 - sum of the H-N-H angles (degrees)",
+            check_max("  NH3 at -180 degrees is planar: 360 - sum of the H–N–H angles (degrees)",
                       std::fabs(last["geometry"]["pyramidal"].get<double>()), 1e-6);
         }
     }
@@ -389,16 +389,16 @@ int main() {
             con.target = kPi;
             oo.constraints = {con};
             const OptimizationResult r = optimize_geometry(m, build_basis(m, "aug-cc-pVDZ", dir), "CCSD(T)", tight(), oo);
-            std::printf("     H2O2 CCSD(T)/aug-cc-pVDZ, D(H3-O1-O2-H4) frozen at 180 degrees: %d steps, %.1f s\n", r.steps, since(t0));
+            std::printf("     H2O2 CCSD(T)/aug-cc-pVDZ, D(H3–O1–O2–H4) frozen at 180 degrees: %d steps, %.1f s\n", r.steps, since(t0));
             CHECK(r.converged);
             const SimpleInternals si = simple_internals(r.final_geometry);
             check_max("  H2O2 CCSD(T) D = 180: energy (E_h)", std::fabs(r.final_energy - (*rp)["energy"].get<double>()), 2e-9);
-            check_max("  H2O2 CCSD(T) D = 180: R(O-O), R(O-H) (angstrom)",
+            check_max("  H2O2 CCSD(T) D = 180: R(O–O), R(O–H) (angstrom)",
                       std::max({std::fabs(si.values[0] * kBohrInAngstrom - (*rp)["ROO"].get<double>()),
                                 std::fabs(si.values[1] * kBohrInAngstrom - (*rp)["R1"].get<double>()),
                                 std::fabs(si.values[2] * kBohrInAngstrom - (*rp)["R2"].get<double>())}),
                       4e-5);
-            check_max("  H2O2 CCSD(T) D = 180: angles O-O-H (degrees)",
+            check_max("  H2O2 CCSD(T) D = 180: angles O–O–H (degrees)",
                       std::max(std::fabs(si.values[3] * kDeg - (*rp)["angle1"].get<double>()),
                                std::fabs(si.values[4] * kDeg - (*rp)["angle2"].get<double>())),
                       5e-3);
@@ -444,7 +444,7 @@ int main() {
         // the Szabo-Ostlund path is unchanged
         const json legacy = run({{"molecule", "HeH+"}});
         CHECK(legacy["error"].is_null() && !legacy["hf"].is_null());
-        check_max("  HeH+ without a basis set: the Szabo-Ostlund STO-3G energy (E_h)",
+        check_max("  HeH+ without a basis set: the Szabo–Ostlund STO-3G energy (E_h)",
                   std::fabs(legacy["hf"]["totalEnergy"].get<double>() - (-2.860661992)), 1e-9);
         CHECK(run({{"molecule", "HeH+"}, {"basis", "STO-1G"}})["input"]["nGaussians"].get<int>() == 1);
         CHECK(contains(run({{"molecule", "HeH+"}, {"job", "opt"}})["error"].get<std::string>(), "choose a Gaussian basis set"));
@@ -466,7 +466,7 @@ int main() {
                        "CCSDT frequencies for NH3 are not possible"));
         CHECK(contains(err({{"molecule", "NH3"}, {"angle", 125.0}}), "between 60 and 120"));
         CHECK(contains(err({{"molecule", "H2O2"}, {"angle", 178.0}}), "between 30 and 175"));
-        CHECK(contains(err({{"molecule", "H2O2"}, {"ROO", 0.1}}), "R(O-O)"));
+        CHECK(contains(err({{"molecule", "H2O2"}, {"ROO", 0.1}}), "R(O–O)"));
         CHECK(contains(err({{"molecule", "H2O2"}, {"job", "scan"}, {"scan", "3 1 2 5 S 2 10"}}), "atom 5 does not exist"));
         const json e = run({{"molecule", "H2O2"}, {"method", "CCSD(T)"}, {"job", "freq"}, {"estimateOnly", true}});
         CHECK(e["error"].is_null());

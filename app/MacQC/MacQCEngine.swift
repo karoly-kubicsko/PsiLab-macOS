@@ -731,7 +731,7 @@ nonisolated struct MacQCScanCoordinate: Codable, Sendable, Equatable {
     var type: String                 // "bond", "angle", "dihedral"
     var letter: String               // "B", "A", "D"
     var atoms: [Int]                 // atom numbers from 1
-    var definition: String           // "D(H3-O1-O2-H4)"
+    var definition: String           // "D(H3–O1–O2–H4)"
     var unit: String                 // "angstrom" or "degrees"
 }
 

@@ -1040,9 +1040,9 @@ final class AppModel {
         lines.append("ΨLab – HeH+ (STO-\(out.input.nGaussians)G)")
         lines.append(String(format: "R = %@, zeta(He) = %.4f, zeta(H) = %.4f, %@ erf",
                             Fmt.lengthBoth(out.input.R), out.input.zeta1, out.input.zeta2,
-                            out.input.exactErf ? "exact" : "Abramowitz-Stegun"))
+                            out.input.exactErf ? "exact" : "Abramowitz–Stegun"))
         lines.append("")
-        lines.append("Hartree-Fock")
+        lines.append("Hartree–Fock")
         lines.append("  converged:            \(hf.converged ? "yes" : "no") (\(hf.iterations) iterations)")
         lines.append("  electronic energy:    " + Fmt.energyWithUnit(hf.electronicEnergy))
         lines.append("  nuclear repulsion:    " + Fmt.energyWithUnit(hf.nuclearRepulsion))
@@ -1083,7 +1083,7 @@ final class AppModel {
             lines.append("Note: \(note)")
         }
         lines.append("")
-        lines.append("Hartree-Fock (\(out.referenceLabel))")
+        lines.append("Hartree–Fock (\(out.referenceLabel))")
         lines.append("  converged:            \(rhf.converged ? "yes" : "no") (\(rhf.iterations) iterations)")
         lines.append("  total energy:         " + Fmt.energy10(rhf.totalEnergy) + " E_h")
         lines.append("  electronic energy:    " + Fmt.energy10(rhf.electronicEnergy) + " E_h")
@@ -1194,7 +1194,7 @@ final class AppModel {
         if !out.report.isEmpty {
             let title = out.isGeneral
                 ? "DETAILED REPORT"
-                : "DETAILED REPORT (Hartree-Fock as in Szabo & Ostlund, Appendix B; then Full CI)"
+                : "DETAILED REPORT (Hartree–Fock as in Szabo & Ostlund, Appendix B; then Full CI)"
             parts.append(rule + "\n" + title + "\n" + rule + "\n" + out.report)
         }
         if let curve = curveTableText() {

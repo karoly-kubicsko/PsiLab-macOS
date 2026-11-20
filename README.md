@@ -353,6 +353,12 @@ panel: the data of the step or point and the chooser of the normal modes are bel
 instead of beside it. The method menu has sections (Hartree–Fock, Møller–Plesset, CI, QCI, coupled
 cluster); the Gaussian input export writes `UMP2(Full)`, `QCISD(T,Full)` and so on.
 
+**Sidebar and output files.** The sidebar is at least 340 pt wide, so the segmented Hessian
+control of optimisations (Initial, CalcFC, CalcAll, RecalcFC) fits; the method menu ends with Full
+CI (after coupled cluster). The output files and messages write names and ranges with en dashes:
+Hartree–Fock, Møller–Plesset, Szabo–Ostlund, the bonds and internal coordinates R(O1–H2),
+D(H3–O1–O2–H4), and element ranges such as H–Ar (columns are padded by characters, not bytes).
+
 **Sidebar.** The first section is *Atom/Molecule*: the atoms H–Ar, then the molecules by their
 number of electrons (H₂⁺, H₂, HeH⁺, H₃⁺, H₅⁺, LiH, H₂O, CH₄, NH₃, CO, N₂, NO, O₂, H₂CO, H₂O₂, F₂, CO₂,
 N₂O, NO₂, Cl₂), then the kept custom molecules. The molecules added in 15.0 have geometry parameters
