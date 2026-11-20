@@ -1,3 +1,4 @@
+#include "macqc/output.h"
 #include "macqc/molecular.h"
 
 #include "macqc/gradient.h"
@@ -78,12 +79,7 @@ std::string angstrom_bohr(double bohr) {
     return format("%.6f \xC3\x85 (%.6f bohr)", bohr * kBohrInAngstrom, bohr);
 }
 
-std::string human_seconds(double s) {
-    if (s < 1.0) return "less than a second";
-    if (s < 90.0) return format("about %.0f s", s);
-    if (s < 5400.0) return format("about %.0f min", s / 60.0);
-    return format("about %.1f h", s / 3600.0);
-}
+std::string human_seconds(double s) { return estimate_duration(s); }
 
 std::string thousands(std::size_t v) {
     std::string s = std::to_string(v), out;
@@ -97,6 +93,7 @@ std::string thousands(std::size_t v) {
 }
 
 std::string thousands_d(double v) {
+    if (!std::isfinite(v) || v > 1.0e300) return "more than 10^300";  // 15.0: impossible Full CI spaces
     if (v >= 1.0e15) return format("%.2e", v);
     return thousands(static_cast<std::size_t>(std::llround(v)));
 }
@@ -512,8 +509,8 @@ MolecularResult prepare_molecular(const MolecularInput& input) {
             c.reason = "there are no virtual orbitals to correlate in this basis set";
         } else if (c.memory_bytes / 1048576.0 > r.input.fci_memory_mb) {
             c.feasible = false;
-            c.reason = format("%s would need about %.1f GB of memory (limit %.1f GB): %s amplitudes in dense spin blocks.",
-                              c.method.c_str(), c.memory_bytes / 1073741824.0, r.input.fci_memory_mb / 1024.0,
+            c.reason = format("%s would need about %s of memory (limit %.1f GB): %s amplitudes in dense spin blocks.",
+                              c.method.c_str(), estimate_memory_mb(c.memory_bytes / 1048576.0).c_str(), r.input.fci_memory_mb / 1024.0,
                               thousands_d(c.amplitudes).c_str());
         } else if (c.seconds > kMaxCCSeconds) {
             c.feasible = false;
@@ -594,8 +591,8 @@ MolecularResult prepare_molecular(const MolecularInput& input) {
             "Estimated time %s on %d threads.",
             e.basis_functions, angular_letter(e.max_l), thousands(e.unique_eris).c_str(),
             e.eri_stored ? format("kept in memory (%.0f MB)", e.eri_memory_mb).c_str()
-                         : format("recomputed in every SCF iteration (storing them would need %.1f GB)",
-                                  e.eri_memory_mb / 1024.0)
+                         : format("recomputed in every SCF iteration (storing them would need %s)",
+                                  estimate_memory_mb(e.eri_memory_mb).c_str())
                                .c_str(),
             human_seconds(e.rhf_seconds).c_str(), e.threads));
     return r;
@@ -753,26 +750,26 @@ std::string molecular_report(const MolecularResult& r) {
     const CostEstimate& e = r.estimate;
     s += format("    two-electron integrals: %s unique, ", thousands(e.unique_eris).c_str());
     s += e.eri_stored ? format("kept in memory (%.1f MB)\n", e.eri_memory_mb)
-                      : format("integral-direct (storing them would need %.1f GB)\n", e.eri_memory_mb / 1024.0);
+                      : format("integral-direct (storing them would need %s)\n", estimate_memory_mb(e.eri_memory_mb).c_str());
     if (e.fci) {
         const FCISize& f = *e.fci;
         s += format("    Full CI: %d electrons (%d alpha, %d beta) in %d orbitals, %s x %s = %s determinants,\n"
-                    "             about %.0f MB of memory, estimated time %s\n",
+                    "             about %s of memory, estimated time %s\n",
                     f.alpha + f.beta, f.alpha, f.beta, f.orbitals, thousands_d(f.alpha_strings).c_str(),
                     thousands_d(f.beta_strings).c_str(), thousands_d(f.determinants).c_str(),
-                    f.memory_bytes / (1024.0 * 1024.0), human_seconds(e.total_seconds).c_str());
+                    estimate_memory_mb(f.memory_bytes / (1024.0 * 1024.0)).c_str(), human_seconds(e.total_seconds).c_str());
     }
     if (e.cc) {
         const CCSize& c = *e.cc;
-        s += format("    %s: %d occupied, %d virtual orbitals, %s amplitudes, about %.0f MB of memory,\n"
+        s += format("    %s: %d occupied, %d virtual orbitals, %s amplitudes, about %s of memory,\n"
                     "             estimated time %s\n",
                     c.method.c_str(), c.occupied, c.virtuals, thousands_d(c.amplitudes).c_str(),
-                    c.memory_bytes / (1024.0 * 1024.0), human_seconds(e.total_seconds).c_str());
+                    estimate_memory_mb(c.memory_bytes / (1024.0 * 1024.0)).c_str(), human_seconds(e.total_seconds).c_str());
     }
     if (e.so)
-        s += format("    %s: %s amplitudes (dense spin blocks), about %.0f MB of memory, estimated time %s\n",
-                    e.so->method.c_str(), thousands_d(e.so->amplitudes).c_str(), e.so->memory_bytes / 1048576.0,
-                    human_seconds(e.total_seconds).c_str());
+        s += format("    %s: %s amplitudes (dense spin blocks), about %s of memory, estimated time %s\n",
+                    e.so->method.c_str(), thousands_d(e.so->amplitudes).c_str(),
+                    estimate_memory_mb(e.so->memory_bytes / 1048576.0).c_str(), human_seconds(e.total_seconds).c_str());
     for (const auto& w : r.warnings) s += "Warning: " + w + "\n";
     if (!r.refusal.empty()) s += "NOT POSSIBLE: " + r.refusal + "\n";
     if (!r.rhf) return s;

@@ -4,6 +4,7 @@
 #include <iterator>
 
 #include "macqc/molecule.h"
+#include "macqc/output.h"
 #include "macqc/rhf.h"
 #include "macqc/structure_file.h"
 
@@ -639,6 +640,11 @@ std::optional<CurveMinimum> curve_minimum(const std::vector<std::pair<double, do
     return m;
 }
 
+// 15.0: seconds below a day, beyond that the readable estimate (also for impossible jobs)
+static std::string wall_time(double s) {
+    return s < 86400.0 ? format("%.0f s", s) : macqc::estimate_duration(s);
+}
+
 std::string estimate_text(const Settings& settings) {
     if (macqc::is_heh_input(settings.input)) return "";
     macqc::Input in = settings.input;
@@ -650,12 +656,13 @@ std::string estimate_text(const Settings& settings) {
     std::string t = out.report;
     const std::string job = macqc::canonical_job_type(in.job);
     if (job == "energy" || !out.job) {
-        t += format("Estimated wall time: %.0f s on %d threads (rough estimate)\n", e.total_seconds, e.threads);
+        t += format("Estimated wall time: %s on %d threads (rough estimate)\n", wall_time(e.total_seconds).c_str(), e.threads);
         return t;
     }
     t += "\nJob: " + macqc::job_title(job) + " (" + job + ")\n";
     t += macqc::job_estimate_text(*out.molecular, out.job->estimate);
-    t += format("Estimated wall time: %.0f s on %d threads (rough estimate)\n", out.job->estimate.total_seconds, e.threads);
+    t += format("Estimated wall time: %s on %d threads (rough estimate)\n", wall_time(out.job->estimate.total_seconds).c_str(),
+                e.threads);
     if (!out.job->estimate.refusal.empty()) t = "Error: " + out.job->estimate.refusal + "\n\n" + t;
     return t;
 }

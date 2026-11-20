@@ -254,8 +254,17 @@ std::string input_echo(const Input& in) {
     // 15.0: the atoms and molecules of the menu (presets) have fixed geometries; charge,
     // multiplicity and reference of every molecule
     if (mol.empty()) {
-        if (const MoleculePreset* pr = find_molecule_preset(in.molecule))
-            kv("geometry", pr->key + strprintf(" (%zu atom%s, fixed geometry)", pr->atoms.size(), pr->atoms.size() == 1 ? "" : "s"));
+        if (const MoleculePreset* pr = find_molecule_preset(in.molecule)) {
+            kv("geometry", pr->key + strprintf(" (%zu atom%s, %s)", pr->atoms.size(), pr->atoms.size() == 1 ? "" : "s",
+                                               in.atoms.empty() ? "default geometry" : "coordinates of the input"));
+            // the geometry parameters changed in the app: the coordinates sent with the input
+            for (std::size_t i = 0; i < in.atoms.size(); ++i) {
+                const Atom& a = in.atoms[i];
+                s += strprintf("    %-16s   %-2s %16.10f %16.10f %16.10f\n", "",
+                               (a.symbol.empty() ? element_symbol(a.Z) : a.symbol).c_str(), a.position[0] * kBohrInAngstrom,
+                               a.position[1] * kBohrInAngstrom, a.position[2] * kBohrInAngstrom);
+            }
+        }
     }
     if (mol != "custom" && !mol.empty()) kv("R", strprintf("%.10f bohr (%.8f angstrom)", in.R, in.R * kBohrInAngstrom));
     if (mol != "custom") {

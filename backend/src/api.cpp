@@ -3,6 +3,7 @@
 #include <cmath>
 #include <cstdlib>
 #include <cstring>
+#include <limits>
 #include <exception>
 #include <new>
 #include <optional>
@@ -1349,8 +1350,23 @@ std::string archive_text(json j) {
 
 }  // namespace
 
+namespace {
+// 15.0: JSON has no infinity: non-finite numbers (the estimates of impossible calculations, e.g.
+// Full CI determinant counts beyond 1e308) become the largest finite double instead of null.
+void finite_numbers(json& j) {
+    if (j.is_number_float()) {
+        const double v = j.get<double>();
+        if (!std::isfinite(v)) j = std::isnan(v) ? 0.0 : (v > 0 ? std::numeric_limits<double>::max() : -std::numeric_limits<double>::max());
+    } else if (j.is_structured()) {
+        for (auto& x : j) finite_numbers(x);
+    }
+}
+}  // namespace
+
 std::string output_to_json(const Output& out, int indent) {
-    return output_json(out).dump(indent, ' ', false, json::error_handler_t::replace);
+    json j = output_json(out);
+    finite_numbers(j);
+    return j.dump(indent, ' ', false, json::error_handler_t::replace);
 }
 
 std::string output_appendix(const Output& out) {

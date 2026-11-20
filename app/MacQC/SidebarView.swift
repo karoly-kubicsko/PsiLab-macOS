@@ -22,23 +22,19 @@ struct SidebarView: View {
 
     var body: some View {
         Form {
-            Section("Molecule") {
-                // the built-in molecules, the kept custom molecules (by name; 9.0) and
-                // "Custom molecule…", which opens a structure file
-                Picker("Molecule", selection: $model.moleculeSelection) {
-                    // 15.0: the molecules of earlier versions, further molecules and the atoms H–Ar
-                    // (fixed geometries)
-                    Section("Molecules") {
-                        ForEach(MoleculeChoice.builtIn) { choice in
-                            Text(choice.title).tag(MoleculeSelection.builtIn(choice))
-                        }
-                        ForEach(MoleculePresets.molecules) { p in
-                            Text(p.title).tag(MoleculeSelection.preset(p.key))
-                        }
-                    }
+            Section("Atom/Molecule") {
+                // the atoms H–Ar, the molecules (15.0: in the order of MoleculeMenu.molecules), the
+                // kept custom molecules (by name; 9.0) and "Custom molecule…", which opens a
+                // structure file
+                Picker("Atom/Molecule", selection: $model.moleculeSelection) {
                     Section("Atoms") {
                         ForEach(MoleculePresets.atoms) { p in
                             Text(p.title).tag(MoleculeSelection.preset(p.key))
+                        }
+                    }
+                    Section("Molecules") {
+                        ForEach(MoleculeMenu.molecules, id: \.self) { entry in
+                            Text(MoleculeMenu.title(entry)).tag(entry)
                         }
                     }
                     if !model.savedMolecules.isEmpty {
@@ -51,7 +47,7 @@ struct SidebarView: View {
                     Text("Custom molecule…").tag(MoleculeSelection.openFile)
                 }
                 .disabled(model.isRunning || model.isScanning)
-                .accessibilityLabel("Molecule")
+                .accessibilityLabel("Atom/Molecule")
                 if model.molecule == .custom, let m = model.customMolecule {
                     CustomMoleculeHeader(model: model, molecule: m, confirmRemove: $confirmRemove)
                 } else if model.molecule == .preset, let p = model.selectedPreset {
@@ -252,12 +248,7 @@ struct SidebarView: View {
     @ViewBuilder
     private var generalSections: some View {
         if model.molecule == .preset {
-            Section("Geometry") {
-                Text("Fixed geometry of the molecule menu (\(model.selectedPreset?.note ?? "")); an optimisation starts from it.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                SaveOptimizedGeometryBox(model: model)
-            }
+            presetGeometrySection
         } else if model.molecule == .custom {
             Section(model.job.usesOptimizer ? "Starting geometry (Å)" : "Geometry (Å)") {
                 if let m = model.customMolecule {
@@ -273,6 +264,54 @@ struct SidebarView: View {
             builtInGeometrySection
         }
         generalSectionsBelowGeometry
+    }
+
+    /// 15.0: the geometry parameters of a molecule of the menu (as for H₂O), none for an atom.
+    @ViewBuilder
+    private var presetGeometrySection: some View {
+        let key = model.presetKey
+        let params = PresetGeometry.parameters(key)
+        Section(params.isEmpty || !model.job.usesOptimizer ? "Geometry" : "Starting geometry") {
+            if params.isEmpty {
+                Text("\(model.selectedPreset?.note ?? "A single atom"): no geometry parameters.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            } else {
+                ForEach(params.indices, id: \.self) { i in
+                    LabeledContent("\(params[i].label) (\(params[i].unit))") {
+                        numberField(params[i].label,
+                                    value: Binding(get: { model.presetParameter(i) }, set: { model.setPresetParameter(i, $0) }))
+                    }
+                }
+                if let note = PresetGeometry.note(key) {
+                    Text(note)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                Button("Default geometry") {
+                    model.resetPresetGeometry()
+                }
+                .secondaryActionStyle()
+                .accessibilityLabel("Default geometry")
+                .frame(maxWidth: .infinity)
+                .disabled(model.isRunning || !model.presetGeometryChanged)
+                if let o = model.optimizedPresetParameters {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text((o.transitionState ? "Transition state: " : "Optimised: ") + PresetGeometry.describe(key, o.values))
+                            .font(.caption.monospacedDigit())
+                            .textSelection(.enabled)
+                        Button(o.transitionState ? "Use transition-state geometry" : "Use optimised geometry") {
+                            model.useOptimizedPresetGeometry()
+                        }
+                        .secondaryActionStyle()
+                        .accessibilityLabel("Use optimised geometry")
+                        .frame(maxWidth: .infinity)
+                        .disabled(!model.canUseOptimizedPresetGeometry || model.isRunning)
+                    }
+                }
+            }
+            SaveOptimizedGeometryBox(model: model)
+        }
     }
 
     @ViewBuilder
@@ -798,59 +837,83 @@ struct EstimatePanel: View {
 
     var body: some View {
         if let out = model.estimate {
+            // 15.0: an estimate of earlier inputs (e.g. the previous basis set) is dimmed while the
+            // new one is computed
+            let stale = model.estimatedKey != model.estimateKey
             VStack(alignment: .leading, spacing: 6) {
-                if let b = out.basis {
-                    InfoRow("Basis functions", "\(b.functions)")
-                    ForEach(Fmt.uniqueAtoms(b.atoms), id: \.symbol) { atom in
-                        InfoRow("  \(atom.symbol)", (atom.basis == model.currentBasis ? "" : atom.basis + " ") + atom.contraction)
+                if stale {
+                    HStack(spacing: 8) {
+                        ProgressView()
+                            .controlSize(.small)
+                        Text("Estimating…")
+                            .foregroundStyle(.secondary)
                     }
                 }
-                if let e = out.estimate {
-                    InfoRow("Two-electron integrals",
-                            Fmt.count(e.uniqueIntegrals) + (e.integralsStored ? " (in memory)" : " (direct)"))
-                    if let f = e.fci {
-                        InfoRow("Determinants", Fmt.count(f.determinants))
-                        if f.feasible {
-                            InfoRow("Full CI memory", Fmt.memory(f.memoryMB))
+                VStack(alignment: .leading, spacing: 6) {
+                    if let b = out.basis {
+                        InfoRow("Basis functions", "\(b.functions)")
+                        ForEach(Fmt.uniqueAtoms(b.atoms), id: \.symbol) { atom in
+                            InfoRow("  \(atom.symbol)", (atom.basis == model.currentBasis ? "" : atom.basis + " ") + atom.contraction)
+                        }
+                        // 15.0: another set of the menu with exactly the same functions for these elements
+                        let elements = Fmt.uniqueAtoms(b.atoms).map(\.symbol)
+                        let same = BasisIdentity.sameFunctions(as: out.input.basis, elements: elements)
+                        if !same.isEmpty {
+                            Text("Same basis functions as \(same.joined(separator: ", ")) for \(elements.joined(separator: " and ")): "
+                                 + "the Basis Set Exchange defines \(same.count == 1 ? "both sets" : "these sets") identically for "
+                                 + "\(elements.count == 1 ? "this element" : "these elements").")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
                         }
                     }
-                    if let c = e.coupledCluster {
-                        InfoRow("\(MethodChoice.title(of: c.method)) amplitudes", Fmt.count(c.amplitudes))
-                        InfoRow("Orbitals (occ./virt.)", "\(c.occupied) / \(c.virtuals)")
-                        InfoRow("\(MethodChoice.title(of: c.method)) memory", Fmt.memory(c.memoryMB))
-                    }
-                    if let j = out.job, j.type != "energy" {
-                        ForEach(j.estimate.steps) { step in
-                            VStack(alignment: .leading, spacing: 2) {
-                                InfoRow(step.name, model.refusal == nil ? Fmt.duration(step.seconds) : "")
-                                Text("\(MethodChoice.title(of: step.method))/\(step.basis): \(step.how)")
-                                    .font(.caption)
-                                    .foregroundStyle(step.analytic ? Color.secondary : Color.orange)
+                    if let e = out.estimate {
+                        InfoRow("Two-electron integrals",
+                                Fmt.count(e.uniqueIntegrals) + (e.integralsStored ? " (in memory)" : " (direct)"))
+                        if let f = e.fci {
+                            InfoRow("Determinants", Fmt.count(f.determinants))
+                            InfoRow("Full CI memory", Fmt.memory(f.memoryMB))  // 15.0: also when not possible
+                        }
+                        if let c = e.coupledCluster {
+                            InfoRow("\(MethodChoice.title(of: c.method)) amplitudes", Fmt.count(c.amplitudes))
+                            InfoRow("Orbitals (occ./virt.)", "\(c.occupied) / \(c.virtuals)")
+                            InfoRow("\(MethodChoice.title(of: c.method)) memory", Fmt.memory(c.memoryMB))
+                        }
+                        // 15.0: the estimated times also of impossible jobs (marked as such)
+                        let impossible = model.refusal != nil
+                        if let j = out.job, j.type != "energy" {
+                            ForEach(j.estimate.steps) { step in
+                                VStack(alignment: .leading, spacing: 2) {
+                                    InfoRow(step.name, Fmt.duration(step.seconds))
+                                    Text("\(MethodChoice.title(of: step.method))/\(step.basis): \(step.how)")
+                                        .font(.caption)
+                                        .foregroundStyle(step.analytic ? Color.secondary : Color.orange)
+                                }
                             }
+                            InfoRow(impossible ? "Estimated time (job; not possible)" : "Estimated time (job)",
+                                    Fmt.duration(j.estimate.totalSeconds) + " (\(e.threads) threads)")
+                        } else {
+                            InfoRow(impossible ? "Estimated time (not possible)" : "Estimated time",
+                                    Fmt.duration(e.totalSeconds) + " (\(e.threads) threads)")
                         }
-                        if model.refusal == nil {
-                            InfoRow("Estimated time (job)", Fmt.duration(j.estimate.totalSeconds) + " (\(e.threads) threads)")
-                        }
-                    } else if model.refusal == nil {
-                        InfoRow("Estimated time", Fmt.duration(e.totalSeconds) + " (\(e.threads) threads)")
+                    }
+                    ForEach(out.notes ?? [], id: \.self) { note in
+                        Text(note)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    ForEach(warnings(out), id: \.self) { warning in
+                        Label(warning, systemImage: "clock.badge.exclamationmark")
+                            .font(.caption)
+                            .foregroundStyle(.orange)
+                    }
+                    if let refusal = model.refusal {
+                        Label(refusal, systemImage: "xmark.octagon.fill")
+                            .font(.caption)
+                            .foregroundStyle(.red)
+                            .textSelection(.enabled)
                     }
                 }
-                ForEach(out.notes ?? [], id: \.self) { note in
-                    Text(note)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-                ForEach(warnings(out), id: \.self) { warning in
-                    Label(warning, systemImage: "clock.badge.exclamationmark")
-                        .font(.caption)
-                        .foregroundStyle(.orange)
-                }
-                if let refusal = model.refusal {
-                    Label(refusal, systemImage: "xmark.octagon.fill")
-                        .font(.caption)
-                        .foregroundStyle(.red)
-                        .textSelection(.enabled)
-                }
+                .opacity(stale ? 0.4 : 1)
             }
         } else {
             HStack(spacing: 8) {

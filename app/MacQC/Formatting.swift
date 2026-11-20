@@ -38,6 +38,7 @@ nonisolated enum Fmt {
 
     /// Integer count with thousands separators ("11,029,041"), or "5.62e+11" when very large.
     static func count(_ x: Double) -> String {
+        if !x.isFinite || x > 1.0e300 { return "more than 10³⁰⁰" }  // 15.0: impossible Full CI spaces
         if x >= 1.0e10 { return String(format: "%.2e", x) }
         let formatter = NumberFormatter()
         formatter.numberStyle = .decimal
@@ -47,18 +48,42 @@ nonisolated enum Fmt {
         return formatter.string(from: NSNumber(value: x.rounded())) ?? String(format: "%.0f", x)
     }
 
-    /// Seconds as "less than a second", "about 25 s", "about 4 min", "about 1.5 h".
+    /// Seconds as "less than a second", "about 25 s", "about 4 min", "about 1.5 h"; 15.0, also for
+    /// the estimates of impossible jobs: "about 3.2 days", "about 41 years", "about 2.2 × 10⁷³ years".
     static func duration(_ seconds: Double) -> String {
-        if seconds < 1 { return "less than a second" }
+        if !(seconds >= 1) { return "less than a second" }
         if seconds < 90 { return String(format: "about %.0f s", seconds) }
         if seconds < 5400 { return String(format: "about %.0f min", seconds / 60) }
-        return String(format: "about %.1f h", seconds / 3600)
+        if seconds < 2 * 86400 { return String(format: "about %.1f h", seconds / 3600) }
+        let days = seconds / 86400, years = days / 365.25
+        if years < 1 { return String(format: "about %.1f days", days) }
+        if years < 1000 { return String(format: "about %.0f years", years) }
+        if !years.isFinite || years > 1.0e300 { return "more than 10³⁰⁰ years" }
+        return "about " + powerOfTen(years) + " years"
     }
 
-    /// Memory in MB as "43 MB" or "2.8 GB".
+    /// Memory in MB as "43 MB", "2.8 GB"; 15.0: "1.5 TB", "3.4 PB", "1.2 × 10⁴⁹ TB".
     static func memory(_ megabytes: Double) -> String {
-        if megabytes < 1024 { return String(format: "%.0f MB", max(megabytes, 1)) }
-        return String(format: "%.1f GB", megabytes / 1024)
+        if !(megabytes >= 1024) { return String(format: "%.0f MB", max(megabytes.isNaN ? 1 : megabytes, 1)) }
+        let gb = megabytes / 1024, tb = gb / 1024, pb = tb / 1024
+        if gb < 1024 { return String(format: "%.1f GB", gb) }
+        if tb < 1024 { return String(format: "%.1f TB", tb) }
+        if pb < 1000 { return String(format: "%.1f PB", pb) }
+        if !tb.isFinite || tb > 1.0e300 { return "more than 10³⁰⁰ TB" }
+        return powerOfTen(tb) + " TB"
+    }
+
+    /// x ≥ 1000 as "2.2 × 10⁷³".
+    static func powerOfTen(_ x: Double) -> String {
+        var e = Int(log10(x).rounded(.down))
+        var m = x / pow(10, Double(e))
+        if m >= 9.95 {
+            m /= 10
+            e += 1
+        }
+        let digits: [Character: Character] = ["0": "⁰", "1": "¹", "2": "²", "3": "³", "4": "⁴", "5": "⁵", "6": "⁶",
+                                              "7": "⁷", "8": "⁸", "9": "⁹", "-": "⁻"]
+        return String(format: "%.1f × 10", m) + String(String(e).map { digits[$0] ?? $0 })
     }
 
     /// One entry per element (atoms of the same element share the basis set).

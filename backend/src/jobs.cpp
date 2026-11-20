@@ -20,13 +20,7 @@ namespace {
 using Clock = std::chrono::steady_clock;
 double seconds_since(Clock::time_point t) { return std::chrono::duration<double>(Clock::now() - t).count(); }
 
-std::string human_time(double s) {
-    if (s < 1.0) return "less than a second";
-    if (s < 90.0) return strprintf("about %.0f s", s);
-    if (s < 5400.0) return strprintf("about %.0f min", s / 60.0);
-    if (s < 2.0 * 86400.0) return strprintf("about %.1f h", s / 3600.0);
-    return strprintf("about %.1f days", s / 86400.0);
-}
+std::string human_time(double s) { return estimate_duration(s); }
 
 std::string method_label(const std::string& m) { return m == "RHF" ? "HF" : (m == "FCI" ? "Full CI" : m); }
 // 15.0: with the reference: HF (closed shell), UHF, ROHF; UMP2, ROCCSD(T); Full CI
@@ -95,8 +89,8 @@ double gradient_seconds(const MolecularResult& p, bool* analytic, std::string* h
             if (e.cc) t += e.cc->iterations * e.cc->iteration_seconds + 6.0 * e.cc->triples_seconds;
             return 1.3 * t + 0.2;
         }
-        *how = strprintf("numerical gradient (%d %s energies; the analytic gradient would need %.1f GB)",
-                         numerical_energies, m.c_str(), need / 1024.0);
+        *how = strprintf("numerical gradient (%d %s energies; the analytic gradient would need %s)",
+                         numerical_energies, m.c_str(), estimate_memory_mb(need).c_str());
     } else {
         *how = strprintf("numerical gradient (%d %s energies per gradient, central differences)", numerical_energies,
                          m.c_str());
@@ -607,19 +601,17 @@ void write_molecule(OutputWriter& w, const MolecularResult& p, const std::string
     const CostEstimate& e = p.estimate;
     w.line(strprintf("    two-electron integrals: %zu unique, %s", e.unique_eris,
                      e.eri_stored ? strprintf("kept in memory (%.1f MB)", e.eri_memory_mb).c_str()
-                                  : strprintf("integral-direct (storing them would need %.1f GB)", e.eri_memory_mb / 1024.0).c_str()));
+                                  : strprintf("integral-direct (storing them would need %s)", estimate_memory_mb(e.eri_memory_mb).c_str()).c_str()));
 }
 
 void write_estimate(OutputWriter& w, const MolecularResult& p, const JobEstimate& est) {
     w.section("Size, memory and time (estimates)");
     const CostEstimate& e = p.estimate;
-    auto count = [](double n) { return n < 1.0e9 ? strprintf("%.0f", n) : strprintf("%.3g", n); };
-    auto bytes = [](double b) {
-        const double mb = b / 1048576.0;
-        if (mb < 1024.0) return strprintf("%.0f MB", mb);
-        if (mb < 1048576.0) return strprintf("%.1f GB", mb / 1024.0);
-        return strprintf("%.1f TB", mb / 1048576.0);
+    auto count = [](double n) {
+        if (!std::isfinite(n) || n > 1.0e300) return std::string("more than 10^300");
+        return n < 1.0e9 ? strprintf("%.0f", n) : strprintf("%.3g", n);
     };
+    auto bytes = [](double b) { return estimate_memory_mb(b / 1048576.0); };
     if (e.fci)
         w.line(strprintf("    Full CI: %s determinants (%d electrons in %d orbitals), about %s", count(e.fci->determinants).c_str(),
                          e.fci->alpha + e.fci->beta, e.fci->orbitals, bytes(e.fci->memory_bytes).c_str()));
@@ -630,7 +622,7 @@ void write_estimate(OutputWriter& w, const MolecularResult& p, const JobEstimate
         w.line(strprintf("    %s: %s amplitudes in dense spin blocks (spin-orbital engine), about %s", e.so->method.c_str(),
                          count(e.so->amplitudes).c_str(), bytes(e.so->memory_bytes).c_str()));
     for (const auto& n : est.notes) w.line("    " + n);
-    if (est.memory_mb > 0) w.line(strprintf("    memory of the derivative steps: about %.0f MB", est.memory_mb));
+    if (est.memory_mb > 0) w.line(strprintf("    memory of the derivative steps: about %s", estimate_memory_mb(est.memory_mb).c_str()));
     w.line("    total: " + human_time(est.total_seconds) + strprintf(" on %d threads", e.threads));
     const bool job_level = !(est.steps.size() == 1 && est.steps[0].name == "Energy");
     for (const auto& x : p.warnings)  // the job-level estimate replaces the single-energy "long calculation" warning

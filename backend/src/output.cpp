@@ -64,6 +64,45 @@ std::string local_time_string() {
     return buf;
 }
 
+namespace {
+// x as "2.2 × 10^73" (x >= 1000)
+std::string power_of_ten(double x) {
+    if (!std::isfinite(x) || x > 1.0e300) return "more than 10^300";
+    const int e = static_cast<int>(std::floor(std::log10(x)));
+    double m = x / std::pow(10.0, e);
+    int ee = e;
+    if (m >= 9.95) {
+        m /= 10.0;
+        ++ee;
+    }
+    return strprintf("%.1f × 10^%d", m, ee);
+}
+}  // namespace
+
+std::string estimate_duration(double s) {
+    if (!std::isfinite(s) && s > 0) return "more than 10^300 years";
+    if (!(s >= 1.0)) return "less than a second";
+    if (s < 90.0) return strprintf("about %.0f s", s);
+    if (s < 5400.0) return strprintf("about %.0f min", s / 60.0);
+    if (s < 2.0 * 86400.0) return strprintf("about %.1f h", s / 3600.0);
+    const double days = s / 86400.0, years = days / 365.25;
+    if (years < 1.0) return strprintf("about %.1f days", days);
+    if (years < 1000.0) return strprintf("about %.0f years", years);
+    if (years > 1.0e300) return "more than 10^300 years";
+    return "about " + power_of_ten(years) + " years";
+}
+
+std::string estimate_memory_mb(double mb) {
+    if (!std::isfinite(mb) && mb > 0) return "more than 10^300 TB";
+    if (!(mb >= 1.0)) return "1 MB";
+    if (mb < 1024.0) return strprintf("%.0f MB", mb);
+    const double gb = mb / 1024.0, tb = gb / 1024.0, pb = tb / 1024.0;
+    if (gb < 1024.0) return strprintf("%.1f GB", gb);
+    if (tb < 1024.0) return strprintf("%.1f TB", tb);
+    if (pb < 1000.0) return strprintf("%.1f PB", pb);
+    return power_of_ten(tb) + " TB";
+}
+
 std::string duration_string(double s) {
     if (s < 60.0) return strprintf("%.1f s", s);
     if (s < 3600.0) return strprintf("%d min %02d s", static_cast<int>(s / 60.0), static_cast<int>(std::fmod(s, 60.0)));
