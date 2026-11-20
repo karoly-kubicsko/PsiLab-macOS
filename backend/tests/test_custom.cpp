@@ -139,7 +139,7 @@ static void test_structure_files() {
     const std::string gjf =
         "%chk=water.chk\n%mem=1GB\n#p HF/aug-cc-pVDZ Opt\n\nwater, H$_2$O\nsecond title line\n\n0 1\n"
         "O     0.000000    0.000000    0.117300\nH(Fragment=1)  0  0.000000    0.757200   -0.469200\n"
-        "H-H_  -1  0.000000   -0.757200   -0.469200\n\nB 1 2 S 10 0.05\n\n";
+        "H–H_  -1  0.000000   -0.757200   -0.469200\n\nB 1 2 S 10 0.05\n\n";
     {
         const StructureFile f = parse_structure_file(gjf, "water.gjf");
         CHECK(f.format == "gaussian");
@@ -328,7 +328,7 @@ static void test_energies_against_pyscf(const json& ref) {
         std::printf("     %-6s %-13s %-8s %18.10f  diff %.1e  %5.1f s\n", name.c_str(), basis.c_str(), method.c_str(), e, d, since(t0));
         (method == "RHF" ? worst_rhf : worst_cc) = std::max(method == "RHF" ? worst_rhf : worst_cc, d);
     }
-    check_max("RHF energies of custom molecules (H-Kr, ions, one atom) vs PySCF", worst_rhf, 1e-8);
+    check_max("RHF energies of custom molecules (H–Kr, ions, one atom) vs PySCF", worst_rhf, 1e-8);
     check_max("CCSD(T) energies (HCl, CH4) vs PySCF", worst_cc, 1e-8);
 
     // HOCl: the analytic RHF gradient, and the Cartesian numerical gradient (energies)

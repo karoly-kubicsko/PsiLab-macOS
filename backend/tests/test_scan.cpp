@@ -132,7 +132,7 @@ int main() {
             const double v = internal_value(chain(d), coord(InternalType::Dihedral, {2, 0, 1, 3})) * kDeg;
             worst = std::max(worst, std::fabs(wrap_angle((v - d) / kDeg)) * kDeg);
         }
-        check_max("dihedral H3-O1-O2-H4 of the built chain (IUPAC sign), degrees", worst, 1e-10);
+        check_max("dihedral H3–O1–O2–H4 of the built chain (IUPAC sign), degrees", worst, 1e-10);
         // B row against central differences, random and special geometries
         std::mt19937 rng(7);
         std::normal_distribution<double> nd(0.0, 0.25);
@@ -163,7 +163,7 @@ int main() {
         for (std::size_t i = 0; i < ic.size(); ++i)
             if (ic.coordinates()[i].type == InternalType::Dihedral) dih = static_cast<int>(i);
         CHECK(dih >= 0);
-        CHECK(ic.coordinates()[static_cast<std::size_t>(dih)].definition(m170) == "D(H3-O1-O2-H4)");
+        CHECK(ic.coordinates()[static_cast<std::size_t>(dih)].definition(m170) == "D(H3–O1–O2–H4)");
         // differences across +-180 degrees
         std::vector<double> q1 = ic.values(m170), q0 = q1;
         q1[static_cast<std::size_t>(dih)] = -175.0 / kDeg;
@@ -204,9 +204,9 @@ int main() {
         const Molecule w2 = apply_constraints(w, {c}, &res);
         const InternalCoordinates i0(w);
         const std::vector<double> d = i0.difference(i0.values(w2), i0.values(w));
-        check_max("apply_constraints: R(O1-H2) set to 1.2 angstrom", std::fabs(d[0] - (c.target - 0.9572 / kBohrInAngstrom)) + res,
+        check_max("apply_constraints: R(O1–H2) set to 1.2 angstrom", std::fabs(d[0] - (c.target - 0.9572 / kBohrInAngstrom)) + res,
                   1e-9);
-        check_max("  R(O1-H3) and the angle unchanged", std::max(std::fabs(d[1]), std::fabs(d[2])), 1e-9);
+        check_max("  R(O1–H3) and the angle unchanged", std::max(std::fabs(d[1]), std::fabs(d[2])), 1e-9);
         c.coordinate = coord(InternalType::Bend, {1, 0, 2});
         c.target = kPi;
         const Molecule lin = apply_constraints(w, {c}, &res);
@@ -253,7 +253,7 @@ int main() {
             const double ang = g["angle"].get<double>();
             const std::string tag = "  " + sr.method + " " + sr.coordinate + " = " + std::to_string(v).substr(0, 6);
             check_max(tag + ": energy (E_h)", std::fabs((*p)["energy"].get<double>() - rp["energy"].get<double>()), 2e-9);
-            check_max(tag + ": R(O1-H2), R(O1-H3) (angstrom)",
+            check_max(tag + ": R(O1–H2), R(O1–H3) (angstrom)",
                       std::max(std::fabs(r1 - rp["R1"].get<double>()), std::fabs(r2 - rp["R2"].get<double>())), 4e-5);
             check_max(tag + ": angle (degrees)", std::fabs(ang - rp["angle"].get<double>()), 5e-3);
             check_max(tag + ": frozen coordinate at its value", std::fabs((*p)["measured"].get<double>() - v), 1e-6);
@@ -261,7 +261,7 @@ int main() {
         if (sr.method == "RHF" && sr.coordinate == "A 2 1 3") {
             const std::string out = r["output"].get<std::string>();
             CHECK(contains(out, "Summary of the relaxed scan: HF/aug-cc-pVDZ"));
-            CHECK(contains(out, "Scan point 10 of 10: A(H2-O1-H3) = 180.000000 deg"));
+            CHECK(contains(out, "Scan point 10 of 10: A(H2–O1–H3) = 180.000000 deg"));
             CHECK(contains(out, "initial Hessian: Hessian of the previous scan point"));
             CHECK(contains(out, "frozen"));
             CHECK(scan["points"].size() == 10);

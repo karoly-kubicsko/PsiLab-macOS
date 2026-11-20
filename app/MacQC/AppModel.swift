@@ -140,6 +140,9 @@ final class AppModel {
     // multiplicity chosen in the sidebar for each molecule (missing: the molecule's own), the
     // reference, and HeH⁺ in STO-nG as the Szabo–Ostlund calculation (or a general one)
     var presetKey: String = "O2"
+    /// 15.0: the geometry parameters of the molecules of the menu (Å, degrees; missing: the
+    /// backend's geometry), see PresetGeometry
+    var presetValues: [String: [Double]] = [:]
     var charges: [String: Int] = [:]
     var multiplicities: [String: Int] = [:]
     var reference: ReferenceChoice = .automatic
@@ -299,6 +302,9 @@ final class AppModel {
 
     /// Output of an `estimateOnly` call for the current inputs (nil for HeH+).
     var estimate: MacQCOutput?
+    /// 15.0: the `estimateKey` the displayed estimate was made for (it is out of date while a new
+    /// one is computed)
+    var estimatedKey = ""
 
     /// Changes whenever an input that affects the estimate changes.
     var estimateKey: String {
@@ -309,7 +315,7 @@ final class AppModel {
         return "\(molecule.rawValue)|\(custom)|\(currentBasis)|\(method.rawValue)|\(bondLength)|\(angle)|\(ooBondLength)|\(dihedral)|"
             + "\(job.rawValue)|\(spMethod?.rawValue ?? "")|\(spBasis ?? "")|\(temperature)|\(pressure)|"
             + "\(tightConvergence)|\(maxSteps)|\(s.line)|\(s.fromInput)|\(s.start)|\(tsHessianMode.rawValue)|\(eigenTest)|\(analyticHessian)|\(analyticInitialHessian)|"
-            + "\(presetKey)|\(charge)|\(multiplicity)|\(reference.rawValue)|\(hehSzaboOstlund)|\(optHessianMode.rawValue)|\(recalcFC)|\(gediis)"
+            + "\(presetKey)|\(presetValues[presetKey] ?? [])|\(charge)|\(multiplicity)|\(reference.rawValue)|\(hehSzaboOstlund)|\(optHessianMode.rawValue)|\(recalcFC)|\(gediis)"
     }
 
     /// The backend refuses the calculation (reason), or the inputs are invalid.
@@ -552,9 +558,11 @@ final class AppModel {
         }
         if isGeneral {
             if molecule == .preset {
-                // 15.0: an atom or molecule of the menu (fixed geometry in the backend)
+                // 15.0: an atom or molecule of the menu: the backend's geometry, or the coordinates of
+                // the changed geometry parameters
                 input.molecule = presetKey
                 input.R = 0
+                input.atoms = presetAtoms
             } else if molecule != .custom {
                 input.molecule = molecule.rawValue
                 input.R = bondLength
@@ -724,10 +732,12 @@ final class AppModel {
             let output = try await MacQCEngine.run(input)
             if key == estimateKey {   // inputs unchanged meanwhile
                 estimate = output
+                estimatedKey = key
             }
         } catch {
             if key == estimateKey {
                 estimate = nil
+                estimatedKey = key
             }
         }
     }
@@ -1030,9 +1040,9 @@ final class AppModel {
         lines.append("ΨLab – HeH+ (STO-\(out.input.nGaussians)G)")
         lines.append(String(format: "R = %@, zeta(He) = %.4f, zeta(H) = %.4f, %@ erf",
                             Fmt.lengthBoth(out.input.R), out.input.zeta1, out.input.zeta2,
-                            out.input.exactErf ? "exact" : "Abramowitz-Stegun"))
+                            out.input.exactErf ? "exact" : "Abramowitz–Stegun"))
         lines.append("")
-        lines.append("Hartree-Fock")
+        lines.append("Hartree–Fock")
         lines.append("  converged:            \(hf.converged ? "yes" : "no") (\(hf.iterations) iterations)")
         lines.append("  electronic energy:    " + Fmt.energyWithUnit(hf.electronicEnergy))
         lines.append("  nuclear repulsion:    " + Fmt.energyWithUnit(hf.nuclearRepulsion))
@@ -1073,7 +1083,7 @@ final class AppModel {
             lines.append("Note: \(note)")
         }
         lines.append("")
-        lines.append("Hartree-Fock (\(out.referenceLabel))")
+        lines.append("Hartree–Fock (\(out.referenceLabel))")
         lines.append("  converged:            \(rhf.converged ? "yes" : "no") (\(rhf.iterations) iterations)")
         lines.append("  total energy:         " + Fmt.energy10(rhf.totalEnergy) + " E_h")
         lines.append("  electronic energy:    " + Fmt.energy10(rhf.electronicEnergy) + " E_h")
@@ -1184,7 +1194,7 @@ final class AppModel {
         if !out.report.isEmpty {
             let title = out.isGeneral
                 ? "DETAILED REPORT"
-                : "DETAILED REPORT (Hartree-Fock as in Szabo & Ostlund, Appendix B; then Full CI)"
+                : "DETAILED REPORT (Hartree–Fock as in Szabo & Ostlund, Appendix B; then Full CI)"
             parts.append(rule + "\n" + title + "\n" + rule + "\n" + out.report)
         }
         if let curve = curveTableText() {

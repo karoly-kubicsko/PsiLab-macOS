@@ -8,6 +8,7 @@
 #include <cstdio>
 #include <string>
 
+#include "macqc/output.h"
 #include "macqc/cc.h"
 
 namespace macqc {
@@ -18,23 +19,9 @@ constexpr double kMultiplyAddsPerSecond = 2.4e9;  // per thread, matrix products
 constexpr double kMovesPerSecond = 1.0e8;         // per thread, gather/scatter of packed amplitudes
 constexpr double kElementwisePerSecond = 1.0e9;   // per thread, (T) energy loops
 
-std::string gigabytes(double bytes) {
-    char buf[64];
-    if (bytes >= 1024.0 * 1024.0 * 1024.0)
-        std::snprintf(buf, sizeof buf, "%.1f GB", bytes / (1024.0 * 1024.0 * 1024.0));
-    else
-        std::snprintf(buf, sizeof buf, "%.0f MB", bytes / (1024.0 * 1024.0));
-    return buf;
-}
+std::string gigabytes(double bytes) { return estimate_memory_mb(bytes / (1024.0 * 1024.0)); }
 
-std::string days(double s) {
-    char buf[64];
-    if (s >= 2.0 * 86400.0)
-        std::snprintf(buf, sizeof buf, "about %.0f days", s / 86400.0);
-    else
-        std::snprintf(buf, sizeof buf, "about %.0f hours", s / 3600.0);
-    return buf;
-}
+std::string days(double s) { return estimate_duration(s); }
 
 }  // namespace
 

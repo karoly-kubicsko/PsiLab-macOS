@@ -1,3 +1,4 @@
+#include "macqc/output.h"
 #include "macqc/molecular.h"
 
 #include "macqc/gradient.h"
@@ -78,12 +79,7 @@ std::string angstrom_bohr(double bohr) {
     return format("%.6f \xC3\x85 (%.6f bohr)", bohr * kBohrInAngstrom, bohr);
 }
 
-std::string human_seconds(double s) {
-    if (s < 1.0) return "less than a second";
-    if (s < 90.0) return format("about %.0f s", s);
-    if (s < 5400.0) return format("about %.0f min", s / 60.0);
-    return format("about %.1f h", s / 3600.0);
-}
+std::string human_seconds(double s) { return estimate_duration(s); }
 
 std::string thousands(std::size_t v) {
     std::string s = std::to_string(v), out;
@@ -97,6 +93,7 @@ std::string thousands(std::size_t v) {
 }
 
 std::string thousands_d(double v) {
+    if (!std::isfinite(v) || v > 1.0e300) return "more than 10^300";  // 15.0: impossible Full CI spaces
     if (v >= 1.0e15) return format("%.2e", v);
     return thousands(static_cast<std::size_t>(std::llround(v)));
 }
@@ -117,7 +114,7 @@ std::string fci_section_impl(const FCIResultGeneral& f, double rhf_energy, int l
                 f.alpha + f.beta, f.alpha, f.beta, f.orbitals, thousands(f.alpha_strings).c_str(),
                 thousands(f.beta_strings).c_str(), thousands(f.determinants).c_str());
     if (f.spin_adapted)
-        s += format("    spin-adapted: %s configuration state functions with S = %g (Weyl-Paldus), the Davidson\n"
+        s += format("    spin-adapted: %s configuration state functions with S = %g (Weyl–Paldus), the Davidson\n"
                     "    vectors projected onto S = %g (Loewdin projector from S^2), sigma = H c in the determinants\n",
                     thousands(static_cast<std::size_t>(std::llround(f.csfs))).c_str(), f.spin, f.spin);
     s += format("    integral transformation to the %s orbitals: %.2f s\n", f.alpha == f.beta ? "RHF" : "ROHF",
@@ -208,7 +205,7 @@ std::string so_report_section(const SOResult& r, int level) {
     const bool mp = r.method.rfind("MP", 0) == 0;
     const bool ci = r.method.rfind("CI", 0) == 0;
     const bool qci = r.method.rfind("QCI", 0) == 0;
-    s += "\n" + label + (mp ? " (Moller-Plesset perturbation theory, H0 = Fock operator, all electrons correlated)"
+    s += "\n" + label + (mp ? " (Møller–Plesset perturbation theory, H0 = Fock operator, all electrons correlated)"
                           : ci ? " (configuration interaction from the reference, intermediate normalisation, all "
                                  "electrons correlated)"
                           : qci ? " (quadratic configuration interaction, all electrons correlated)"
@@ -276,7 +273,7 @@ std::string effective_reference(const std::string& method, const std::string& re
     const std::string r = requested.empty() ? "" : canonical_reference_name(requested);
     if (!requested.empty() && r.empty()) throw std::runtime_error("reference must be RHF, UHF or ROHF");
     if (r == "RHF" && multiplicity != 1)
-        throw std::runtime_error(format("restricted Hartree-Fock (RHF) needs a closed-shell singlet; multiplicity %d "
+        throw std::runtime_error(format("restricted Hartree–Fock (RHF) needs a closed-shell singlet; multiplicity %d "
                                         "needs UHF or ROHF",
                                         multiplicity));
     if (!r.empty()) return r;
@@ -307,7 +304,7 @@ bool coupled_cluster_method(const std::string& canonical, CCMethod* method) {
 std::string validate_molecular(const MolecularInput& in) {
     const std::string m = canonical_molecule_name(in.molecule);
     if (m.empty() && !find_molecule_preset(in.molecule))
-        return "molecule must be HeH+, H2, LiH, H2O, H2O2, NH3, an atom H-Ar, H2+, H3+, H5+, N2, O2, F2, Cl2, NO, NO2, CO, CO2, N2O, H2CO, CH4 "
+        return "molecule must be HeH+, H2, LiH, H2O, H2O2, NH3, an atom H–Ar, H2+, H3+, H5+, N2, O2, F2, Cl2, NO, NO2, CO, CO2, N2O, H2CO, CH4 "
                "or custom";
     if (in.multiplicity < 1 || in.multiplicity > 20) return "the multiplicity must be between 1 and 20";
     if (m == "custom") {
@@ -360,17 +357,17 @@ std::string validate_molecular(const MolecularInput& in) {
     if (in.R > 0.0 && in.R < 0.3) return "R must be at least 0.3 bohr (0.16 \xC3\x85)";
     if (in.R > 50.0) return "R must be at most 50 bohr (26.5 \xC3\x85)";
     if (m == "H2O" && !(std::isfinite(in.angle) && in.angle >= 30.0 && in.angle <= 180.0))
-        return "the H-O-H angle must be between 30 and 180 degrees";
+        return "the H–O–H angle must be between 30 and 180 degrees";
     if (m == "H2O2") {
         if (!(std::isfinite(in.angle) && in.angle >= 30.0 && in.angle <= 175.0))
-            return "the O-O-H angle must be between 30 and 175 degrees";
+            return "the O–O–H angle must be between 30 and 175 degrees";
         if (!std::isfinite(in.r_oo) || in.r_oo < 0.0 || (in.r_oo > 0.0 && in.r_oo < 0.3) || in.r_oo > 50.0)
-            return "R(O-O) must be between 0.3 and 50 bohr";
+            return "R(O–O) must be between 0.3 and 50 bohr";
         if (!(std::isfinite(in.dihedral) && in.dihedral >= -360.0 && in.dihedral <= 360.0))
-            return "the H-O-O-H dihedral angle must be between -360 and 360 degrees";
+            return "the H–O–O–H dihedral angle must be between -360 and 360 degrees";
     }
     if (m == "NH3" && !(std::isfinite(in.angle) && in.angle >= 60.0 && in.angle <= 120.0))
-        return "the H-N-H angle must be between 60 and 120 degrees (120: planar)";
+        return "the H–N–H angle must be between 60 and 120 degrees (120: planar)";
     if (in.threads < 0 || in.threads > 64) return "threads must be between 0 (automatic) and 64";
     if (!std::isfinite(in.memory_mb) || in.memory_mb < 0.0) return "memoryMB must be >= 0";
     if (in.max_iter < 1 || in.max_iter > 1000) return "scfMaxIter must be between 1 and 1000";
@@ -512,8 +509,8 @@ MolecularResult prepare_molecular(const MolecularInput& input) {
             c.reason = "there are no virtual orbitals to correlate in this basis set";
         } else if (c.memory_bytes / 1048576.0 > r.input.fci_memory_mb) {
             c.feasible = false;
-            c.reason = format("%s would need about %.1f GB of memory (limit %.1f GB): %s amplitudes in dense spin blocks.",
-                              c.method.c_str(), c.memory_bytes / 1073741824.0, r.input.fci_memory_mb / 1024.0,
+            c.reason = format("%s would need about %s of memory (limit %.1f GB): %s amplitudes in dense spin blocks.",
+                              c.method.c_str(), estimate_memory_mb(c.memory_bytes / 1048576.0).c_str(), r.input.fci_memory_mb / 1024.0,
                               thousands_d(c.amplitudes).c_str());
         } else if (c.seconds > kMaxCCSeconds) {
             c.feasible = false;
@@ -594,8 +591,8 @@ MolecularResult prepare_molecular(const MolecularInput& input) {
             "Estimated time %s on %d threads.",
             e.basis_functions, angular_letter(e.max_l), thousands(e.unique_eris).c_str(),
             e.eri_stored ? format("kept in memory (%.0f MB)", e.eri_memory_mb).c_str()
-                         : format("recomputed in every SCF iteration (storing them would need %.1f GB)",
-                                  e.eri_memory_mb / 1024.0)
+                         : format("recomputed in every SCF iteration (storing them would need %s)",
+                                  estimate_memory_mb(e.eri_memory_mb).c_str())
                                .c_str(),
             human_seconds(e.rhf_seconds).c_str(), e.threads));
     return r;
@@ -698,9 +695,9 @@ std::string molecular_report(const MolecularResult& r) {
     const std::string rule(78, '=');
     const Molecule& mol = r.molecule;
     std::string s;
-    const std::string scf_name = r.reference == "UHF" ? "unrestricted Hartree-Fock"
-                                 : r.reference == "ROHF" ? "restricted open-shell Hartree-Fock"
-                                                          : "restricted Hartree-Fock";
+    const std::string scf_name = r.reference == "UHF" ? "unrestricted Hartree–Fock"
+                                 : r.reference == "ROHF" ? "restricted open-shell Hartree–Fock"
+                                                          : "restricted Hartree–Fock";
     s += std::string("\xCE\xA8Lab \xE2\x80\x93 ") + scf_name +
          (r.input.method == "FCI" ? " and Full CI"
                                   : (r.input.method == "RHF" ? "" : " and " + method_label(r.input.method, r.reference))) +
@@ -713,18 +710,18 @@ std::string molecular_report(const MolecularResult& r) {
         s += "Title           " + (mol.title.empty() ? std::string("(none)") : mol.title) + "\n" +
              format("Geometry        %zu atoms from Cartesian coordinates\n", mol.atoms.size());
     else if (mol.name == "H2O2")
-        s += "Geometry        R(O-O) = " + angstrom_bohr(r.input.r_oo) + ", R(O-H) = " + angstrom_bohr(r.input.R) +
-             format(", angle O-O-H = %.4f deg, dihedral H-O-O-H = %.4f deg\n", r.input.angle, r.input.dihedral);
+        s += "Geometry        R(O–O) = " + angstrom_bohr(r.input.r_oo) + ", R(O–H) = " + angstrom_bohr(r.input.R) +
+             format(", angle O–O–H = %.4f deg, dihedral H–O–O–H = %.4f deg\n", r.input.angle, r.input.dihedral);
     else if (mol.name == "NH3")
-        s += "Geometry        R(N-H) = " + angstrom_bohr(r.input.R) + format(", angle H-N-H = %.4f deg (C3v)\n", r.input.angle);
+        s += "Geometry        R(N–H) = " + angstrom_bohr(r.input.R) + format(", angle H–N–H = %.4f deg (C3v)\n", r.input.angle);
     else if (mol.name == "H2O")
-        s += "Geometry        R(O-H) = " + angstrom_bohr(r.input.R) + format(", angle H-O-H = %.4f deg\n", r.input.angle);
+        s += "Geometry        R(O–H) = " + angstrom_bohr(r.input.R) + format(", angle H–O–H = %.4f deg\n", r.input.angle);
     else if (mol.name == "LiH")
-        s += "Geometry        R(Li-H) = " + angstrom_bohr(r.input.R) + "\n";
+        s += "Geometry        R(Li–H) = " + angstrom_bohr(r.input.R) + "\n";
     else if (mol.name == "HeH+")
-        s += "Geometry        R(He-H) = " + angstrom_bohr(r.input.R) + "\n";
+        s += "Geometry        R(He–H) = " + angstrom_bohr(r.input.R) + "\n";
     else
-        s += "Geometry        R(H-H) = " + angstrom_bohr(r.input.R) + "\n";
+        s += "Geometry        R(H–H) = " + angstrom_bohr(r.input.R) + "\n";
     s += "Cartesian coordinates (bohr)\n";
     for (const Atom& a : mol.atoms)
         s += format("    %-2s  %16.10f  %16.10f  %16.10f\n", a.symbol.c_str(), a.position[0], a.position[1],
@@ -753,26 +750,26 @@ std::string molecular_report(const MolecularResult& r) {
     const CostEstimate& e = r.estimate;
     s += format("    two-electron integrals: %s unique, ", thousands(e.unique_eris).c_str());
     s += e.eri_stored ? format("kept in memory (%.1f MB)\n", e.eri_memory_mb)
-                      : format("integral-direct (storing them would need %.1f GB)\n", e.eri_memory_mb / 1024.0);
+                      : format("integral-direct (storing them would need %s)\n", estimate_memory_mb(e.eri_memory_mb).c_str());
     if (e.fci) {
         const FCISize& f = *e.fci;
         s += format("    Full CI: %d electrons (%d alpha, %d beta) in %d orbitals, %s x %s = %s determinants,\n"
-                    "             about %.0f MB of memory, estimated time %s\n",
+                    "             about %s of memory, estimated time %s\n",
                     f.alpha + f.beta, f.alpha, f.beta, f.orbitals, thousands_d(f.alpha_strings).c_str(),
                     thousands_d(f.beta_strings).c_str(), thousands_d(f.determinants).c_str(),
-                    f.memory_bytes / (1024.0 * 1024.0), human_seconds(e.total_seconds).c_str());
+                    estimate_memory_mb(f.memory_bytes / (1024.0 * 1024.0)).c_str(), human_seconds(e.total_seconds).c_str());
     }
     if (e.cc) {
         const CCSize& c = *e.cc;
-        s += format("    %s: %d occupied, %d virtual orbitals, %s amplitudes, about %.0f MB of memory,\n"
+        s += format("    %s: %d occupied, %d virtual orbitals, %s amplitudes, about %s of memory,\n"
                     "             estimated time %s\n",
                     c.method.c_str(), c.occupied, c.virtuals, thousands_d(c.amplitudes).c_str(),
-                    c.memory_bytes / (1024.0 * 1024.0), human_seconds(e.total_seconds).c_str());
+                    estimate_memory_mb(c.memory_bytes / (1024.0 * 1024.0)).c_str(), human_seconds(e.total_seconds).c_str());
     }
     if (e.so)
-        s += format("    %s: %s amplitudes (dense spin blocks), about %.0f MB of memory, estimated time %s\n",
-                    e.so->method.c_str(), thousands_d(e.so->amplitudes).c_str(), e.so->memory_bytes / 1048576.0,
-                    human_seconds(e.total_seconds).c_str());
+        s += format("    %s: %s amplitudes (dense spin blocks), about %s of memory, estimated time %s\n",
+                    e.so->method.c_str(), thousands_d(e.so->amplitudes).c_str(),
+                    estimate_memory_mb(e.so->memory_bytes / 1048576.0).c_str(), human_seconds(e.total_seconds).c_str());
     for (const auto& w : r.warnings) s += "Warning: " + w + "\n";
     if (!r.refusal.empty()) s += "NOT POSSIBLE: " + r.refusal + "\n";
     if (!r.rhf) return s;

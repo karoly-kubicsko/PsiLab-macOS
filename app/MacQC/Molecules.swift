@@ -330,9 +330,11 @@ nonisolated enum MethodChoice: String, CaseIterable, Identifiable, Sendable {
     static let families: [MethodFamily] = [
         MethodFamily(title: "Hartree–Fock", methods: [.hf]),
         MethodFamily(title: "Møller–Plesset perturbation theory", methods: [.mp2, .mp3, .mp4, .mp5]),
-        MethodFamily(title: "Configuration interaction", methods: [.cisd, .cisdT, .cisdt, .cisdtq, .fci]),
+        MethodFamily(title: "Configuration interaction", methods: [.cisd, .cisdT, .cisdt, .cisdtq]),
         MethodFamily(title: "Quadratic configuration interaction", methods: [.qcisd, .qcisdT, .qcisdt, .qcisdtq]),
         MethodFamily(title: "Coupled cluster", methods: [.ccsd, .ccsdT, .ccsdt, .ccsdtq]),
+        // 15.0: Full CI, the exact limit of every method above, at the end of the menu
+        MethodFamily(title: "Full configuration interaction", methods: [.fci]),
     ]
 
     /// Name in the user interface.
@@ -623,7 +625,7 @@ nonisolated struct BasisFamily: Sendable, Hashable {
 
 nonisolated enum BasisSets {
     /// The Gaussian94 files in the app bundle's basis folder (from basissetexchange.org), by family
-    /// in the order of the backend's library (basis.cpp). 14.0: the Pople 6-31G family (Cartesian
+    /// (15.0: STO-nG, Pople, Dunning, then Karlsruhe). 14.0: the Pople 6-31G family (Cartesian
     /// d functions, 6D, as Gaussian uses them) and 6-311G family and the Karlsruhe def2 sets.
     static let families: [BasisFamily] = [
         // 15.0: the minimal STO-nG sets for every molecule (STO-1G H–Ca, STO-2G and STO-3G H–Xe)
@@ -633,13 +635,14 @@ nonisolated enum BasisSets {
         BasisFamily(title: "Pople 6-311G",
                     names: ["6-311G", "6-311G*", "6-311+G", "6-311+G*", "6-311+G**", "6-311++G*", "6-311++G**",
                             "6-311++G(2d,2p)", "6-311++G(3df,3pd)"]),
-        BasisFamily(title: "Karlsruhe def2 (ECPs beyond Kr)",
-                    names: ["def2-SVP", "def2-mTZVP", "def2-mTZVPP", "def2-TZVP", "def2-TZVPP", "def2-TZVPPD",
-                            "def2-QZVP", "def2-QZVPP", "def2-QZVPPD"]),
+        // 15.0: the Dunning sets before the Karlsruhe sets
         BasisFamily(title: "Dunning aug-cc-pVXZ",
                     names: ["aug-cc-pVDZ", "aug-cc-pVTZ", "aug-cc-pVQZ", "aug-cc-pV5Z"]),
         BasisFamily(title: "Dunning aug-cc-pCVXZ (core-valence)",
                     names: ["aug-cc-pCVDZ", "aug-cc-pCVTZ", "aug-cc-pCVQZ", "aug-cc-pCV5Z"]),
+        BasisFamily(title: "Karlsruhe def2 (ECPs beyond Kr)",
+                    names: ["def2-SVP", "def2-mTZVP", "def2-mTZVPP", "def2-TZVP", "def2-TZVPP", "def2-TZVPPD",
+                            "def2-QZVP", "def2-QZVPP", "def2-QZVPPD"]),
     ]
 
     /// All 36 basis sets of the library in menu order (15.0 with STO-1G, STO-2G, STO-3G).

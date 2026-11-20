@@ -64,6 +64,54 @@ std::string local_time_string() {
     return buf;
 }
 
+namespace {
+// x as "2.2 × 10^73" (x >= 1000)
+std::string power_of_ten(double x) {
+    if (!std::isfinite(x) || x > 1.0e300) return "more than 10^300";
+    const int e = static_cast<int>(std::floor(std::log10(x)));
+    double m = x / std::pow(10.0, e);
+    int ee = e;
+    if (m >= 9.95) {
+        m /= 10.0;
+        ++ee;
+    }
+    return strprintf("%.1f × 10^%d", m, ee);
+}
+}  // namespace
+
+std::string pad_text(const std::string& s, int width, bool right_align) {
+    int chars = 0;
+    for (unsigned char c : s)
+        if ((c & 0xC0) != 0x80) ++chars;  // count the first byte of every UTF-8 character
+    if (chars >= width) return s;
+    const std::string blanks(static_cast<std::size_t>(width - chars), ' ');
+    return right_align ? blanks + s : s + blanks;
+}
+
+std::string estimate_duration(double s) {
+    if (!std::isfinite(s) && s > 0) return "more than 10^300 years";
+    if (!(s >= 1.0)) return "less than a second";
+    if (s < 90.0) return strprintf("about %.0f s", s);
+    if (s < 5400.0) return strprintf("about %.0f min", s / 60.0);
+    if (s < 2.0 * 86400.0) return strprintf("about %.1f h", s / 3600.0);
+    const double days = s / 86400.0, years = days / 365.25;
+    if (years < 1.0) return strprintf("about %.1f days", days);
+    if (years < 1000.0) return strprintf("about %.0f years", years);
+    if (years > 1.0e300) return "more than 10^300 years";
+    return "about " + power_of_ten(years) + " years";
+}
+
+std::string estimate_memory_mb(double mb) {
+    if (!std::isfinite(mb) && mb > 0) return "more than 10^300 TB";
+    if (!(mb >= 1.0)) return "1 MB";
+    if (mb < 1024.0) return strprintf("%.0f MB", mb);
+    const double gb = mb / 1024.0, tb = gb / 1024.0, pb = tb / 1024.0;
+    if (gb < 1024.0) return strprintf("%.1f GB", gb);
+    if (tb < 1024.0) return strprintf("%.1f TB", tb);
+    if (pb < 1000.0) return strprintf("%.1f PB", pb);
+    return power_of_ten(tb) + " TB";
+}
+
 std::string duration_string(double s) {
     if (s < 60.0) return strprintf("%.1f s", s);
     if (s < 3600.0) return strprintf("%d min %02d s", static_cast<int>(s / 60.0), static_cast<int>(std::fmod(s, 60.0)));
@@ -85,9 +133,9 @@ std::string parameter_lines(const Molecule& mol, const std::string& indent) {
     std::string s;
     for (const GeometricParameter& p : geometric_parameters(mol)) {
         if (p.angle)
-            s += indent + strprintf("%-14s = %12.6f deg\n", p.name.c_str(), std::fabs(p.value) < 5.0e-7 ? 0.0 : p.value);
+            s += indent + pad_text(p.name, 14) + strprintf(" = %12.6f deg\n", std::fabs(p.value) < 5.0e-7 ? 0.0 : p.value);
         else
-            s += indent + strprintf("%-14s = %12.8f Å   (%.8f bohr)\n", p.name.c_str(), p.value * kBohrInAngstrom, p.value);
+            s += indent + pad_text(p.name, 14) + strprintf(" = %12.8f Å   (%.8f bohr)\n", p.value * kBohrInAngstrom, p.value);
     }
     return s;
 }
@@ -294,8 +342,8 @@ std::string optimization_step_block(const OptimizationStep& st, const Convergenc
         const bool degrees = st.names[i] == "A" || st.names[i] == "D";
         const double shown = angle ? (degrees ? st.q[i] * 180.0 / kPi : st.q[i]) : st.q[i] * kBohrInAngstrom;
         const bool frozen = std::find(st.constrained.begin(), st.constrained.end(), static_cast<int>(i)) != st.constrained.end();
-        s += strprintf("    %-4s  %-22s %16.8f %16.8f %11.6f %8.5f%s\n", (st.names[i] + std::to_string(i + 1)).c_str(),
-                       st.definitions[i].c_str(), st.q[i], shown, -st.gq[i], i < st.dq.size() ? st.dq[i] : 0.0,
+        s += strprintf("    %-4s  ", (st.names[i] + std::to_string(i + 1)).c_str()) + pad_text(st.definitions[i], 22) +
+             strprintf(" %16.8f %16.8f %11.6f %8.5f%s\n", st.q[i], shown, -st.gq[i], i < st.dq.size() ? st.dq[i] : 0.0,
                        frozen ? "  frozen" : "");
     }
     if (!st.constrained.empty())
@@ -376,17 +424,17 @@ std::string optimization_result_block(const OptimizationResult& r) {
         const auto& p = r.final_parameters[i];
         const double start = i < r.initial_parameters.size() ? r.initial_parameters[i].value : 0.0;
         if (p.angle)
-            s += strprintf("    %-14s = %12.6f deg            (%.6f deg)\n", p.name.c_str(), p.value, start);
+            s += "    " + pad_text(p.name, 14) + strprintf(" = %12.6f deg            (%.6f deg)\n", p.value, start);
         else
-            s += strprintf("    %-14s = %12.8f Å   %.8f bohr   (%.6f Å)\n", p.name.c_str(), p.value * kBohrInAngstrom,
-                           p.value, start * kBohrInAngstrom);
+            s += "    " + pad_text(p.name, 14) + strprintf(" = %12.8f Å   %.8f bohr   (%.6f Å)\n", p.value * kBohrInAngstrom,
+                                                             p.value, start * kBohrInAngstrom);
     }
     if (r.final_geometry.atoms.size() == 3 && !r.final_geometry.custom) {
         if (r.symmetric_start)
-            s += strprintf("    C2v symmetry %s: |R(O1-H2) - R(O1-H3)| = %.2e bohr\n",
+            s += strprintf("    C2v symmetry %s: |R(O1–H2) - R(O1–H3)| = %.2e bohr\n",
                            r.symmetric_end ? "kept" : "NOT kept", r.symmetry_deviation);
         else
-            s += strprintf("    Start without C2v symmetry; at the end |R(O1-H2) - R(O1-H3)| = %.2e bohr\n",
+            s += strprintf("    Start without C2v symmetry; at the end |R(O1–H2) - R(O1–H3)| = %.2e bohr\n",
                            r.symmetry_deviation);
     }
     if (r.removed_functions_changed)

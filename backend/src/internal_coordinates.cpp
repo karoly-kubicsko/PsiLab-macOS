@@ -121,14 +121,14 @@ std::string InternalCoordinate::name() const {
 
 std::string InternalCoordinate::definition(const Molecule& m) const {
     switch (type) {
-        case InternalType::Stretch: return "R(" + label(m, atoms[0]) + "-" + label(m, atoms[1]) + ")";
+        case InternalType::Stretch: return "R(" + label(m, atoms[0]) + "–" + label(m, atoms[1]) + ")";
         case InternalType::Bend:
-            return "A(" + label(m, atoms[0]) + "-" + label(m, atoms[1]) + "-" + label(m, atoms[2]) + ")";
+            return "A(" + label(m, atoms[0]) + "–" + label(m, atoms[1]) + "–" + label(m, atoms[2]) + ")";
         case InternalType::LinearBend:
-            return std::string("L(") + label(m, atoms[0]) + "-" + label(m, atoms[1]) + "-" + label(m, atoms[2]) + ", " +
+            return std::string("L(") + label(m, atoms[0]) + "–" + label(m, atoms[1]) + "–" + label(m, atoms[2]) + ", " +
                    (component == 0 ? "1" : "2") + ")";
         case InternalType::Dihedral:
-            return "D(" + label(m, atoms[0]) + "-" + label(m, atoms[1]) + "-" + label(m, atoms[2]) + "-" + label(m, atoms[3]) +
+            return "D(" + label(m, atoms[0]) + "–" + label(m, atoms[1]) + "–" + label(m, atoms[2]) + "–" + label(m, atoms[3]) +
                    ")";
     }
     return "";

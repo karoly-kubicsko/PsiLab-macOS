@@ -146,7 +146,7 @@ OrbitalData make_sto_orbital_data(int n_gaussians, double R, double zeta1, doubl
     }
     OrbitalSet set;
     set.kind = "canonical";
-    set.title = "Hartree-Fock orbitals (Szabo-Ostlund)";
+    set.title = "Hartree–Fock orbitals (Szabo–Ostlund)";
     for (int k = 0; k < 2; ++k) {
         OrbitalInfo o;
         o.number = k + 1;

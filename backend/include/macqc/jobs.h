@@ -67,7 +67,7 @@ struct ScanCoordinate {
     InternalCoordinate coordinate;
     std::string letter;                 // "B", "A", "D"
     std::string kind;                   // "bond", "angle", "dihedral"
-    std::string definition;             // e.g. "D(H3-O1-O2-H4)"
+    std::string definition;             // e.g. "D(H3–O1–O2–H4)"
 };
 // Parses a coordinate "N1 N2 [N3 [N4]]" (2 atoms: bond, 3: angle, 4: dihedral), optionally
 // preceded by its type as in Gaussian's ModRedundant input: "B 1 2" (also "R", "bond"),

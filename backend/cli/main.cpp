@@ -21,7 +21,7 @@ void usage(const char* prog) {
                  "  --zeta2 <z>           Slater exponent, atom B (default 1.24)\n"
                  "  --ZA <z> --ZB <z>     nuclear charges         (default 2, 1)\n"
                  "  --n <1|2|3>           number of Gaussians     (default 3)\n"
-                 "  --exact-erf           use std::erf instead of the Abramowitz-Stegun erf\n"
+                 "  --exact-erf           use std::erf instead of the Abramowitz–Stegun erf\n"
                  "  --max-iter <n>        maximum SCF iterations  (default 25)\n"
                  "  --conv <x>            density convergence     (default 1e-4)\n"
                  "  --print <0|1|2>       report detail           (default 2)\n"

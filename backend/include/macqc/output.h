@@ -42,6 +42,14 @@ private:
 
 std::string local_time_string();  // "2026-11-13 20:41:07"
 std::string duration_string(double seconds);  // "2.4 s", "3 min 12 s", "1 h 05 min"
+// 15.0: estimated times and memory, readable also for impossible calculations: "less than a
+// second", "about 25 s", "about 4 min", "about 1.5 h", "about 3.2 days", "about 41 years",
+// "about 2.2 × 10^73 years"; "43 MB", "2.8 GB", "1.5 TB", "3.4 PB", "1.2 × 10^49 TB".
+std::string estimate_duration(double seconds);
+// 15.0: s padded with blanks to `width` characters (UTF-8: en dashes, Å count as one), on the right
+// (left-aligned) or, with right_align, on the left.
+std::string pad_text(const std::string& s, int width, bool right_align = false);
+std::string estimate_memory_mb(double megabytes);
 
 // Cartesian coordinates in angstrom and bohr.
 std::string geometry_table(const Molecule& mol);

@@ -178,13 +178,13 @@ int main() {
         eo.scf_gradient_tol = 1e-10;
         const auto t0 = Clock::now();
         const OptimizationResult r = optimize_geometry(m, build_basis(m, "aug-cc-pVDZ", default_basis_directory()), "RHF", eo, oo);
-        std::printf("     start R(O1-H3) - R(O2-H4) = %.3f bohr, dihedral 155 degrees: %d steps, %.1f s\n",
+        std::printf("     start R(O1–H3) - R(O2–H4) = %.3f bohr, dihedral 155 degrees: %d steps, %.1f s\n",
                     simple_internals(m).values[1] - simple_internals(m).values[2], r.steps, since(t0));
         CHECK(r.converged && r.final_negative_eigenvalues == 1);
         const SimpleInternals si = simple_internals(r.final_geometry);
         const json rc = ref_case(ref, "H2O2 trans", "RHF");
         check_max("  energy vs the trans transition state (E_h)", std::fabs(r.final_energy - rc["energy"].get<double>()), 2e-9);
-        check_max("  symmetric at the end: |R(O1-H3) - R(O2-H4)| (angstrom)",
+        check_max("  symmetric at the end: |R(O1–H3) - R(O2–H4)| (angstrom)",
                   std::fabs(si.values[1] - si.values[2]) * kBohrInAngstrom, 4e-5);
         check_max("  |dihedral| - 180 (degrees)", std::fabs(std::fabs(si.values[5] * kDeg) - 180.0), 1e-2);
     }

@@ -611,7 +611,7 @@ sleep 30
 view_tab "74-ch4-custom-summary" "Summary"
 view_tab "75-ch4-custom-frequencies" "Frequencies"
 print_shot "75-ch4-custom-frequencies"
-with_timeout 20 osascript "$OUT/tab.applescript" "Molecule" > /dev/null 2>&1 || true
+with_timeout 20 osascript "$OUT/tab.applescript" "Atom/Molecule" > /dev/null 2>&1 || true
 sleep 2
 shot "76-molecule-menu-with-custom-molecules"
 print_shot "76-molecule-menu-with-custom-molecules"
@@ -723,8 +723,12 @@ view_tab "a1-o2-ump2-optimisation" "Optimisation"
 print_shot "a1-o2-ump2-optimisation"
 view_tab "a1b-o2-ump2-frequencies" "Frequencies"
 print_shot "a1b-o2-ump2-frequencies"
+# 15.0: the segmented controls of the sidebar (Hessian: Initial | CalcFC | CalcAll | RecalcFC) lie
+# inside the 340-pt panel
+layout "a1d-sidebar-controls"
+grep -E "Initial|CalcFC|RecalcFC" "$OUT/layout-a1d-sidebar-controls.txt" || echo "Hessian control not in the accessibility layout"
 # the molecule menu of 15.0: the molecules (built in and with fixed geometries) and the atoms
-with_timeout 20 osascript "$OUT/tab.applescript" "Molecule" > /dev/null 2>&1 || true
+with_timeout 20 osascript "$OUT/tab.applescript" "Atom/Molecule" > /dev/null 2>&1 || true
 sleep 2
 shot "a1c-molecule-menu-15"
 print_shot "a1c-molecule-menu-15"
@@ -752,6 +756,10 @@ view_tab "a6-no2-romp2-summary" "Summary"
 print_shot "a6-no2-romp2-summary"
 view_tab "a7-no2-romp2-frequencies" "Frequencies"
 print_shot "a7-no2-romp2-frequencies"
+# 15.0: the estimate of an impossible job (Full CI of Cl2 in aug-cc-pCV5Z) shows its time and memory
+relaunch -appearanceChoice light -psilabMolecule Cl2 -psilabBasis aug-cc-pCV5Z -psilabMethod FCI
+dump_tab "a8-cl2-fci-impossible-estimate" ""
+grep -E "Estimated time|Full CI memory|Determinants" "$OUT/a8-cl2-fci-impossible-estimate.txt" || echo "estimate rows not found"
 
 pkill -x "ΨLab" || true
 

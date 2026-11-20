@@ -90,7 +90,7 @@ std::vector<MoleculePreset> build_presets() {
         v.push_back(p);
     };
     diatomic("H2+", "H$_2^+$", "H", "H", 1.9972 * kBohrInAngstrom, 1, 2, "X 2Sigma_g+",
-             "r_e = 1.9972 bohr (exact Born-Oppenheimer equilibrium)");
+             "r_e = 1.9972 bohr (exact Born–Oppenheimer equilibrium)");
     {
         // H3+: equilateral triangle, r_e = 1.6500 bohr (high-accuracy potential energy surfaces)
         MoleculePreset p;
@@ -164,23 +164,23 @@ std::vector<MoleculePreset> build_presets() {
              "r = 1.1283 A (examples/carbon-monoxide.xyz)");
     molecule("CO2", "CO$_2$", "X 1Sigma_g+",
              {{"C", {0.0, 0.0, 0.0}}, {"O", {0.0, 0.0, 1.16}}, {"O", {0.0, 0.0, -1.16}}},
-             "linear, r(C-O) = 1.160 A (examples/carbon-dioxide.xyz)");
+             "linear, r(C–O) = 1.160 A (examples/carbon-dioxide.xyz)");
     molecule("N2O", "N$_2$O", "X 1Sigma+",
              {{"N", {0.0, 0.0, -1.1273}}, {"N", {0.0, 0.0, 0.0}}, {"O", {0.0, 0.0, 1.1851}}},
-             "linear N-N-O, r(N-N) = 1.1273 A, r(N-O) = 1.1851 A (examples/dinitrogen-monoxide.xyz)");
+             "linear N–N–O, r(N–N) = 1.1273 A, r(N–O) = 1.1851 A (examples/dinitrogen-monoxide.xyz)");
     molecule("H2CO", "H$_2$CO", "X 1A1",
              {{"C", {0.0, 0.0, 0.0}},
               {"O", {0.0, 0.0, 1.2033}},
               {"H", {0.0, 0.934192, -0.581709}},
               {"H", {0.0, -0.934192, -0.581709}}},
-             "C2v, r(C-O) = 1.2033 A, r(C-H) = 1.1005 A, H-C-H 116.2 degrees (examples/formaldehyde.xyz)");
+             "C2v, r(C–O) = 1.2033 A, r(C–H) = 1.1005 A, H–C–H 116.2 degrees (examples/formaldehyde.xyz)");
     molecule("CH4", "CH$_4$", "X 1A1",
              {{"C", {0.0, 0.0, 0.0}},
               {"H", {0.62758, 0.62758, 0.62758}},
               {"H", {-0.62758, -0.62758, 0.62758}},
               {"H", {-0.62758, 0.62758, -0.62758}},
               {"H", {0.62758, -0.62758, -0.62758}}},
-             "Td, r(C-H) = 1.0870 A (examples/methane.xyz)");
+             "Td, r(C–H) = 1.0870 A (examples/methane.xyz)");
     return v;
 }
 
@@ -329,18 +329,18 @@ Molecule make_molecule(const std::string& name, double R, double angle_degrees, 
         mol.atoms = {atom(3, 0.0, 0.0, 0.0), atom(1, 0.0, 0.0, R)};
     } else if (m == "H2O") {
         if (!(std::isfinite(angle_degrees) && angle_degrees >= 30.0 && angle_degrees <= 180.0))
-            throw std::invalid_argument("the H-O-H angle must be between 30 and 180 degrees");
+            throw std::invalid_argument("the H–O–H angle must be between 30 and 180 degrees");
         const double half = 0.5 * angle_degrees * 3.14159265358979323846 / 180.0;
         const double x = R * std::sin(half), z = R * std::cos(half);
         mol.atoms = {atom(8, 0.0, 0.0, 0.0), atom(1, x, 0.0, z), atom(1, -x, 0.0, z)};
     } else if (m == "H2O2") {
         if (!(r_oo > 0.0)) r_oo = default_oo_bond_length();
         if (!std::isfinite(r_oo) || r_oo < 0.3 || r_oo > 50.0)
-            throw std::invalid_argument("the O-O bond length must be between 0.3 and 50 bohr");
+            throw std::invalid_argument("the O–O bond length must be between 0.3 and 50 bohr");
         if (!(std::isfinite(angle_degrees) && angle_degrees >= 30.0 && angle_degrees <= 175.0))
-            throw std::invalid_argument("the O-O-H angle must be between 30 and 175 degrees");
+            throw std::invalid_argument("the O–O–H angle must be between 30 and 175 degrees");
         if (!(std::isfinite(dihedral) && dihedral >= -360.0 && dihedral <= 360.0))
-            throw std::invalid_argument("the H-O-O-H dihedral angle must be between -360 and 360 degrees");
+            throw std::invalid_argument("the H–O–O–H dihedral angle must be between -360 and 360 degrees");
         const double deg = 3.14159265358979323846 / 180.0;
         const double c = std::cos(angle_degrees * deg), s = std::sin(angle_degrees * deg);
         const double h = 0.5 * dihedral * deg;
@@ -356,7 +356,7 @@ Molecule make_molecule(const std::string& name, double R, double angle_degrees, 
         mol.charge = 1;
     } else if (m == "NH3") {
         if (!(std::isfinite(angle_degrees) && angle_degrees >= 60.0 && angle_degrees <= 120.0))
-            throw std::invalid_argument("the H-N-H angle must be between 60 and 120 degrees (120: planar)");
+            throw std::invalid_argument("the H–N–H angle must be between 60 and 120 degrees (120: planar)");
         // H_k = R (sin t cos p_k, sin t sin p_k, cos t), p_k = 0, 120, 240 degrees, with
         // cos(angle) = (3 cos^2 t - 1) / 2
         const double ca = std::cos(angle_degrees * 3.14159265358979323846 / 180.0);

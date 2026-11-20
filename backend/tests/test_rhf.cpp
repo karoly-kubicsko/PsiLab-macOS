@@ -451,7 +451,7 @@ static void test_api() {
     CHECK(ok["molecule"]["atoms"].size() == 3);
     CHECK(ok["input"]["molecule"].get<std::string>() == "H2O");
     check_near("api default R", ok["input"]["R"].get<double>(), 0.9572 / kBohrInAngstrom, 1e-12);
-    CHECK(ok["report"].get<std::string>().find("restricted Hartree-Fock") != std::string::npos);
+    CHECK(ok["report"].get<std::string>().find("restricted Hartree–Fock") != std::string::npos);
     CHECK(!ok["estimate"]["longCalculation"].get<bool>());
 
     // Estimate only: no SCF, warnings for a long calculation.

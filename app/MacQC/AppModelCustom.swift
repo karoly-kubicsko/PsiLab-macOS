@@ -23,6 +23,26 @@ enum MoleculeSelection: Hashable {
     case preset(String)   // 15.0: an atom or molecule of the menu (MoleculePresets)
 }
 
+/// 15.0: the molecules of the menu (after the atoms), the built-in molecules of earlier versions
+/// and the molecules with fixed geometries in one list, by their number of electrons.
+enum MoleculeMenu {
+    static let order = ["H2+", "H2", "HeH+", "H3+", "H5+", "LiH", "H2O", "CH4", "NH3", "CO", "N2", "NO", "O2", "H2CO",
+                        "H2O2", "F2", "CO2", "N2O", "NO2", "Cl2"]
+
+    static let molecules: [MoleculeSelection] = order.compactMap { key in
+        if let choice = MoleculeChoice(rawValue: key), MoleculeChoice.builtIn.contains(choice) { return .builtIn(choice) }
+        return MoleculePresets.find(key).map { .preset($0.key) }
+    }
+
+    static func title(_ entry: MoleculeSelection) -> String {
+        switch entry {
+        case .builtIn(let choice): return choice.title
+        case .preset(let key): return MoleculePresets.find(key)?.title ?? key
+        case .saved, .openFile: return ""
+        }
+    }
+}
+
 extension AppModel {
 
     // MARK: Selection
@@ -222,6 +242,7 @@ extension AppModel {
     /// The displayed result belongs to the selected molecule (built-in or custom).
     var resultMatchesSelection: Bool {
         guard let out = result, out.isGeneral, isGeneral else { return false }
+        if molecule == .preset { return out.input.molecule == presetKey }  // 15.0
         return molecule == .custom ? resultMatchesCustom : out.input.molecule == molecule.rawValue
     }
 

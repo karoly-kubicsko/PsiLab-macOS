@@ -36,7 +36,7 @@ struct InternalCoordinate {
     int component = 0;               // linear bend: 0 or 1
     std::array<double, 3> axis{};    // linear bend: the fixed direction e_k
     std::string name() const;        // "R", "A", "La", "Lb", "D"
-    std::string definition(const Molecule& mol) const;  // e.g. "R(O1-H2)", "A(H2-O1-H3)", "D(H3-O1-O2-H4)"
+    std::string definition(const Molecule& mol) const;  // e.g. "R(O1–H2)", "A(H2–O1–H3)", "D(H3–O1–O2–H4)"
     // Same type and atoms (also in reverse order); linear bends: also the same component.
     bool same_as(const InternalCoordinate& other) const;
     bool angular() const { return type != InternalType::Stretch; }

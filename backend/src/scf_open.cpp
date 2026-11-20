@@ -600,7 +600,7 @@ RHFResult run_scf(const Molecule& mol, const BasisSet& basis, const RHFOptions& 
     if (ref == "ROHF") return run_rohf(mol, basis, opt, progress);
     if (ref != "RHF") throw std::invalid_argument("unknown reference '" + opt.reference + "' (RHF, UHF or ROHF)");
     if (opt.multiplicity != 1)
-        throw std::runtime_error("restricted Hartree-Fock (RHF) needs a closed-shell singlet; use UHF or ROHF for "
+        throw std::runtime_error("restricted Hartree–Fock (RHF) needs a closed-shell singlet; use UHF or ROHF for "
                                  "multiplicity " + std::to_string(opt.multiplicity));
     return run_rhf(mol, basis, opt, progress);
 }
