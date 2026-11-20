@@ -88,15 +88,21 @@ int main() {
     CHECK(std::fabs(w2.input.R - 1.0 / psilab::kBohrToAngstrom) < 1e-12 && w2.input.angle == 100.0);
     CHECK(w2.input.threads == 2 && w2.input.memoryMB == 2048.0 && w2.input.basis == "aug-cc-pVDZ");
     CHECK(std::fabs(psilab::parse_input_text("molecule = LiH\n").input.R - 1.5949 / psilab::kBohrToAngstrom) < 1e-12);
-    CHECK(rejects("molecule = CH4\n", "molecule must be HeH+, H2, LiH, H2O, H2O2, NH3 or custom"));
+    CHECK(psilab::parse_input_text("molecule = methane\n").input.molecule == "CH4");  // 15.0: a molecule of the menu
+    CHECK(rejects("molecule = C6H6\n", "molecule must be HeH+, H2, LiH, H2O, H2O2, NH3, custom, H, He"));
     CHECK(rejects("molecule = H2\nzeta_H = 1.2\n", "line 2: 'zeta_H' applies to HeH+ in an STO-nG basis (Szabo-Ostlund) only"));
     CHECK(rejects("molecule = H2\nangle = 100\n", "applies to H2O, H2O2 and NH3 only"));
     CHECK(rejects("angle = 100\n", "applies to H2O, H2O2 and NH3 only"));
     CHECK(rejects("method = RHF\n", "HeH+ always runs Hartree-Fock and Full CI"));
-    CHECK(rejects("molecule = H2O\nbasis = STO-3G\n", "basis must be one of 6-31G, 6-31G*, 6-31+G"));
-    CHECK(rejects("molecule = H2\nmethod = MP2\n", "method must be HF (RHF), CCSD, CCSD(T), CCSDT, CCSDTQ or FCI"));
+    CHECK(rejects("molecule = H2O\nbasis = STO-4G\n", "basis must be one of STO-1G, STO-2G, STO-3G, 6-31G, 6-31G*, 6-31+G"));
+    CHECK(psilab::parse_input_text("molecule = H2O\nbasis = STO-3G\n").input.basis == "STO-3G");  // 15.0
+    CHECK(rejects("molecule = H2\nmethod = MP6\n", "method must be HF, RHF, UHF, ROHF, MP2, MP3, MP4, MP5, CISD"));
+    CHECK(psilab::parse_input_text("molecule = H2\nmethod = MP2\n").input.method == "MP2");  // 15.0
+    CHECK(psilab::parse_input_text("molecule = O2\nmethod = ump4\n").input.method == "UMP4");
+    CHECK(psilab::parse_input_text("molecule = N\nmethod = rohf\n").input.method == "ROHF");
+    CHECK(psilab::parse_input_text("molecule = NO2\nmethod = qcisd(t)\n").input.method == "QCISD(T)");
     CHECK(psilab::parse_input_text("molecule = H2\nmethod = ccsd(t)\n").input.method == "CCSD(T)");
-    CHECK(psilab::parse_input_text("molecule = H2\nmethod = HF\n").input.method == "RHF");
+    CHECK(psilab::parse_input_text("molecule = H2\nmethod = HF\n").input.method == "HF");  // 15.0 (14.0: RHF)
     CHECK(psilab::parse_input_text("molecule = LiH\nmethod = CCSDTQ\n").input.method == "CCSDTQ");
     CHECK(rejects("molecule = H2\nfci_memory = 1 PB\n", "fci_memory unit"));
     const psilab::Settings fs = psilab::parse_input_text("molecule = H2\nmethod = Full-CI\nfci_memory = 2 GB\n");
@@ -115,14 +121,14 @@ int main() {
                                                      });
     CHECK(h2.error.empty());
     CHECK(streamed == h2.text && pieces > 10);
-    CHECK(contains(h2.text, "\xCE\xA8Lab 14.0"));
+    CHECK(contains(h2.text, "\xCE\xA8Lab 15.0"));
     CHECK(contains(h2.text, "Job          Energy (energy)"));
     CHECK(contains(h2.text, "    | molecule = H2"));  // the input file as given
     CHECK(contains(h2.text, "Hartree-Fock (RHF) total energy:  -1.1287937367 E_h"));
     CHECK(contains(h2.text, "total energy (RHF)               -1.1287937367"));
     CHECK(contains(h2.text, "18 basis functions"));
     CHECK(contains(h2.text, "H   aug-cc-pVDZ   (5s2p)           -> [3s2p]"));
-    CHECK(contains(h2.text, "Normal termination of \xCE\xA8Lab 14.0"));
+    CHECK(contains(h2.text, "Normal termination of \xCE\xA8Lab 15.0"));
     CHECK(contains(psilab::estimate_text(psilab::parse_input_text("molecule = H2O\nbasis = aug-cc-pCVDZ\n")),
                    "aug-cc-pCVDZ is not defined for H"));
     // Full CI: H2 runs, H2O is refused with an explanation (in the output file and the error).
@@ -159,7 +165,7 @@ int main() {
     CHECK(psilab::parse_input_text("molecule = H2\njob = freq\npressure = 1 atm\n").input.pressure == 101325.0);
     CHECK(psilab::parse_input_text("molecule = H2\njob = freq\npressure = 100 kPa\n").input.pressure == 1.0e5);
     CHECK(rejects("molecule = H2\njob = sweep\n", "job must be energy, opt, freq, opt+freq, opt+freq+sp, scan, ts, ts+freq or ts+freq+sp"));
-    CHECK(rejects("job = opt\n", "applies to H2, LiH, H2O, H2O2, NH3, custom molecules and HeH+ in a Gaussian basis set only"));
+    CHECK(rejects("job = opt\n", "applies to H2, LiH, H2O, H2O2, NH3, the atoms and molecules of the menu, custom molecules and HeH+ in a Gaussian basis set"));
     CHECK(rejects("molecule = H2\njob = opt\nsp_method = CCSD\n", "'sp_method' applies to job = opt+freq+sp and ts+freq+sp only"));
     CHECK(rejects("molecule = H2\njob = opt\ntemperature = 300\n",
                   "applies to job = freq, opt+freq, opt+freq+sp, ts+freq and ts+freq+sp only"));
@@ -214,7 +220,7 @@ int main() {
     CHECK(rejects("molecule = H2O\njob = opt\nscan = 1 2 S 2 0.1\n", "'scan' applies to job = scan only"));
     CHECK(rejects("molecule = H2O\njob = scan\nscan = 1 2 S 2 0.1\nscan_start = 90 degrees\n", "degrees apply to angles"));
     CHECK(rejects("molecule = H2O\njob = scan\nscan = 2 1 3 S 2 10\nscan_start = 1 bohr\n", "bohr applies to a bond"));
-    CHECK(rejects("scan_start = 1\n", "applies to H2, LiH, H2O, H2O2, NH3, custom molecules and HeH+ in a Gaussian basis set only"));
+    CHECK(rejects("scan_start = 1\n", "applies to H2, LiH, H2O, H2O2, NH3, the atoms and molecules of the menu, custom molecules and HeH+ in a Gaussian basis set"));
     const std::string sest = psilab::estimate_text(psilab::parse_input_text("molecule = H2O\njob = scan\nscan = 2 1 3 S 8 5\n"));
     CHECK(contains(sest, "Relaxed scan: analytic gradient (derivative integrals); 9 points"));
     const psilab::RunResult srun = psilab::run_to_text(
@@ -248,7 +254,7 @@ int main() {
     const psilab::Settings tsd = psilab::parse_input_text("molecule = H2O2\njob = ts\ndihedral = 170\n");
     CHECK(tsd.input.job == "ts" && tsd.input.tsHessian == "calcfc" && tsd.input.eigenTest);
     CHECK(psilab::parse_input_text("molecule = H2O2\njob = Opt=TS\n").input.job == "ts");
-    CHECK(rejects("molecule = NH3\njob = ts\nts_hessian = readfc\n", "ts_hessian must be calcfc or calcall"));
+    CHECK(rejects("molecule = NH3\njob = ts\nts_hessian = readfc\n", "ts_hessian must be calcfc, calcall or recalcfc=N"));
     CHECK(rejects("molecule = NH3\njob = opt\nts_hessian = calcfc\n", "'ts_hessian' applies to job = ts, ts+freq and ts+freq+sp only"));
     CHECK(rejects("molecule = NH3\njob = opt\neigen_test = no\n", "'eigen_test' applies to job = ts, ts+freq and ts+freq+sp only"));
     const psilab::Settings tsp = psilab::parse_input_text(
@@ -258,13 +264,37 @@ int main() {
     CHECK(contains(tsest, "Transition-state optimisation: analytic gradient"));
     CHECK(contains(tsest, "Hessian computed at the first step (CalcFC)"));
 
+    // ΨLab 15.0: atoms and molecules of the menu, charge and multiplicity of every molecule, the
+    // reference, HeH+ in STO-nG as a general molecule, CalcFC/CalcAll/RecalcFC=N, GEDIIS
+    const psilab::Settings o2 = psilab::parse_input_text("molecule = O2\nbasis = 6-31G*\nmethod = UMP2\njob = opt\n"
+                                                         "opt_hessian = recalcfc=3\nopt_algorithm = gediis\n");
+    CHECK(o2.input.molecule == "O2" && o2.input.method == "UMP2" && o2.input.optHessian == "recalcfc" &&
+          o2.input.recalcFC == 3 && o2.input.optAlgorithm == "gediis");
+    const psilab::Settings h2op = psilab::parse_input_text("molecule = H2O\ncharge = 1\nmultiplicity = 2\nreference = rohf\n");
+    CHECK(h2op.input.charge == 1 && h2op.input.chargeGiven && h2op.input.multiplicity == 2 && h2op.input.multiplicityGiven &&
+          h2op.input.reference == "ROHF");
+    CHECK(rejects("molecule = H2O\nmultiplicity = 2\n", "multiplicity"));
+    CHECK(rejects("molecule = O2\nR = 1.2\n", "fixed geometries"));
+    CHECK(rejects("molecule = H2O\njob = opt\nopt_hessian = recalcfc\n", "RecalcFC=N needs N >= 1"));
+    CHECK(psilab::parse_input_text("molecule = H2O\njob = opt\nrecalc_fc = 2\n").input.optHessian == "recalcfc");
+    CHECK(psilab::parse_input_text("molecule = NH3\njob = ts\nts_hessian = RecalcFC=4\n").input.tsHessian == "recalcfc");
+    CHECK(rejects("molecule = H2O\njob = ts\nopt_algorithm = gediis\n", "'opt_algorithm' applies to job = opt"));
+    const psilab::Settings hsto = psilab::parse_input_text("molecule = HeH+\nbasis = STO-3G\nszabo_ostlund = no\nmethod = MP2\n");
+    CHECK(hsto.input.hehGeneral && hsto.input.basis == "STO-3G" && hsto.input.method == "MP2");
+    CHECK(rejects("molecule = H2\nszabo_ostlund = no\n", "applies to HeH+ only"));
+    {
+        const psilab::RunResult nrun = psilab::run_to_text(psilab::parse_input_text("molecule = N\nbasis = 6-31G\nmethod = ROHF\n"));
+        CHECK(nrun.error.empty());
+        CHECK(contains(nrun.text, "quartet, reference ROHF"));
+    }
+
     // ΨLab 7.0 stage 7.4: HeH+ with a correlation-consistent basis set is a general molecule
     const psilab::Settings hg = psilab::parse_input_text("molecule = HeH+\nbasis = aug-cc-pVTZ\nmethod = FCI\njob = opt+freq\n");
     CHECK(hg.input.hehGeneral && hg.input.basis == "aug-cc-pVTZ" && hg.input.method == "FCI" && hg.input.job == "opt+freq");
     CHECK(std::fabs(hg.input.R - 1.4632) < 1e-12);  // the Szabo-Ostlund bond length (0.7743 angstrom)
     CHECK(!psilab::parse_input_text("molecule = HeH+\nbasis = STO-2G\n").input.hehGeneral);
     CHECK(rejects("molecule = HeH+\nbasis = aug-cc-pVDZ\nzeta_He = 2\n", "'zeta_He' applies to HeH+ in an STO-nG basis"));
-    CHECK(rejects("molecule = HeH+\nmethod = CCSD\n", "applies to H2, LiH, H2O, H2O2, NH3, custom molecules and HeH+ in a Gaussian basis set"));
+    CHECK(rejects("molecule = HeH+\nmethod = CCSD\n", "applies to H2, LiH, H2O, H2O2, NH3, the atoms and molecules of the menu, custom molecules and HeH+ in a Gaussian basis set"));
     CHECK(rejects("molecule = HeH+\nbasis = 6-31G**\n", "or a basis set of the library"));
     const psilab::RunResult hrun = psilab::run_to_text(
         psilab::parse_input_text("molecule = HeH+\nbasis = aug-cc-pVDZ\nmethod = CCSD\njob = scan\nscan = 1 2 S 2 0.1\n"));

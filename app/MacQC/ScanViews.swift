@@ -136,56 +136,11 @@ struct RelaxedScanView: View {
         let aligned = alignedSequence(points.map { atomCoordinates($0.geometry.atoms) }, atoms: atoms)
         let lowest = points.first(where: { $0.index == scan.lowest })?.energy ?? point.energy
         return VStack(alignment: .leading, spacing: 10) {
-            HStack(alignment: .top, spacing: 16) {
-                // ΨLab 12.0: the 3D viewer
-                Molecule3DView(atoms: atomsMoved(atoms, to: aligned[index]), framing: aligned,
-                               accessibilityText: "Molecule at this scan point")
-                    .frame(minWidth: 260, maxWidth: .infinity, minHeight: 300, maxHeight: 300)
-                VStack(alignment: .leading, spacing: 6) {
-                    Text("Point \(index + 1) of \(points.count)")
-                        .font(.headline)
-                    Grid(alignment: .leading, horizontalSpacing: 12, verticalSpacing: 4) {
-                        GridRow {
-                            Text(scan.coordinate.definition).foregroundStyle(.secondary)
-                            Text(Fmt.scanValue(point.measured, angular: scan.isAngular))
-                        }
-                        GridRow {
-                            Text("Energy").foregroundStyle(.secondary)
-                            Text(Fmt.energy10(point.energy) + " E_h")
-                        }
-                        GridRow {
-                            Text("Above the lowest").foregroundStyle(.secondary)
-                            Text(String(format: "%.4f kcal/mol", kcal(point.energy - lowest)))
-                        }
-                        if scan.relaxed {
-                            GridRow {
-                                Text("Optimisation").foregroundStyle(.secondary)
-                                Text("\(point.steps) step\(point.steps == 1 ? "" : "s")" + (point.converged ? "" : ", not converged"))
-                                    .foregroundStyle(point.converged ? Color.primary : Color.orange)
-                            }
-                        }
-                        ForEach(Array(Fmt.geometryRows(point.geometry).enumerated()), id: \.offset) { _, row in
-                            GridRow {
-                                Text(row.0).foregroundStyle(.secondary)
-                                Text(row.1)
-                            }
-                        }
-                    }
-                    .monospacedDigit()
-                    .textSelection(.enabled)
-                    if scan.relaxed && atoms.count > 2 {
-                        Button {
-                            model.startTransitionStateSearch(from: point)
-                        } label: {
-                            Label("Start a TS search from this point", systemImage: "arrow.up.forward.circle")
-                        }
-                        .secondaryActionStyle()
-                        .disabled(!model.scanMatchesMolecule || model.isRunning)
-                        .help("Copies this geometry into the inputs and selects the job TS optimisation + frequencies (Gaussian's route: scan, then Opt=TS from the highest point).")
-                    }
-                }
-                .frame(width: 290, alignment: .leading)
-            }
+            // ΨLab 12.0: the 3D viewer; 15.0: the full width of the panel, the point's data below
+            // the buttons
+            Molecule3DView(atoms: atomsMoved(atoms, to: aligned[index]), framing: aligned,
+                           accessibilityText: "Molecule at this scan point")
+                .frame(minWidth: 480, maxWidth: .infinity, minHeight: Viewer3DSize.height, maxHeight: Viewer3DSize.height)
             HStack(spacing: 8) {
                 Button {
                     select(0, in: scan)
@@ -229,6 +184,54 @@ struct RelaxedScanView: View {
                        in: 0...Double(max(points.count - 1, 1)), step: 1)
                     .disabled(points.count < 2)
                     .accessibilityLabel("Scan point")
+            }
+            VStack(alignment: .leading, spacing: 6) {
+                Text("Point \(index + 1) of \(points.count)")
+                    .font(.headline)
+                HStack(alignment: .top, spacing: 36) {
+                    Grid(alignment: .leading, horizontalSpacing: 12, verticalSpacing: 4) {
+                        GridRow {
+                            Text(scan.coordinate.definition).foregroundStyle(.secondary)
+                            Text(Fmt.scanValue(point.measured, angular: scan.isAngular))
+                        }
+                        GridRow {
+                            Text("Energy").foregroundStyle(.secondary)
+                            Text(Fmt.energy10(point.energy) + " E_h")
+                        }
+                        GridRow {
+                            Text("Above the lowest").foregroundStyle(.secondary)
+                            Text(String(format: "%.4f kcal/mol", kcal(point.energy - lowest)))
+                        }
+                        if scan.relaxed {
+                            GridRow {
+                                Text("Optimisation").foregroundStyle(.secondary)
+                                Text("\(point.steps) step\(point.steps == 1 ? "" : "s")" + (point.converged ? "" : ", not converged"))
+                                    .foregroundStyle(point.converged ? Color.primary : Color.orange)
+                            }
+                        }
+                    }
+                    Grid(alignment: .leading, horizontalSpacing: 12, verticalSpacing: 4) {
+                        ForEach(Array(Fmt.geometryRows(point.geometry).enumerated()), id: \.offset) { _, row in
+                            GridRow {
+                                Text(row.0).foregroundStyle(.secondary)
+                                Text(row.1)
+                            }
+                        }
+                    }
+                    Spacer(minLength: 0)
+                }
+                .monospacedDigit()
+                .textSelection(.enabled)
+                if scan.relaxed && atoms.count > 2 {
+                    Button {
+                        model.startTransitionStateSearch(from: point)
+                    } label: {
+                        Label("Start a TS search from this point", systemImage: "arrow.up.forward.circle")
+                    }
+                    .secondaryActionStyle()
+                    .disabled(!model.scanMatchesMolecule || model.isRunning)
+                    .help("Copies this geometry into the inputs and selects the job TS optimisation + frequencies (Gaussian's route: scan, then Opt=TS from the highest point).")
+                }
             }
             Text("The optimised molecule at each scan point in 3D, the points turned onto each other (bond lengths in Å). Drag to turn the molecule, pinch or ⌥-scroll to zoom; click two, three or four atoms to measure a distance, an angle or a dihedral angle. The highest point is shown first. Choose a point with the buttons, the slider, the chart or the table, or press Play points.")
                 .font(.caption)

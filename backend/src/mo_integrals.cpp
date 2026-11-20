@@ -34,28 +34,38 @@ double mo_transform_bytes(std::size_t n_basis, std::size_t n_mo) {
     return 8.0 * static_cast<double>(n_mo * (n_mo + 1) / 2) * static_cast<double>(n_basis * (n_basis + 1) / 2);
 }
 
-MOIntegrals transform_to_mo(const BasisSet& basis, const Matrix& h_ao, const Matrix& Cm, int threads_requested) {
+namespace {
+
+// (pq|rs) with p, q transformed by Cbra and r, s by Cket (the same matrix: the usual MO integrals).
+MOIntegrals transform_impl(const BasisSet& basis, const Matrix* h_ao, const Matrix& Cbra_m, const Matrix& Cm,
+                           int threads_requested) {
     const std::size_t N = static_cast<std::size_t>(basis.n_functions);
     const std::size_t n = Cm.cols();
-    if (Cm.rows() != N || h_ao.rows() != N) throw std::invalid_argument("transform_to_mo: dimension mismatch");
+    const std::size_t nbra = Cbra_m.cols();
+    if (Cm.rows() != N || Cbra_m.rows() != N || (h_ao && h_ao->rows() != N))
+        throw std::invalid_argument("transform_to_mo: dimension mismatch");
     const int threads = resolve_threads(threads_requested);
     report_progress(JobStage::Transformation);
-    std::vector<double> C(N * n);
+    std::vector<double> C(N * n), Cb(N * nbra);
     for (std::size_t i = 0; i < N; ++i)
         for (std::size_t j = 0; j < n; ++j) C[i * n + j] = Cm(i, j);
+    for (std::size_t i = 0; i < N; ++i)
+        for (std::size_t j = 0; j < nbra; ++j) Cb[i * nbra + j] = Cbra_m(i, j);
 
     MOIntegrals mo;
     mo.n = static_cast<int>(n);
+    mo.n_bra = static_cast<int>(nbra);
     mo.npair = n * (n + 1) / 2;
     const std::size_t npair_ao = N * (N + 1) / 2;
     mo.stride = npair_ao;
     mo.eri.assign(mo.npair * npair_ao, 0.0);
 
     // h_MO = C^T h C.
-    {
+    if (h_ao) {
+        const Matrix& hm = *h_ao;
         std::vector<double> hin(N * N), t1, t2, out(n * n);
         for (std::size_t i = 0; i < N; ++i)
-            for (std::size_t j = 0; j < N; ++j) hin[i * N + j] = h_ao(i, j);
+            for (std::size_t j = 0; j < N; ++j) hin[i * N + j] = hm(i, j);
         transform_batch(hin.data(), 1, N, C.data(), n, t1, t2, out.data());
         mo.h = Matrix(n, n);
         for (std::size_t r = 0; r < n; ++r)
@@ -133,17 +143,29 @@ MOIntegrals transform_to_mo(const BasisSet& basis, const Matrix& h_ao, const Mat
                             y[nu * N + mu] = x;
                         }
                 }
-                out.resize(nb * n * n);
-                transform_batch(Y.data(), nb, N, C.data(), n, t1, t2, out.data());
+                out.resize(nb * nbra * nbra);
+                transform_batch(Y.data(), nb, N, Cb.data(), nbra, t1, t2, out.data());
                 for (std::size_t b = 0; b < nb; ++b) {
                     double* row = mo.eri.data() + (b0 + b) * npair_ao;
-                    const double* o = out.data() + b * n * n;
-                    for (std::size_t p = 0; p < n; ++p)
-                        for (std::size_t q = 0; q <= p; ++q) row[p * (p + 1) / 2 + q] = o[q * n + p];
+                    const double* o = out.data() + b * nbra * nbra;
+                    for (std::size_t p = 0; p < nbra; ++p)
+                        for (std::size_t q = 0; q <= p; ++q) row[p * (p + 1) / 2 + q] = o[q * nbra + p];
                 }
             }
         });
     }
+    return mo;
+}
+
+}  // namespace
+
+MOIntegrals transform_to_mo(const BasisSet& basis, const Matrix& h_ao, const Matrix& C, int threads) {
+    return transform_impl(basis, &h_ao, C, C, threads);
+}
+
+MOIntegrals transform_to_mo_mixed(const BasisSet& basis, const Matrix& Cbra, const Matrix& Cket, int threads) {
+    MOIntegrals mo = transform_impl(basis, nullptr, Cbra, Cket, threads);
+    mo.mixed = true;
     return mo;
 }
 

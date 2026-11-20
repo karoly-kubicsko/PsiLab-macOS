@@ -194,7 +194,7 @@ static void test_api() {
         in.method = "CCSDT";
         const MolecularResult h = prepare_molecular(in);
         CHECK(!h.notes.empty() && h.notes.back().find("two electrons") != std::string::npos);
-        in.method = "MP2";
+        in.method = "MP6";  // 15.0: MP2 ... MP5 are methods
         CHECK(validate_molecular(in).find("CCSDTQ") != std::string::npos);
     }
     char* out = macqc_run(R"json({"molecule":"LiH","basis":"aug-cc-pVDZ","method":"CCSD(T)"})json");

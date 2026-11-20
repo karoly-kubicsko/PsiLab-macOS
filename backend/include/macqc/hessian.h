@@ -69,8 +69,12 @@ HessianResult run_hessian(const Molecule& mol, const BasisSet& basis, const std:
 // ΨLab 10.0: the methods with an analytic Hessian (RHF, FCI, CCSD, CCSD(T)), and the memory
 // (bytes) of an analytic correlated Hessian (0 for RHF) for n_occupied, n_mo orbitals, n_basis
 // functions and n_atoms atoms.
-bool analytic_hessian_method(const std::string& canonical_method);
+// 15.0: with the reference: the SCF of every reference; the spin-orbital engine's methods on RHF.
+bool analytic_hessian_method(const std::string& canonical_method, const std::string& reference = "RHF");
 double analytic_hessian_bytes(const std::string& canonical_method, int n_occupied, int n_mo, int n_basis, int n_atoms);
+// 15.0: the same for any reference (UHF and ROHF: the open-shell Hessian of open_shell_correlated.h).
+double analytic_hessian_bytes(const std::string& canonical_method, const std::string& reference, int n_alpha, int n_beta,
+                              int n_mo, int n_basis, int n_atoms);
 
 // Number of gradient (analytic-gradient methods) or energy (CCSDT, CCSDTQ) evaluations of a
 // numerical Hessian of this molecule, without the reference point (for the estimates).

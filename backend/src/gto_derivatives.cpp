@@ -859,11 +859,19 @@ Matrix eri_hessian(const BasisSet& basis, int n_atoms, const TwoParticleDensity&
 }
 
 std::vector<Matrix> eri_derivative_fock(const BasisSet& basis, int n_atoms, const Matrix& Dm, int threads) {
+    return eri_derivative_fock_multi(basis, n_atoms, {Dm}, {1.0}, {-0.5}, threads)[0];
+}
+
+std::vector<std::vector<Matrix>> eri_derivative_fock_multi(const BasisSet& basis, int n_atoms,
+                                                           const std::vector<Matrix>& Ds,
+                                                           const std::vector<double>& coulomb,
+                                                           const std::vector<double>& exchange, int threads) {
+    const std::size_t ndens = Ds.size();
     const int nt = resolve_threads(threads);
     const DerivativePairs dp(basis, 1, nt);
     const std::size_t N = static_cast<std::size_t>(basis.n_functions);
     const std::size_t nx = static_cast<std::size_t>(3 * n_atoms);
-    std::vector<std::vector<Matrix>> parts(static_cast<std::size_t>(nt), std::vector<Matrix>(nx, Matrix(N, N)));
+    std::vector<std::vector<Matrix>> parts(static_cast<std::size_t>(nt), std::vector<Matrix>(nx * ndens, Matrix(N, N)));
     for_unique_quartets(dp, nt, [&](int t, EriEngine& engine, const UniquePair& bra, const UniquePair& ket, bool same) {
         thread_local std::vector<double> acc, dX[4];
         const Shell& A = basis.shells[static_cast<std::size_t>(bra.i)];
@@ -907,43 +915,49 @@ std::vector<Matrix> eri_derivative_fock(const BasisSet& basis, int n_atoms, cons
                 for (int Y = X; Y < 4; ++Y)
                     if (atom[Y] == atom[X])
                         for (std::size_t q = 0; q < nq; ++q) I[q] += dX[Y][static_cast<std::size_t>(k) * nq + q];
-                Matrix& G = F[static_cast<std::size_t>(3 * atom[X] + k)];
-                const double* v = I.data();
-                for (int a = 0; a < na; ++a) {
-                    const std::size_t p = static_cast<std::size_t>(A.first_function + a);
-                    for (int b = 0; b < nb; ++b) {
-                        const std::size_t q = static_cast<std::size_t>(B.first_function + b);
-                        const double dpq = Dm(p, q);
-                        double gpq = 0.0;
-                        for (int c = 0; c < nc; ++c) {
-                            const std::size_t r = static_cast<std::size_t>(C.first_function + c);
-                            for (int d = 0; d < nd; ++d) {
-                                const double x = deg * *v++;
-                                const std::size_t s = static_cast<std::size_t>(D.first_function + d);
-                                gpq += Dm(r, s) * x;
-                                G(r, s) += dpq * x;
-                                const double xk = 0.25 * x;
-                                G(p, r) -= Dm(q, s) * xk;
-                                G(q, s) -= Dm(p, r) * xk;
-                                G(p, s) -= Dm(q, r) * xk;
-                                G(q, r) -= Dm(p, s) * xk;
+                for (std::size_t dd = 0; dd < ndens; ++dd) {
+                    const Matrix& Dm = Ds[dd];
+                    const double cj = coulomb[dd], ck = 0.5 * exchange[dd];
+                    Matrix& G = F[dd * nx + static_cast<std::size_t>(3 * atom[X] + k)];
+                    const double* v = I.data();
+                    for (int a = 0; a < na; ++a) {
+                        const std::size_t p = static_cast<std::size_t>(A.first_function + a);
+                        for (int b = 0; b < nb; ++b) {
+                            const std::size_t q = static_cast<std::size_t>(B.first_function + b);
+                            const double dpq = cj * Dm(p, q);
+                            double gpq = 0.0;
+                            for (int c = 0; c < nc; ++c) {
+                                const std::size_t r = static_cast<std::size_t>(C.first_function + c);
+                                for (int d = 0; d < nd; ++d) {
+                                    const double x = deg * *v++;
+                                    const std::size_t s = static_cast<std::size_t>(D.first_function + d);
+                                    gpq += Dm(r, s) * x;
+                                    G(r, s) += dpq * x;
+                                    if (ck == 0.0) continue;
+                                    const double xk = ck * x;
+                                    G(p, r) += Dm(q, s) * xk;
+                                    G(q, s) += Dm(p, r) * xk;
+                                    G(p, s) += Dm(q, r) * xk;
+                                    G(q, r) += Dm(p, s) * xk;
+                                }
                             }
+                            G(p, q) += cj * gpq;
                         }
-                        G(p, q) += gpq;
                     }
                 }
             }
         }
     });
-    std::vector<Matrix> out(nx, Matrix(N, N));
-    for (std::size_t x = 0; x < nx; ++x) {
-        Matrix G(N, N);
-        for (const auto& p : parts)
+    std::vector<std::vector<Matrix>> out(ndens, std::vector<Matrix>(nx, Matrix(N, N)));
+    for (std::size_t dd = 0; dd < ndens; ++dd)
+        for (std::size_t x = 0; x < nx; ++x) {
+            Matrix G(N, N);
+            for (const auto& p : parts)
+                for (std::size_t r = 0; r < N; ++r)
+                    for (std::size_t c = 0; c < N; ++c) G(r, c) += p[dd * nx + x](r, c);
             for (std::size_t r = 0; r < N; ++r)
-                for (std::size_t c = 0; c < N; ++c) G(r, c) += p[x](r, c);
-        for (std::size_t r = 0; r < N; ++r)
-            for (std::size_t c = 0; c < N; ++c) out[x](r, c) = 0.25 * (G(r, c) + G(c, r));
-    }
+                for (std::size_t c = 0; c < N; ++c) out[dd][x](r, c) = 0.25 * (G(r, c) + G(c, r));
+        }
     return out;
 }
 

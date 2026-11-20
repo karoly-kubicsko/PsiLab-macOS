@@ -77,11 +77,15 @@ double double_factorial(int n) {  // n!! for n >= -1
     return r;
 }
 
-// The basis-set library (14.0: 33 sets in five families), in display order. `cartesian_d`:
+// The basis-set library (14.0: 33 sets in five families; 15.0: 36 in six, with STO-nG), in display order. `cartesian_d`:
 // the d shells are six Cartesian functions (6D), as Gaussian uses the 6-31G family by default
 // and as the Basis Set Exchange marks these shells; every other shell of every set is
 // spherical (5D, 7F), Gaussian's default for all other sets.
 const BasisSetInfo kBases[] = {
+    // 15.0: the minimal sets (STO-2G and STO-3G from the BSE, STO-1G fitted by backend/tools/sto_ng.py)
+    {"STO-1G", "sto-1g.gbs", "Pople STO-nG", false},
+    {"STO-2G", "sto-2g.gbs", "Pople STO-nG", false},
+    {"STO-3G", "sto-3g.gbs", "Pople STO-nG", false},
     {"6-31G", "6-31g.gbs", "Pople 6-31G", true},
     {"6-31G*", "6-31gs.gbs", "Pople 6-31G", true},
     {"6-31+G", "6-31pg.gbs", "Pople 6-31G", true},

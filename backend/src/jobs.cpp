@@ -29,9 +29,18 @@ std::string human_time(double s) {
 }
 
 std::string method_label(const std::string& m) { return m == "RHF" ? "HF" : (m == "FCI" ? "Full CI" : m); }
+// 15.0: with the reference: HF (closed shell), UHF, ROHF; UMP2, ROCCSD(T); Full CI
+std::string job_label(const std::string& m, const std::string& ref) {
+    if (m == "FCI") return "Full CI";
+    if (ref.empty() || ref == "RHF") return method_label(m);
+    return macqc::method_label(m, ref);
+}
 
-ElectronicOptions electronic_options(const MolecularInput& in) {
+ElectronicOptions electronic_options(const MolecularResult& p) {
+    const MolecularInput& in = p.input;
     ElectronicOptions o;
+    o.reference = p.reference;
+    o.multiplicity = in.multiplicity;
     o.threads = in.threads;
     o.memory_mb = in.memory_mb;
     o.fci_memory_mb = in.fci_memory_mb;
@@ -57,7 +66,15 @@ double gradient_seconds(const MolecularResult& p, bool* analytic, std::string* h
             ? static_cast<int>(2 * vibrational_directions(p.molecule).size())  // 9.0: custom molecules
             : (nat == 2 ? 2 : (nat == 4 ? (p.molecule.name == "H2O2" ? 8 : 12) : (c2v_or_diatomic ? 4 : 6)));
     *energies = 0;
-    if (analytic_gradient_method(m)) {
+    if (e.so && analytic_gradient_method(m, p.reference)) {
+        // 15.0: the spin-orbital engine: amplitudes, multipliers (about as many iterations), densities, Z-vector
+        *analytic = true;
+        *how = "analytic gradient (" + e.so->method + ": Lambda equations of the automatically differentiated "
+               "Lagrangian, relaxed densities, Z-vector)";
+        const double n5 = 6.0 * std::pow(static_cast<double>(nbf), 5) / (4.0e9 * std::max(1, e.threads));
+        return 2.5 * e.total_seconds + 3.0 * e.rhf_seconds + n5 + 0.2;
+    }
+    if (analytic_gradient_method(m, p.reference)) {
         const double need = analytic_gradient_bytes(m, nocc, nbf, nbf) / (1024.0 * 1024.0);
         if (need <= p.input.fci_memory_mb) {
             *analytic = true;
@@ -68,7 +85,9 @@ double gradient_seconds(const MolecularResult& p, bool* analytic, std::string* h
             const double n = nbf;
             const double n5 = 6.0 * std::pow(n, 5) / (4.0e9 * std::max(1, e.threads));
             if (m == "FCI") {
-                *how = "analytic gradient (Full CI densities, Z-vector)";
+                *how = p.reference.empty() || p.reference == "RHF"
+                           ? "analytic gradient (Full CI densities, Z-vector)"
+                           : "analytic gradient (Full CI spin densities; orbital-invariant energy, no Z-vector)";
                 return 1.3 * (e.total_seconds * 1.3 + 2.5 * e.rhf_seconds + n5) + 0.2;
             }
             *how = "analytic gradient (" + m + " Lambda equations, relaxed densities, Z-vector)";
@@ -290,6 +309,16 @@ JobEstimate estimate_job(const MolecularResult& p, const JobSettings& s, const M
     const CostEstimate& e = p.estimate;
     if (!p.refusal.empty()) est.refusal = p.refusal;
     const int nbf = p.basis.n_functions, nocc = p.molecule.electrons() / 2;
+    // 15.0: alpha and beta electrons (open-shell Hessians)
+    int n_alpha = nocc, n_beta = nocc;
+    try {
+        const auto ab = alpha_beta_electrons(p.molecule.electrons(), p.input.multiplicity);
+        n_alpha = ab.first;
+        n_beta = ab.second;
+    } catch (const std::exception&) {
+    }
+    const double hessian_mb = analytic_hessian_bytes(m, p.reference, n_alpha, n_beta, nbf, nbf,
+                                                     static_cast<int>(p.molecule.atoms.size())) / 1048576.0;
     if (t == "energy") {
         JobStepEstimate st{"Energy", m, p.input.basis, "single point", true, 1, "energies", e.total_seconds, 0.0};
         est.steps.push_back(st);
@@ -308,8 +337,8 @@ JobEstimate estimate_job(const MolecularResult& p, const JobSettings& s, const M
     // 10.0: the analytic Full CI, CCSD or CCSD(T) Hessian at the first point of a minimisation
     // ("auto" or "analytic", where it fits into memory; no dipole derivatives): extra seconds
     const bool correlated_hessian_fits =
-        analytic && (m == "FCI" || m == "CCSD" || m == "CCSD(T)") && p.molecule.atoms.size() >= 2 &&
-        analytic_hessian_bytes(m, nocc, nbf, nbf, static_cast<int>(p.molecule.atoms.size())) / 1048576.0 <= p.input.fci_memory_mb;
+        analytic && m != "RHF" && analytic_hessian_method(m, p.reference) && p.molecule.atoms.size() >= 2 &&
+        hessian_mb <= p.input.fci_memory_mb;
     const bool analytic_initial = correlated_hessian_fits && s.initial_hessian != "lindh";
     const double initial_hessian_seconds =
         analytic_initial
@@ -323,13 +352,15 @@ JobEstimate estimate_job(const MolecularResult& p, const JobSettings& s, const M
         const bool diatomic = p.molecule.atoms.size() == 2;
         if (m == "RHF") {
             st.analytic = true;
-            st.how = "analytic Hessian (second-derivative integrals, CPHF), analytic dipole derivatives";
+            st.how = p.reference == "RHF" ? "analytic Hessian (second-derivative integrals, CPHF), analytic dipole derivatives"
+                                          : "analytic " + p.reference + " Hessian (second-derivative integrals, coupled-perturbed " +
+                                                p.reference + "), analytic dipole derivatives";
             st.evaluations = 1;
             st.evaluation_kind = "Hessians";
             st.seconds = 7.0 * tg;
-        } else if (analytic && (m == "FCI" || m == "CCSD" || m == "CCSD(T)") && s.hessian != "numerical" && !fewer_than_two_atoms(p) &&
-                   analytic_hessian_bytes(m, nocc, nbf, nbf, static_cast<int>(p.molecule.atoms.size())) / 1048576.0 <=
-                       p.input.fci_memory_mb) {
+        } else if (analytic && m != "RHF" && analytic_hessian_method(m, p.reference) && s.hessian != "numerical" &&
+                   !fewer_than_two_atoms(p) &&
+                   hessian_mb <= p.input.fci_memory_mb) {
             // 10.0: analytic correlated Hessian, responses along the internal directions and the
             // field components (dipole derivatives)
             st.analytic = true;
@@ -337,12 +368,18 @@ JobEstimate estimate_job(const MolecularResult& p, const JobSettings& s, const M
             const int responses = dirs + 3;
             st.evaluations = responses;
             st.evaluation_kind = "responses";
-            st.how = strprintf("analytic Hessian: %s responses along the %d internal direction%s and the 3 electric-field "
-                               "components (IR intensities), CPHF orbital response of all %zu coordinates, Z-vector",
-                               m == "FCI" ? "CI-vector" : "amplitude", dirs, dirs == 1 ? "" : "s",
-                               3 * p.molecule.atoms.size());
+            const bool open = !(p.reference.empty() || p.reference == "RHF");
+            if (m == "FCI" && open)
+                st.how = strprintf("analytic Hessian: CI-vector responses along the %d internal direction%s and the 3 "
+                                   "electric-field components (IR intensities); orbital-invariant energy, no CPHF or Z-vector",
+                                   dirs, dirs == 1 ? "" : "s");
+            else
+                st.how = strprintf("analytic Hessian: %s responses along the %d internal direction%s and the 3 electric-field "
+                                   "components (IR intensities), %s orbital response of all %zu coordinates, Z-vector",
+                                   m == "FCI" ? "CI-vector" : "amplitude", dirs, dirs == 1 ? "" : "s",
+                                   open ? ("coupled-perturbed " + p.reference).c_str() : "CPHF", 3 * p.molecule.atoms.size());
             st.seconds = ((m == "FCI" ? 0.6 : 1.5) * responses + 3.0) * tg;
-            st.memory_mb = analytic_hessian_bytes(m, nocc, nbf, nbf, static_cast<int>(p.molecule.atoms.size())) / 1048576.0;
+            st.memory_mb = hessian_mb;
         } else if (analytic && uses_cartesian_displacements(p.molecule)) {
             // 9.0: custom molecules, Cartesian directions orthogonal to translations and rotations
             st.analytic = false;
@@ -392,18 +429,26 @@ JobEstimate estimate_job(const MolecularResult& p, const JobSettings& s, const M
         st.evaluations = typical_steps;
         st.evaluation_kind = "steps";
         st.seconds = typical_steps * tg;
-        if (job_has_ts(t)) {
-            // the Hessian computed at the first point (CalcFC) or at every point (CalcAll)
+        const std::string hmode = job_has_ts(t) ? s.ts_hessian : s.opt_hessian;
+        if (!hmode.empty()) {
+            // the Hessian computed at the first point (CalcFC), at every point (CalcAll) or at the
+            // first and every N-th point (15.0: RecalcFC=N)
             const JobStepEstimate h = hessian_estimate();
-            const bool all = s.ts_hessian == "calcall";
+            const bool all = hmode == "calcall";
+            const int computed = all ? typical_steps
+                                     : hmode == "recalcfc" ? 1 + (typical_steps - 1) / std::max(1, s.recalc_fc) : 1;
             std::string hh = h.how;
             const auto ir = hh.find("; IR");
             if (ir != std::string::npos) hh = hh.substr(0, ir);
             const auto dip = hh.find(", analytic dipole");
             if (dip != std::string::npos) hh = hh.substr(0, dip);
-            st.how += std::string("; P-RFO steps, Bofill updates; Hessian computed ") +
-                      (all ? "at every step (CalcAll)" : "at the first step (CalcFC)") + ": " + hh;
-            st.seconds += (all ? typical_steps : 1) * h.seconds;
+            st.how += std::string(job_has_ts(t) ? "; P-RFO steps, Bofill updates" : "; RFO steps, BFGS updates") +
+                      "; Hessian computed " +
+                      (all ? std::string("at every step (CalcAll)")
+                       : hmode == "recalcfc" ? strprintf("at step 1 and every %d steps (RecalcFC=%d)", s.recalc_fc, s.recalc_fc)
+                                             : std::string("at the first step (CalcFC)")) +
+                      ": " + hh;
+            st.seconds += computed * h.seconds;
             st.analytic = st.analytic && h.analytic;
         } else if (m == "RHF" && nbf <= 100) {
             st.seconds += 6.0 * tg;  // analytic initial Hessian
@@ -529,7 +574,7 @@ void write_header(OutputWriter& w, const JobSettings& s, const std::string& echo
     const std::string rule(88, '=');
     w.line(rule);
     w.line("                                ΨLab " + std::string(kProgramVersion));
-    w.line("  restricted Hartree-Fock, coupled cluster and Full CI for closed-shell molecules");
+    w.line("  Hartree-Fock (RHF, UHF, ROHF), Moller-Plesset, CI, QCI, coupled cluster and Full CI");
     w.line(rule);
     w.line("  Program      ΨLab " + std::string(kProgramVersion) + " (C++17 backend; integrals, SCF, CC, CI, derivatives)");
     w.line("  Started      " + local_time_string());
@@ -544,9 +589,14 @@ void write_header(OutputWriter& w, const JobSettings& s, const std::string& echo
 void write_molecule(OutputWriter& w, const MolecularResult& p, const std::string& what) {
     const Molecule& m = p.molecule;
     w.section("Molecule");
-    w.line(strprintf("    %s, %d electrons%s, charge %d, closed-shell singlet", m.display_name().c_str(), m.electrons(),
+    const int mult = p.input.multiplicity;
+    const char* spin_names[] = {"singlet", "doublet", "triplet", "quartet", "quintet", "sextet", "septet"};
+    const std::string spin = mult == 1 ? "closed-shell singlet"
+                                       : (mult <= 7 ? spin_names[mult - 1] : strprintf("multiplicity %d", mult)) +
+                                             std::string(", reference ") + p.reference;
+    w.line(strprintf("    %s, %d electrons%s, charge %d, %s", m.display_name().c_str(), m.electrons(),
                      m.core_electrons() ? strprintf(" (and %d core electrons in ECPs)", m.core_electrons()).c_str() : "",
-                     m.charge));
+                     m.charge, spin.c_str()));
     if (m.custom) w.line(strprintf("    %s (%zu atoms, Cartesian coordinates)", m.title.empty() ? "custom molecule" : m.title.c_str(), m.atoms.size()));
     w.line("    " + what);
     w.write(geometry_table(m));
@@ -576,6 +626,9 @@ void write_estimate(OutputWriter& w, const MolecularResult& p, const JobEstimate
     if (e.cc)
         w.line(strprintf("    %s: %d occupied, %d virtual orbitals, %s amplitudes, about %s", e.cc->method.c_str(),
                          e.cc->occupied, e.cc->virtuals, count(e.cc->amplitudes).c_str(), bytes(e.cc->memory_bytes).c_str()));
+    if (e.so)
+        w.line(strprintf("    %s: %s amplitudes in dense spin blocks (spin-orbital engine), about %s", e.so->method.c_str(),
+                         count(e.so->amplitudes).c_str(), bytes(e.so->memory_bytes).c_str()));
     for (const auto& n : est.notes) w.line("    " + n);
     if (est.memory_mb > 0) w.line(strprintf("    memory of the derivative steps: about %.0f MB", est.memory_mb));
     w.line("    total: " + human_time(est.total_seconds) + strprintf(" on %d threads", e.threads));
@@ -587,6 +640,7 @@ void write_estimate(OutputWriter& w, const MolecularResult& p, const JobEstimate
 }
 
 void write_correlated(OutputWriter& w, const SinglePoint& sp) {
+    if (sp.so) w.write(so_report_section(*sp.so, 1));
     if (sp.cc) w.write(cc_report_section(*sp.cc, 1));
     if (sp.fci) w.write(fci_report_section(*sp.fci, sp.rhf.total_energy, 1));
 }
@@ -619,12 +673,14 @@ struct Streams {
     OutputWriter* w = nullptr;
     std::string context;  // progress-text prefix, e.g. "Optimisation step 3 · "
     std::string method;
+    std::string reference = "RHF";
     bool scf_started = false, cc_started = false, fci_started = false, lambda_started = false, cphf_started = false;
     double scf_energy = 0.0;
     int scf_iterations = 0;
     void reset() { scf_started = cc_started = fci_started = lambda_started = cphf_started = false; }
     void scf_done_line() {
-        if (scf_started) w->line(strprintf("    SCF converged: E(RHF) = %.10f E_h after %d iterations", scf_energy, scf_iterations));
+        if (scf_started)
+            w->line(strprintf("    SCF converged: E(%s) = %.10f E_h after %d iterations", reference.c_str(), scf_energy, scf_iterations));
     }
 };
 
@@ -632,7 +688,9 @@ ElectronicCallbacks stream_callbacks(Streams& s) {
     ElectronicCallbacks cb;
     cb.scf = [&s](const RHFIteration& it) {
         if (!s.scf_started) {
-            s.w->line("\n    SCF (restricted Hartree-Fock, DIIS)");
+            s.w->line(s.reference == "UHF"    ? "\n    SCF (unrestricted Hartree-Fock, DIIS)"
+                      : s.reference == "ROHF" ? "\n    SCF (restricted open-shell Hartree-Fock, Roothaan effective Fock matrix, DIIS)"
+                                              : "\n    SCF (restricted Hartree-Fock, DIIS)");
             s.w->write(scf_header());
             s.scf_started = true;
         }
@@ -645,7 +703,7 @@ ElectronicCallbacks stream_callbacks(Streams& s) {
         if (!s.cc_started) {
             s.scf_done_line();
             s.w->line();
-            s.w->write(cc_header(s.method == "CCSD(T)" ? "CCSD" : s.method));
+            s.w->write(cc_header(s.method == "CCSD(T)" && s.reference == "RHF" ? "CCSD" : job_label(s.method, s.reference)));
             s.cc_started = true;
         }
         s.w->write(cc_iteration_line(it));
@@ -739,7 +797,13 @@ std::string summary_lines(const MolecularResult& m) {
     // The short summary of versions 3.0 and 4.0 (also at the top of psilab's output file).
     std::string s;
     if (m.rhf) {
-        s += strprintf("    Hartree-Fock (RHF) total energy:  %.10f E_h (%d iterations)\n", m.rhf->total_energy, m.rhf->iterations);
+        s += strprintf("    Hartree-Fock (%s) total energy:  %.10f E_h (%d iterations)\n", m.reference.c_str(),
+                       m.rhf->total_energy, m.rhf->iterations);
+        if (m.rhf->open_shell()) s += strprintf("    <S^2> = %.6f (S(S+1) = %.6f)\n", m.rhf->s2, m.rhf->s2_exact);
+        if (m.so)
+            for (const auto& t : m.so->terms)
+                if (t.label.rfind("E(", 0) == 0) s += strprintf("    %s correction:  %.10f E_h\n", t.label.c_str(), t.value);
+        if (m.so) s += strprintf("    %s total energy:  %.10f E_h\n", job_label(m.so->method, m.reference).c_str(), m.so->total_energy);
         if (m.cc) s += strprintf("    %s total energy:  %.10f E_h\n", m.cc->method.c_str(), m.cc->total_energy);
         if (m.fci) s += strprintf("    Full CI total energy:  %.10f E_h\n", m.fci->total_energy);
     }
@@ -794,6 +858,8 @@ MolecularResult final_point_result(const JobResult& job, const MolecularInput& i
         r.rhf = sp->rhf;
         r.cc = sp->cc;
         r.fci = sp->fci;
+        r.so = sp->so;
+        r.reference = sp->rhf.reference;
         r.warnings = sp->warnings;
     }
     r.report = molecular_report(r);
@@ -821,7 +887,8 @@ JobResult run_energy_job(MolecularResult& p, const JobSettings& s, const OutputS
     Streams st;
     st.w = &w;
     st.method = p.input.method;
-    w.section("Energy: " + method_label(p.input.method) + "/" + p.input.basis);
+    st.reference = p.reference;
+    w.section("Energy: " + job_label(p.input.method, p.reference) + "/" + p.input.basis);
     const ElectronicCallbacks cb = stream_callbacks(st);
     try {
         run_molecular(p, cb.scf, cb.fci, cb.cc);
@@ -831,14 +898,18 @@ JobResult run_energy_job(MolecularResult& p, const JobSettings& s, const OutputS
         sp.rhf = *p.rhf;
         sp.cc = p.cc;
         sp.fci = p.fci;
-        sp.energy = p.cc ? p.cc->total_energy : (p.fci ? p.fci->total_energy : p.rhf->total_energy);
-        sp.converged = p.rhf->converged && (!p.cc || p.cc->converged) && (!p.fci || p.fci->converged);
+        sp.so = p.so;
+        sp.reference = p.reference;
+        sp.energy = p.so ? p.so->total_energy
+                         : (p.cc ? p.cc->total_energy : (p.fci ? p.fci->total_energy : p.rhf->total_energy));
+        sp.converged = p.rhf->converged && (!p.cc || p.cc->converged) && (!p.fci || p.fci->converged) &&
+                       (!p.so || p.so->converged);
         sp.warnings = p.warnings;
         w.subsection("Results");
         write_point_details(w, sp, p.basis, true);
         r.point = sp;
         r.final_energy = sp.energy;
-        r.final_energy_label = method_label(sp.method) + "/" + p.input.basis;
+        r.final_energy_label = job_label(sp.method, p.reference) + "/" + p.input.basis;
         w.section("Summary");
         w.write(summary_lines(p));
         w.write(final_summary(r, p));
@@ -952,7 +1023,7 @@ static void run_scan(OutputWriter& w, Streams& st, ElectronicCallbacks& cb, cons
     const int npts = pl.steps + 1;
     sr.relaxed = p.molecule.atoms.size() > 2;
     const ConvergenceCriteria c = convergence_criteria(s.tight);
-    w.section("Relaxed potential energy surface scan: " + method_label(method) + "/" + p.input.basis);
+    w.section("Relaxed potential energy surface scan: " + job_label(method, p.reference) + "/" + p.input.basis);
     std::string gaussian = pl.coordinate.letter;
     for (int a : pl.coordinate.coordinate.atoms) gaussian += " " + std::to_string(a + 1);
     w.line(strprintf("    Scanned coordinate   %s  (Gaussian: %s S %d %g%s)", pl.coordinate.definition.c_str(),
@@ -1096,13 +1167,13 @@ static void run_scan(OutputWriter& w, Streams& st, ElectronicCallbacks& cb, cons
         sr.message = strprintf("All %d points %s.", npts, sr.relaxed ? "converged" : "computed");
     }
     sr.seconds = seconds_since(t0);
-    w.section("Summary of the relaxed scan: " + method_label(method) + "/" + p.input.basis);
+    w.section("Summary of the relaxed scan: " + job_label(method, p.reference) + "/" + p.input.basis);
     w.write(scan_summary_block(sr));
     w.line("    " + sr.message + " Total time " + duration_string(sr.seconds) + ".");
     const ScanPoint& last = sr.points.back();
     r.final_geometry = last.geometry;
     r.final_energy = last.energy;
-    r.final_energy_label = method_label(method) + "/" + p.input.basis;
+    r.final_energy_label = job_label(method, p.reference) + "/" + p.input.basis;
     if (r.point) {
         st.reset();
         w.subsection("Electronic structure at the last scan point");
@@ -1145,10 +1216,11 @@ JobResult run_job(const MolecularInput& input, const JobSettings& s, const Outpu
         return r;
     }
     const std::string method = p.input.method;
-    const ElectronicOptions eo = electronic_options(p.input);
+    const ElectronicOptions eo = electronic_options(p);
     Streams st;
     st.w = &w;
     st.method = method;
+    st.reference = p.reference;
     ElectronicCallbacks cb = stream_callbacks(st);
     Matrix orbitals;
     const Matrix* guess = nullptr;
@@ -1160,13 +1232,16 @@ JobResult run_job(const MolecularInput& input, const JobSettings& s, const Outpu
         if (job_has_optimization(s.type)) {
             const bool ts = job_has_ts(s.type);
             const std::string label = ts ? "TS optimisation step" : "Optimisation step";
-            w.section((ts ? "Transition-state optimisation: " : "Geometry optimisation: ") + method_label(method) + "/" +
+            w.section((ts ? "Transition-state optimisation: " : "Geometry optimisation: ") + job_label(method, p.reference) + "/" +
                       p.input.basis);
             const ConvergenceCriteria c = convergence_criteria(s.tight);
             if (ts) {
                 w.line("    Berny-type search for a first-order saddle point (Gaussian: Opt=TS) in redundant internal");
                 w.line(std::string("    coordinates: Hessian computed ") +
-                       (s.ts_hessian == "calcall" ? "at every step (CalcAll)" : "at the first step (CalcFC), then Bofill updates") +
+                       (s.ts_hessian == "calcall" ? std::string("at every step (CalcAll)")
+                        : s.ts_hessian == "recalcfc"
+                            ? strprintf("at step 1 and every %d steps (RecalcFC=%d), Bofill updates between", s.recalc_fc, s.recalc_fc)
+                            : std::string("at the first step (CalcFC), then Bofill updates")) +
                        "; partitioned RFO steps (Baker 1986) that");
                 w.line("    maximise along the followed Hessian eigenvector (the lowest at the start, then the one most");
                 w.line(strprintf("    like the previous one) and minimise along the others; trust radius %.2f bohr/rad (fixed);",
@@ -1175,9 +1250,18 @@ JobResult run_job(const MolecularInput& input, const JobSettings& s, const Outpu
                                  s.eigen_test ? "on (exactly one negative eigenvalue)" : "off (NoEigenTest)",
                                  s.tight ? "tight" : "normal", s.max_steps));
             } else {
-                w.line(strprintf("    Redundant internal coordinates, RFO steps with a trust radius, BFGS updates; %s "
+                w.line(strprintf("    Redundant internal coordinates, %s steps with a trust radius, BFGS updates; %s "
                                  "convergence, at most %d steps",
+                                 s.opt_algorithm == "gediis" ? "hybrid GEDIIS/RFO (Li and Frisch 2006)" : "RFO",
                                  s.tight ? "tight" : "normal", s.max_steps));
+                if (!s.opt_hessian.empty())
+                    w.line(std::string("    Hessian computed ") +
+                           (s.opt_hessian == "calcall" ? std::string("at every step (CalcAll)")
+                            : s.opt_hessian == "recalcfc"
+                                ? strprintf("at step 1 and every %d steps (RecalcFC=%d), BFGS updates between", s.recalc_fc,
+                                            s.recalc_fc)
+                                : std::string("at the first step (CalcFC), then BFGS updates")) +
+                           " (negative eigenvalues replaced by their magnitude)");
             }
             w.line(strprintf("    thresholds: max force %.1e, RMS force %.1e E_h/bohr; max step %.1e, RMS step %.1e bohr; "
                              "energy change %.0e E_h",
@@ -1188,6 +1272,9 @@ JobResult run_job(const MolecularInput& input, const JobSettings& s, const Outpu
             oo.transition_state = ts;
             oo.initial_hessian = s.initial_hessian;
             oo.ts_hessian = s.ts_hessian;
+            oo.computed_hessian = ts ? "" : s.opt_hessian;
+            oo.recalc_every = s.recalc_fc;
+            oo.algorithm = s.opt_algorithm;
             oo.numerical_hessian = s.hessian == "numerical";
             oo.eigen_test = s.eigen_test;
             oo.on_step_start = [&](int step, const Molecule& geom) {
@@ -1210,7 +1297,7 @@ JobResult run_job(const MolecularInput& input, const JobSettings& s, const Outpu
             x = opt.final_geometry;
             r.final_geometry = x;
             r.final_energy = opt.final_energy;
-            r.final_energy_label = method_label(method) + "/" + p.input.basis;
+            r.final_energy_label = job_label(method, p.reference) + "/" + p.input.basis;
             orbitals = opt.final_point.point.rhf.C;
             guess = &orbitals;
             {
@@ -1242,7 +1329,7 @@ JobResult run_job(const MolecularInput& input, const JobSettings& s, const Outpu
         // ---- frequencies
         if (job_has_frequencies(s.type)) {
             const bool at_input = s.type == "freq";
-            w.section("Harmonic frequencies: " + method_label(method) + "/" + p.input.basis);
+            w.section("Harmonic frequencies: " + job_label(method, p.reference) + "/" + p.input.basis);
             w.line(std::string("    at the ") +
                    (at_input ? "input geometry" : (job_has_ts(s.type) ? "transition state" : "optimised geometry")));
             w.write(geometry_table(x));
@@ -1268,7 +1355,7 @@ JobResult run_job(const MolecularInput& input, const JobSettings& s, const Outpu
             if (at_input) {
                 r.point = h.reference.point;
                 r.final_energy = h.reference.point.energy;
-                r.final_energy_label = method_label(method) + "/" + p.input.basis;
+                r.final_energy_label = job_label(method, p.reference) + "/" + p.input.basis;
                 w.subsection("Electronic structure at the input geometry");
                 write_point_details(w, h.reference.point, basis_at_geometry(p.basis, x), true);
                 if (h.reference.has_dipole && method != "RHF") {
@@ -1331,20 +1418,23 @@ JobResult run_job(const MolecularInput& input, const JobSettings& s, const Outpu
         if (job_has_single_point(s.type)) {
             const std::string m2 = psp->input.method, b2 = psp->input.basis;
             w.section(std::string("Single-point energy at the ") +
-                      (job_has_ts(s.type) ? "transition state: " : "optimised geometry: ") + method_label(m2) + "/" + b2);
+                      (job_has_ts(s.type) ? "transition state: " : "optimised geometry: ") + job_label(m2, psp->reference) + "/" + b2);
             w.write(geometry_table(x));
             const BasisSet bs = build_basis(x, b2, p.input.basis_directory);
             const Molecule xs = attach_ecps(x, bs);  // 14.0: the ECPs of the single point's basis set
             w.write(basis_block(bs, psp->notes));
             st.reset();
             st.method = m2;
+            st.reference = psp->reference;
             st.context = "Single point · ";
             ElectronicCallbacks cb2 = stream_callbacks(st);
-            const SinglePoint sp = run_single_point(xs, bs, m2, eo, b2 == p.input.basis ? guess : nullptr, cb2);
+            ElectronicOptions eo2 = eo;
+            eo2.reference = psp->reference;
+            const SinglePoint sp = run_single_point(xs, bs, m2, eo2, b2 == p.input.basis && eo2.reference == eo.reference ? guess : nullptr, cb2);
             write_point_details(w, sp, bs, true);
             r.single_point = sp;
             r.final_energy = sp.energy;
-            r.final_energy_label = method_label(m2) + "/" + b2;
+            r.final_energy_label = job_label(m2, psp->reference) + "/" + b2;
             if (!sp.converged) throw std::runtime_error("the single-point calculation did not converge");
             if (r.thermo) {
                 // the final energies: single point + thermal corrections of the frequency step
@@ -1357,7 +1447,7 @@ JobResult run_job(const MolecularInput& input, const JobSettings& s, const Outpu
                 t.total_a = sp.energy + joule_per_mol_to_hartree(t.helmholtz);
                 w.line();
                 w.line("    Final energies: " + r.final_energy_label + " single point + thermal corrections of " +
-                       method_label(method) + "/" + p.input.basis + strprintf(" (%.2f K, %.0f Pa)", t.temperature, t.pressure));
+                       job_label(method, p.reference) + "/" + p.input.basis + strprintf(" (%.2f K, %.0f Pa)", t.temperature, t.pressure));
                 w.line(strprintf("      E(%s)%*s %20.10f E_h", r.final_energy_label.c_str(),
                                  std::max(0, 24 - static_cast<int>(r.final_energy_label.size())), "", sp.energy));
                 w.line(strprintf("      E + ZPE                      %20.10f E_h", t.total_zpe));

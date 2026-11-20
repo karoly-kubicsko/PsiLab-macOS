@@ -66,7 +66,7 @@ struct CoupledClusterView: View {
     private func energies(_ c: MacQCCoupledCluster) -> some View {
         let base = c.triplesCorrection != nil ? "CCSD" : c.method
         return VStack(spacing: 8) {
-            InfoRow("RHF energy", Fmt.energy10(c.referenceEnergy))
+            InfoRow("\(model.result?.referenceLabel ?? "RHF") energy", Fmt.energy10(c.referenceEnergy))
             InfoRow("\(base) correlation energy", Fmt.energy10(c.correlationEnergy))
             InfoRow("\(base) energy", Fmt.energy10(c.ccEnergy))
             if let t = c.triplesCorrection {

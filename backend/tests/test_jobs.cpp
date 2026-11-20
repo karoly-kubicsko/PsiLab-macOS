@@ -121,7 +121,7 @@ int main() {
         CHECK(contains(bad["error"].get<std::string>(), "temperature"));
         bad = run({{"molecule", "H2"}, {"job", "opt"}, {"optConvergence", "loose"}});
         CHECK(contains(bad["error"].get<std::string>(), "optConvergence must be normal or tight"));
-        bad = run({{"molecule", "H2"}, {"job", "opt+freq+sp"}, {"spMethod", "MP2"}});
+        bad = run({{"molecule", "H2"}, {"job", "opt+freq+sp"}, {"spMethod", "MP7"}});  // 15.0: MP2 is a method
         CHECK(contains(bad["error"].get<std::string>(), "spMethod"));
         // HeH+ energy: the 4.0 path, no job output
         const json heh = run({{"molecule", "HeH+"}});

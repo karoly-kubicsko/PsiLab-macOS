@@ -9,6 +9,12 @@
 //       sigma(I_a,I_b) += <I_a|a+_i|K_a><I_b|a+_k|K_b> E_ik(K_a,K_b).
 // The lowest root is found with the Davidson method (diagonal preconditioner); trial
 // vectors are kept symmetric, C = C^T, which removes the odd-spin (triplet) components.
+// 15.0: spin adaptation. The determinant basis is kept for sigma = H C (the string-driven
+// algorithm, which is faster than CSF-based sigma vectors), and every Davidson vector is
+// projected onto the requested total spin S = M_S with Loewdin's projector built from S^2 =
+// S_- S_+ + M_S (M_S + 1). The CI is then exactly the CI in the space of the configuration state
+// functions (CSFs) of that spin: spin-pure, also for open shells and when a state of higher spin
+// lies lower; the number of CSFs (Weyl-Paldus) is reported with the number of determinants.
 #pragma once
 
 #include <cstddef>
@@ -19,6 +25,7 @@
 
 #include "macqc/correlated_gradient.h"
 #include "macqc/mo_integrals.h"
+#include "macqc/so_methods.h"
 
 namespace macqc {
 
@@ -42,6 +49,9 @@ private:
 
 // Number of strings C(n, N) as a floating-point number (no overflow).
 double binomial_count(int n, int N);
+// 15.0: number of configuration state functions of N electrons in n orbitals with total spin S
+// (Weyl-Paldus dimension formula).
+double csf_count(int n, int N, double S);
 
 struct FCISize {
     int orbitals = 0, alpha = 0, beta = 0;
@@ -92,6 +102,11 @@ struct FCIResultGeneral {
     double total_energy = 0.0;
     double correlation_energy = 0.0;  // E_FCI - E_RHF
     double s2 = 0.0;                  // <S^2>
+    // 15.0: the Davidson vectors are projected onto the requested spin S (Loewdin), so the CI
+    // is that of the configuration state functions of S; their number (Weyl-Paldus)
+    bool spin_adapted = false;
+    double spin = 0.0;
+    double csfs = 0.0;
     double hf_weight = 0.0;           // |C_RHF|^2
     int orbitals = 0, alpha = 0, beta = 0;
     std::size_t alpha_strings = 0, beta_strings = 0, determinants = 0;
@@ -119,6 +134,13 @@ FCIResultGeneral run_fci_determinants(const MOIntegrals& mo, int n_alpha, int n_
 // ones; each is one matrix product.
 CorrelatedDensity fci_densities(int n_orbitals, int n_alpha, int n_beta, const std::vector<double>& vector,
                                 int threads = 0);
+// 15.0: spin-resolved densities of any n_alpha, n_beta in the convention of the spin-orbital engine
+// (so_methods.h: E = sum_s D_s h_s + sum G_aa (pq|rs) + G_bb (pq|rs) + G_ab (pq|rs)_ab), of the
+// symmetrised bilinear form 1/2 (<x|O|y> + <y|O|x>) of two CI vectors (x = y: the ordinary
+// densities): D^s_pq = <a+_ps a_qs>, G_ss,pqrs = <a+_ps a+_rs a_ss a_qs> / 2, G_ab,pqrs =
+// <a+_pa a+_rb a_sb a_qa>.
+SODensities fci_spin_densities(int n_orbitals, int n_alpha, int n_beta, const std::vector<double>& x,
+                               const std::vector<double>& y, int threads = 0);
 // Memory (bytes) of fci_densities.
 double fci_density_bytes(int n_orbitals, int n_alpha);
 

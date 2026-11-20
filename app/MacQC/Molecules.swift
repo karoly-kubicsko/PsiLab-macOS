@@ -19,11 +19,14 @@ nonisolated enum MoleculeChoice: String, CaseIterable, Identifiable, Sendable {
     case nh3 = "NH3"
     /// ΨLab 9.0: a molecule from a structure file (the app keeps them; see CustomMolecules.swift).
     case custom = "custom"
+    /// ΨLab 15.0: an atom (H–Ar) or a molecule of the menu with a fixed geometry (CO, CO₂, N₂O, H₂CO, CH₄, H₂⁺, H₃⁺, H₅⁺,
+    /// N₂, O₂, F₂, Cl₂, NO, NO₂); the selected one is `AppModel.presetKey` (see `MoleculePresets`).
+    case preset = "preset"
 
     var id: String { rawValue }
 
     /// The built-in molecules, in the order of the molecule menu.
-    static var builtIn: [MoleculeChoice] { allCases.filter { $0 != .custom } }
+    static var builtIn: [MoleculeChoice] { allCases.filter { $0 != .custom && $0 != .preset } }
 
     /// Name in the user interface.
     var title: String {
@@ -35,6 +38,7 @@ nonisolated enum MoleculeChoice: String, CaseIterable, Identifiable, Sendable {
         case .h2o2: return "H₂O₂"
         case .nh3: return "NH₃"
         case .custom: return "Custom molecule"
+        case .preset: return "Atom or molecule"
         }
     }
 
@@ -44,7 +48,7 @@ nonisolated enum MoleculeChoice: String, CaseIterable, Identifiable, Sendable {
         case .lih: return 4
         case .h2o, .nh3: return 10
         case .h2o2: return 18
-        case .custom: return 0
+        case .custom, .preset: return 0
         }
     }
 
@@ -57,7 +61,7 @@ nonisolated enum MoleculeChoice: String, CaseIterable, Identifiable, Sendable {
         case .h2o: return ["O", "H", "H"]
         case .h2o2: return ["O", "O", "H", "H"]
         case .nh3: return ["N", "H", "H", "H"]
-        case .custom: return []
+        case .custom, .preset: return []
         }
     }
 
@@ -76,7 +80,7 @@ nonisolated enum MoleculeChoice: String, CaseIterable, Identifiable, Sendable {
         case .lih: return "R(Li–H)"
         case .h2o, .h2o2: return "R(O–H)"
         case .nh3: return "R(N–H)"
-        case .custom: return "R"
+        case .custom, .preset: return "R"
         }
     }
 
@@ -100,7 +104,7 @@ nonisolated enum MoleculeChoice: String, CaseIterable, Identifiable, Sendable {
         case .h2o: return 0.9572 / Units.bohrToAngstrom
         case .h2o2: return 0.9670 / Units.bohrToAngstrom
         case .nh3: return 1.012 / Units.bohrToAngstrom
-        case .custom: return 1.0
+        case .custom, .preset: return 1.0
         }
     }
 
@@ -135,20 +139,21 @@ nonisolated enum MoleculeChoice: String, CaseIterable, Identifiable, Sendable {
         case .heh: return 0.8...5.0
         case .h2: return (0.40 / Units.bohrToAngstrom)...(3.00 / Units.bohrToAngstrom)
         case .lih: return (1.00 / Units.bohrToAngstrom)...(4.00 / Units.bohrToAngstrom)
-        case .h2o, .h2o2, .nh3, .custom: return (0.70 / Units.bohrToAngstrom)...(2.00 / Units.bohrToAngstrom)
+        case .h2o, .h2o2, .nh3, .custom, .preset: return (0.70 / Units.bohrToAngstrom)...(2.00 / Units.bohrToAngstrom)
         }
     }
 
     /// Short note shown under the molecule picker.
     var subtitle: String {
         switch self {
-        case .heh: return "2 electrons, charge +1: STO-nG (Szabo–Ostlund, HF and Full CI) or a Gaussian basis set (all methods and jobs)"
+        case .heh: return "2 electrons, charge +1: STO-nG (Szabo–Ostlund, HF and Full CI) or a Gaussian basis set (all methods and jobs; 15.0 also STO-nG)"
         case .h2: return "2 electrons, closed shell"
         case .lih: return "4 electrons, closed shell"
         case .h2o: return "10 electrons, closed shell (Full CI impossible)"
         case .h2o2: return "18 electrons, closed shell, C₂ (Full CI impossible)"
         case .nh3: return "10 electrons, closed shell, C₃ᵥ (Full CI impossible)"
         case .custom: return "A molecule from a structure file: .xyz (Å; the comment line is its name, LaTeX allowed) or Gaussian input (.gjf, .com)"
+        case .preset: return "An atom or a molecule with a fixed geometry"
         }
     }
 
@@ -168,7 +173,7 @@ nonisolated enum MoleculeChoice: String, CaseIterable, Identifiable, Sendable {
             return [ScanSuggestion(kind: .dihedral, atoms: [2, 1, 3, 4], title: "Umbrella: D(H2–N1–H3–H4) from −110° to −180°", steps: 7, step: -10, start: -110),
                     ScanSuggestion(kind: .angle, atoms: [2, 1, 3], title: "One H–N–H angle", steps: 8, step: 2, start: nil),
                     ScanSuggestion(kind: .bond, atoms: [1, 2], title: "One N–H bond", steps: 10, step: 0.05, start: nil)]
-        case .custom:
+        case .custom, .preset:
             return [ScanSuggestion(kind: .bond, atoms: [1, 2], title: "Bond between atoms 1 and 2", steps: 10, step: 0.05, start: nil),
                     ScanSuggestion(kind: .angle, atoms: [2, 1, 3], title: "Angle of atoms 2–1–3", steps: 8, step: 5, start: nil),
                     ScanSuggestion(kind: .dihedral, atoms: [4, 1, 2, 3], title: "Dihedral of atoms 4–1–2–3 from 0° to 180°", steps: 18, step: 10, start: 0)]
@@ -296,9 +301,23 @@ nonisolated struct ScanSettings: Equatable, Sendable {
 }
 
 /// Methods of the general path, in the order of the method menu. The raw value is the
-/// backend's method name; all correlated methods start from RHF and correlate all electrons.
+/// backend's method name; all correlated methods correlate all electrons. 15.0: "HF" is the SCF
+/// of the reference (RHF for closed-shell singlets, UHF otherwise, or the reference chosen in
+/// the sidebar), and the Møller–Plesset, CI and QCI methods of the spin-orbital engine.
 nonisolated enum MethodChoice: String, CaseIterable, Identifiable, Sendable {
-    case hf = "RHF"
+    case hf = "HF"
+    case mp2 = "MP2"
+    case mp3 = "MP3"
+    case mp4 = "MP4"
+    case mp5 = "MP5"
+    case cisd = "CISD"
+    case cisdT = "CISD(T)"
+    case cisdt = "CISDT"
+    case cisdtq = "CISDTQ"
+    case qcisd = "QCISD"
+    case qcisdT = "QCISD(T)"
+    case qcisdt = "QCISDT"
+    case qcisdtq = "QCISDTQ"
     case ccsd = "CCSD"
     case ccsdT = "CCSD(T)"
     case ccsdt = "CCSDT"
@@ -307,37 +326,56 @@ nonisolated enum MethodChoice: String, CaseIterable, Identifiable, Sendable {
 
     var id: String { rawValue }
 
+    /// The sections of the method menu.
+    static let families: [MethodFamily] = [
+        MethodFamily(title: "Hartree–Fock", methods: [.hf]),
+        MethodFamily(title: "Møller–Plesset perturbation theory", methods: [.mp2, .mp3, .mp4, .mp5]),
+        MethodFamily(title: "Configuration interaction", methods: [.cisd, .cisdT, .cisdt, .cisdtq, .fci]),
+        MethodFamily(title: "Quadratic configuration interaction", methods: [.qcisd, .qcisdT, .qcisdt, .qcisdtq]),
+        MethodFamily(title: "Coupled cluster", methods: [.ccsd, .ccsdT, .ccsdt, .ccsdtq]),
+    ]
+
     /// Name in the user interface.
     var title: String {
         switch self {
         case .hf: return "HF"
-        case .ccsd: return "CCSD"
-        case .ccsdT: return "CCSD(T)"
-        case .ccsdt: return "CCSDT"
-        case .ccsdtq: return "CCSDTQ"
         case .fci: return "Full CI"
+        default: return rawValue
         }
     }
 
-    /// ΨLab 10.0: an analytic Hessian beyond RHF (Full CI, CCSD, CCSD(T)).
+    /// ΨLab 10.0: an analytic Hessian beyond the SCF (closed-shell references; 15.0 every method
+    /// of the spin-orbital engine and Full CI, CCSD, CCSD(T); CCSDT and CCSDTQ numerical).
     var hasAnalyticCorrelatedHessian: Bool {
         switch self {
-        case .ccsd, .ccsdT, .fci: return true
         case .hf, .ccsdt, .ccsdtq: return false
+        default: return true
         }
     }
 
     var isCoupledCluster: Bool {
         switch self {
         case .ccsd, .ccsdT, .ccsdt, .ccsdtq: return true
-        case .hf, .fci: return false
+        default: return false
         }
     }
 
     /// One-line description under the method menu.
     var explanation: String {
         switch self {
-        case .hf: return "Restricted Hartree–Fock (no electron correlation)."
+        case .hf: return "Hartree–Fock (no electron correlation): RHF for closed-shell singlets, UHF for open shells, or the reference chosen below."
+        case .mp2: return "Second-order Møller–Plesset perturbation theory."
+        case .mp3: return "Third-order Møller–Plesset perturbation theory."
+        case .mp4: return "Fourth-order Møller–Plesset perturbation theory, MP4(SDTQ)."
+        case .mp5: return "Fifth-order Møller–Plesset perturbation theory (singles to quadruples)."
+        case .cisd: return "Configuration interaction with single and double excitations."
+        case .cisdT: return "CISD plus the perturbative triples correction (T) of the CISD amplitudes."
+        case .cisdt: return "Configuration interaction up to triple excitations."
+        case .cisdtq: return "Configuration interaction up to quadruple excitations."
+        case .qcisd: return "Quadratic configuration interaction with single and double excitations (Pople 1987)."
+        case .qcisdT: return "QCISD plus the perturbative triples correction (T)."
+        case .qcisdt: return "Quadratic configuration interaction with full triple excitations."
+        case .qcisdtq: return "Quadratic configuration interaction up to quadruple excitations."
         case .ccsd: return "Coupled cluster with single and double excitations."
         case .ccsdT: return "CCSD plus the perturbative triples correction (T)."
         case .ccsdt: return "Coupled cluster with single, double and triple excitations."
@@ -346,18 +384,145 @@ nonisolated enum MethodChoice: String, CaseIterable, Identifiable, Sendable {
         }
     }
 
-    /// Accepts the raw value or the title (launch arguments), in any case.
+    /// Accepts the raw value or the title (launch arguments), in any case; "RHF" (14.0) is HF.
     init?(name: String) {
         let n = name.lowercased()
+        if n == "rhf" || n == "uhf" || n == "rohf" || n == "scf" {
+            self = .hf
+            return
+        }
         guard let m = MethodChoice.allCases.first(where: { $0.rawValue.lowercased() == n || $0.title.lowercased() == n })
         else { return nil }
         self = m
     }
 
-    /// Title of a backend method name ("RHF" -> "HF").
+    /// Title of a backend method name ("RHF" -> "HF"; 15.0 labels with the reference, "UMP2",
+    /// "ROHF", stay as they are).
     static func title(of backendName: String) -> String {
-        MethodChoice(rawValue: backendName)?.title ?? backendName
+        if backendName == "RHF" { return "HF" }
+        return MethodChoice(rawValue: backendName)?.title ?? backendName
     }
+}
+
+/// A section of the method menu (15.0).
+nonisolated struct MethodFamily: Identifiable, Sendable {
+    let title: String
+    let methods: [MethodChoice]
+    var id: String { title }
+}
+
+/// ΨLab 15.0: the reference of the SCF and of the correlated methods.
+nonisolated enum ReferenceChoice: String, CaseIterable, Identifiable, Sendable {
+    case automatic = ""
+    case rhf = "RHF"
+    case uhf = "UHF"
+    case rohf = "ROHF"
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .automatic: return "Automatic"
+        case .rhf: return "RHF"
+        case .uhf: return "UHF"
+        case .rohf: return "ROHF"
+        }
+    }
+
+    var explanation: String {
+        switch self {
+        case .automatic: return "RHF for closed-shell singlets, UHF for open shells (ROHF for Full CI), as in Gaussian."
+        case .rhf: return "Restricted Hartree–Fock: closed-shell singlets only."
+        case .uhf: return "Unrestricted Hartree–Fock: separate α and β orbitals; ⟨S²⟩ shows the spin contamination."
+        case .rohf: return "Restricted open-shell Hartree–Fock: doubly and singly occupied orbitals, a pure spin state."
+        }
+    }
+}
+
+/// ΨLab 15.0: computed Hessians of optimisations (Gaussian's Opt=CalcFC, CalcAll, RecalcFC=N).
+nonisolated enum HessianMode: String, CaseIterable, Identifiable, Sendable {
+    case automatic = "auto"    // minimisations: the initial Hessian (analytic or model), then BFGS
+    case calcFC = "calcfc"
+    case calcAll = "calcall"
+    case recalcFC = "recalcfc"
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .automatic: return "Initial"
+        case .calcFC: return "CalcFC"
+        case .calcAll: return "CalcAll"
+        case .recalcFC: return "RecalcFC"
+        }
+    }
+}
+
+/// ΨLab 15.0: an atom or molecule of the menu with a fixed geometry. The backend has the
+/// geometries (molecule.cpp); the app needs the atoms for the scan menu and the electron count.
+nonisolated struct MoleculePreset: Identifiable, Sendable, Hashable {
+    let key: String            // the backend's name, e.g. "O2", "H5+", "N"
+    let title: String          // e.g. "O₂"
+    let symbols: [String]      // atoms in the backend's order
+    let charge: Int
+    let multiplicity: Int
+    let note: String
+
+    var id: String { key }
+    var atomCount: Int { symbols.count }
+    var atomLabels: [String] { symbols.enumerated().map { "\($0.element)\($0.offset + 1)" } }
+    var electrons: Int { symbols.reduce(0) { $0 + Elements.atomicNumber($1) } - charge }
+}
+
+nonisolated enum MoleculePresets {
+    /// The atoms H–Ar in their ground states (term symbols as in NIST's atomic spectra database).
+    static let atoms: [MoleculePreset] = {
+        let symbols = ["H", "He", "Li", "Be", "B", "C", "N", "O", "F", "Ne", "Na", "Mg", "Al", "Si", "P", "S", "Cl", "Ar"]
+        let mult = [2, 1, 2, 1, 2, 3, 4, 3, 2, 1, 2, 1, 2, 3, 4, 3, 2, 1]
+        let terms = ["²S", "¹S", "²S", "¹S", "²P", "³P", "⁴S", "³P", "²P", "¹S", "²S", "¹S", "²P", "³P", "⁴S", "³P", "²P", "¹S"]
+        return symbols.indices.map { k in
+            MoleculePreset(key: symbols[k], title: symbols[k], symbols: [symbols[k]], charge: 0, multiplicity: mult[k],
+                           note: "\(symbols[k]) atom, ground state \(terms[k]) (multiplicity \(mult[k]))")
+        }
+    }()
+
+    /// The molecules (geometries of the backend: experimental r_e of the diatomics, NO₂ 1.1934 Å
+    /// and 134.1°, H₃⁺ an equilateral triangle, H₅⁺ C₂ᵥ MP2/aug-cc-pVTZ).
+    static let molecules: [MoleculePreset] = [
+        MoleculePreset(key: "H2+", title: "H₂⁺", symbols: ["H", "H"], charge: 1, multiplicity: 2,
+                       note: "1 electron, X ²Σg⁺, R = 1.0569 Å (2.00 bohr)"),
+        MoleculePreset(key: "H3+", title: "H₃⁺", symbols: ["H", "H", "H"], charge: 1, multiplicity: 1,
+                       note: "2 electrons, D₃ₕ equilateral triangle, R = 0.873 Å (1.65 bohr)"),
+        MoleculePreset(key: "H5+", title: "H₅⁺", symbols: ["H", "H", "H", "H", "H"], charge: 1, multiplicity: 1,
+                       note: "4 electrons, C₂ᵥ, H₃⁺ + H₂ (MP2/aug-cc-pVTZ geometry)"),
+        MoleculePreset(key: "N2", title: "N₂", symbols: ["N", "N"], charge: 0, multiplicity: 1,
+                       note: "14 electrons, X ¹Σg⁺, r_e = 1.0977 Å"),
+        MoleculePreset(key: "O2", title: "O₂", symbols: ["O", "O"], charge: 0, multiplicity: 3,
+                       note: "16 electrons, X ³Σg⁻ (triplet), r_e = 1.2075 Å"),
+        MoleculePreset(key: "F2", title: "F₂", symbols: ["F", "F"], charge: 0, multiplicity: 1,
+                       note: "18 electrons, X ¹Σg⁺, r_e = 1.4119 Å"),
+        MoleculePreset(key: "Cl2", title: "Cl₂", symbols: ["Cl", "Cl"], charge: 0, multiplicity: 1,
+                       note: "34 electrons, X ¹Σg⁺, r_e = 1.9879 Å"),
+        MoleculePreset(key: "NO", title: "NO", symbols: ["N", "O"], charge: 0, multiplicity: 2,
+                       note: "15 electrons, X ²Π (doublet), r_e = 1.1508 Å"),
+        MoleculePreset(key: "NO2", title: "NO₂", symbols: ["N", "O", "O"], charge: 0, multiplicity: 2,
+                       note: "23 electrons, X ²A₁ (doublet), C₂ᵥ, r(N–O) = 1.1934 Å, ∠ONO = 134.1°"),
+        // the closed-shell molecules of the structure files in examples/ (fixed experimental geometries)
+        MoleculePreset(key: "CO", title: "CO", symbols: ["C", "O"], charge: 0, multiplicity: 1,
+                       note: "14 electrons, X ¹Σ⁺, r(C–O) = 1.1283 Å"),
+        MoleculePreset(key: "CO2", title: "CO₂", symbols: ["C", "O", "O"], charge: 0, multiplicity: 1,
+                       note: "22 electrons, X ¹Σg⁺, linear, r(C–O) = 1.160 Å"),
+        MoleculePreset(key: "N2O", title: "N₂O", symbols: ["N", "N", "O"], charge: 0, multiplicity: 1,
+                       note: "22 electrons, X ¹Σ⁺, linear N–N–O, r(N–N) = 1.1273 Å, r(N–O) = 1.1851 Å"),
+        MoleculePreset(key: "H2CO", title: "H₂CO", symbols: ["C", "O", "H", "H"], charge: 0, multiplicity: 1,
+                       note: "16 electrons, X ¹A₁, C₂ᵥ, r(C–O) = 1.2033 Å, r(C–H) = 1.1005 Å, ∠HCH = 116.2°"),
+        MoleculePreset(key: "CH4", title: "CH₄", symbols: ["C", "H", "H", "H", "H"], charge: 0, multiplicity: 1,
+                       note: "10 electrons, X ¹A₁, T_d, r(C–H) = 1.0870 Å"),
+    ]
+
+    static let all: [MoleculePreset] = atoms + molecules
+
+    static func find(_ key: String) -> MoleculePreset? { all.first { $0.key == key } }
 }
 
 /// Job types (ΨLab 5.0 and 7.0), in the order of the job menu. The raw value is the backend's
@@ -461,6 +626,8 @@ nonisolated enum BasisSets {
     /// in the order of the backend's library (basis.cpp). 14.0: the Pople 6-31G family (Cartesian
     /// d functions, 6D, as Gaussian uses them) and 6-311G family and the Karlsruhe def2 sets.
     static let families: [BasisFamily] = [
+        // 15.0: the minimal STO-nG sets for every molecule (STO-1G H–Ca, STO-2G and STO-3G H–Xe)
+        BasisFamily(title: "Pople STO-nG (minimal)", names: ["STO-1G", "STO-2G", "STO-3G"]),
         BasisFamily(title: "Pople 6-31G (Cartesian d, 6D)",
                     names: ["6-31G", "6-31G*", "6-31+G", "6-31+G*", "6-31+G**", "6-31++G*", "6-31++G**"]),
         BasisFamily(title: "Pople 6-311G",
@@ -475,7 +642,7 @@ nonisolated enum BasisSets {
                     names: ["aug-cc-pCVDZ", "aug-cc-pCVTZ", "aug-cc-pCVQZ", "aug-cc-pCV5Z"]),
     ]
 
-    /// All 33 basis sets of the library in menu order.
+    /// All 36 basis sets of the library in menu order (15.0 with STO-1G, STO-2G, STO-3G).
     static let all: [String] = families.flatMap(\.names)
 
     /// HeH⁺ in the Slater-type basis of Szabo and Ostlund, expanded in 1, 2 or 3 Gaussians.
@@ -483,13 +650,12 @@ nonisolated enum BasisSets {
 
     /// 14.0: the 6-31G family, whose d functions are six Cartesian functions (6D).
     static func isCartesianD(_ name: String) -> Bool {
-        families[0].names.contains { $0.lowercased() == name.lowercased() }
+        families[1].names.contains { $0.lowercased() == name.lowercased() }
     }
 
-    /// The basis sets of a molecule's menu (HeH⁺: the STO-nG sets first).
-    static func choices(for molecule: MoleculeChoice) -> [String] {
-        molecule == .heh ? szaboOstlund + all : all
-    }
+    /// The basis sets of a molecule's menu (15.0: the same for every molecule; HeH⁺ in STO-nG is the
+    /// Szabo–Ostlund calculation unless that option is switched off).
+    static func choices(for molecule: MoleculeChoice) -> [String] { all }
 
     static func isSzaboOstlund(_ name: String) -> Bool {
         name.uppercased().hasPrefix("STO")

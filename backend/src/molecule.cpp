@@ -57,6 +57,162 @@ std::string canonical_molecule_name(const std::string& name) {
     return "";
 }
 
+namespace {
+
+std::vector<MoleculePreset> build_presets() {
+    std::vector<MoleculePreset> v;
+    // atoms H-Ar: ground-state terms and multiplicities
+    const char* syms[18] = {"H", "He", "Li", "Be", "B", "C", "N", "O", "F", "Ne", "Na", "Mg", "Al", "Si", "P", "S", "Cl", "Ar"};
+    const int mult[18] = {2, 1, 2, 1, 2, 3, 4, 3, 2, 1, 2, 1, 2, 3, 4, 3, 2, 1};
+    const char* term[18] = {"2S", "1S", "2S", "1S", "2P", "3P", "4S", "3P", "2P", "1S",
+                            "2S", "1S", "2P", "3P", "4S", "3P", "2P", "1S"};
+    for (int k = 0; k < 18; ++k) {
+        MoleculePreset p;
+        p.key = syms[k];
+        p.title = std::string(syms[k]) + " atom";
+        p.multiplicity = mult[k];
+        p.state = term[k];
+        p.atoms = {{syms[k], {0.0, 0.0, 0.0}}};
+        p.source = "ground state of the atom";
+        p.atom = true;
+        v.push_back(p);
+    }
+    auto diatomic = [&](const char* key, const char* title, const char* a, const char* b, double r, int charge, int m,
+                        const char* state, const char* source) {
+        MoleculePreset p;
+        p.key = key;
+        p.title = title;
+        p.charge = charge;
+        p.multiplicity = m;
+        p.state = state;
+        p.atoms = {{a, {0.0, 0.0, -0.5 * r}}, {b, {0.0, 0.0, 0.5 * r}}};
+        p.source = source;
+        v.push_back(p);
+    };
+    diatomic("H2+", "H$_2^+$", "H", "H", 1.9972 * kBohrInAngstrom, 1, 2, "X 2Sigma_g+",
+             "r_e = 1.9972 bohr (exact Born-Oppenheimer equilibrium)");
+    {
+        // H3+: equilateral triangle, r_e = 1.6500 bohr (high-accuracy potential energy surfaces)
+        MoleculePreset p;
+        p.key = "H3+";
+        p.title = "H$_3^+$";
+        p.charge = 1;
+        p.multiplicity = 1;
+        p.state = "X 1A1'";
+        const double a = 1.6500 * kBohrInAngstrom, rc = a / std::sqrt(3.0);
+        for (int k = 0; k < 3; ++k) {
+            const double t = (90.0 + 120.0 * k) * 3.14159265358979323846 / 180.0;
+            p.atoms.push_back({"H", {rc * std::cos(t), rc * std::sin(t), 0.0}});
+        }
+        p.source = "D3h, r_e = 1.6500 bohr";
+        v.push_back(p);
+    }
+    {
+        // H5+: the C2v minimum, a proton shared between an H2 and an H3+ apex (MP2/aug-cc-pVTZ, ΨLab 15.0)
+        MoleculePreset p;
+        p.key = "H5+";
+        p.title = "H$_5^+$";
+        p.charge = 1;
+        p.multiplicity = 1;
+        p.state = "X 1A1 (C2v)";
+#include "macqc/h5plus_geometry.inc"
+        p.source = "C2v minimum optimised at MP2/aug-cc-pVTZ";
+        v.push_back(p);
+    }
+    diatomic("N2", "N$_2$", "N", "N", 1.09768, 0, 1, "X 1Sigma_g+", "r_e (Huber and Herzberg)");
+    diatomic("O2", "O$_2$", "O", "O", 1.20752, 0, 3, "X 3Sigma_g-", "r_e (Huber and Herzberg)");
+    diatomic("F2", "F$_2$", "F", "F", 1.41193, 0, 1, "X 1Sigma_g+", "r_e (Huber and Herzberg)");
+    diatomic("Cl2", "Cl$_2$", "Cl", "Cl", 1.9879, 0, 1, "X 1Sigma_g+", "r_e (Huber and Herzberg)");
+    {
+        MoleculePreset p;
+        p.key = "NO";
+        p.title = "NO";
+        p.multiplicity = 2;
+        p.state = "X 2Pi";
+        p.atoms = {{"N", {0.0, 0.0, 0.0}}, {"O", {0.0, 0.0, 1.15077}}};
+        p.source = "r_e (Huber and Herzberg)";
+        v.push_back(p);
+    }
+    {
+        // NO2: r(N-O) = 1.1934 A, angle O-N-O = 134.1 degrees (microwave r_e)
+        MoleculePreset p;
+        p.key = "NO2";
+        p.title = "NO$_2$";
+        p.multiplicity = 2;
+        p.state = "X 2A1";
+        const double r = 1.1934, half = 0.5 * 134.1 * 3.14159265358979323846 / 180.0;
+        p.atoms = {{"N", {0.0, 0.0, 0.0}},
+                   {"O", {r * std::sin(half), 0.0, -r * std::cos(half)}},
+                   {"O", {-r * std::sin(half), 0.0, -r * std::cos(half)}}};
+        p.source = "r_e = 1.1934 A, 134.1 degrees (microwave spectroscopy)";
+        v.push_back(p);
+    }
+    // ΨLab 15.0: closed-shell molecules of the structure files in examples/ (coordinates in
+    // angstrom, as in the files; experimental geometries)
+    auto molecule = [&](const char* key, const char* title, const char* state,
+                        std::vector<std::pair<std::string, std::array<double, 3>>> atoms, const char* source) {
+        MoleculePreset p;
+        p.key = key;
+        p.title = title;
+        p.multiplicity = 1;
+        p.state = state;
+        p.atoms = std::move(atoms);
+        p.source = source;
+        v.push_back(p);
+    };
+    molecule("CO", "CO", "X 1Sigma+", {{"C", {0.0, 0.0, 0.0}}, {"O", {0.0, 0.0, 1.1283}}},
+             "r = 1.1283 A (examples/carbon-monoxide.xyz)");
+    molecule("CO2", "CO$_2$", "X 1Sigma_g+",
+             {{"C", {0.0, 0.0, 0.0}}, {"O", {0.0, 0.0, 1.16}}, {"O", {0.0, 0.0, -1.16}}},
+             "linear, r(C-O) = 1.160 A (examples/carbon-dioxide.xyz)");
+    molecule("N2O", "N$_2$O", "X 1Sigma+",
+             {{"N", {0.0, 0.0, -1.1273}}, {"N", {0.0, 0.0, 0.0}}, {"O", {0.0, 0.0, 1.1851}}},
+             "linear N-N-O, r(N-N) = 1.1273 A, r(N-O) = 1.1851 A (examples/dinitrogen-monoxide.xyz)");
+    molecule("H2CO", "H$_2$CO", "X 1A1",
+             {{"C", {0.0, 0.0, 0.0}},
+              {"O", {0.0, 0.0, 1.2033}},
+              {"H", {0.0, 0.934192, -0.581709}},
+              {"H", {0.0, -0.934192, -0.581709}}},
+             "C2v, r(C-O) = 1.2033 A, r(C-H) = 1.1005 A, H-C-H 116.2 degrees (examples/formaldehyde.xyz)");
+    molecule("CH4", "CH$_4$", "X 1A1",
+             {{"C", {0.0, 0.0, 0.0}},
+              {"H", {0.62758, 0.62758, 0.62758}},
+              {"H", {-0.62758, -0.62758, 0.62758}},
+              {"H", {-0.62758, 0.62758, -0.62758}},
+              {"H", {0.62758, -0.62758, -0.62758}}},
+             "Td, r(C-H) = 1.0870 A (examples/methane.xyz)");
+    return v;
+}
+
+}  // namespace
+
+const std::vector<MoleculePreset>& molecule_presets() {
+    static const std::vector<MoleculePreset> v = build_presets();
+    return v;
+}
+
+const MoleculePreset* find_molecule_preset(const std::string& name) {
+    std::string s = compact_lower(name);
+    const std::string atom_suffix = "atom";
+    if (s.size() > atom_suffix.size() && s.compare(s.size() - atom_suffix.size(), atom_suffix.size(), atom_suffix) == 0)
+        s = s.substr(0, s.size() - atom_suffix.size());
+    const std::string plus = "plus";
+    if (s.size() > plus.size() && s.compare(s.size() - plus.size(), plus.size(), plus) == 0)
+        s = s.substr(0, s.size() - plus.size()) + "+";
+    for (const MoleculePreset& p : molecule_presets())
+        if (compact_lower(p.key) == s) return &p;
+    static const std::pair<const char*, const char*> names[] = {
+        {"nitrogen", "N2"}, {"oxygen", "O2"}, {"fluorine", "F2"}, {"chlorine", "Cl2"},
+        {"nitricoxide", "NO"}, {"nitrogenmonoxide", "NO"}, {"nitrogendioxide", "NO2"},
+        {"carbonmonoxide", "CO"}, {"carbondioxide", "CO2"}, {"dinitrogenmonoxide", "N2O"}, {"nitrousoxide", "N2O"},
+        {"formaldehyde", "H2CO"}, {"methanal", "H2CO"}, {"ch2o", "H2CO"}, {"methane", "CH4"}};
+    for (const auto& n : names)
+        if (s == n.first)
+            for (const MoleculePreset& p : molecule_presets())
+                if (p.key == n.second) return &p;
+    return nullptr;
+}
+
 double default_bond_length(const std::string& molecule) {
     const std::string m = canonical_molecule_name(molecule);
     if (m == "H2") return 0.74144 / kBohrInAngstrom;

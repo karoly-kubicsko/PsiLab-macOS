@@ -342,6 +342,169 @@ Matrix FockBuilder::build_direct(const Matrix& D) const {
     return reduce_g(parts, n);
 }
 
+// ---- 15.0: Coulomb and exchange matrices of several densities ----------------------------
+//
+// Every unique integral x = (pq|rs) with its degeneracy d adds d x D_rs to J_pq, d x D_pq to J_rs
+// and d x / 2 D_qs, D_pr, D_qr, D_ps to K_pr, K_qs, K_ps, K_qr; the sums over the threads are
+// symmetrised and quartered (as in build()).
+
+void FockBuilder::build_jk(const std::vector<Matrix>& D, std::vector<Matrix>& J, std::vector<Matrix>& K) const {
+    if (stored_) build_jk_stored(D, J, K);
+    else build_jk_direct(D, J, K);
+}
+
+namespace {
+
+void reduce_jk(const std::vector<std::vector<Matrix>>& parts, std::size_t n, std::size_t nd, std::vector<Matrix>& J,
+               std::vector<Matrix>& K) {
+    J.assign(nd, Matrix(n, n));
+    K.assign(nd, Matrix(n, n));
+    for (std::size_t d = 0; d < nd; ++d) {
+        Matrix sj(n, n), sk(n, n);
+        for (const auto& part : parts) {
+            const Matrix& pj = part[2 * d];
+            const Matrix& pk = part[2 * d + 1];
+            for (std::size_t i = 0; i < n; ++i)
+                for (std::size_t j = 0; j < n; ++j) {
+                    sj(i, j) += pj(i, j);
+                    sk(i, j) += pk(i, j);
+                }
+        }
+        for (std::size_t i = 0; i < n; ++i)
+            for (std::size_t j = 0; j < n; ++j) {
+                J[d](i, j) = 0.25 * (sj(i, j) + sj(j, i));
+                K[d](i, j) = 0.25 * (sk(i, j) + sk(j, i));
+            }
+    }
+}
+
+}  // namespace
+
+void FockBuilder::build_jk_stored(const std::vector<Matrix>& D, std::vector<Matrix>& J, std::vector<Matrix>& K) const {
+    const std::size_t n = static_cast<std::size_t>(basis_.n_functions);
+    const std::size_t nd = D.size();
+    std::vector<std::vector<Matrix>> parts(static_cast<std::size_t>(threads_), std::vector<Matrix>(2 * nd, Matrix(n, n)));
+    std::atomic<std::size_t> next{0};
+    parallel(threads_, [&](int t) {
+        std::vector<Matrix>& acc = parts[static_cast<std::size_t>(t)];
+        for (std::size_t k; (k = next++) < n;) {
+            check_cancelled();
+            const std::size_t p = n - 1 - k;
+            for (std::size_t q = 0; q <= p; ++q) {
+                const std::size_t pq = p * (p + 1) / 2 + q;
+                const double* v0 = &eri_[pq * (pq + 1) / 2];
+                for (std::size_t d = 0; d < nd; ++d) {
+                    const Matrix& Dd = D[d];
+                    Matrix& Jd = acc[2 * d];
+                    Matrix& Kd = acc[2 * d + 1];
+                    const double* v = v0;
+                    const double dpq = Dd(p, q);
+                    double gpq = 0.0;
+                    for (std::size_t r = 0; r <= p; ++r) {
+                        const std::size_t smax = (r == p) ? q : r;
+                        for (std::size_t s = 0; s <= smax; ++s) {
+                            double x = *v++;
+                            if (x == 0.0) continue;
+                            const std::size_t rs = r * (r + 1) / 2 + s;
+                            if (p != q) x *= 2.0;
+                            if (r != s) x *= 2.0;
+                            if (pq != rs) x *= 2.0;
+                            gpq += Dd(r, s) * x;
+                            Jd(r, s) += dpq * x;
+                            const double xk = 0.5 * x;
+                            Kd(p, r) += Dd(q, s) * xk;
+                            Kd(q, s) += Dd(p, r) * xk;
+                            Kd(p, s) += Dd(q, r) * xk;
+                            Kd(q, r) += Dd(p, s) * xk;
+                        }
+                    }
+                    Jd(p, q) += gpq;
+                }
+            }
+        }
+    });
+    reduce_jk(parts, n, nd, J, K);
+}
+
+void FockBuilder::build_jk_direct(const std::vector<Matrix>& D, std::vector<Matrix>& J, std::vector<Matrix>& K) const {
+    const std::size_t n = static_cast<std::size_t>(basis_.n_functions);
+    const std::size_t ns = basis_.shells.size();
+    const std::size_t nd = D.size();
+    std::vector<double> dmax(ns * ns, 0.0);
+    for (std::size_t a = 0; a < ns; ++a)
+        for (std::size_t b = 0; b < ns; ++b) {
+            const Shell& A = basis_.shells[a];
+            const Shell& B = basis_.shells[b];
+            double m = 0.0;
+            for (const Matrix& Dd : D)
+                for (int i = 0; i < A.size(); ++i)
+                    for (int j = 0; j < B.size(); ++j)
+                        m = std::max(m, std::fabs(Dd(A.first_function + i, B.first_function + j)));
+            dmax[a * ns + b] = m;
+        }
+    const std::size_t npairs = pairs_.pairs.size();
+    std::vector<std::vector<Matrix>> parts(static_cast<std::size_t>(threads_), std::vector<Matrix>(2 * nd, Matrix(n, n)));
+    std::atomic<std::size_t> next{0};
+    parallel(threads_, [&](int t) {
+        std::vector<Matrix>& acc = parts[static_cast<std::size_t>(t)];
+        EriEngine engine(basis_);
+        for (std::size_t k; (k = next++) < npairs;) {
+            check_cancelled();
+            const std::size_t P = npairs - 1 - k;
+            const ShellPair& bra = pairs_.pairs[P];
+            if (bra.prims.empty()) continue;
+            const std::size_t sa = static_cast<std::size_t>(bra.a), sb = static_cast<std::size_t>(bra.b);
+            const Shell& A = basis_.shells[sa];
+            const Shell& B = basis_.shells[sb];
+            for (std::size_t Q = 0; Q <= P; ++Q) {
+                const ShellPair& ket = pairs_.pairs[Q];
+                if (ket.prims.empty()) continue;
+                const double bound = pairs_.schwarz[P] * pairs_.schwarz[Q];
+                if (bound < kStoreScreen) continue;
+                const std::size_t sc = static_cast<std::size_t>(ket.a), sd = static_cast<std::size_t>(ket.b);
+                const double dm = std::max({dmax[sa * ns + sb], dmax[sc * ns + sd], dmax[sa * ns + sc],
+                                            dmax[sb * ns + sd], dmax[sa * ns + sd], dmax[sb * ns + sc]});
+                if (bound * dm < kDirectScreen) continue;
+                const Shell& C = basis_.shells[sc];
+                const Shell& Dsh = basis_.shells[sd];
+                const double* v0 = engine.compute(bra, ket);
+                const double deg = (sa == sb ? 1.0 : 2.0) * (sc == sd ? 1.0 : 2.0) * (P == Q ? 1.0 : 2.0);
+                const int na = A.size(), nb = B.size(), nc = C.size(), ndd = Dsh.size();
+                for (std::size_t d = 0; d < nd; ++d) {
+                    const Matrix& Dd = D[d];
+                    Matrix& Jd = acc[2 * d];
+                    Matrix& Kd = acc[2 * d + 1];
+                    const double* v = v0;
+                    for (int a = 0; a < na; ++a) {
+                        const std::size_t p = static_cast<std::size_t>(A.first_function + a);
+                        for (int b = 0; b < nb; ++b) {
+                            const std::size_t q = static_cast<std::size_t>(B.first_function + b);
+                            const double dpq = Dd(p, q);
+                            double gpq = 0.0;
+                            for (int c = 0; c < nc; ++c) {
+                                const std::size_t r = static_cast<std::size_t>(C.first_function + c);
+                                for (int e = 0; e < ndd; ++e) {
+                                    const double x = deg * *v++;
+                                    const std::size_t s = static_cast<std::size_t>(Dsh.first_function + e);
+                                    gpq += Dd(r, s) * x;
+                                    Jd(r, s) += dpq * x;
+                                    const double xk = 0.5 * x;
+                                    Kd(p, r) += Dd(q, s) * xk;
+                                    Kd(q, s) += Dd(p, r) * xk;
+                                    Kd(p, s) += Dd(q, r) * xk;
+                                    Kd(q, r) += Dd(p, s) * xk;
+                                }
+                            }
+                            Jd(p, q) += gpq;
+                        }
+                    }
+                }
+            }
+        }
+    });
+    reduce_jk(parts, n, nd, J, K);
+}
+
 namespace {
 
 // 14.0, the SAD guess: the density of a neutral atom (with its ECP) in its own basis functions,
@@ -435,6 +598,10 @@ Matrix sad_density(const Molecule& mol, const BasisSet& basis, int threads, doub
 }
 
 }  // namespace
+
+Matrix sad_guess_density(const Molecule& mol, const BasisSet& basis, int threads, double memory_mb) {
+    return sad_density(mol, basis, threads, memory_mb);
+}
 
 RHFResult run_rhf(const Molecule& mol, const BasisSet& basis, const RHFOptions& opt, const RHFProgress& progress) {
     check_ecps(mol, basis);  // 14.0: the molecule carries the ECPs of the basis set
@@ -634,6 +801,14 @@ RHFResult run_rhf(const Molecule& mol, const BasisSet& basis, const RHFOptions& 
     const double potential = r.total_energy - r.kinetic_energy;
     r.virial_ratio = r.kinetic_energy != 0.0 ? -potential / r.kinetic_energy : 0.0;
     r.scf_seconds = seconds_since(t1);
+    // 15.0: the open-shell fields of a closed-shell determinant
+    r.reference = "RHF";
+    r.multiplicity = 1;
+    r.n_alpha = r.n_beta = nocc;
+    r.Pa = Matrix(n, n);
+    for (std::size_t i = 0; i < n; ++i)
+        for (std::size_t j = 0; j < n; ++j) r.Pa(i, j) = 0.5 * P_built(i, j);
+    r.Pb = r.Pa;
     return r;
 }
 

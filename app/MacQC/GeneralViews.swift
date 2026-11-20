@@ -29,7 +29,11 @@ struct GeneralSummaryView: View {
                 if let rhf = out.rhf {
                     GlassGroup(spacing: 14) {
                         HStack(spacing: 14) {
-                            EnergyCard(title: "RHF total energy", value: rhf.totalEnergy, decimals: 10)
+                            EnergyCard(title: "\(out.referenceLabel) total energy", value: rhf.totalEnergy, decimals: 10)
+                            if let c = out.correlated {
+                                EnergyCard(title: "\(c.title) total energy", value: c.totalEnergy, decimals: 10)
+                                EnergyCard(title: "Correlation energy", value: c.correlationEnergy, decimals: 10)
+                            }
                             if let fci = out.fullCI {
                                 EnergyCard(title: "Full CI total energy", value: fci.totalEnergy, decimals: 10)
                                 EnergyCard(title: "Correlation energy", value: fci.correlationEnergy, decimals: 10)
@@ -62,9 +66,15 @@ struct GeneralSummaryView: View {
                     basisPanel(b)
                 }
                 if let rhf = out.rhf {
-                    SectionTitle("Hartree–Fock")
+                    SectionTitle("Hartree–Fock (\(out.referenceLabel))")
                     VStack(spacing: 8) {
                         InfoRow("Converged", rhf.converged ? "yes (\(rhf.iterations) iterations)" : "no")
+                        if let na = rhf.alphaElectrons, let nb = rhf.betaElectrons, let m = rhf.multiplicity, m != 1 || out.referenceLabel != "RHF" {
+                            InfoRow("Electrons", "\(na) α, \(nb) β (multiplicity \(m))")
+                        }
+                        if let s2 = rhf.S2, let exact = rhf.S2Exact, out.referenceLabel != "RHF" {
+                            InfoRow("⟨S²⟩", String(format: "%.6f (S(S+1) = %.6f)", s2, exact))
+                        }
                         if let homo = rhf.homo {
                             InfoRow("HOMO", Fmt.energyWithUnit(homo))
                         }
@@ -102,6 +112,23 @@ struct GeneralSummaryView: View {
                     CoupledClusterSummaryRows(cc: c)
                         .dataPanel()
                 }
+                if let c = out.correlated {
+                    // 15.0: the spin-orbital engine (MPn, CI, QCI, open-shell coupled cluster)
+                    SectionTitle(c.title)
+                    VStack(spacing: 8) {
+                        InfoRow("\(c.reference ?? out.referenceLabel) energy", Fmt.energy10(c.referenceEnergy))
+                        ForEach(Array((c.terms ?? []).enumerated()), id: \.offset) { _, t in
+                            InfoRow(t.label, Fmt.energy10(t.value))
+                        }
+                        InfoRow("Correlation energy", Fmt.energy10(c.correlationEnergy))
+                        InfoRow("\(c.title) energy", Fmt.energy10(c.totalEnergy))
+                        if let t1 = c.t1Diagnostic, t1 > 0 {
+                            InfoRow("T₁ diagnostic", String(format: "%.6f", t1))
+                        }
+                        InfoRow("Converged", c.converged ? "yes (\(c.iterations) iterations)" : "no")
+                    }
+                    .dataPanel()
+                }
             }
             .padding(20)
         }
@@ -110,7 +137,12 @@ struct GeneralSummaryView: View {
     private var header: some View {
         VStack(alignment: .leading, spacing: 4) {
             let finalMethod = out.singlePoint?.method ?? out.input.method
-            let method = finalMethod == "RHF" ? "RHF" : "RHF and \(MethodChoice.title(of: finalMethod))"
+            // 15.0: the reference (RHF, UHF, ROHF) and the method with its prefix (UMP2, ROCCSD(T))
+            let reference = out.referenceLabel
+            let scfOnly = ["RHF", "UHF", "ROHF", "HF"].contains(finalMethod)
+            let label = out.singlePoint == nil ? (out.correlated?.title ?? MethodChoice.title(of: finalMethod))
+                                               : MethodChoice.title(of: finalMethod)
+            let method = scfOnly ? reference : "\(reference) and \(label)"
             let job = JobChoice(rawValue: out.input.job).map { $0 == .energy ? "" : " · " + $0.shortTitle } ?? ""
             // the name drawn from its LaTeX source (custom molecules: the structure file's name line)
             let rest: String = " · " + (out.basis?.name ?? out.input.basis) + " · " + method + job
@@ -357,12 +389,15 @@ struct GeneralFullCIView: View {
                     SectionTitle("Energies (E_h)")
                     VStack(spacing: 8) {
                         if let rhf = out.rhf {
-                            InfoRow("RHF energy", Fmt.energy10(rhf.totalEnergy))
+                            InfoRow("\(out.referenceLabel) energy", Fmt.energy10(rhf.totalEnergy))
                         }
                         InfoRow("Full CI energy", Fmt.energy10(f.totalEnergy))
                         InfoRow("Correlation energy", Fmt.energy10(f.correlationEnergy))
                         InfoRow("⟨S²⟩", String(format: "%.8f", f.S2))
-                        InfoRow("Determinants (M_S = 0)", Fmt.count(f.determinants))
+                        InfoRow(f.alphaElectrons == f.betaElectrons ? "Determinants (M_S = 0)" : "Determinants (M_S = S)", Fmt.count(f.determinants))
+                        if let csfs = f.csfs, let spin = f.spin {
+                            InfoRow("CSFs (S = \(String(format: "%g", spin)), spin-adapted)", Fmt.count(csfs))
+                        }
                     }
                     .dataPanel()
 

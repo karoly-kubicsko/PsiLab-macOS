@@ -102,52 +102,13 @@ struct OptimizationView: View {
         let shown = atomsMoved(step.geometry.atoms, to: aligned[min(index + 1, aligned.count - 1)])
         let start = atomsMoved(opt.initialGeometry.atoms, to: aligned[0])
         return VStack(alignment: .leading, spacing: 10) {
-            HStack(alignment: .top, spacing: 16) {
-                // ΨLab 12.0: the 3D viewer (turn with the mouse, click atoms to measure)
-                Molecule3DView(atoms: shown,
-                               reference: showStart && index > 0 ? start : nil,
-                               framing: aligned,
-                               accessibilityText: "Molecule at this optimisation step")
-                    .frame(minWidth: 260, maxWidth: .infinity, minHeight: 300, maxHeight: 300)
-                VStack(alignment: .leading, spacing: 6) {
-                    Text("Step \(step.step) of \(history.count)")
-                        .font(.headline)
-                    Grid(alignment: .leading, horizontalSpacing: 12, verticalSpacing: 4) {
-                        GridRow {
-                            Text("Energy").foregroundStyle(.secondary)
-                            Text(Fmt.energy10(step.energy) + " E_h")
-                        }
-                        GridRow {
-                            Text("ΔE").foregroundStyle(.secondary)
-                            Text(step.deltaE.map { String(format: "%+.2e E_h", $0) } ?? "–")
-                        }
-                        GridRow {
-                            Text("Max force").foregroundStyle(.secondary)
-                            Text(step.criterion(0).map { String(format: "%.2e E_h/bohr", $0) } ?? "–")
-                        }
-                        if let ts = step.ts {
-                            GridRow {
-                                Text("Negative eigenvalues").foregroundStyle(.secondary)
-                                Text("\(ts.negativeEigenvalues)")
-                                    .foregroundStyle(ts.negativeEigenvalues == 1 ? Color.green : Color.orange)
-                            }
-                        }
-                        ForEach(Array(Fmt.geometryRows(step.geometry).enumerated()), id: \.offset) { _, row in
-                            GridRow {
-                                Text(row.0).foregroundStyle(.secondary)
-                                Text(row.1)
-                            }
-                        }
-                    }
-                    .monospacedDigit()
-                    .textSelection(.enabled)
-                    Label(step.converged ? "Converged" : "Not converged yet",
-                          systemImage: step.converged ? "checkmark.circle.fill" : "circle")
-                        .foregroundStyle(step.converged ? Color.green : Color.secondary)
-                        .font(.callout)
-                }
-                .frame(width: 260, alignment: .leading)
-            }
+            // ΨLab 12.0: the 3D viewer (turn with the mouse, click atoms to measure); 15.0: the full
+            // width of the panel, the step's data below the buttons
+            Molecule3DView(atoms: shown,
+                           reference: showStart && index > 0 ? start : nil,
+                           framing: aligned,
+                           accessibilityText: "Molecule at this optimisation step")
+                .frame(minWidth: 480, maxWidth: .infinity, minHeight: Viewer3DSize.height, maxHeight: Viewer3DSize.height)
             HStack(spacing: 8) {
                 Button {
                     select(0, in: opt)
@@ -194,6 +155,48 @@ struct OptimizationView: View {
                 Toggle("Starting geometry", isOn: $showStart)
                     .toggleStyle(.checkbox)
                     .help("Show the geometry of step 1 as a translucent molecule")
+            }
+            VStack(alignment: .leading, spacing: 6) {
+                Text("Step \(step.step) of \(history.count)")
+                    .font(.headline)
+                HStack(alignment: .top, spacing: 36) {
+                    Grid(alignment: .leading, horizontalSpacing: 12, verticalSpacing: 4) {
+                        GridRow {
+                            Text("Energy").foregroundStyle(.secondary)
+                            Text(Fmt.energy10(step.energy) + " E_h")
+                        }
+                        GridRow {
+                            Text("ΔE").foregroundStyle(.secondary)
+                            Text(step.deltaE.map { String(format: "%+.2e E_h", $0) } ?? "–")
+                        }
+                        GridRow {
+                            Text("Max force").foregroundStyle(.secondary)
+                            Text(step.criterion(0).map { String(format: "%.2e E_h/bohr", $0) } ?? "–")
+                        }
+                        if let ts = step.ts {
+                            GridRow {
+                                Text("Negative eigenvalues").foregroundStyle(.secondary)
+                                Text("\(ts.negativeEigenvalues)")
+                                    .foregroundStyle(ts.negativeEigenvalues == 1 ? Color.green : Color.orange)
+                            }
+                        }
+                    }
+                    Grid(alignment: .leading, horizontalSpacing: 12, verticalSpacing: 4) {
+                        ForEach(Array(Fmt.geometryRows(step.geometry).enumerated()), id: \.offset) { _, row in
+                            GridRow {
+                                Text(row.0).foregroundStyle(.secondary)
+                                Text(row.1)
+                            }
+                        }
+                    }
+                    Spacer(minLength: 0)
+                }
+                .monospacedDigit()
+                .textSelection(.enabled)
+                Label(step.converged ? "Converged" : "Not converged yet",
+                      systemImage: step.converged ? "checkmark.circle.fill" : "circle")
+                    .foregroundStyle(step.converged ? Color.green : Color.secondary)
+                    .font(.callout)
             }
             Text("The molecule of each optimisation step in 3D, the steps turned onto each other so that the molecule keeps its place: bond lengths in Å; translucent: the starting geometry. Drag to turn the molecule, pinch or ⌥-scroll to zoom; click two, three or four atoms to measure a distance, an angle or a dihedral angle. Choose a step with the buttons, the slider or a step number in the table, or press Play steps.")
                 .font(.caption)
@@ -793,54 +796,58 @@ struct FrequencyPage: View {
                     .accessibilityLabel("Amplitude")
                 Spacer()
             }
-            HStack(alignment: .top, spacing: 14) {
-                VStack(alignment: .leading, spacing: 6) {
-                    HStack(alignment: .firstTextBaseline, spacing: 8) {
-                        Text("Mode \(index + 1)")
-                            .font(.headline)
-                        if !m.symmetry.isEmpty {
-                            Text(m.symmetry)
-                                .foregroundStyle(.secondary)
-                        }
-                        Spacer(minLength: 4)
-                        Text(Fmt.wavenumber(m) + " cm⁻¹")
-                            .font(.headline.monospacedDigit())
-                            .foregroundStyle(m.imaginary ? Color.red : Color.primary)
-                    }
-                    Molecule3DView(atoms: atoms,
-                                   reference: atoms,
-                                   framing: [equilibrium,
-                                             displacedCoordinates(equilibrium, m.displacement, a),
-                                             displacedCoordinates(equilibrium, m.displacement, -a)],
-                                   vibration: vibration,
-                                   accessibilityText: "Animation of normal mode \(index + 1)")
-                        .frame(minWidth: 300, maxWidth: .infinity, minHeight: 320, maxHeight: 320)
-                    Text(m.irIntensity.map { String(format: "IR intensity %.2f km/mol", $0) } ?? "IR intensity –")
-                        .font(.caption)
-                        .monospacedDigit()
+            // 15.0: the viewer across the full width of the panel, the modes below it
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                Text("Mode \(index + 1)")
+                    .font(.headline)
+                if !m.symmetry.isEmpty {
+                    Text(m.symmetry)
                         .foregroundStyle(.secondary)
                 }
-                modeChooser
-                    .frame(width: 236)
+                Spacer(minLength: 4)
+                Text(Fmt.wavenumber(m) + " cm⁻¹")
+                    .font(.headline.monospacedDigit())
+                    .foregroundStyle(m.imaginary ? Color.red : Color.primary)
             }
-            Text("The atoms vibrate about the equilibrium geometry (translucent) along the selected normal mode, at a speed proportional to its wavenumber; the amplitude is exaggerated (at 1, the largest atomic displacement is a quarter of the shortest bond). Drag to turn the molecule, pinch or ⌥-scroll to zoom, click atoms to measure them at the equilibrium geometry. Choose a mode on the right, in the table or in the IR spectrum.")
+            Molecule3DView(atoms: atoms,
+                           reference: atoms,
+                           framing: [equilibrium,
+                                     displacedCoordinates(equilibrium, m.displacement, a),
+                                     displacedCoordinates(equilibrium, m.displacement, -a)],
+                           vibration: vibration,
+                           accessibilityText: "Animation of normal mode \(index + 1)")
+                .frame(minWidth: 480, maxWidth: .infinity, minHeight: Viewer3DSize.modeHeight, maxHeight: Viewer3DSize.modeHeight)
+            Text(m.irIntensity.map { String(format: "IR intensity %.2f km/mol", $0) } ?? "IR intensity –")
+                .font(.caption)
+                .monospacedDigit()
+                .foregroundStyle(.secondary)
+            modeChooser
+            Text("The atoms vibrate about the equilibrium geometry (translucent) along the selected normal mode, at a speed proportional to its wavenumber; the amplitude is exaggerated (at 1, the largest atomic displacement is a quarter of the shortest bond). Drag to turn the molecule, pinch or ⌥-scroll to zoom, click atoms to measure them at the equilibrium geometry. Choose a mode above, in the table or in the IR spectrum.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }
         .dataPanel()
     }
 
-    /// All modes, two per row: number, symmetry, wavenumber and IR intensity.
+    /// All modes as tiles in rows across the panel (15.0: below the viewer): number, symmetry,
+    /// wavenumber and IR intensity; many modes scroll within four rows.
     private var modeChooser: some View {
-        ScrollView {
-            LazyVGrid(columns: [GridItem(.flexible(), spacing: 6), GridItem(.flexible(), spacing: 6)], spacing: 6) {
-                ForEach(f.modes.indices, id: \.self) { index in
-                    modeTile(index)
-                }
+        let grid = LazyVGrid(columns: [GridItem(.adaptive(minimum: 124), spacing: 6)], spacing: 6) {
+            ForEach(f.modes.indices, id: \.self) { index in
+                modeTile(index)
             }
-            .padding(2)
         }
-        .frame(maxHeight: 350)
+        .padding(2)
+        return Group {
+            if f.modes.count > 24 {
+                ScrollView {
+                    grid
+                }
+                .frame(height: 280)
+            } else {
+                grid
+            }
+        }
     }
 
     private func modeTile(_ index: Int) -> some View {

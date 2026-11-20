@@ -1,7 +1,11 @@
 // ΨLab terminal version: plain-text input file -> plain-text output file.
 //
 // Input: one "key = value" per line, '#' starts a comment. Keys (case-insensitive):
-//   molecule   HeH+ (default) | H2 | LiH | H2O | H2O2 | NH3 | custom (9.0)
+//   molecule   HeH+ (default) | H2 | LiH | H2O | H2O2 | NH3 | custom (9.0); 15.0: the atoms H-Ar and
+//              H2+, H3+, H5+, N2, O2, F2, Cl2, NO, NO2, CO, CO2, N2O, H2CO, CH4 (geometries of the molecule menu)
+//   charge, multiplicity (15.0: every molecule)   reference  RHF | UHF | ROHF (15.0)
+//   opt_hessian  auto | calcfc | calcall | recalcfc=N (15.0, minimisations)   recalc_fc  N
+//   opt_algorithm  rfo | gediis (15.0, minimisations)   szabo_ostlund  no: HeH+ in STO-nG as a general molecule
 //   geometry   molecule = custom: the structure file, .xyz (angstrom) or Gaussian .gjf/.com (relative to
 //              the input file); charge, multiplicity (1; closed-shell singlets only) and title override
 //              the file's (an XYZ file has charge 0; its comment line is the title)
@@ -11,7 +15,9 @@
 //              or angstrom; default for H2, LiH, H2O: the experimental equilibrium value
 //   angle      degrees: H-O-H (H2O; default 104.52), O-O-H (H2O2; 102.32), H-N-H (NH3; 106.7, 120 planar)
 //   R_OO       O-O bond length (H2O2; default 1.4556 angstrom)   dihedral  H-O-O-H (H2O2; 113.70)
-//   method     HF | CCSD | CCSD(T) | CCSDT | CCSDTQ | FCI (H2, LiH, H2O; refused where impossible)
+//   method     HF | CCSD | CCSD(T) | CCSDT | CCSDTQ | FCI (H2, LiH, H2O; refused where impossible); 15.0:
+//              RHF, UHF, ROHF, MP2-MP5, CISD, CISD(T), CISDT, CISDTQ, QCISD, QCISD(T), QCISDT, QCISDTQ,
+//              with the reference prefixes U and RO (UMP2, ROCCSD(T))
 //   job        energy (default) | opt | freq | opt+freq | opt+freq+sp | scan | ts | ts+freq | ts+freq+sp
 //   scan       job = scan: the Gaussian ModRedundant line N1 N2 [N3 [N4]] S nsteps stepsize
 //              (1-based atoms, optionally preceded by B, A or D; step in angstrom for a bond,
@@ -42,7 +48,7 @@
 namespace psilab {
 
 // ΨLab version (same as the macOS app).
-constexpr const char* kVersion = "14.0";
+constexpr const char* kVersion = "15.0";
 
 // 1 bohr in angstrom (CODATA 2022).
 constexpr double kBohrToAngstrom = 0.529177210544;

@@ -93,6 +93,9 @@ CorrelatedGradientResult correlated_gradient(const Molecule& mol, const BasisSet
 // MO integrals, MO and AO two-particle densities and the half-transformed density.
 double correlated_gradient_bytes(std::size_t n_mo, std::size_t n_basis);
 
+// 15.0: the packed MO two-particle density transformed to the AO basis (packed, 8-fold symmetric).
+std::vector<double> back_transform_packed(const Packed4& G, const Matrix& C, int threads = 0);
+
 // The reference (RHF) densities in this form (tests: they must give the RHF gradient).
 CorrelatedDensity rhf_density(int n_mo, int n_occ);
 

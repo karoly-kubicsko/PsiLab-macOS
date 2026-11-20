@@ -614,6 +614,7 @@ print_shot "75-ch4-custom-frequencies"
 with_timeout 20 osascript "$OUT/tab.applescript" "Molecule" > /dev/null 2>&1 || true
 sleep 2
 shot "76-molecule-menu-with-custom-molecules"
+print_shot "76-molecule-menu-with-custom-molecules"
 osascript -e 'tell application "System Events" to key code 53' || true
 echo "== File > Open Structure File… (the file panel; closed with Escape)"
 with_timeout 20 osascript "$OUT/file-menu.applescript" "Open Structure File…" || echo "could not open the file panel"
@@ -711,6 +712,46 @@ view_tab "99b-hi-def2-tzvp-frequencies" "Frequencies"
 relaunch -appearanceChoice dark -psilabStructure $'2\nPbO\nPb 0 0 0\nO 0 0 1.92\n' -psilabStructureName pbo.xyz -psilabBasis def2-SVP -psilabMethod "CCSD(T)" -psilabAutoRun YES -psilabTab output
 sleep 20
 view_tab "99c-pbo-ccsdt-output" "Output"
+
+# --- ΨLab 15.0: open shells, the atoms and new molecules, MPn/QCI, optimiser options -------------
+echo "== 15.0: O2 UMP2/6-31G* opt+freq (RecalcFC=2, GEDIIS), N atom ROHF, H2O QCISD(T)/6-31G opt+freq, HeH+ STO-3G"
+relaunch -appearanceChoice light -psilabMolecule O2 -psilabBasis "6-31G*" -psilabMethod MP2 -psilabJob opt+freq -psilabOptHessian recalcfc -psilabRecalcFC 2 -psilabGEDIIS YES -psilabAutoRun YES
+sleep 25
+view_tab "a0-o2-ump2-summary" "Summary"
+print_shot "a0-o2-ump2-summary"
+view_tab "a1-o2-ump2-optimisation" "Optimisation"
+print_shot "a1-o2-ump2-optimisation"
+view_tab "a1b-o2-ump2-frequencies" "Frequencies"
+print_shot "a1b-o2-ump2-frequencies"
+# the molecule menu of 15.0: the molecules (built in and with fixed geometries) and the atoms
+with_timeout 20 osascript "$OUT/tab.applescript" "Molecule" > /dev/null 2>&1 || true
+sleep 2
+shot "a1c-molecule-menu-15"
+print_shot "a1c-molecule-menu-15"
+osascript -e 'tell application "System Events" to key code 53' || true
+sleep 1
+relaunch -appearanceChoice dark -psilabMolecule N -psilabBasis "6-31G*" -psilabMethod HF -psilabReference ROHF -psilabAutoRun YES -psilabTab output
+sleep 10
+view_tab "a2-n-rohf-output" "Output"
+relaunch -appearanceChoice light -psilabMolecule H2O -psilabBasis 6-31G -psilabMethod "QCISD(T)" -psilabJob opt+freq -psilabAutoRun YES
+sleep 40
+view_tab "a3-h2o-qcisdt-frequencies" "Frequencies"
+print_shot "a3-h2o-qcisdt-frequencies"
+relaunch -appearanceChoice light -psilabMolecule HeH+ -psilabBasis STO-3G
+sleep 5
+view_tab "a4-heh-sto3g-summary" "Summary"
+print_shot "a4-heh-sto3g-summary"
+# H2O2 relaxed scan of the torsion (the larger 3D viewer of a scan point) and NO2 ROMP2 opt+freq
+relaunch -appearanceChoice light -psilabMolecule H2O2 -psilabBasis 6-31G -psilabMethod HF -psilabJob scan -psilabScan "D 3 1 2 4 S 6 30" -psilabScanStart 0 -psilabAutoRun YES
+sleep 30
+view_tab "a5-h2o2-scan-15" "Relaxed Scan"
+print_shot "a5-h2o2-scan-15"
+relaunch -appearanceChoice dark -psilabMolecule NO2 -psilabBasis STO-3G -psilabMethod MP2 -psilabReference ROHF -psilabJob opt+freq -psilabAutoRun YES
+sleep 40
+view_tab "a6-no2-romp2-summary" "Summary"
+print_shot "a6-no2-romp2-summary"
+view_tab "a7-no2-romp2-frequencies" "Frequencies"
+print_shot "a7-no2-romp2-frequencies"
 
 pkill -x "ΨLab" || true
 

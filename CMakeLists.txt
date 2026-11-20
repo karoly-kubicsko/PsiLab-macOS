@@ -44,8 +44,17 @@ add_library(macqc STATIC
   backend/src/output.cpp
   backend/src/jobs.cpp
   backend/src/rhf.cpp
+  backend/src/scf_open.cpp
+  backend/src/scf_open_derivatives.cpp
+  backend/src/scf_open_hessian.cpp
+  backend/src/so_engine.cpp
+  backend/src/so_methods.cpp
+  backend/src/so_derivatives.cpp
+  backend/src/uhf_correlated.cpp
+  backend/src/open_shell_correlated.cpp
   backend/src/molecular.cpp
   backend/src/gemm.cpp
+  backend/src/accelerators.cpp
   backend/src/mo_integrals.cpp
   backend/src/ci.cpp
   backend/src/cc_general.cpp
@@ -56,7 +65,7 @@ add_library(macqc STATIC
   backend/src/api.cpp)
 target_include_directories(macqc PUBLIC backend/include)
 target_include_directories(macqc PRIVATE third_party)
-target_link_libraries(macqc PUBLIC Threads::Threads)
+target_link_libraries(macqc PUBLIC Threads::Threads ${CMAKE_DL_LIBS})
 # Basis-set files (Gaussian94, from basissetexchange.org): the source tree is the default
 # location for builds that are not installed; installed programs use <prefix>/share/psilab/basis.
 target_compile_definitions(macqc PRIVATE MACQC_BASIS_DIR="${CMAKE_CURRENT_SOURCE_DIR}/basis")
@@ -252,4 +261,13 @@ target_compile_definitions(macqc_basis_tests PRIVATE
   MACQC_TEST_DATA_DIR="${CMAKE_CURRENT_SOURCE_DIR}/backend/tests/data")
 add_test(NAME macqc_basis_tests COMMAND macqc_basis_tests)
 set_tests_properties(macqc_basis_tests PROPERTIES
+  ENVIRONMENT "PSILAB_BASIS_DIR=${CMAKE_CURRENT_SOURCE_DIR}/basis" TIMEOUT 3600)
+# ΨLab 15.0: MPn, CI, QCI and CC on RHF and UHF references (brute-force references), derivatives.
+add_executable(macqc_so_tests backend/tests/test_so_methods.cpp)
+target_link_libraries(macqc_so_tests PRIVATE macqc)
+target_include_directories(macqc_so_tests PRIVATE third_party)
+target_compile_definitions(macqc_so_tests PRIVATE
+  MACQC_TEST_DATA_DIR="${CMAKE_CURRENT_SOURCE_DIR}/backend/tests/data")
+add_test(NAME macqc_so_tests COMMAND macqc_so_tests)
+set_tests_properties(macqc_so_tests PROPERTIES
   ENVIRONMENT "PSILAB_BASIS_DIR=${CMAKE_CURRENT_SOURCE_DIR}/basis" TIMEOUT 3600)

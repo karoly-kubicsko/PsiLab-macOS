@@ -99,6 +99,13 @@ Matrix eri_hessian(const BasisSet& basis, int n_atoms, const TwoParticleDensity&
 // G^x(D)_mn = sum_ls D_ls [(mn|ls)^x - (ml|ns)^x / 2] for every nuclear coordinate (D symmetric):
 // the explicit derivative of the two-electron part of the Fock matrix.
 std::vector<Matrix> eri_derivative_fock(const BasisSet& basis, int n_atoms, const Matrix& D, int threads = 0);
+// 15.0: the same for several symmetric densities in one pass, each with its own weights:
+// result[d][x]_mn = sum_ls D_d,ls [coulomb_d (mn|ls)^x + exchange_d (ml|ns)^x]
+// (eri_derivative_fock: coulomb 1, exchange -1/2; open shells: J^x(P) - K^x(P_s)).
+std::vector<std::vector<Matrix>> eri_derivative_fock_multi(const BasisSet& basis, int n_atoms,
+                                                           const std::vector<Matrix>& D,
+                                                           const std::vector<double>& coulomb,
+                                                           const std::vector<double>& exchange, int threads = 0);
 
 // 10.0: the first-derivative electron-repulsion integrals themselves, (mn|ls)^x for every
 // nuclear coordinate x, each stored once per symmetry class in the packed layout of

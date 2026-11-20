@@ -22,6 +22,7 @@
 #include "macqc/correlated_gradient.h"
 #include "macqc/molecule.h"
 #include "macqc/rhf.h"
+#include "macqc/so_methods.h"
 
 namespace macqc {
 
@@ -39,6 +40,10 @@ struct ElectronicOptions {
     double fci_residual_tol = 1.0e-8;
     double numerical_step = 0.005;   // bohr (stretches) and rad (bends) of numerical gradients
     std::array<double, 3> field{0.0, 0.0, 0.0};  // uniform electric field (a.u.), energies only
+    // 15.0: the reference determinant ("RHF", "UHF", "ROHF"; effective, see effective_reference)
+    // and the spin multiplicity of the molecule
+    std::string reference = "RHF";
+    int multiplicity = 1;
 };
 
 // Callbacks for progress and for the text output (each may be empty).
@@ -59,6 +64,8 @@ struct SinglePoint {
     RHFResult rhf;
     std::optional<CCResult> cc;
     std::optional<FCIResultGeneral> fci;
+    std::optional<SOResult> so;   // 15.0: MPn, CI, QCI and open-shell coupled cluster
+    std::string reference = "RHF";  // 15.0: the SCF reference of the calculation
     std::vector<std::string> warnings;
     bool converged = false;       // SCF and the correlated method
     double seconds = 0.0;
@@ -83,8 +90,15 @@ struct GradientResult {
     double seconds = 0.0;
 };
 
-// True for the methods with an analytic gradient: RHF, CCSD, CCSD(T), FCI.
-bool analytic_gradient_method(const std::string& canonical_method);
+// True for the methods with an analytic gradient: RHF, CCSD, CCSD(T), FCI; 15.0: every method of the
+// spin-orbital engine (MP2-MP5, CI, QCI, coupled cluster on RHF and UHF references), the SCF of every
+// reference. `reference` "" means a closed-shell RHF reference.
+bool analytic_gradient_method(const std::string& canonical_method, const std::string& reference = "RHF");
+
+// 15.0: whether the spin-orbital engine computes the method on this reference (all MPn, CI, QCI;
+// coupled cluster on open-shell references and CCSDT/CCSDTQ where the general-order closed-shell
+// engine is not used).
+bool uses_so_engine(const std::string& canonical_method, const std::string& reference);
 
 // Memory (bytes) of an analytic gradient of `method`, or 0 for RHF.
 double analytic_gradient_bytes(const std::string& canonical_method, int n_occupied, int n_mo, int n_basis);

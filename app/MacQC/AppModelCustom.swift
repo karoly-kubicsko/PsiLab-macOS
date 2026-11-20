@@ -20,6 +20,7 @@ enum MoleculeSelection: Hashable {
     case builtIn(MoleculeChoice)
     case saved(UUID)
     case openFile
+    case preset(String)   // 15.0: an atom or molecule of the menu (MoleculePresets)
 }
 
 extension AppModel {
@@ -37,12 +38,16 @@ extension AppModel {
     var moleculeSelection: MoleculeSelection {
         get {
             if molecule == .custom, let id = customID { return .saved(id) }
+            if molecule == .preset { return .preset(presetKey) }
             return .builtIn(molecule == .custom ? .h2o : molecule)
         }
         set {
             switch newValue {
             case .builtIn(let m):
                 molecule = m
+            case .preset(let key):
+                presetKey = key
+                molecule = .preset
             case .saved(let id):
                 selectSaved(id)
             case .openFile:
@@ -59,12 +64,22 @@ extension AppModel {
     }
 
     /// Number of atoms and their labels ("C1", "O2", …) of the selected molecule.
-    var atomCount: Int { molecule == .custom ? (customMolecule?.atoms.count ?? 0) : molecule.atomCount }
-    var atomLabels: [String] { molecule == .custom ? (customMolecule?.atomLabels ?? []) : molecule.atomLabels }
+    var atomCount: Int {
+        if molecule == .preset { return selectedPreset?.atomCount ?? 0 }
+        return molecule == .custom ? (customMolecule?.atoms.count ?? 0) : molecule.atomCount
+    }
+    var atomLabels: [String] {
+        if molecule == .preset { return selectedPreset?.atomLabels ?? [] }
+        return molecule == .custom ? (customMolecule?.atomLabels ?? []) : molecule.atomLabels
+    }
+
+    /// 15.0: the selected atom or molecule of the menu (molecule == .preset).
+    var selectedPreset: MoleculePreset? { MoleculePresets.find(presetKey) }
 
     /// The name of the selected molecule as LaTeX source (custom) or plain text.
     var moleculeNameSource: String {
         if molecule == .custom { return customMolecule?.nameSource ?? "Custom molecule" }
+        if molecule == .preset { return selectedPreset?.title ?? presetKey }
         return molecule.title
     }
 

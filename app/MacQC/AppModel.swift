@@ -121,10 +121,44 @@ final class AppModel {
 
     // Relaxed scan and transition-state search (7.0)
     var scans: [MoleculeChoice: ScanSettings] = [:]   // missing = the molecule's default scan
-    var tsCalcAll = false                             // Hessian at every step (CalcAll)
+    var tsHessianMode: HessianMode = .calcFC          // 15.0: CalcFC, CalcAll or RecalcFC=N
     var eigenTest = true                              // exactly one negative eigenvalue
     var analyticHessian = true                        // 10.0: Full CI, CCSD, CCSD(T) Hessians analytic
     var analyticInitialHessian = true                 // 10.0: minimisations start from the analytic Hessian
+    // 15.0: computed Hessians of minimisations (Opt=CalcFC, CalcAll, RecalcFC=N), N, and the step
+    var optHessianMode: HessianMode = .automatic
+    var recalcFC: Int = 3
+    var gediis = false                                // hybrid GEDIIS/RFO instead of RFO
+
+    /// 7.0–14.0: the Hessian of the transition-state search at every step.
+    var tsCalcAll: Bool {
+        get { tsHessianMode == .calcAll }
+        set { tsHessianMode = newValue ? .calcAll : .calcFC }
+    }
+
+    // 15.0: the selected atom or molecule of the menu (molecule == .preset), the charge and the
+    // multiplicity chosen in the sidebar for each molecule (missing: the molecule's own), the
+    // reference, and HeH⁺ in STO-nG as the Szabo–Ostlund calculation (or a general one)
+    var presetKey: String = "O2"
+    var charges: [String: Int] = [:]
+    var multiplicities: [String: Int] = [:]
+    var reference: ReferenceChoice = .automatic
+
+    /// 15.0: the reference the calculation uses (the choice, or Gaussian's default: RHF for
+    /// closed-shell singlets, UHF for open shells, ROHF for open-shell Full CI).
+    var effectiveReference: ReferenceChoice {
+        if reference != .automatic { return reference }
+        if multiplicity == 1 { return .rhf }
+        return method == .fci ? .rohf : .uhf
+    }
+
+    /// 15.0: an analytic Hessian beyond the SCF for the method on this reference. UHF and ROHF:
+    /// every correlated method (CCSDT and CCSDTQ included) and Full CI; RHF: all but CCSDT, CCSDTQ.
+    var hasAnalyticCorrelatedHessian: Bool {
+        if method == .hf { return false }
+        return effectiveReference == .rhf ? method.hasAnalyticCorrelatedHessian : true
+    }
+    var hehSzaboOstlund = true
 
     // Job (ΨLab 5.0)
     var job: JobChoice = .energy
@@ -179,8 +213,87 @@ final class AppModel {
         }
     }
 
-    /// The general path: every molecule except HeH⁺ in STO-nG (Szabo–Ostlund).
-    var isGeneral: Bool { molecule != .heh || !BasisSets.isSzaboOstlund(hehBasis) }
+    /// The general path: every molecule except HeH⁺ in STO-nG (Szabo–Ostlund; 15.0: unless that
+    /// option is off).
+    var isGeneral: Bool { molecule != .heh || !BasisSets.isSzaboOstlund(hehBasis) || !hehSzaboOstlund }
+
+    // MARK: Charge and multiplicity (15.0)
+
+    /// The key of the selected molecule for its charge and multiplicity ("O2", "H2O", a custom
+    /// molecule's identifier).
+    var spinKey: String {
+        switch molecule {
+        case .preset: return "preset:" + presetKey
+        case .custom: return "custom:" + (customID?.uuidString ?? "")
+        default: return molecule.rawValue
+        }
+    }
+
+    /// The molecule's own charge (HeH⁺, H₂⁺, H₃⁺, H₅⁺: +1; custom: from its file).
+    var defaultCharge: Int {
+        switch molecule {
+        case .heh: return 1
+        case .preset: return selectedPreset?.charge ?? 0
+        case .custom: return customMolecule?.charge ?? 0
+        default: return 0
+        }
+    }
+
+    /// The molecule's own multiplicity (the ground states of the atoms and of O₂, NO, NO₂ …).
+    var defaultMultiplicity: Int {
+        switch molecule {
+        case .preset: return selectedPreset?.multiplicity ?? 1
+        case .custom: return customMolecule?.multiplicity ?? 1
+        default: return 1
+        }
+    }
+
+    /// Nuclear charges of the selected molecule.
+    var nuclearCharge: Int {
+        switch molecule {
+        case .preset: return (selectedPreset?.symbols ?? []).reduce(0) { $0 + Elements.atomicNumber($1) }
+        case .custom: return (customMolecule?.atoms ?? []).reduce(0) { $0 + $1.Z }
+        default: return molecule.atomSymbols.reduce(0) { $0 + Elements.atomicNumber($1) }
+        }
+    }
+
+    var charge: Int {
+        get { molecule == .custom ? defaultCharge : (charges[spinKey] ?? defaultCharge) }
+        set {
+            if molecule == .custom { customCharge = newValue } else { charges[spinKey] = newValue == defaultCharge ? nil : newValue }
+        }
+    }
+
+    var multiplicity: Int {
+        get { molecule == .custom ? defaultMultiplicity : (multiplicities[spinKey] ?? defaultMultiplicity) }
+        set {
+            if molecule == .custom {
+                updateCustom { $0.multiplicity = newValue }
+            } else {
+                multiplicities[spinKey] = newValue == defaultMultiplicity ? nil : newValue
+            }
+        }
+    }
+
+    var electronCount: Int { nuclearCharge - charge }
+
+    /// Why charge and multiplicity do not fit together (nil if they do).
+    var spinProblem: String? {
+        let n = electronCount
+        if n < 1 { return "No electrons: the charge is too high." }
+        let unpaired = multiplicity - 1
+        if unpaired > n { return "Multiplicity \(multiplicity) needs at least \(unpaired) electrons; there are \(n)." }
+        if (n - unpaired) % 2 != 0 {
+            return "\(n) electrons and multiplicity \(multiplicity) do not fit: an \(n % 2 == 0 ? "even" : "odd") number of electrons needs an \(n % 2 == 0 ? "odd" : "even") multiplicity."
+        }
+        return nil
+    }
+
+    /// Name of a multiplicity ("singlet", "doublet", …).
+    static func spinName(_ m: Int) -> String {
+        let names = ["singlet", "doublet", "triplet", "quartet", "quintet", "sextet", "septet", "octet", "nonet", "decet"]
+        return m >= 1 && m <= names.count ? names[m - 1] : "multiplicity \(m)"
+    }
 
     // MARK: Size estimate (general molecules)
 
@@ -195,7 +308,8 @@ final class AppModel {
             ? (customMolecule.map { "\($0.id)|\($0.charge)|\($0.multiplicity)|\($0.atoms.hashValue)" } ?? "none") : ""
         return "\(molecule.rawValue)|\(custom)|\(currentBasis)|\(method.rawValue)|\(bondLength)|\(angle)|\(ooBondLength)|\(dihedral)|"
             + "\(job.rawValue)|\(spMethod?.rawValue ?? "")|\(spBasis ?? "")|\(temperature)|\(pressure)|"
-            + "\(tightConvergence)|\(maxSteps)|\(s.line)|\(s.fromInput)|\(s.start)|\(tsCalcAll)|\(eigenTest)|\(analyticHessian)|\(analyticInitialHessian)"
+            + "\(tightConvergence)|\(maxSteps)|\(s.line)|\(s.fromInput)|\(s.start)|\(tsHessianMode.rawValue)|\(eigenTest)|\(analyticHessian)|\(analyticInitialHessian)|"
+            + "\(presetKey)|\(charge)|\(multiplicity)|\(reference.rawValue)|\(hehSzaboOstlund)|\(optHessianMode.rawValue)|\(recalcFC)|\(gediis)"
     }
 
     /// The backend refuses the calculation (reason), or the inputs are invalid.
@@ -297,7 +411,30 @@ final class AppModel {
         if let m = defaults.string(forKey: "psilabMolecule"),
            let choice = MoleculeChoice.allCases.first(where: { $0.rawValue.lowercased() == m.lowercased() }) {
             molecule = choice
+        } else if let m = defaults.string(forKey: "psilabMolecule"),
+                  let p = MoleculePresets.all.first(where: { $0.key.lowercased() == m.lowercased() }) {
+            // 15.0: -psilabMolecule O2 (an atom or molecule of the menu)
+            presetKey = p.key
+            molecule = .preset
         }
+        // 15.0: -psilabCharge 1 -psilabMultiplicity 3 -psilabReference ROHF -psilabOptHessian recalcfc
+        // -psilabRecalcFC 2 -psilabGEDIIS YES
+        if defaults.object(forKey: "psilabCharge") != nil { charge = defaults.integer(forKey: "psilabCharge") }
+        if defaults.object(forKey: "psilabMultiplicity") != nil {
+            let m = defaults.integer(forKey: "psilabMultiplicity")
+            if m >= 1 { multiplicity = m }
+        }
+        if let r = defaults.string(forKey: "psilabReference"),
+           let choice = ReferenceChoice.allCases.first(where: { $0.rawValue.lowercased() == r.lowercased() }) {
+            reference = choice
+        }
+        if let h = defaults.string(forKey: "psilabOptHessian"), let mode = HessianMode(rawValue: h.lowercased()) {
+            optHessianMode = mode
+        }
+        if defaults.object(forKey: "psilabRecalcFC") != nil {
+            recalcFC = max(1, defaults.integer(forKey: "psilabRecalcFC"))
+        }
+        if defaults.object(forKey: "psilabGEDIIS") != nil { gediis = defaults.bool(forKey: "psilabGEDIIS") }
         // ΨLab 9.0: -psilabStructure "<text of an .xyz or .gjf file>" -psilabStructureName co2.xyz
         // (the text itself: the sandboxed app reads files only through the file panel)
         if let text = defaults.string(forKey: "psilabStructure") {
@@ -414,10 +551,22 @@ final class AppModel {
             }
         }
         if isGeneral {
-            if molecule != .custom {
+            if molecule == .preset {
+                // 15.0: an atom or molecule of the menu (fixed geometry in the backend)
+                input.molecule = presetKey
+                input.R = 0
+            } else if molecule != .custom {
                 input.molecule = molecule.rawValue
                 input.R = bondLength
             }
+            // 15.0: charge and multiplicity of every molecule (sent when they differ from the
+            // molecule's own; a custom molecule always sends its own), the reference
+            if molecule != .custom {
+                input.charge = charge == defaultCharge ? nil : charge
+                input.multiplicity = multiplicity == defaultMultiplicity ? nil : multiplicity
+            }
+            input.reference = reference == .automatic ? nil : reference.rawValue
+            if molecule == .heh && BasisSets.isSzaboOstlund(hehBasis) { input.szaboOstlund = false }
             input.angle = molecule.angleLabel == nil ? MoleculeChoice.defaultWaterAngle : angle
             if molecule == .h2o2 {
                 input.ROO = ooBondLength
@@ -443,11 +592,15 @@ final class AppModel {
                 input.scan = s.line
                 input.scanStart = s.fromInput ? nil : s.start
             }
-            input.tsHessian = tsCalcAll ? "calcall" : "calcfc"
+            input.tsHessian = tsHessianMode == .automatic ? "calcfc" : tsHessianMode.rawValue
+            input.optHessian = job.hasTransitionState ? "auto" : optHessianMode.rawValue
+            let recalc = job.hasTransitionState ? tsHessianMode == .recalcFC : optHessianMode == .recalcFC
+            input.recalcFC = recalc ? recalcFC : 0
+            input.optAlgorithm = gediis && !job.hasTransitionState ? "gediis" : "rfo"
             input.eigenTest = eigenTest
             input.hessian = analyticHessian ? "analytic" : "numerical"
             // "auto": the analytic Hessian (HF, Full CI, CCSD, CCSD(T)) where possible, else Lindh's model
-            input.initialHessian = method.hasAnalyticCorrelatedHessian && !analyticInitialHessian ? "model" : "auto"
+            input.initialHessian = hasAnalyticCorrelatedHessian && !analyticInitialHessian ? "model" : "auto"
         } else {
             input.molecule = MoleculeChoice.heh.rawValue
             input.basis = hehBasis   // STO-1G, STO-2G or STO-3G: the Szabo–Ostlund calculation
@@ -494,7 +647,7 @@ final class AppModel {
     /// The optimised geometry (minimum or transition state) of the displayed result, if it is for
     /// the selected molecule and converged.
     var optimizedGeometry: GeometryInputs? {
-        guard isGeneral, molecule != .custom, let out = result, out.input.molecule == molecule.rawValue, out.input.isGeneral,
+        guard isGeneral, molecule != .custom, molecule != .preset, let out = result, out.input.molecule == molecule.rawValue, out.input.isGeneral,
               let opt = out.optimization, opt.converged else { return nil }
         let symmetric = opt.symmetricEnd || (out.input.molecule != "H2O" && out.input.molecule != "H2O2" && out.input.molecule != "NH3")
         return geometryInputs(opt.finalGeometry, symmetric: symmetric)
@@ -920,7 +1073,7 @@ final class AppModel {
             lines.append("Note: \(note)")
         }
         lines.append("")
-        lines.append("Hartree-Fock (RHF)")
+        lines.append("Hartree-Fock (\(out.referenceLabel))")
         lines.append("  converged:            \(rhf.converged ? "yes" : "no") (\(rhf.iterations) iterations)")
         lines.append("  total energy:         " + Fmt.energy10(rhf.totalEnergy) + " E_h")
         lines.append("  electronic energy:    " + Fmt.energy10(rhf.electronicEnergy) + " E_h")

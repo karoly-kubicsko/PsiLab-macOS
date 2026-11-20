@@ -1,8 +1,10 @@
 # ΨLab — a native macOS quantum-chemistry app
 
-**Current version: 14.0** — see [Versions](#versions).
+**Current version: 15.0** — see [Versions](#versions).
 
-ΨLab computes small molecules with restricted Hartree–Fock, coupled cluster and Full CI:
+ΨLab computes small molecules — closed and (15.0) open shells, with RHF, UHF and ROHF references —
+with Hartree–Fock, Møller–Plesset perturbation theory (MP2–MP5), configuration interaction (CISD …
+CISDTQ, spin-adapted Full CI), quadratic CI (QCISD … QCISDTQ) and coupled cluster (CCSD … CCSDTQ):
 
 - **H₂, LiH, H₂O, H₂O₂, NH₃ and HeH⁺** (and custom molecules of H–Rn and Th–Lr) in 33 Gaussian
   basis sets from basissetexchange.org: the correlation-consistent sets aug-cc-pVXZ and
@@ -19,12 +21,13 @@
   Hartree–Fock identical to the book's program, Full CI with all states and their spin.
 
 For these molecules it **optimises geometries** (redundant internal coordinates, analytic gradients
-for HF, CCSD, CCSD(T) and Full CI), finds **transition states** (Gaussian's Opt=TS: partitioned RFO
-with a computed Hessian, CalcFC or CalcAll), runs **relaxed potential-energy scans** of a bond, an
-angle or a dihedral angle (Gaussian's Opt=ModRedundant), computes **harmonic frequencies, IR
-intensities and thermochemistry** (analytic Hessians and dipole derivatives for HF, CCSD,
-CCSD(T) and Full CI; numerical Hessians from energies for CCSDT and CCSDTQ; point groups up to
-D₃ₕ) and runs nine job types,
+for HF, MP2–MP5, CISD … CISDTQ, QCISD … QCISDTQ, CCSD, CCSD(T) and Full CI, and (15.0) on UHF and
+ROHF references also for CCSDT and CCSDTQ), finds **transition states** (Gaussian's Opt=TS:
+partitioned RFO with a computed Hessian, CalcFC or CalcAll), runs **relaxed potential-energy scans**
+of a bond, an angle or a dihedral angle (Gaussian's Opt=ModRedundant), computes **harmonic
+frequencies, IR intensities and thermochemistry** (analytic Hessians and dipole derivatives for the
+same methods on RHF, UHF and ROHF references; numerical Hessians from energies for closed-shell
+CCSDT and CCSDTQ; point groups up to D₃ₕ) and runs nine job types,
 from *energy* to *TS optimisation + frequencies + single-point energy*, each with a complete
 output file that is written while the job runs.
 
@@ -132,7 +135,7 @@ same calculations run in the terminal on Linux and macOS
   - *Optimisation*: the **molecule of each step** in the 3D viewer (12.0; the steps turned onto
     each other, so that the molecule keeps its place and the atoms glide from step to step), with
     the bond lengths in Å and the starting geometry as a translucent molecule (*Starting
-    geometry*), next to the step's energy, ΔE, maximum force and geometry; the buttons and the slider go to the
+    geometry*), above the step's energy, ΔE, maximum force and geometry (15.0; beside them before); the buttons and the slider go to the
     first, previous, next or last step, **Play steps** shows the steps one after the other (0.7 s
     each, the last held 1.6 s, then from the start); then the start and optimised parameters with
     their change, whether H₂O kept C₂ᵥ, the gradient method, the steps table (energy, ΔE, maximum
@@ -204,6 +207,156 @@ same calculations run in the terminal on Linux and macOS
   `xcode/project.yml`).
 
 ## Versions
+
+### 15.0
+**Open shells, many more methods, analytic derivatives for them, new molecules, optimiser options,
+spin-adapted Full CI and hardware acceleration.**
+
+**Molecules and spin (tasks 0 and 4).** The molecule menu (and `psilab`'s `molecule` key) adds the
+**atoms H, He, Li, Be, B, C, N, O, F, Ne, Na, Mg, Al, Si, P, S, Cl, Ar** in their ground-state
+multiplicities (²S, ¹S, ²S, ¹S, ²P, ³P, ⁴S, ³P, ²P, ¹S, …) and the molecules **H₂⁺, H₃⁺, H₅⁺, N₂, O₂,
+F₂, Cl₂, NO, NO₂, CO, CO₂, N₂O, H₂CO, CH₄** (experimental rₑ for the diatomics, NO₂ 1.1934 Å and 134.1°, H₃⁺ an equilateral
+triangle of 1.65 bohr, H₅⁺ the C₂ᵥ MP2/aug-cc-pVTZ structure; CO, CO₂, N₂O, H₂CO and CH₄ with the
+geometries of the structure files in `examples/`, listed by formula only). **Charge and multiplicity** can be
+set for every molecule: two steppers under the molecule menu of the app (with the numbers of α and
+β electrons and an immediate check that they fit), `charge` and `multiplicity` in `psilab`.
+**References**: RHF, **UHF** (Pople–Nesbet, DIIS on both Fock matrices, ⟨S²⟩ and Mulliken spin
+populations) and **ROHF** (Roothaan's effective Fock operator with the canonicalisation of PySCF,
+a pure spin state). The default is RHF for closed-shell singlets and UHF otherwise, as in
+Gaussian (ROHF for open-shell Full CI); the app's *Reference* menu, `psilab`'s `reference` key or
+Gaussian's prefixes (`UMP2`, `ROCCSD(T)`, `UHF`, `ROHF`) choose another.
+
+**Methods (task 1)**: **MP2, MP3, MP4 (SDTQ), MP5, CISD, CISD(T), CISDT, CISDTQ, QCISD,
+QCISD(T), QCISDT, QCISDTQ** next to HF, CCSD … CCSDTQ and Full CI, all electrons correlated, on
+RHF, UHF and ROHF references. They run in a new **spin-orbital tensor engine**
+(`so_engine.cpp`, `so_methods.cpp`): block-sparse tensors over the α/β spin blocks, contractions
+through the blocked GEMM, a computation graph with common-subexpression elimination, and
+**automatic differentiation** (reverse mode, forward tangents, forward-over-reverse). The
+equations are generated (`backend/tools/so_equations.py`, 188 connected and disconnected diagrams
+up to quadruples with a non-diagonal Fock matrix) and every term's sign and weight is fitted and
+checked against brute force. Definitions: MPn is Rayleigh–Schrödinger perturbation theory with the
+Møller–Plesset H₀ (non-canonical orbitals: f_oo + f_vv), evaluated order by order (MP5 needs the
+third-order quadruples); CI-n is the eigenvalue problem in the excitations up to n; QCI-n keeps the
+linear connected terms of CC-n plus (T₂T_m)_C (and ½T₂² in the quadruples equation), with E = ⟨0|F
+T₁ + V T₂|0⟩ (Pople, Head-Gordon and Raghavachari, J. Chem. Phys. 87, 5968 (1987), for QCISD and
+QCISD(T)); (T) is E = (1/36) Σ t₃ X + f (1/36) Σ t₃ Y with f = 1 for CCSD(T) and f = 2 for QCISD(T)
+and CISD(T) (as in Psi4's fnocc). **Verified** (`macqc_so_tests`, references from
+`reference/so_brute_force.py`, which evaluates every method from its definition with sparse matrices
+over all determinants, independently of the generated equations): all 16 methods for H₂O (RHF),
+OH and CH₂ (UHF) in STO-3G and LiH/6-31G agree within 1e-12 Eₕ; MP2, CISD, CCSD and CCSD(T) with
+RHF and UHF agree with PySCF within 1e-11 Eₕ.
+
+**Analytic gradients and Hessians.** The engine differentiates the Lagrangian L = E + Σ λ R
+(Λ equations by reverse mode), builds relaxed one- and two-particle densities, and solves the
+Z-vector equations; second derivatives follow the 2n + 2 rule (amplitude responses by forward
+tangents, the Lagrangian's second derivatives by forward-over-reverse). Status:
+
+| Method | RHF reference (closed shells) | UHF reference | ROHF reference |
+|---|---|---|---|
+| HF (the SCF) | analytic gradient and Hessian | analytic gradient and Hessian (coupled-perturbed UHF) | analytic gradient and Hessian |
+| MP2–MP5, CISD … CISDTQ, QCISD … QCISDTQ | analytic gradient and Hessian | analytic gradient and Hessian | analytic gradient and Hessian |
+| CCSD, CCSD(T) | analytic (10.0) | analytic gradient and Hessian | analytic gradient and Hessian |
+| CCSDT, CCSDTQ | numerical (general-order engine of 4.0) | analytic gradient and Hessian | analytic gradient and Hessian |
+| Full CI | analytic (10.0) | analytic gradient and Hessian (in the α orbitals) | analytic gradient and Hessian |
+
+**Open-shell references** (`open_shell_correlated.cpp`). The energy is the Lagrangian L = ⟨Γ(t, λ),
+H(C)⟩ + z·g(C), where g are the stationarity conditions of the SCF on its non-redundant rotations —
+UHF: the occupied–virtual pairs of each spin; ROHF: the closed–open, closed–virtual and open–virtual
+pairs of the common orbitals (non-canonical form, ε = Σ_σ F^σ N^σ) — and z their multipliers. z·g
+is linear in the Hamiltonian, so its one- and two-particle density (Coulomb and exchange parts) joins
+Γ; the Z-vector equations A z = −(Y − Yᵀ) use the UHF or ROHF orbital Hessian (applied with Fock
+builds) and make the generalized Fock matrix Y of Γ_tot symmetric. Gradient: dE/dx = ⟨Γ_tot, H̃ˣ⟩ −
+½⟨Y, S̃ˣ⟩ + V_nnˣ. Hessian (2n + 2 rule: first-order amplitudes tˣ and orbital responses Uˣ = −½S̃ˣ +
+κˣ from the coupled-perturbed UHF or ROHF equations, zeroth-order λ and z): Eˣʸ = ⟨Γ_tot, Hˣʸ⟩ +
+⟨Y[H^[x]], Uʸ⟩ + ⟨Y[H̃ʸ], Uˣ⟩ − ⟨Y, UˣᵀUʸ + S̃ˣUʸ + S̃ʸUˣ + UˣUʸ⟩ − ⟨W, Sˣʸ⟩ + ⟨dΓ[tˣ], H^[y]⟩ +
+⟨dΓ[tʸ], H^[x]⟩ + tˣ L_tt tʸ + V_nnˣʸ, with H^[x] = H̃ˣ + H(Uˣ); the internal directions are
+computed, translations and rotations follow from invariance, and three electric-field perturbations
+give the dipole derivatives (IR intensities). **Full CI** on an open-shell reference uses the
+orbitals of one set (ROHF, or the α orbitals of UHF; its energy is invariant to every orbital
+rotation): spin-resolved densities of the CI vector, no Z-vector and no CPHF (the orbitals follow
+the geometry by symmetric orthonormalisation), CI vector responses cˣ = −(H − E)⁻¹ Q H^[x] c kept
+in the space of the requested spin by Löwdin's projector, and Eˣʸ = ⟨Γ, H^[xy]⟩ + 2⟨cˣ|H^[y]|c⟩.
+
+Checked against 4-point differences (H₂O/6-31G, distorted): gradients of MP3, MP4, CISD, CISD(T),
+QCISD, QCISD(T), CCSD(T), CISDT and QCISDT within 2.5e-10 Eₕ/bohr, Hessians within 2.0e-9 Eₕ/bohr²
+and dipole derivatives within 5.4e-9 e. Open shells (`macqc_so_tests`): the orbital part alone (the
+SCF energy as the "method") reproduces the UHF and ROHF SCF gradients and Hessians within 4e-13 and
+4e-12; UHF gradients (MP3, QCISD, CISD(T)) and ROHF gradients (MP2, CCSD(T)) of OH agree with
+differences of energies within 4.1e-10 Eₕ/bohr; Hessians against differences of the analytic
+gradients: OH UCCSD 2.3e-9, OH ROCISD 2.1e-9, H₂O⁺ UMP3 6.2e-10, H₂O⁺ ROQCISD(T) 5.9e-10 (STO-3G),
+H₂O⁺/6-31G UMP3, UMP4, UCISD, UQCISD(T), UCCSD(T), UCISDT, ROMP3, ROMP4, ROCISD, ROQCISD(T) and
+ROCCSD(T) within 1.2e-9 Eₕ/bohr², dipole derivatives within 1.6e-9; open-shell Full CI: OH gradient
+4.0e-10, Hessians of OH (UHF orbitals) 2.1e-9, H₂O⁺ (ROHF) 6.5e-10 and O₂ ³Σg⁻ (UHF) 3.7e-9, dipole
+derivatives within 2e-10. Examples: H₂O QCISD(T)/6-31G *opt+freq*, analytic Hessian at the first
+step and for the frequencies, 1669.16, 3602.37, 3765.72 cm⁻¹, 28 s on 4 cores; NO₂ ROMP2/STO-3G
+*opt+freq* (analytic ROHF-based gradients and Hessian) 681.97, 1321.81, 2230.60 cm⁻¹; NO Full
+CI/STO-3G (ROHF, 3300 CSFs) *opt+freq* with CalcFC 1709.59 cm⁻¹, 18 s.
+
+**Optimiser (task 2).** ΨLab optimises in redundant internal coordinates with rational-function
+(RFO) steps, a trust radius and BFGS updates (minima), and with Baker's partitioned RFO and Bofill
+updates (transition states) — the Berny-type algorithm. New: **CalcFC, CalcAll and RecalcFC=N
+for minimisations** (the app's *Hessian* control in *Optimisation*; `psilab`'s `opt_hessian =
+calcfc | calcall | recalcfc=N`), and RecalcFC=N also for transition-state searches: the Hessian
+of the method (analytic where available) at step 1 and every N-th step, updated (BFGS or Bofill) in
+between; a computed Hessian of a minimisation has its negative eigenvalues replaced by their
+magnitude. **GEDIIS** (Li and Frisch, J. Chem. Theory Comput. 2, 835 (2006), Gaussian's default
+for minimisations) is available as `opt_algorithm = gediis` (app: *Step: GEDIIS*): once the RMS
+force is below 0.01, the energy-represented DIIS interpolation of the last five points (the
+coefficients minimise E(c) = Σ cᵢEᵢ − ½ Σ cᵢcⱼ (gᵢ − gⱼ)·(qᵢ − qⱼ) on the simplex), then the RFO
+step from the interpolated point; it falls back to the RFO step when the result is longer than the
+trust radius or not downhill in the quadratic model, and near convergence (RMS step < 2.5e-3). RFO
+stays the default: on small molecules the two need the same number of steps or GEDIIS one fewer
+(HF/6-31G, Lindh or analytic initial Hessian: H₂O₂ 11/11 and 10/9, NH₃ 8/7 and 7/7, distorted H₂O
+9/9 and 8/8, trans-like H₂O₂ 13/13 and 12/11, RFO/GEDIIS); GEDIIS pays off for large, flexible
+molecules with many soft modes, where the BFGS Hessian is poor.
+
+**Basis sets (task 3).** **STO-1G, STO-2G and STO-3G for every molecule**: STO-2G and STO-3G from
+the Basis Set Exchange (H–Xe), STO-1G (which the BSE does not have) generated by
+`backend/tools/sto_ng.py` from the one-term least-squares fits of Hehre, Stewart and Pople (1s:
+α = 0.270950 ζ², as in Szabo and Ostlund) with the ζ of STO-3G (H–Ca); the script verifies its
+fits against Szabo and Ostlund's exponents and the BSE's STO-2G/STO-3G. **HeH⁺ takes every basis
+set** in the general calculation; in STO-nG it remains the Szabo–Ostlund calculation unless the
+app's *Szabo–Ostlund calculation* switch (or `szabo_ostlund = no`) is off.
+
+**Spin-adapted Full CI (task 6).** The Full CI keeps the determinant (string) basis for σ = Hc —
+the vectorised α/β-string algorithm (Knowles–Handy, Olsen) is the fastest way to apply H — and
+projects every Davidson vector onto the requested total spin with Löwdin's projector built from
+Ŝ² = Ŝ₋Ŝ₊ + M(M + 1). The solution therefore lies in the space of the **configuration state
+functions** of that spin (their number, from the Weyl–Paldus formula, is printed), is spin-pure
+for open shells, and cannot fall onto a lower state of another spin. Checked against PySCF: C ³P
+−37.7162644, C ¹D −37.6586414 (6-31G), O₂ ³Σg⁻ −147.7440416 Eₕ (STO-3G). A CSF-based σ (GUGA)
+would shorten the vectors by a factor of about 2–4 for low spin but makes each σ more expensive; the
+truncated CI methods (CISD … CISDTQ) work with spin-orbital amplitudes, which are spin-adapted for
+RHF references (the excitation spaces are closed under Ŝ²) and, like all UHF-based methods, not for
+UHF references.
+
+**Efficiency and acceleration (task 5).** All parts run on all cores (integrals, Fock builds,
+transformations, contractions, Davidson). The matrix products — the core of coupled cluster,
+CI, the transformations and the derivative code — can now also run on **NVIDIA GPUs (cuBLAS)** and
+**AMD GPUs (hipBLAS, ROCm)**, and on an optimised CPU BLAS (OpenBLAS, MKL, BLIS) on Linux; all three
+are loaded at run time (`accelerators.cpp`), so one binary runs everywhere and falls back to
+the built-in blocked GEMM. Products of at least 2·10⁹ flop go to the GPU (`PSILAB_GPU_MIN_FLOPS`);
+`PSILAB_GPU=off|cuda|hip` and `PSILAB_BLAS=off|<library>` override the choice; the output file
+names the path in its header (*Matrices*). The calculations stay in double precision:
+data-centre GPUs (A100/H100/B200, Instinct MI200/MI300) have full-rate FP64, consumer GPUs 1/32 to
+1/64 of it. Apple GPUs have no FP64; on the Mac the products run in Accelerate on the matrix units
+of Apple silicon. Not yet comparable with ORCA or Gaussian: the two-electron integrals (Rys/Obara–
+Saika in double precision on the CPU, no density fitting) and the dense spin-orbital engine for
+the new methods (no permutational packing of T₃/T₄: CISDTQ for LiH/6-31G takes about 2 minutes,
+CCSDTQ longer, where the closed-shell CCSDTQ of 4.0 is used) are the limits.
+
+**App (tasks 7 and 8).** The tab bar (*Summary … Output*) is again in the window's toolbar as in
+12.0 (13.0 had wrapped the tab view in a stack for the opened-file banner, which moved the tabs
+below a title bar; the banner is now inside each tab). The 3D viewers of the optimisation steps,
+scan points (480 pt high) and normal modes (500 pt high) are larger and span the full width of their
+panel: the data of the step or point and the chooser of the normal modes are below the viewer
+instead of beside it. The method menu has sections (Hartree–Fock, Møller–Plesset, CI, QCI, coupled
+cluster); the Gaussian input export writes `UMP2(Full)`, `QCISD(T,Full)` and so on.
+
+**Terminal (`psilab`).** Every key above; `psilab input.inp > output.out` writes the output file
+to the standard output (the summary goes to the standard error), `psilab input.inp output.out`
+to a file. New keys: `charge`, `multiplicity`, `reference`, `opt_hessian`, `recalc_fc`,
+`opt_algorithm`, `szabo_ostlund`; `molecule` takes the atoms and the new molecules.
 
 ### 14.0
 **25 more basis sets**, 33 in all, for every molecule, method and job type: the Pople sets
@@ -425,8 +578,9 @@ Without administrator rights, install into your home folder instead with
 `psilab` runs from any folder:
 
 ```bash
+psilab input.inp > output.out     # 15.0: the output file on the standard output
 psilab input.inp output.txt       # read input.inp, write the results to output.txt
-psilab input.inp                  # output name defaults to input.out
+psilab input.inp -o               # output name input.out
 psilab --example > input.inp      # start from a commented example input
 ```
 
@@ -482,6 +636,20 @@ ts_hessian = calcfc          # ts jobs: calcfc (Hessian at the first step) or ca
 eigen_test = yes             # ts jobs: stop unless the Hessian has exactly one negative eigenvalue
 hessian  = analytic          # 10.0, freq and ts jobs with FCI, CCSD, CCSD(T): analytic or numerical
 initial_hessian = auto       # 10.0, minimisations: auto/analytic (HF, FCI, CCSD, CCSD(T) where possible), model (Lindh)
+```
+
+Version 15.0 adds open shells, the atoms H–Ar, more molecules and methods, and optimiser options:
+
+```text
+molecule = O2                # also H2+, H3+, H5+, N2, F2, Cl2, NO, NO2, CO, CO2, N2O, H2CO, CH4, atoms H ... Ar
+charge   = 0                 # every molecule (default: the molecule's own)
+multiplicity = 3             # 2S+1 (default: the ground state, e.g. 3 for O2, 4 for N)
+reference = UHF              # RHF | UHF | ROHF (default RHF for singlets, UHF otherwise)
+method   = QCISD(T)          # HF, MP2 ... MP5, CISD, CISD(T), CISDT, CISDTQ, QCISD ... QCISDTQ, CCSD ... CCSDTQ, FCI; UMP2, ROMP2, ...
+basis    = 6-31G*            # 15.0 also STO-1G, STO-2G, STO-3G for every molecule
+job      = opt+freq
+opt_hessian = recalcfc=3     # minimisations: auto | calcfc | calcall | recalcfc=N (Gaussian Opt=RecalcFC=N)
+opt_algorithm = gediis       # minimisations: rfo (default) | gediis (hybrid GEDIIS/RFO)
 ```
 
 `molecule = HeH+` with a Gaussian `basis` of the library (correlation-consistent; 14.0 also Pople

@@ -1,5 +1,7 @@
 #include "macqc/molecular.h"
 
+#include "macqc/gradient.h"
+
 #include <algorithm>
 #include <cctype>
 #include <chrono>
@@ -106,12 +108,22 @@ std::string orbital_list(const std::vector<int>& o) {
 }
 
 std::string fci_section_impl(const FCIResultGeneral& f, double rhf_energy, int level) {
-    std::string s = "\nFull CI         all electrons correlated, M_S = 0 determinants, lowest singlet state\n";
+    const int mult = f.alpha - f.beta + 1;
+    static const char* spin_names[] = {"singlet", "doublet", "triplet", "quartet", "quintet", "sextet", "septet"};
+    const std::string spin_name = mult >= 1 && mult <= 7 ? spin_names[mult - 1] : format("multiplicity %d", mult);
+    std::string s = format("\nFull CI         all electrons correlated, M_S = %s determinants, lowest %s state\n",
+                           f.alpha == f.beta ? "0" : format("%g", 0.5 * (f.alpha - f.beta)).c_str(), spin_name.c_str());
     s += format("    %d electrons (%d alpha, %d beta) in %d orbitals: %s alpha x %s beta strings = %s determinants\n",
                 f.alpha + f.beta, f.alpha, f.beta, f.orbitals, thousands(f.alpha_strings).c_str(),
                 thousands(f.beta_strings).c_str(), thousands(f.determinants).c_str());
-    s += format("    integral transformation to the RHF orbitals: %.2f s\n", f.transform_seconds);
-    s += "    Davidson method: diagonal preconditioner, singlet projection (C = C^T),\n";
+    if (f.spin_adapted)
+        s += format("    spin-adapted: %s configuration state functions with S = %g (Weyl-Paldus), the Davidson\n"
+                    "    vectors projected onto S = %g (Loewdin projector from S^2), sigma = H c in the determinants\n",
+                    thousands(static_cast<std::size_t>(std::llround(f.csfs))).c_str(), f.spin, f.spin);
+    s += format("    integral transformation to the %s orbitals: %.2f s\n", f.alpha == f.beta ? "RHF" : "ROHF",
+                f.transform_seconds);
+    s += f.alpha == f.beta ? "    Davidson method: diagonal preconditioner, singlet projection (C = C^T),\n"
+                           : "    Davidson method: diagonal preconditioner,\n";
     s += "    converged when |H c - E c| < 1.0e-06 and |dE| < 1.0e-10 E_h\n";
     if (level >= 2) {
         s += "    iter        total energy (E_h)        residual   subspace\n";
@@ -190,18 +202,96 @@ std::string fci_report_section(const FCIResultGeneral& f, double rhf_energy, int
 
 std::string cc_report_section(const CCResult& c, int level) { return cc_section_impl(c, level); }
 
-std::string canonical_method_name(const std::string& method) {
+std::string so_report_section(const SOResult& r, int level) {
+    std::string s;
+    const std::string label = method_label(r.method, r.reference);
+    const bool mp = r.method.rfind("MP", 0) == 0;
+    const bool ci = r.method.rfind("CI", 0) == 0;
+    const bool qci = r.method.rfind("QCI", 0) == 0;
+    s += "\n" + label + (mp ? " (Moller-Plesset perturbation theory, H0 = Fock operator, all electrons correlated)"
+                          : ci ? " (configuration interaction from the reference, intermediate normalisation, all "
+                                 "electrons correlated)"
+                          : qci ? " (quadratic configuration interaction, all electrons correlated)"
+                                : " (coupled cluster, all electrons correlated)") +
+         "\n";
+    s += format("  %s on the %s reference; spin-orbital engine (dense spin blocks, verified equations)\n",
+                r.converged ? "converged" : "NOT converged", r.reference.c_str());
+    s += format("  reference energy (%s)        %20.10f E_h\n", r.reference.c_str(), r.reference_energy);
+    double running = r.reference_energy;
+    for (const auto& t : r.terms) {
+        if (mp) {
+            running += t.value;
+            s += format("  %-28s %20.10f E_h   MP%c total %20.10f E_h\n", (t.label + " correction").c_str(), t.value,
+                        t.label[2], running);
+        } else {
+            s += format("  %-28s %20.10f E_h\n", t.label.c_str(), t.value);
+        }
+    }
+    s += format("  correlation energy           %20.10f E_h\n", r.correlation_energy);
+    s += format("  total energy %-15s %20.10f E_h\n", label.c_str(), r.total_energy);
+    if (level >= 1) {
+        s += "  amplitudes (unique, in spin orbitals):";
+        for (const auto& a : r.amplitudes) s += format(" %s %s (|t| %.3e);", a.name.c_str(), thousands_d(a.count).c_str(), a.norm);
+        s += "\n";
+        if (!mp) s += format("  T1 diagnostic %.6f\n", r.t1_diagnostic);
+        s += format("  %d iterations, %.2f s\n", r.iterations, r.seconds);
+    }
+    return s;
+}
+
+namespace {
+std::string compact_upper(const std::string& method) {
     std::string m;
     for (char c : method)
         if (c != '-' && c != ' ' && c != '_') m += static_cast<char>(std::toupper(static_cast<unsigned char>(c)));
-    if (m == "RHF" || m == "HF" || m == "SCF") return "RHF";
-    if (m == "CCSD") return "CCSD";
-    if (m == "CCSD(T)" || m == "CCSD[T]") return "CCSD(T)";
-    if (m == "CCSDT") return "CCSDT";
-    if (m == "CCSDTQ") return "CCSDTQ";
-    if (m == "FCI" || m == "FULLCI") return "FCI";
+    return m;
+}
+
+std::string correlated_name(const std::string& m) {
+    static const char* names[] = {"CCSD", "CCSD(T)", "CCSDT", "CCSDTQ", "FCI", "MP2", "MP3", "MP4", "MP5", "CISD",
+                                  "CISD(T)", "CISDT", "CISDTQ", "QCISD", "QCISD(T)", "QCISDT", "QCISDTQ"};
+    for (const char* n : names)
+        if (m == n) return n;
+    if (m == "CCSD[T]") return "CCSD(T)";
+    if (m == "QCISD[T]") return "QCISD(T)";
+    if (m == "FULLCI") return "FCI";
+    if (m == "MP4(SDTQ)" || m == "MP4SDTQ") return "MP4";
     return "";
 }
+}  // namespace
+
+MethodSpec parse_method_spec(const std::string& text) {
+    const std::string m = compact_upper(text);
+    if (m == "HF" || m == "SCF") return {"RHF", ""};
+    if (m == "RHF" || m == "UHF" || m == "ROHF") return {"RHF", m};
+    std::string c = correlated_name(m);
+    if (!c.empty()) return {c, ""};
+    if (m.rfind("RO", 0) == 0 && !(c = correlated_name(m.substr(2))).empty()) return {c, "ROHF"};
+    if (m.rfind("U", 0) == 0 && !(c = correlated_name(m.substr(1))).empty()) return {c, "UHF"};
+    if (m.rfind("R", 0) == 0 && !(c = correlated_name(m.substr(1))).empty()) return {c, "RHF"};
+    return {"", ""};
+}
+
+std::string effective_reference(const std::string& method, const std::string& requested, int multiplicity) {
+    const std::string r = requested.empty() ? "" : canonical_reference_name(requested);
+    if (!requested.empty() && r.empty()) throw std::runtime_error("reference must be RHF, UHF or ROHF");
+    if (r == "RHF" && multiplicity != 1)
+        throw std::runtime_error(format("restricted Hartree-Fock (RHF) needs a closed-shell singlet; multiplicity %d "
+                                        "needs UHF or ROHF",
+                                        multiplicity));
+    if (!r.empty()) return r;
+    if (multiplicity == 1) return "RHF";
+    return method == "FCI" ? "ROHF" : "UHF";
+}
+
+std::string method_label(const std::string& method, const std::string& reference) {
+    if (method == "RHF") return reference.empty() ? "RHF" : reference;
+    if (reference == "UHF") return "U" + method;
+    if (reference == "ROHF") return "RO" + method;
+    return method;
+}
+
+std::string canonical_method_name(const std::string& method) { return parse_method_spec(method).method; }
 
 bool coupled_cluster_method(const std::string& canonical, CCMethod* method) {
     CCMethod mm;
@@ -216,7 +306,10 @@ bool coupled_cluster_method(const std::string& canonical, CCMethod* method) {
 
 std::string validate_molecular(const MolecularInput& in) {
     const std::string m = canonical_molecule_name(in.molecule);
-    if (m.empty()) return "molecule must be HeH+, H2, LiH, H2O, H2O2, NH3 or custom";
+    if (m.empty() && !find_molecule_preset(in.molecule))
+        return "molecule must be HeH+, H2, LiH, H2O, H2O2, NH3, an atom H-Ar, H2+, H3+, H5+, N2, O2, F2, Cl2, NO, NO2, CO, CO2, N2O, H2CO, CH4 "
+               "or custom";
+    if (in.multiplicity < 1 || in.multiplicity > 20) return "the multiplicity must be between 1 and 20";
     if (m == "custom") {
         if (in.atoms.empty()) return "a custom molecule needs atoms (read from an .xyz or .gjf file)";
         if (in.atoms.size() > 200) return "a custom molecule may have at most 200 atoms";
@@ -226,15 +319,30 @@ std::string validate_molecular(const MolecularInput& in) {
             if (a.Z < 1 || a.Z > kMaxAtomicNumber) return "unknown element in the custom molecule (Z = 1 to 118)";
             nel += a.Z;
         }
-        if (nel < 2) return format("the molecule has %d electrons with charge %+d; it needs at least two", nel, in.charge);
-        if (in.multiplicity != 1)
-            return format("spin multiplicity %d: ΨLab computes closed-shell singlets only (restricted Hartree-Fock "
-                          "and the methods built on it); use multiplicity 1",
-                          in.multiplicity);
-        if (nel % 2 != 0)
-            return format("the molecule has %d electrons (charge %+d), an odd number: restricted Hartree-Fock needs a "
-                          "closed-shell singlet. Change the charge by one (e.g. to %+d)",
-                          nel, in.charge, in.charge + 1);
+        if (nel < 1) return format("the molecule has %d electrons with charge %+d; it needs at least one", nel, in.charge);
+        if (in.multiplicity < 1 || in.multiplicity > 20) return "the multiplicity must be between 1 and 20";
+    }
+    {
+        // 15.0: the electrons must fit the multiplicity
+        int nuclear = 0, charge = in.charge_given ? in.charge : 0;
+        if (m == "custom") {
+            for (const Atom& a : in.atoms) nuclear += a.Z;
+            charge = in.charge;
+        } else if (const MoleculePreset* pre = m.empty() ? find_molecule_preset(in.molecule) : nullptr) {
+            for (const auto& a : pre->atoms) nuclear += atomic_number(a.first);
+            if (!in.charge_given) charge = pre->charge;
+        } else {
+            nuclear = m == "H2" ? 2 : m == "LiH" ? 4 : (m == "H2O" || m == "NH3") ? 10 : m == "H2O2" ? 18 : 3;
+            if (m == "HeH+" && !in.charge_given) charge = 1;
+        }
+        const int mult = in.multiplicity_given || m == "custom" ? in.multiplicity
+                         : (m.empty() && find_molecule_preset(in.molecule)) ? find_molecule_preset(in.molecule)->multiplicity
+                                                                             : 1;
+        try {
+            alpha_beta_electrons(nuclear - charge, mult);
+        } catch (const std::exception& e) {
+            return e.what();
+        }
     }
     if (canonical_basis_name(in.basis).empty()) {
         std::string list;
@@ -242,7 +350,10 @@ std::string validate_molecular(const MolecularInput& in) {
         return "unknown basis set '" + in.basis + "' (available: " + list + ")";
     }
     if (canonical_method_name(in.method).empty())
-        return "method must be HF (RHF), CCSD, CCSD(T), CCSDT, CCSDTQ or FCI";
+        return "method must be HF (RHF, UHF, ROHF), MP2, MP3, MP4, MP5, CISD, CISD(T), CISDT, CISDTQ, QCISD, QCISD(T), "
+               "QCISDT, QCISDTQ, CCSD, CCSD(T), CCSDT, CCSDTQ or FCI (with U or RO for the reference, e.g. UMP2)";
+    if (!in.reference.empty() && canonical_reference_name(in.reference).empty())
+        return "reference must be RHF, UHF or ROHF";
     if (!std::isfinite(in.fci_memory_mb) || in.fci_memory_mb < 64.0)
         return "fciMemoryMB (memory limit of Full CI and coupled cluster) must be at least 64";
     if (!std::isfinite(in.R) || in.R < 0.0) return "R must be a positive, finite number (bohr)";
@@ -319,9 +430,31 @@ MolecularResult prepare_molecular(const MolecularInput& input) {
     if (!problem.empty()) throw std::runtime_error(problem);
     MolecularResult r;
     r.input = input;
-    r.input.molecule = canonical_molecule_name(input.molecule);
+    // 15.0: presets of the molecule menu run as custom molecules
+    if (canonical_molecule_name(input.molecule).empty()) {
+        const MoleculePreset* pre = find_molecule_preset(input.molecule);
+        r.input.preset = pre->key;
+        if (r.input.atoms.empty())
+            for (const auto& a : pre->atoms) {
+                Atom at;
+                at.Z = atomic_number(a.first);
+                for (int k = 0; k < 3; ++k) at.position[static_cast<std::size_t>(k)] = a.second[static_cast<std::size_t>(k)] / kBohrInAngstrom;
+                r.input.atoms.push_back(at);
+            }
+        if (!input.charge_given) r.input.charge = pre->charge;
+        if (!input.multiplicity_given) r.input.multiplicity = pre->multiplicity;
+        if (r.input.title.empty()) r.input.title = pre->title;
+        r.input.molecule = "custom";
+    } else {
+        r.input.molecule = canonical_molecule_name(input.molecule);
+    }
     r.input.basis = canonical_basis_name(input.basis);
-    r.input.method = canonical_method_name(input.method);
+    {
+        const MethodSpec ms = parse_method_spec(input.method);
+        r.input.method = ms.method;
+        if (r.input.reference.empty()) r.input.reference = ms.reference;
+        else r.input.reference = canonical_reference_name(r.input.reference);
+    }
     if (r.input.molecule == "custom") {
         try {
             r.molecule = make_custom_molecule(r.input.atoms, r.input.charge, r.input.title);
@@ -334,6 +467,15 @@ MolecularResult prepare_molecular(const MolecularInput& input) {
         if (!(r.input.R > 0.0)) r.input.R = default_bond_length(r.input.molecule);
         if (r.input.molecule == "H2O2" && !(r.input.r_oo > 0.0)) r.input.r_oo = default_oo_bond_length();
         r.molecule = make_molecule(r.input.molecule, r.input.R, r.input.angle, r.input.r_oo, r.input.dihedral);
+        if (input.charge_given) r.molecule.charge = input.charge;  // 15.0: e.g. H2O+
+        r.input.charge = r.molecule.charge;
+    }
+    // 15.0: electrons and spin
+    try {
+        alpha_beta_electrons(r.molecule.electrons(), r.input.multiplicity);
+        r.reference = effective_reference(r.input.method, r.input.reference, r.input.multiplicity);
+    } catch (const std::runtime_error& e) {
+        throw std::runtime_error(e.what());
     }
     r.basis = build_basis(r.molecule, r.input.basis, r.input.basis_directory);
     r.molecule = attach_ecps(r.molecule, r.basis);  // 14.0: effective core potentials
@@ -352,11 +494,51 @@ MolecularResult prepare_molecular(const MolecularInput& input) {
     e.rhf_seconds =
         estimate_rhf_seconds(r.basis, e.eri_stored, e.threads, expected_scf_iterations(r.molecule.name));
     e.total_seconds = e.rhf_seconds;
+    const auto ab = alpha_beta_electrons(r.molecule.electrons(), r.input.multiplicity);
+    if (uses_so_engine(r.input.method, r.reference)) {
+        const int nbf = r.basis.n_functions;
+        const int on[2] = {ab.first, ab.second}, vn[2] = {nbf - ab.first, nbf - ab.second};
+        const SOSize sz = estimate_so_method(r.input.method, on, vn);
+        CostEstimate::SOCost c;
+        c.method = method_label(r.input.method, r.reference);
+        c.amplitudes = sz.amplitudes;
+        c.memory_bytes = sz.memory_bytes;
+        // dense contractions at about 1.5 GFlop/s per thread (portable GEMM, measured), 20 iterations
+        const double iterations = r.input.method.rfind("MP", 0) == 0 ? 2.0 * (r.input.method[2] - '1') : 20.0;
+        c.seconds = iterations * sz.flops_per_iteration / (1.5e9 * e.threads) +
+                    2.0 * estimate_rhf_seconds(r.basis, false, e.threads, 1);
+        if (vn[0] <= 0 && vn[1] <= 0) {
+            c.feasible = false;
+            c.reason = "there are no virtual orbitals to correlate in this basis set";
+        } else if (c.memory_bytes / 1048576.0 > r.input.fci_memory_mb) {
+            c.feasible = false;
+            c.reason = format("%s would need about %.1f GB of memory (limit %.1f GB): %s amplitudes in dense spin blocks.",
+                              c.method.c_str(), c.memory_bytes / 1073741824.0, r.input.fci_memory_mb / 1024.0,
+                              thousands_d(c.amplitudes).c_str());
+        } else if (c.seconds > kMaxCCSeconds) {
+            c.feasible = false;
+            c.reason = format("%s would take about %s; ΨLab refuses calculations above three days.", c.method.c_str(),
+                              human_seconds(c.seconds).c_str());
+        }
+        e.so = c;
+        e.total_seconds += c.seconds;
+        if (!c.feasible) {
+            r.refusal = c.reason + " Use a smaller basis set or a lower-order method.";
+            return r;
+        }
+        if (e.total_seconds > kLongCalculationSeconds)
+            r.warnings.push_back(format("Long calculation: %s with %s amplitudes after %s; about %.1f GB of memory. "
+                                        "Estimated time %s on %d threads.",
+                                        c.method.c_str(), thousands_d(c.amplitudes).c_str(), r.reference.c_str(),
+                                        c.memory_bytes / 1073741824.0, human_seconds(e.total_seconds).c_str(), e.threads));
+        return r;
+    }
     if (r.input.method == "FCI") {
         const int nel = r.molecule.electrons();
         const double pass = estimate_rhf_seconds(r.basis, false, e.threads, 1);
-        e.fci = estimate_fci(r.basis.n_functions, r.basis.n_functions, nel / 2, nel / 2, e.threads,
+        e.fci = estimate_fci(r.basis.n_functions, r.basis.n_functions, ab.first, ab.second, e.threads,
                              r.input.fci_memory_mb, pass);
+        (void)nel;
         e.total_seconds += e.fci->seconds;
         if (!e.fci->feasible) {
             r.refusal = e.fci->reason;
@@ -422,6 +604,35 @@ MolecularResult prepare_molecular(const MolecularInput& input) {
 void run_molecular(MolecularResult& r, const RHFProgress& progress, const FCIProgress& fci_progress,
                    const CCProgress& cc_progress) {
     if (!r.refusal.empty()) throw std::runtime_error(r.refusal);
+    if (r.reference != "RHF" || uses_so_engine(r.input.method, r.reference)) {
+        // 15.0: open shells and the methods of the spin-orbital engine
+        ElectronicOptions eo;
+        eo.threads = r.input.threads;
+        eo.memory_mb = r.input.memory_mb;
+        eo.fci_memory_mb = r.input.fci_memory_mb;
+        eo.scf_max_iter = r.input.max_iter;
+        eo.scf_energy_tol = r.input.energy_tol;
+        eo.scf_gradient_tol = r.input.gradient_tol;
+        eo.cc_amplitude_tol = 1.0e-8;
+        eo.reference = r.reference;
+        eo.multiplicity = r.input.multiplicity;
+        ElectronicCallbacks cb;
+        cb.scf = progress;
+        cb.fci = fci_progress;
+        cb.cc = cc_progress;
+        SinglePoint sp = run_single_point(r.molecule, r.basis, r.input.method, eo, nullptr, cb);
+        r.rhf = sp.rhf;
+        r.so = sp.so;
+        r.fci = sp.fci;
+        r.cc = sp.cc;
+        if (r.rhf->removed_functions > 0)
+            r.warnings.push_back(format("%d near-linearly dependent combination(s) of basis functions removed "
+                                        "(overlap eigenvalues below %.0e).",
+                                        r.rhf->removed_functions, 1.0e-7));
+        for (const auto& w : sp.warnings) r.warnings.push_back(w);
+        r.report = molecular_report(r);
+        return;
+    }
     RHFOptions opt;
     opt.max_iter = r.input.max_iter;
     opt.energy_tol = r.input.energy_tol;
@@ -487,13 +698,17 @@ std::string molecular_report(const MolecularResult& r) {
     const std::string rule(78, '=');
     const Molecule& mol = r.molecule;
     std::string s;
-    s += std::string("\xCE\xA8Lab \xE2\x80\x93 restricted Hartree-Fock") +
-         (r.input.method == "FCI" ? " and Full CI" : (r.input.method == "RHF" ? "" : " and " + r.input.method)) + "\n" +
-         rule + "\n";
-    s += format("Molecule        %s, %d electrons%s, closed shell (charge %d, singlet)\n", mol.display_name().c_str(),
+    const std::string scf_name = r.reference == "UHF" ? "unrestricted Hartree-Fock"
+                                 : r.reference == "ROHF" ? "restricted open-shell Hartree-Fock"
+                                                          : "restricted Hartree-Fock";
+    s += std::string("\xCE\xA8Lab \xE2\x80\x93 ") + scf_name +
+         (r.input.method == "FCI" ? " and Full CI"
+                                  : (r.input.method == "RHF" ? "" : " and " + method_label(r.input.method, r.reference))) +
+         "\n" + rule + "\n";
+    s += format("Molecule        %s, %d electrons%s, %s (charge %d, multiplicity %d)\n", mol.display_name().c_str(),
                 mol.electrons(),
                 mol.core_electrons() ? format(" (and %d core electrons in ECPs)", mol.core_electrons()).c_str() : "",
-                mol.charge);
+                r.input.multiplicity == 1 ? "closed shell" : "open shell", mol.charge, r.input.multiplicity);
     if (mol.custom)
         s += "Title           " + (mol.title.empty() ? std::string("(none)") : mol.title) + "\n" +
              format("Geometry        %zu atoms from Cartesian coordinates\n", mol.atoms.size());
@@ -554,6 +769,10 @@ std::string molecular_report(const MolecularResult& r) {
                     c.method.c_str(), c.occupied, c.virtuals, thousands_d(c.amplitudes).c_str(),
                     c.memory_bytes / (1024.0 * 1024.0), human_seconds(e.total_seconds).c_str());
     }
+    if (e.so)
+        s += format("    %s: %s amplitudes (dense spin blocks), about %.0f MB of memory, estimated time %s\n",
+                    e.so->method.c_str(), thousands_d(e.so->amplitudes).c_str(), e.so->memory_bytes / 1048576.0,
+                    human_seconds(e.total_seconds).c_str());
     for (const auto& w : r.warnings) s += "Warning: " + w + "\n";
     if (!r.refusal.empty()) s += "NOT POSSIBLE: " + r.refusal + "\n";
     if (!r.rhf) return s;
@@ -578,8 +797,12 @@ std::string molecular_report(const MolecularResult& r) {
                      : format("    SCF NOT converged after %d iterations\n", h.iterations);
     s += format("    time: integrals %.2f s, SCF %.2f s, %d threads\n\n", h.integral_seconds, h.scf_seconds, h.threads);
 
+    if (h.open_shell())
+        s += format("Spin            %d alpha, %d beta electrons; <S^2> = %.6f (S(S+1) = %.6f)\n\n", h.n_alpha, h.n_beta,
+                    h.s2, h.s2_exact);
     s += "Energies (E_h)\n";
-    s += format("    total energy (RHF)        %20.10f\n", h.total_energy);
+    s += format("    total energy (%s)%*s%20.10f\n", r.reference.c_str(), static_cast<int>(11 - r.reference.size()), "",
+                h.total_energy);
     s += format("    electronic energy         %20.10f\n", h.electronic_energy);
     s += format("    nuclear repulsion         %20.10f\n", h.nuclear_repulsion);
     s += format("    kinetic energy            %20.10f\n", h.kinetic_energy);
@@ -587,20 +810,32 @@ std::string molecular_report(const MolecularResult& r) {
     s += format("    electron repulsion        %20.10f\n", h.two_electron_energy);
     s += format("    virial ratio -V/T         %20.10f\n\n", h.virial_ratio);
 
-    const int nocc = h.n_occupied;
-    const int nshow = level >= 2 ? static_cast<int>(h.orbital_energies.size())
-                                 : std::min(static_cast<int>(h.orbital_energies.size()), nocc + 5);
-    s += format("Orbital energies (E_h), %d occupied (*)%s\n", nocc,
-                nshow < static_cast<int>(h.orbital_energies.size()) ? ", lowest virtual orbitals" : "");
-    for (int k = 0; k < nshow; ++k) {
-        s += format("  %4d%s %15.8f", k + 1, k < nocc ? "*" : " ", h.orbital_energies[k]);
-        s += (k % 4 == 3 || k + 1 == nshow) ? "\n" : "";
+    auto orbitals = [&](const std::vector<double>& eps, int nocc, const std::string& title) {
+        std::string t;
+        const int nshow = level >= 2 ? static_cast<int>(eps.size()) : std::min(static_cast<int>(eps.size()), nocc + 5);
+        t += format("%s (E_h), %d occupied (*)%s\n", title.c_str(), nocc,
+                    nshow < static_cast<int>(eps.size()) ? ", lowest virtual orbitals" : "");
+        for (int k = 0; k < nshow; ++k) {
+            t += format("  %4d%s %15.8f", k + 1, k < nocc ? "*" : " ", eps[k]);
+            t += (k % 4 == 3 || k + 1 == nshow) ? "\n" : "";
+        }
+        if (nocc >= 1 && nocc < static_cast<int>(eps.size()))
+            t += format("    HOMO %.8f E_h, LUMO %.8f E_h, gap %.8f E_h\n", eps[nocc - 1], eps[nocc], eps[nocc] - eps[nocc - 1]);
+        return t;
+    };
+    if (h.reference == "UHF") {
+        s += orbitals(h.orbital_energies, h.n_alpha, "Alpha orbital energies");
+        s += orbitals(h.orbital_energies_b, h.n_beta, "Beta orbital energies");
+    } else if (h.reference == "ROHF") {
+        s += orbitals(h.orbital_energies, h.n_alpha,
+                      format("ROHF orbital energies (Roothaan effective Fock matrix; %d doubly, %d singly occupied)",
+                             h.n_beta, h.n_alpha - h.n_beta));
+    } else {
+        s += orbitals(h.orbital_energies, h.n_occupied, "Orbital energies");
     }
-    if (nocc >= 1 && nocc < static_cast<int>(h.orbital_energies.size()))
-        s += format("    HOMO %.8f E_h, LUMO %.8f E_h, gap %.8f E_h\n", h.orbital_energies[nocc - 1],
-                    h.orbital_energies[nocc], h.orbital_energies[nocc] - h.orbital_energies[nocc - 1]);
     if (r.fci) s += fci_section_impl(*r.fci, r.rhf->total_energy, level);
     if (r.cc) s += cc_section_impl(*r.cc, level);
+    if (r.so) s += so_report_section(*r.so, level);
     return s;
 }
 

@@ -22,6 +22,9 @@ MolecularInput molecular_input(const Input& in) {
     m.atoms = in.atoms;
     m.charge = in.charge;
     m.multiplicity = in.multiplicity;
+    m.charge_given = in.chargeGiven || canonical_molecule_name(in.molecule) == "custom";
+    m.multiplicity_given = in.multiplicityGiven || canonical_molecule_name(in.molecule) == "custom";
+    m.reference = in.reference;
     m.title = in.title;
     m.basis = in.basis;
     m.method = in.method;
@@ -40,6 +43,9 @@ MolecularInput molecular_input(const Input& in) {
 int atom_count(const Input& in) {
     const std::string m = canonical_molecule_name(in.molecule);
     if (m == "custom") return static_cast<int>(in.atoms.size());
+    if (m.empty())
+        if (const MoleculePreset* p = find_molecule_preset(in.molecule))
+            return in.atoms.empty() ? static_cast<int>(p->atoms.size()) : static_cast<int>(in.atoms.size());
     return (m == "H2O2" || m == "NH3") ? 4 : (m == "H2O" ? 3 : 2);
 }
 
@@ -56,6 +62,9 @@ JobSettings job_settings(const Input& in) {
     s.eigen_test = in.eigenTest;
     s.hessian = in.hessian;
     s.initial_hessian = in.initialHessian == "model" ? "lindh" : in.initialHessian;
+    s.opt_hessian = in.optHessian == "auto" ? "" : in.optHessian;
+    s.recalc_fc = in.recalcFC;
+    s.opt_algorithm = in.optAlgorithm;
     if (job_has_scan(s.type) && !in.scan.empty()) {
         parse_scan_line(in.scan, atom_count(in), &s);
         if (in.scanStart) {
@@ -70,7 +79,18 @@ JobSettings job_settings(const Input& in) {
 std::string job_input_error(const Input& in) {
     const std::string job = canonical_job_type(in.job);
     if (job.empty()) return "job must be energy, opt, freq, opt+freq, opt+freq+sp, scan, ts, ts+freq or ts+freq+sp";
-    if (in.tsHessian != "calcfc" && in.tsHessian != "calcall") return "tsHessian must be calcfc or calcall";
+    if (in.tsHessian != "calcfc" && in.tsHessian != "calcall" && in.tsHessian != "recalcfc")
+        return "tsHessian must be calcfc, calcall or recalcfc";
+    if (in.optHessian != "auto" && in.optHessian != "calcfc" && in.optHessian != "calcall" && in.optHessian != "recalcfc")
+        return "optHessian must be auto, calcfc, calcall or recalcfc";
+    if (in.optAlgorithm != "rfo" && in.optAlgorithm != "gediis") return "optAlgorithm must be rfo or gediis";
+    if (in.recalcFC < 0 || in.recalcFC > 1000) return "recalcFC must be between 1 and 1000";
+    {
+        const bool ts_job = job_has_ts(job);
+        const bool recalc = ts_job ? in.tsHessian == "recalcfc" : in.optHessian == "recalcfc";
+        if (recalc && in.recalcFC < 1)
+            return "RecalcFC=N needs N >= 1 (recalcFC: the Hessian is computed at step 1 and every N-th step)";
+    }
     if (in.hessian != "analytic" && in.hessian != "numerical") return "hessian must be analytic or numerical";
     if (in.initialHessian != "auto" && in.initialHessian != "analytic" && in.initialHessian != "model")
         return "initialHessian must be auto, analytic or model";
@@ -214,7 +234,7 @@ std::string input_echo(const Input& in) {
     auto kv = [&](const char* k, const std::string& v) { s += strprintf("    %-16s = %s\n", k, v.c_str()); };
     kv("molecule", in.molecule);
     kv("job", in.job);
-    kv("method", in.method == "RHF" ? "HF" : in.method);
+    kv("method", in.method);
     kv("basis", in.basis);
     const std::string mol = canonical_molecule_name(in.molecule);
     if (mol == "custom") {
@@ -231,7 +251,18 @@ std::string input_echo(const Input& in) {
         }
     }
     if (mol == "H2O2") kv("R_OO", strprintf("%.10f bohr (%.8f angstrom)", in.ROO, in.ROO * kBohrInAngstrom));
-    if (mol != "custom") kv("R", strprintf("%.10f bohr (%.8f angstrom)", in.R, in.R * kBohrInAngstrom));
+    // 15.0: the atoms and molecules of the menu (presets) have fixed geometries; charge,
+    // multiplicity and reference of every molecule
+    if (mol.empty()) {
+        if (const MoleculePreset* pr = find_molecule_preset(in.molecule))
+            kv("geometry", pr->key + strprintf(" (%zu atom%s, fixed geometry)", pr->atoms.size(), pr->atoms.size() == 1 ? "" : "s"));
+    }
+    if (mol != "custom" && !mol.empty()) kv("R", strprintf("%.10f bohr (%.8f angstrom)", in.R, in.R * kBohrInAngstrom));
+    if (mol != "custom") {
+        if (in.chargeGiven) kv("charge", strprintf("%d", in.charge));
+        if (in.multiplicityGiven) kv("multiplicity", strprintf("%d", in.multiplicity));
+    }
+    if (!in.reference.empty()) kv("reference", in.reference);
     if (mol == "H2O" || mol == "H2O2" || mol == "NH3") kv("angle", strprintf("%.6f degrees", in.angle));
     if (mol == "H2O2") kv("dihedral", strprintf("%.6f degrees", in.dihedral));
     if (job_has_single_point(canonical_job_type(in.job))) {
@@ -262,12 +293,24 @@ std::string input_echo(const Input& in) {
         kv("hessian", in.hessian == "numerical" ? "numerical (central differences of analytic gradients)"
                                                 : "analytic (numerical if it does not fit in memory)");
     if (job_has_ts(canonical_job_type(in.job))) {
-        kv("ts_hessian", in.tsHessian == "calcall" ? "calcall (Hessian computed at every step)"
-                                                   : "calcfc (Hessian computed at the first step, then Bofill updates)");
+        kv("ts_hessian", in.tsHessian == "calcall" ? std::string("calcall (Hessian computed at every step)")
+                         : in.tsHessian == "recalcfc"
+                             ? strprintf("recalcfc=%d (Hessian computed at step 1 and every %d steps, Bofill updates between)",
+                                         in.recalcFC, in.recalcFC)
+                             : std::string("calcfc (Hessian computed at the first step, then Bofill updates)"));
         kv("eigen_test", in.eigenTest ? "yes (exactly one negative eigenvalue)" : "no");
     }
     if (job_uses_optimizer(canonical_job_type(in.job))) {
-        if (in.initialHessian != "auto")
+        if (!job_has_ts(canonical_job_type(in.job))) {
+            if (in.optHessian == "calcfc") kv("opt_hessian", "calcfc (Hessian computed at the first step, then BFGS updates)");
+            else if (in.optHessian == "calcall") kv("opt_hessian", "calcall (Hessian computed at every step)");
+            else if (in.optHessian == "recalcfc")
+                kv("opt_hessian", strprintf("recalcfc=%d (Hessian computed at step 1 and every %d steps, BFGS updates between)",
+                                            in.recalcFC, in.recalcFC));
+            kv("opt_algorithm", in.optAlgorithm == "gediis" ? "gediis (hybrid GEDIIS/RFO, Li and Frisch 2006)"
+                                                            : "rfo (rational-function optimisation)");
+        }
+        if (in.initialHessian != "auto" && in.optHessian == "auto")
             kv("initial_hessian", in.initialHessian == "analytic" ? "analytic (the Hessian of the method at the first point)"
                                                                   : "model (Lindh)");
         kv("opt_convergence", in.optConvergence);
@@ -280,8 +323,9 @@ std::string input_echo(const Input& in) {
 }
 
 std::string validate(const Input& in) {
-    if (canonical_molecule_name(in.molecule).empty())
-        return "molecule must be HeH+, H2, LiH, H2O, H2O2, NH3 or custom";
+    if (!general_molecule_name(in.molecule))
+        return "molecule must be HeH+, H2, LiH, H2O, H2O2, NH3, an atom H-Ar, H2+, H3+, H5+, N2, O2, F2, Cl2, NO, NO2, CO, CO2, N2O, H2CO, CH4 "
+               "or custom";
     if (!is_heh_input(in)) {
         const std::string e = validate_molecular(molecular_input(in));
         return e.empty() ? job_input_error(in) : e;
@@ -303,7 +347,7 @@ std::string validate(const Input& in) {
 }
 
 Output run_calculation(const Input& in, const OutputSink& sink) {
-    if (!canonical_molecule_name(in.molecule).empty() && !is_heh_input(in)) return run_molecular_calculation(in, sink);
+    if (general_molecule_name(in.molecule) && !is_heh_input(in)) return run_molecular_calculation(in, sink);
     Output out;
     out.input = in;
     try {

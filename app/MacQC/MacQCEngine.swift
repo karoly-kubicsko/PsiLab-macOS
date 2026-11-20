@@ -34,7 +34,7 @@ nonisolated struct MacQCInput: Codable, Sendable, Equatable {
     // General molecules
     var basis: String = "aug-cc-pVDZ"
     var angle: Double = 104.52      // degrees: H–O–H (H2O), O–O–H (H2O2), H–N–H (NH3)
-    var method: String = "RHF"      // "RHF", "CCSD", "CCSD(T)", "CCSDT", "CCSDTQ" or "FCI"
+    var method: String = "HF"       // 15.0: "HF" (14.0 "RHF"), "MP2" … "MP5", "CISD" … "QCISDTQ", "CCSD" … "CCSDTQ", "FCI"
     var basisDirectory: String = ""
     var threads: Int = 0
     var memoryMB: Double = 1024
@@ -63,6 +63,13 @@ nonisolated struct MacQCInput: Codable, Sendable, Equatable {
     var charge: Int? = nil
     var multiplicity: Int? = nil
     var title: String? = nil
+    // ΨLab 15.0: the reference (nil: automatic), HeH⁺ in STO-nG as a general molecule
+    // (szaboOstlund false), computed Hessians of minimisations, RecalcFC=N, the step (rfo, gediis)
+    var reference: String? = nil
+    var szaboOstlund: Bool? = nil
+    var optHessian: String = "auto"
+    var recalcFC: Int = 0
+    var optAlgorithm: String = "rfo"
 
     init() {}
 
@@ -72,6 +79,7 @@ nonisolated struct MacQCInput: Codable, Sendable, Equatable {
         case job, spMethod, spBasis, temperature, pressure, optConvergence, maxSteps
         case ROO, dihedral, scan, scanStart, tsHessian, eigenTest, hessian, initialHessian
         case atoms, charge, multiplicity, title
+        case reference, szaboOstlund, optHessian, recalcFC, optAlgorithm
     }
 
     init(from decoder: Decoder) throws {
@@ -115,6 +123,11 @@ nonisolated struct MacQCInput: Codable, Sendable, Equatable {
         charge = try c.decodeIfPresent(Int.self, forKey: .charge)
         multiplicity = try c.decodeIfPresent(Int.self, forKey: .multiplicity)
         title = try c.decodeIfPresent(String.self, forKey: .title)
+        reference = try c.decodeIfPresent(String.self, forKey: .reference)
+        szaboOstlund = try c.decodeIfPresent(Bool.self, forKey: .szaboOstlund)
+        optHessian = try c.decodeIfPresent(String.self, forKey: .optHessian) ?? d.optHessian
+        recalcFC = try c.decodeIfPresent(Int.self, forKey: .recalcFC) ?? d.recalcFC
+        optAlgorithm = try c.decodeIfPresent(String.self, forKey: .optAlgorithm) ?? d.optAlgorithm
         // The echo of the Szabo–Ostlund calculation has no "molecule" and no "basis".
         if !c.contains(.molecule) {
             basis = "STO-\(nGaussians)G"
@@ -123,7 +136,7 @@ nonisolated struct MacQCInput: Codable, Sendable, Equatable {
 
     /// True for the general Gaussian-basis path: H₂, LiH, H₂O, H₂O₂, NH₃, and HeH⁺ in a
     /// Gaussian basis set of the library (false: HeH⁺ in STO-nG, Szabo–Ostlund).
-    var isGeneral: Bool { molecule != "HeH+" || !basis.uppercased().hasPrefix("STO") }
+    var isGeneral: Bool { molecule != "HeH+" || !basis.uppercased().hasPrefix("STO") || szaboOstlund == false }
 
     /// ΨLab 9.0: a custom molecule (atoms from a structure file).
     var isCustom: Bool { molecule == "custom" }
@@ -342,6 +355,36 @@ nonisolated struct MacQCRHF: Codable, Sendable, Equatable {
     var integralSeconds: Double
     var scfSeconds: Double
     var scfHistory: [MacQCRHFIteration]
+    // ΨLab 15.0: the reference (RHF, UHF, ROHF), spin and ⟨S²⟩ (open shells)
+    var reference: String?
+    var multiplicity: Int?
+    var alphaElectrons: Int?
+    var betaElectrons: Int?
+    var S2: Double?
+    var S2Exact: Double?
+}
+
+/// ΨLab 15.0: a method of the spin-orbital engine (MP2–MP5, CISD … CISDTQ, QCISD … QCISDTQ, and
+/// coupled cluster on open-shell references): energies, the energy terms (E(2), E(3), (T), …).
+nonisolated struct MacQCCorrelatedTerm: Codable, Sendable, Equatable {
+    var label: String
+    var value: Double
+}
+
+nonisolated struct MacQCCorrelated: Codable, Sendable, Equatable {
+    var method: String
+    var label: String?            // with the reference prefix, e.g. "UMP2"
+    var reference: String?
+    var converged: Bool
+    var iterations: Int
+    var referenceEnergy: Double
+    var correlationEnergy: Double
+    var totalEnergy: Double
+    var t1Diagnostic: Double?
+    var terms: [MacQCCorrelatedTerm]?
+    var seconds: Double?
+
+    var title: String { label ?? method }
 }
 
 nonisolated struct MacQCDeterminant: Codable, Sendable, Equatable {
@@ -379,6 +422,9 @@ nonisolated struct MacQCFullCI: Codable, Sendable, Equatable {
     var history: [MacQCDavidsonIteration]
     var transformSeconds: Double
     var ciSeconds: Double
+    // ΨLab 15.0: spin adaptation (configuration state functions of the requested spin)
+    var csfs: Double?
+    var spin: Double?
 }
 
 nonisolated struct MacQCCCAmplitude: Codable, Sendable, Equatable {
@@ -820,6 +866,8 @@ nonisolated struct MacQCOutput: Codable, Sendable, Equatable {
     var rhf: MacQCRHF?
     var fullCI: MacQCFullCI?
     var coupledCluster: MacQCCoupledCluster?
+    var correlated: MacQCCorrelated?   // 15.0: the spin-orbital engine's methods
+    var reference: String?             // 15.0: RHF, UHF or ROHF
     // ΨLab 5.0 (H2, LiH, H2O): the job and its output file; rhf / fullCI / coupledCluster /
     // molecule / basis describe the final energy calculation of the job.
     var job: MacQCJobInfo?
@@ -832,7 +880,10 @@ nonisolated struct MacQCOutput: Codable, Sendable, Equatable {
     var output: String?
 
     /// Energy of the correlated method of this result (Full CI or coupled cluster).
-    var correlatedEnergy: Double? { coupledCluster?.totalEnergy ?? fullCI?.totalEnergy }
+    var correlatedEnergy: Double? { coupledCluster?.totalEnergy ?? correlated?.totalEnergy ?? fullCI?.totalEnergy }
+
+    /// 15.0: the reference of the SCF ("RHF", "UHF", "ROHF").
+    var referenceLabel: String { rhf?.reference ?? reference ?? "RHF" }
 
     /// Title of the method of this result: "HF", "CCSD(T)", "Full CI", …
     var methodTitle: String { MethodChoice.title(of: input.method) }
@@ -849,6 +900,8 @@ nonisolated struct MacQCOutput: Codable, Sendable, Equatable {
             let f = molecule?.formula ?? "?"
             return f.replacingOccurrences(of: #"(\d+)"#, with: #"\$_{$1}\$"#, options: .regularExpression)
         }
+        // 15.0: the atoms and molecules of the menu (Unicode names, e.g. "H₅⁺", "NO₂")
+        if let p = MoleculePresets.find(input.molecule) { return p.title }
         let name = molecule?.name ?? input.molecule
         if name == "HeH+" { return "HeH$^+$" }
         return name.replacingOccurrences(of: #"(\d+)"#, with: #"\$_{$1}\$"#, options: .regularExpression)

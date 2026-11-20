@@ -39,8 +39,10 @@ Matrix symmetrized(const Matrix& A) {
     return S;
 }
 
+}  // namespace
+
 // Packed MO two-particle density -> packed AO density: Gamma_mnls = sum C_mp C_nq C_lr C_ms G_pqrs.
-std::vector<double> back_transform(const Packed4& G, const Matrix& C, int threads) {
+std::vector<double> back_transform_packed(const Packed4& G, const Matrix& C, int threads) {
     const std::size_t N = C.rows(), n = C.cols();
     const std::size_t np = n * (n + 1) / 2, NP = N * (N + 1) / 2;
     std::vector<double> half(NP * np, 0.0);  // [mn][rs]
@@ -71,6 +73,8 @@ std::vector<double> back_transform(const Packed4& G, const Matrix& C, int thread
     return out;
 }
 
+namespace {
+std::vector<double> back_transform(const Packed4& G, const Matrix& C, int threads) { return back_transform_packed(G, C, threads); }
 }  // namespace
 
 double density_energy(const CorrelatedDensity& d, const MOIntegrals& mo, double nuclear_repulsion) {

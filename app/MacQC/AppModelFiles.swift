@@ -208,10 +208,20 @@ extension SavedMolecule {
     /// ΨLab correlates all electrons: Gaussian's coupled cluster freezes the core unless asked
     /// for Full.
     static func gaussianMethod(_ method: String) -> String? {
-        switch method.uppercased() {
-        case "RHF", "HF": return "HF"
-        case "CCSD": return "CCSD(Full)"
-        case "CCSD(T)": return "CCSD(T,Full)"
+        var m = method.uppercased()
+        // 15.0: the reference prefixes of Gaussian (UMP2, ROMP2, ...)
+        var prefix = ""
+        if ["RHF", "UHF", "ROHF"].contains(m) { return m }
+        if m.hasPrefix("RO") && m != "RO" { prefix = "RO"; m.removeFirst(2) }
+        else if m.hasPrefix("U") { prefix = "U"; m.removeFirst() }
+        switch m {
+        case "HF": return prefix.isEmpty ? "HF" : prefix + "HF"
+        case "MP2", "MP3", "MP4", "MP5": return prefix + (m == "MP4" ? "MP4(SDTQ,Full)" : m + "(Full)")
+        case "CISD": return prefix + "CISD(Full)"
+        case "QCISD": return prefix + "QCISD(Full)"
+        case "QCISD(T)": return prefix + "QCISD(T,Full)"
+        case "CCSD": return prefix + "CCSD(Full)"
+        case "CCSD(T)": return prefix + "CCSD(T,Full)"
         default: return nil
         }
     }
@@ -331,6 +341,7 @@ extension SavedMolecule {
         let b = basis.lowercased()
         if b.hasPrefix("6-31") || b.hasPrefix("aug-cc-pv") { return basis }
         switch b {
+        case "sto-3g": return "STO-3G"
         case "def2-svp": return "Def2SVP"
         case "def2-tzvp": return "Def2TZVP"
         case "def2-tzvpp": return "Def2TZVPP"
