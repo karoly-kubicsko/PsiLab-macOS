@@ -93,7 +93,7 @@ std::string thousands(std::size_t v) {
 }
 
 std::string thousands_d(double v) {
-    if (!std::isfinite(v) || v > 1.0e300) return "more than 10^300";  // 15.0: impossible Full CI spaces
+    if (!std::isfinite(v) || v > 1.0e300) return "more than 10^300";  // 16.0: impossible Full CI spaces
     if (v >= 1.0e15) return format("%.2e", v);
     return thousands(static_cast<std::size_t>(std::llround(v)));
 }

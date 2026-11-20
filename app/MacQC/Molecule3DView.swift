@@ -101,12 +101,39 @@ nonisolated enum MoleculeBackgroundChoice: String, CaseIterable, Identifiable, S
     }
 }
 
+/// The heights of the 3D viewers. 12.0–14.0: 300 pt for the optimisation steps and scan points,
+/// 320 pt for the normal modes; 15.0: 480 and 500 pt; the Summary 280 pt.
+/// 16.0: a fraction of the height of the tab's visible area (the scroll view), at least the
+/// minimum and at most the maximum: on a 16-inch MacBook Pro with the window filling the screen,
+/// about 630 pt for the optimisation steps, scan points and normal modes and 490 pt in the Summary.
+nonisolated enum Viewer3DSize {
+    struct Rule: Sendable {
+        var fraction: CGFloat
+        var minimum: CGFloat
+        var maximum: CGFloat
 
-/// 15.0: the heights of the 3D viewers (12.0-14.0: 300 pt for the optimisation steps and scan
-/// points, 320 pt for the normal modes), larger so that the molecule fills more of the tab.
-enum Viewer3DSize {
-    static let height: CGFloat = 480
-    static let modeHeight: CGFloat = 500
+        func height(visible: CGFloat) -> CGFloat {
+            min(max(visible * fraction, minimum), maximum)
+        }
+    }
+
+    /// Optimisation steps and scan points (the buttons and the step's data below the viewer).
+    static let steps = Rule(fraction: 0.78, minimum: 560, maximum: 1000)
+    /// The animated normal mode (its title above, the mode chooser below).
+    static let mode = Rule(fraction: 0.78, minimum: 580, maximum: 1000)
+    /// The molecule in the Summary tab (the coordinates below it).
+    static let summary = Rule(fraction: 0.6, minimum: 420, maximum: 800)
+}
+
+extension View {
+    /// 16.0: the full width of the panel (at least `minWidth`) and the height of `rule` for the
+    /// visible height of the enclosing scroll view.
+    func viewer3DFrame(_ rule: Viewer3DSize.Rule, minWidth: CGFloat) -> some View {
+        frame(minWidth: minWidth, maxWidth: .infinity)
+            .containerRelativeFrame(.vertical) { length, _ in
+                rule.height(visible: length)
+            }
+    }
 }
 
 struct Molecule3DStyle: Equatable {

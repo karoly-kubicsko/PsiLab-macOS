@@ -140,7 +140,7 @@ struct RelaxedScanView: View {
             // the buttons
             Molecule3DView(atoms: atomsMoved(atoms, to: aligned[index]), framing: aligned,
                            accessibilityText: "Molecule at this scan point")
-                .frame(minWidth: 480, maxWidth: .infinity, minHeight: Viewer3DSize.height, maxHeight: Viewer3DSize.height)
+                .viewer3DFrame(Viewer3DSize.steps, minWidth: 480)
             HStack(spacing: 8) {
                 Button {
                     select(0, in: scan)

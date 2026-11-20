@@ -248,7 +248,7 @@ extension SavedMolecule {
     ///    ΨLab; HF where Gaussian has no such method); by Gaussian's name the sets it has built in
     ///    (14.0: the 6-31G family, whose default 6D 7F ΨLab uses as well, the 6-311G family and
     ///    Def2SVP, Def2TZVP, Def2TZVPP, Def2QZVP, Def2QZVPP, all with Gaussian's default function
-    ///    types; aug-cc-pVXZ); the others (aug-cc-pCVXZ, def2-mTZVP, def2-mTZVPP, def2-TZVPPD,
+    ///    types; aug-cc-pVXZ, 16.0 cc-pVXZ); the others ((aug-)cc-pCVXZ, def2-mTZVP, def2-mTZVPP, def2-TZVPPD,
     ///    def2-QZVPPD) as "Gen 5D 7F" with ΨLab's functions written out (for aug-cc-pCVXZ H and He
     ///    with the aug-cc-pVXZ functions, as ΨLab uses them), or by name per element when the
     ///    functions are not known;
@@ -290,7 +290,7 @@ extension SavedMolecule {
         } else if heavy && basis.lowercased().hasPrefix("def2") {
             lines.append("! \(basis): PsiLab uses the def2 effective core potentials for the elements beyond Kr;")
             lines.append("! give them with GenECP (basissetexchange.org) if your Gaussian does not apply them")
-        } else if SavedMolecule.gaussianBasisKeyword(basis) == nil && !basis.lowercased().hasPrefix("aug-cc-pcv") {
+        } else if SavedMolecule.gaussianBasisKeyword(basis) == nil && !SavedMolecule.isCoreValence(basis) {
             // 14.0: def2 sets that Gaussian does not have built in (spherical, 5D 7F)
             route = "Gen 5D 7F"
             if let section = SavedMolecule.gaussianBasisSection(for: atoms.map(\.Z), orbitals: orbitals) {
@@ -305,9 +305,9 @@ extension SavedMolecule {
                     basisSection += ["\(Elements.symbol(Z)) 0", basis, "****"]
                 }
             }
-        } else if basis.lowercased().hasPrefix("aug-cc-pcv") {
+        } else if SavedMolecule.isCoreValence(basis) {
             route = "Gen 5D 7F"
-            let partner = "aug-cc-pV" + basis.dropFirst("aug-cc-pCV".count)
+            let partner = basis.replacingOccurrences(of: "pCV", with: "pV")
             if let section = SavedMolecule.gaussianBasisSection(for: atoms.map(\.Z), orbitals: orbitals) {
                 lines.append("! basis set \(basis) as used by PsiLab (\(partner) for H and He), written out below")
                 basisSection = section
@@ -337,9 +337,16 @@ extension SavedMolecule {
     /// 14.0: Gaussian's keyword of a ΨLab basis set that Gaussian has built in (with the same
     /// default function types as ΨLab: 6D 7F for the 6-31G family, 5D 7F for the others), nil for
     /// aug-cc-pCVXZ, def2-mTZVP, def2-mTZVPP, def2-TZVPPD and def2-QZVPPD.
+    /// 16.0: the core-valence sets (cc-pCVXZ, aug-cc-pCVXZ), written out for Gaussian (H and He
+    /// with the valence sets' functions).
+    static func isCoreValence(_ basis: String) -> Bool {
+        let b = basis.lowercased()
+        return b.hasPrefix("aug-cc-pcv") || b.hasPrefix("cc-pcv")
+    }
+
     static func gaussianBasisKeyword(_ basis: String) -> String? {
         let b = basis.lowercased()
-        if b.hasPrefix("6-31") || b.hasPrefix("aug-cc-pv") { return basis }
+        if b.hasPrefix("6-31") || b.hasPrefix("aug-cc-pv") || b.hasPrefix("cc-pv") { return basis }  // 16.0: cc-pVXZ
         switch b {
         case "sto-3g": return "STO-3G"
         case "def2-svp": return "Def2SVP"

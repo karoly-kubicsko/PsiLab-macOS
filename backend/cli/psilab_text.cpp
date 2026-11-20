@@ -80,7 +80,7 @@ int parse_basis(const std::string& text, int line) {
     if (t == "sto2g" || t == "2") return 2;
     if (t == "sto3g" || t == "3") return 3;
     fail(line, "basis must be STO-1G, STO-2G or STO-3G (Szabo–Ostlund) or a basis set of the library "
-               "(6-31G ..., 6-311G ..., def2-..., aug-cc-pVXZ, aug-cc-pCVXZ), got '" + trim(text) + "'");
+               "(6-31G ..., 6-311G ..., (aug-)cc-pVXZ, (aug-)cc-pCVXZ, def2-...), got '" + trim(text) + "'");
 }
 
 // "1.4632", "1.4632 bohr", "0.7743 angstrom", "0.7743 Å" -> bohr
@@ -640,7 +640,7 @@ std::optional<CurveMinimum> curve_minimum(const std::vector<std::pair<double, do
     return m;
 }
 
-// 15.0: seconds below a day, beyond that the readable estimate (also for impossible jobs)
+// 16.0: seconds below a day, beyond that the readable estimate (also for impossible jobs)
 static std::string wall_time(double s) {
     return s < 86400.0 ? format("%.0f s", s) : macqc::estimate_duration(s);
 }

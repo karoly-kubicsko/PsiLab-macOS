@@ -1,14 +1,15 @@
 # ΨLab — a native macOS quantum-chemistry app
 
-**Current version: 15.0** — see [Versions](#versions).
+**Current version: 16.0** — see [Versions](#versions).
 
 ΨLab computes small molecules — closed and (15.0) open shells, with RHF, UHF and ROHF references —
 with Hartree–Fock, Møller–Plesset perturbation theory (MP2–MP5), configuration interaction (CISD …
 CISDTQ, spin-adapted Full CI), quadratic CI (QCISD … QCISDTQ) and coupled cluster (CCSD … CCSDTQ):
 
-- **H₂, LiH, H₂O, H₂O₂, NH₃ and HeH⁺** (and custom molecules of H–Rn and Th–Lr) in 33 Gaussian
-  basis sets from basissetexchange.org: the correlation-consistent sets aug-cc-pVXZ and
-  aug-cc-pCVXZ (X = D, T, Q, 5; spherical Gaussians up to h functions) and (14.0) the Pople sets
+- **H₂, LiH, H₂O, H₂O₂, NH₃ and HeH⁺** (and custom molecules of H–Rn and Th–Lr) in 44 Gaussian
+  basis sets from basissetexchange.org: the correlation-consistent sets cc-pVXZ, aug-cc-pVXZ,
+  cc-pCVXZ and aug-cc-pCVXZ (X = D, T, Q, 5; spherical Gaussians up to h functions; 16.0: cc-pVXZ
+  and cc-pCVXZ), the minimal STO-1G, STO-2G and STO-3G (15.0) and (14.0) the Pople sets
   6-31G … 6-31++G** (Cartesian d functions, 6D, as in Gaussian) and 6-311G … 6-311++G(3df,3pd) and
   the Karlsruhe sets def2-SVP … def2-QZVPPD for every element the Basis Set Exchange defines them
   for, with the **effective core potentials** of the def2 sets beyond Kr, with the methods **HF, CCSD, CCSD(T), CCSDT, CCSDTQ and Full CI** (all electrons correlated):
@@ -208,6 +209,55 @@ same calculations run in the terminal on Linux and macOS
 
 ## Versions
 
+### 16.0
+**The changes asked for after 15.0** (the 15.0 release does not contain them): the
+*Atom/Molecule* menu and the geometry parameters of the new molecules, the Dunning sets cc-pVXZ and
+cc-pCVXZ before the Karlsruhe sets, the size of impossible calculations, a wider sidebar, Full CI at
+the end of the method menu, en dashes in the output files and taller 3D viewers.
+
+**The Dunning sets cc-pVXZ and cc-pCVXZ.** The basis-set menu (and `psilab`'s `basis` key) adds
+cc-pVDZ, cc-pVTZ, cc-pVQZ, cc-pV5Z and the core-valence sets cc-pCVDZ, cc-pCVTZ, cc-pCVQZ, cc-pCV5Z;
+the Dunning sets stand before the Karlsruhe sets in this order: cc-pVXZ, aug-cc-pVXZ, cc-pCVXZ,
+aug-cc-pCVXZ (44 basis sets in all). The files come from the Basis Set Exchange (data version 0.12,
+the version of the other files; its package reproduces aug-cc-pVTZ.gbs byte for byte) with every
+element up to Kr it defines: cc-pVDZ, TZ and QZ H–Ar and Ca–Kr, cc-pV5Z H–Ar, Ca and Ga–Kr (the 5Z
+sets of Sc–Zn contain i functions, beyond ΨLab's integrals), cc-pCVDZ, TZ and QZ Li–Ar and Ca,
+cc-pCV5Z B–Ar and Ca. As in the aug-cc-pCVXZ sets, H and He take the valence functions (cc-pVXZ) in
+the core-valence sets. The Gaussian input export writes cc-pVXZ by name and cc-pCVXZ as Gen with
+ΨLab's functions.
+Checked: SCF energies against PySCF with the same basis files agree to 1.6·10⁻¹⁰ E_h or better
+(RHF: H₂O cc-pVDZ, TZ, QZ, cc-pCVDZ, TZ; N₂ cc-pV5Z, cc-pCVQZ; CO cc-pCV5Z, 290 functions; Cl₂
+cc-pVDZ; CaH₂ cc-pCVDZ; HeH⁺ cc-pCVTZ; KrH⁺ cc-pVDZ; UHF: triplet O₂ cc-pVTZ).
+
+**Taller 3D viewers.** The height of the molecule viewers follows the height of the tab: 78 % of the
+visible area for the optimisation steps, the scan points and the normal modes (at least 560 and
+580 pt, before 480 and 500 pt; at most 1000 pt) and 60 % in the Summary tab (at least 420 pt, before
+280 pt; at most 800 pt). With the window filling the screen of a 16-inch MacBook Pro, about 630 pt
+and 490 pt (1536 × 960 pt display, Dock shown).
+
+**Atom/Molecule menu and size of the calculation.** The first section is *Atom/Molecule*: the atoms
+H–Ar, then the molecules by their number of electrons (H₂⁺, H₂, HeH⁺, H₃⁺, H₅⁺, LiH, H₂O, CH₄, NH₃,
+CO, N₂, NO, O₂, H₂CO, H₂O₂, F₂, CO₂, N₂O, NO₂, Cl₂), then the kept custom molecules. The molecules
+added in 15.0 have geometry parameters like H₂O (`PresetGeometry.swift`): R for the diatomics and
+CO₂, R(H–H) of the equilateral H₃⁺, R(N–O) and the angle of NO₂, R(N–N) and R(N–O) of N₂O, R(C–O),
+R(C–H) and the angle H–C–H of H₂CO, R(C–H) of CH₄, and four distances of the C₂ᵥ H₅⁺; unchanged, the
+backend's geometry is used, changed, the app sends the Cartesian coordinates; after an optimisation
+*Use optimised geometry* copies the optimised parameters. The size of the calculation names another
+basis set of the menu that gives the molecule exactly the same functions (e.g. LiH: def2-QZVP and
+def2-QZVPP, 65 functions each, because the Basis Set Exchange defines the two sets identically for H
+and Li; among H–Ar they differ for Na and Mg only; `backend/tools/basis_identity.py` generates the
+table from the basis files). Checked: the basis functions per element, their sum and the number of
+unique two-electron integrals agree with an independent count from the basis files for all 36 basis
+sets of 15.0 and all 38 atoms and molecules. The estimated time and memory are shown also for
+impossible calculations, readably (Full CI of Cl₂ in aug-cc-pCV5Z: 1.98·10⁶⁰ determinants, about
+1.7·10⁵⁰ TB and 1.0·10⁷⁴ years; beyond 10³⁰⁰ "more than").
+
+**Sidebar width, method menu, en dashes.** The sidebar is at least 340 pt wide, so the segmented
+Hessian control of optimisations (Initial, CalcFC, CalcAll, RecalcFC) fits; the method menu ends
+with Full CI (after coupled cluster). The output files and messages write names and ranges with en
+dashes: Hartree–Fock, Møller–Plesset, Szabo–Ostlund, the bonds and internal coordinates R(O1–H2),
+D(H3–O1–O2–H4), and element ranges such as H–Ar (columns are padded by characters, not bytes).
+
 ### 15.0
 **Open shells, many more methods, analytic derivatives for them, new molecules, optimiser options,
 spin-adapted Full CI and hardware acceleration.**
@@ -352,29 +402,6 @@ scan points (480 pt high) and normal modes (500 pt high) are larger and span the
 panel: the data of the step or point and the chooser of the normal modes are below the viewer
 instead of beside it. The method menu has sections (Hartree–Fock, Møller–Plesset, CI, QCI, coupled
 cluster); the Gaussian input export writes `UMP2(Full)`, `QCISD(T,Full)` and so on.
-
-**Sidebar and output files.** The sidebar is at least 340 pt wide, so the segmented Hessian
-control of optimisations (Initial, CalcFC, CalcAll, RecalcFC) fits; the method menu ends with Full
-CI (after coupled cluster). The output files and messages write names and ranges with en dashes:
-Hartree–Fock, Møller–Plesset, Szabo–Ostlund, the bonds and internal coordinates R(O1–H2),
-D(H3–O1–O2–H4), and element ranges such as H–Ar (columns are padded by characters, not bytes).
-
-**Sidebar.** The first section is *Atom/Molecule*: the atoms H–Ar, then the molecules by their
-number of electrons (H₂⁺, H₂, HeH⁺, H₃⁺, H₅⁺, LiH, H₂O, CH₄, NH₃, CO, N₂, NO, O₂, H₂CO, H₂O₂, F₂, CO₂,
-N₂O, NO₂, Cl₂), then the kept custom molecules. The molecules added in 15.0 have geometry parameters
-like H₂O (`PresetGeometry.swift`): R for the diatomics and CO₂, R(H–H) of the equilateral H₃⁺,
-R(N–O) and the angle of NO₂, R(N–N) and R(N–O) of N₂O, R(C–O), R(C–H) and the angle H–C–H of H₂CO,
-R(C–H) of CH₄, and four distances of the C₂ᵥ H₅⁺; unchanged, the backend's geometry is used, changed,
-the app sends the Cartesian coordinates; after an optimisation *Use optimised geometry* copies the
-optimised parameters. The basis-set menu lists the Dunning sets before the Karlsruhe sets. The size
-of the calculation names another basis set of the menu that gives the molecule exactly the same
-functions (e.g. LiH: def2-QZVP and def2-QZVPP, 65 functions each, because the Basis Set Exchange
-defines the two sets identically for H and Li; among H–Ar they differ for Na and Mg only;
-`backend/tools/basis_identity.py` generates the table from the basis files). Checked: the basis
-functions per element, their sum and the number of unique two-electron integrals agree with an
-independent count from the basis files for all 36 basis sets and all 38 atoms and molecules. The
-estimated time and memory are shown also for impossible calculations, readably (Full CI of Cl₂ in
-aug-cc-pCV5Z: 1.98·10⁶⁰ determinants, about 1.7·10⁵⁰ TB and 1.0·10⁷⁴ years; beyond 10³⁰⁰ "more than").
 
 **Terminal (`psilab`).** Every key above; `psilab input.inp > output.out` writes the output file
 to the standard output (the summary goes to the standard error), `psilab input.inp output.out`

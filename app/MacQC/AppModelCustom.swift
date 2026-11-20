@@ -23,7 +23,7 @@ enum MoleculeSelection: Hashable {
     case preset(String)   // 15.0: an atom or molecule of the menu (MoleculePresets)
 }
 
-/// 15.0: the molecules of the menu (after the atoms), the built-in molecules of earlier versions
+/// 16.0: the molecules of the menu (after the atoms), the built-in molecules of earlier versions
 /// and the molecules with fixed geometries in one list, by their number of electrons.
 enum MoleculeMenu {
     static let order = ["H2+", "H2", "HeH+", "H3+", "H5+", "LiH", "H2O", "CH4", "NH3", "CO", "N2", "NO", "O2", "H2CO",
@@ -242,7 +242,7 @@ extension AppModel {
     /// The displayed result belongs to the selected molecule (built-in or custom).
     var resultMatchesSelection: Bool {
         guard let out = result, out.isGeneral, isGeneral else { return false }
-        if molecule == .preset { return out.input.molecule == presetKey }  // 15.0
+        if molecule == .preset { return out.input.molecule == presetKey }  // 16.0
         return molecule == .custom ? resultMatchesCustom : out.input.molecule == molecule.rawValue
     }
 
