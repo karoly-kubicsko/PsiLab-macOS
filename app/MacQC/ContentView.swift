@@ -15,7 +15,8 @@ struct ContentView: View {
     var body: some View {
         NavigationSplitView {
             SidebarView(model: model)
-                .navigationSplitViewColumnWidth(min: 260, ideal: 290, max: 360)
+                // 15.0: wide enough for the segmented Hessian control (Initial | CalcFC | CalcAll | RecalcFC)
+                .navigationSplitViewColumnWidth(min: 340, ideal: 340, max: 420)
         } detail: {
             DetailView(model: model)
         }
@@ -69,7 +70,7 @@ final class WindowFitterView: NSView {
     }
 }
 
-/// Six tabs (they fit next to the sidebar at the minimum window width of 1000 pt): Summary,
+/// Six tabs (they fit next to the 340-pt sidebar at the minimum window width of 1000 pt, about 600 pt): Summary,
 /// Methods (Hartree–Fock, coupled cluster, Full CI), Optimisation, Frequencies (with the
 /// thermochemistry page), Scan (relaxed scan and potential curve), Output.
 struct DetailView: View {

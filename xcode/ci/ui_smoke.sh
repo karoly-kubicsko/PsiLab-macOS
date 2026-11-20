@@ -723,6 +723,10 @@ view_tab "a1-o2-ump2-optimisation" "Optimisation"
 print_shot "a1-o2-ump2-optimisation"
 view_tab "a1b-o2-ump2-frequencies" "Frequencies"
 print_shot "a1b-o2-ump2-frequencies"
+# 15.0: the segmented controls of the sidebar (Hessian: Initial | CalcFC | CalcAll | RecalcFC) lie
+# inside the 340-pt panel
+layout "a1d-sidebar-controls"
+grep -E "Initial|CalcFC|RecalcFC" "$OUT/layout-a1d-sidebar-controls.txt" || echo "Hessian control not in the accessibility layout"
 # the molecule menu of 15.0: the molecules (built in and with fixed geometries) and the atoms
 with_timeout 20 osascript "$OUT/tab.applescript" "Atom/Molecule" > /dev/null 2>&1 || true
 sleep 2
