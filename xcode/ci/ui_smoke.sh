@@ -744,7 +744,7 @@ print_shot "a4-heh-sto3g-summary"
 # H2O2 relaxed scan of the torsion (the larger 3D viewer of a scan point) and NO2 ROMP2 opt+freq
 relaunch -appearanceChoice light -psilabMolecule H2O2 -psilabBasis 6-31G -psilabMethod HF -psilabJob scan -psilabScan "D 3 1 2 4 S 6 30" -psilabScanStart 0 -psilabAutoRun YES
 sleep 30
-view_tab "a5-h2o2-scan-15" "Scan"
+view_tab "a5-h2o2-scan-15" "Relaxed Scan"
 print_shot "a5-h2o2-scan-15"
 relaunch -appearanceChoice dark -psilabMolecule NO2 -psilabBasis STO-3G -psilabMethod MP2 -psilabReference ROHF -psilabJob opt+freq -psilabAutoRun YES
 sleep 40
