@@ -959,7 +959,7 @@ Input parse_input_json(const std::string& text) {
                 if (c != '-' && c != ' ') t += static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
             if (t == "sto1g" || t == "sto2g" || t == "sto3g") in.nGaussians = t[3] - '0';
             else throw std::runtime_error("\"basis\" for HeH+ must be STO-1G, STO-2G, STO-3G or a basis set of the library "
-                                          "(6-31G ..., 6-311G ..., def2-..., aug-cc-pVXZ, aug-cc-pCVXZ)");
+                                          "(6-31G ..., 6-311G ..., (aug-)cc-pVXZ, (aug-)cc-pCVXZ, def2-...)");
         }
     }
     if (canonical != "HeH+" && canonical != "custom") in.angle = default_angle(canonical);

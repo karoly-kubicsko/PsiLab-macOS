@@ -166,7 +166,7 @@ struct SidebarView: View {
         .disabled(model.isRunning || model.isScanning)
     }
 
-    /// The 33 basis sets of the library in one section per family, each tagged with `value(name)`.
+    /// The basis sets of the library in one section per family, each tagged with `value(name)`.
     @ViewBuilder
     private func basisFamilySections<T: Hashable>(value: @escaping (String) -> T) -> some View {
         ForEach(BasisSets.families, id: \.self) { family in

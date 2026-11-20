@@ -1,14 +1,15 @@
 # ΨLab — a native macOS quantum-chemistry app
 
-**Current version: 15.0** — see [Versions](#versions).
+**Current version: 16.0** — see [Versions](#versions).
 
 ΨLab computes small molecules — closed and (15.0) open shells, with RHF, UHF and ROHF references —
 with Hartree–Fock, Møller–Plesset perturbation theory (MP2–MP5), configuration interaction (CISD …
 CISDTQ, spin-adapted Full CI), quadratic CI (QCISD … QCISDTQ) and coupled cluster (CCSD … CCSDTQ):
 
-- **H₂, LiH, H₂O, H₂O₂, NH₃ and HeH⁺** (and custom molecules of H–Rn and Th–Lr) in 33 Gaussian
-  basis sets from basissetexchange.org: the correlation-consistent sets aug-cc-pVXZ and
-  aug-cc-pCVXZ (X = D, T, Q, 5; spherical Gaussians up to h functions) and (14.0) the Pople sets
+- **H₂, LiH, H₂O, H₂O₂, NH₃ and HeH⁺** (and custom molecules of H–Rn and Th–Lr) in 44 Gaussian
+  basis sets from basissetexchange.org: the correlation-consistent sets cc-pVXZ, aug-cc-pVXZ,
+  cc-pCVXZ and aug-cc-pCVXZ (X = D, T, Q, 5; spherical Gaussians up to h functions; 16.0: cc-pVXZ
+  and cc-pCVXZ), the minimal STO-1G, STO-2G and STO-3G (15.0) and (14.0) the Pople sets
   6-31G … 6-31++G** (Cartesian d functions, 6D, as in Gaussian) and 6-311G … 6-311++G(3df,3pd) and
   the Karlsruhe sets def2-SVP … def2-QZVPPD for every element the Basis Set Exchange defines them
   for, with the **effective core potentials** of the def2 sets beyond Kr, with the methods **HF, CCSD, CCSD(T), CCSDT, CCSDTQ and Full CI** (all electrons correlated):
@@ -208,6 +209,21 @@ same calculations run in the terminal on Linux and macOS
 
 ## Versions
 
+### 16.0
+**The Dunning sets cc-pVXZ and cc-pCVXZ.** The basis-set menu (and `psilab`'s `basis` key) adds
+cc-pVDZ, cc-pVTZ, cc-pVQZ, cc-pV5Z and the core-valence sets cc-pCVDZ, cc-pCVTZ, cc-pCVQZ, cc-pCV5Z;
+the Dunning sets stand before the Karlsruhe sets in this order: cc-pVXZ, aug-cc-pVXZ, cc-pCVXZ,
+aug-cc-pCVXZ (44 basis sets in all). The files come from the Basis Set Exchange (data version 0.12,
+the version of the other files; its package reproduces aug-cc-pVTZ.gbs byte for byte) with every
+element up to Kr it defines: cc-pVDZ, TZ and QZ H–Ar and Ca–Kr, cc-pV5Z H–Ar, Ca and Ga–Kr (the 5Z
+sets of Sc–Zn contain i functions, beyond ΨLab's integrals), cc-pCVDZ, TZ and QZ Li–Ar and Ca,
+cc-pCV5Z B–Ar and Ca. As in the aug-cc-pCVXZ sets, H and He take the valence functions (cc-pVXZ) in
+the core-valence sets. The Gaussian input export writes cc-pVXZ by name and cc-pCVXZ as Gen with
+ΨLab's functions.
+Checked: SCF energies against PySCF with the same basis files agree to 1.6·10⁻¹⁰ E_h or better
+(RHF: H₂O cc-pVDZ, TZ, QZ, cc-pCVDZ, TZ; N₂ cc-pV5Z, cc-pCVQZ; CO cc-pCV5Z, 290 functions; Cl₂
+cc-pVDZ; CaH₂ cc-pCVDZ; HeH⁺ cc-pCVTZ; KrH⁺ cc-pVDZ; UHF: triplet O₂ cc-pVTZ).
+
 ### 15.0
 **Open shells, many more methods, analytic derivatives for them, new molecules, optimiser options,
 spin-adapted Full CI and hardware acceleration.**
@@ -372,7 +388,7 @@ functions (e.g. LiH: def2-QZVP and def2-QZVPP, 65 functions each, because the Ba
 defines the two sets identically for H and Li; among H–Ar they differ for Na and Mg only;
 `backend/tools/basis_identity.py` generates the table from the basis files). Checked: the basis
 functions per element, their sum and the number of unique two-electron integrals agree with an
-independent count from the basis files for all 36 basis sets and all 38 atoms and molecules. The
+independent count from the basis files for all 36 basis sets (16.0: 44) and all 38 atoms and molecules. The
 estimated time and memory are shown also for impossible calculations, readably (Full CI of Cl₂ in
 aug-cc-pCV5Z: 1.98·10⁶⁰ determinants, about 1.7·10⁵⁰ TB and 1.0·10⁷⁴ years; beyond 10³⁰⁰ "more than").
 

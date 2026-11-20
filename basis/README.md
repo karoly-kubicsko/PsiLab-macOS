@@ -1,5 +1,13 @@
 # Basis sets
 
+**ΨLab 16.0: cc-pVXZ and cc-pCVXZ** (`cc-pvdz.gbs` … `cc-pv5z.gbs`, `cc-pcvdz.gbs` … `cc-pcv5z.gbs`):
+Basis Set Exchange data version 0.12 (`pip install basis_set_exchange==0.12`), written with
+`basis_set_exchange.get_basis(<name>, elements=<Z, ...>, fmt="gaussian94", header=True)` for every
+element up to Kr the BSE defines, without the sets with i functions (cc-pV5Z of Sc–Zn): cc-pVDZ, TZ,
+QZ H–Ar and Ca–Kr; cc-pV5Z H–Ar, Ca, Ga–Kr; cc-pCVDZ, TZ, QZ Li–Ar and Ca; cc-pCV5Z B–Ar and Ca.
+The same package writes the existing `aug-cc-pvtz.gbs` byte for byte. H and He take the cc-pVXZ functions in the
+core-valence sets, as with aug-cc-pCVXZ.
+
 **ΨLab 15.0: STO-1G, STO-2G, STO-3G** (`sto-1g.gbs`, `sto-2g.gbs`, `sto-3g.gbs`) for every molecule.
 STO-2G (H–Xe) and STO-3G (H–Xe) are the Basis Set Exchange's files (data version 0.12,
 `basis_set_exchange.get_basis(name, fmt="gaussian94", header=True)`). The BSE has no STO-1G;

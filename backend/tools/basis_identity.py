@@ -4,7 +4,7 @@
 For every basis set of the menu and every element H-Ar, a group number that two basis sets share
 exactly when the element has the same functions in both (the same shells, exponents and
 contraction coefficients in the Gaussian94 file, and the same Cartesian or spherical d
-functions). H and He are not in the aug-cc-pCVXZ files; the library uses aug-cc-pVXZ for them,
+functions). H and He are not in the (aug-)cc-pCVXZ files; the library uses (aug-)cc-pVXZ for them,
 and so does this table. The app shows "same basis functions as ..." when a molecule's elements all
 share the group of another basis set (e.g. LiH in def2-QZVP and def2-QZVPP).
 
@@ -22,7 +22,9 @@ MENU = ["STO-1G", "STO-2G", "STO-3G",
         "6-31G", "6-31G*", "6-31+G", "6-31+G*", "6-31+G**", "6-31++G*", "6-31++G**",
         "6-311G", "6-311G*", "6-311+G", "6-311+G*", "6-311+G**", "6-311++G*", "6-311++G**",
         "6-311++G(2d,2p)", "6-311++G(3df,3pd)",
+        "cc-pVDZ", "cc-pVTZ", "cc-pVQZ", "cc-pV5Z",
         "aug-cc-pVDZ", "aug-cc-pVTZ", "aug-cc-pVQZ", "aug-cc-pV5Z",
+        "cc-pCVDZ", "cc-pCVTZ", "cc-pCVQZ", "cc-pCV5Z",
         "aug-cc-pCVDZ", "aug-cc-pCVTZ", "aug-cc-pCVQZ", "aug-cc-pCV5Z",
         "def2-SVP", "def2-mTZVP", "def2-mTZVPP", "def2-TZVP", "def2-TZVPP", "def2-TZVPPD",
         "def2-QZVP", "def2-QZVPP", "def2-QZVPPD"]

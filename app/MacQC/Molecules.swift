@@ -635,9 +635,13 @@ nonisolated enum BasisSets {
         BasisFamily(title: "Pople 6-311G",
                     names: ["6-311G", "6-311G*", "6-311+G", "6-311+G*", "6-311+G**", "6-311++G*", "6-311++G**",
                             "6-311++G(2d,2p)", "6-311++G(3df,3pd)"]),
-        // 15.0: the Dunning sets before the Karlsruhe sets
+        // 15.0: the Dunning sets before the Karlsruhe sets; 16.0: also cc-pVXZ and cc-pCVXZ
+        BasisFamily(title: "Dunning cc-pVXZ",
+                    names: ["cc-pVDZ", "cc-pVTZ", "cc-pVQZ", "cc-pV5Z"]),
         BasisFamily(title: "Dunning aug-cc-pVXZ",
                     names: ["aug-cc-pVDZ", "aug-cc-pVTZ", "aug-cc-pVQZ", "aug-cc-pV5Z"]),
+        BasisFamily(title: "Dunning cc-pCVXZ (core-valence)",
+                    names: ["cc-pCVDZ", "cc-pCVTZ", "cc-pCVQZ", "cc-pCV5Z"]),
         BasisFamily(title: "Dunning aug-cc-pCVXZ (core-valence)",
                     names: ["aug-cc-pCVDZ", "aug-cc-pCVTZ", "aug-cc-pCVQZ", "aug-cc-pCV5Z"]),
         BasisFamily(title: "Karlsruhe def2 (ECPs beyond Kr)",
@@ -645,7 +649,7 @@ nonisolated enum BasisSets {
                             "def2-QZVP", "def2-QZVPP", "def2-QZVPPD"]),
     ]
 
-    /// All 36 basis sets of the library in menu order (15.0 with STO-1G, STO-2G, STO-3G).
+    /// All 44 basis sets of the library in menu order (15.0 with STO-1G, STO-2G, STO-3G; 16.0 cc-pVXZ, cc-pCVXZ).
     static let all: [String] = families.flatMap(\.names)
 
     /// HeH⁺ in the Slater-type basis of Szabo and Ostlund, expanded in 1, 2 or 3 Gaussians.

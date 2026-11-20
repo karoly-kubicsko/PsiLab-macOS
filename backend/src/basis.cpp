@@ -102,6 +102,23 @@ const BasisSetInfo kBases[] = {
     {"6-311++G**", "6-311ppgss.gbs", "Pople 6-311G", false},
     {"6-311++G(2d,2p)", "6-311ppg_2d_2p_.gbs", "Pople 6-311G", false},
     {"6-311++G(3df,3pd)", "6-311ppg_3df_3pd_.gbs", "Pople 6-311G", false},
+    // 15.0: the Dunning sets before the Karlsruhe sets, as in the menu; 16.0: also cc-pVXZ and cc-pCVXZ
+    {"cc-pVDZ", "cc-pvdz.gbs", "Dunning cc-pVXZ", false},
+    {"cc-pVTZ", "cc-pvtz.gbs", "Dunning cc-pVXZ", false},
+    {"cc-pVQZ", "cc-pvqz.gbs", "Dunning cc-pVXZ", false},
+    {"cc-pV5Z", "cc-pv5z.gbs", "Dunning cc-pVXZ", false},
+    {"aug-cc-pVDZ", "aug-cc-pvdz.gbs", "Dunning aug-cc-pVXZ", false},
+    {"aug-cc-pVTZ", "aug-cc-pvtz.gbs", "Dunning aug-cc-pVXZ", false},
+    {"aug-cc-pVQZ", "aug-cc-pvqz.gbs", "Dunning aug-cc-pVXZ", false},
+    {"aug-cc-pV5Z", "aug-cc-pv5z.gbs", "Dunning aug-cc-pVXZ", false},
+    {"cc-pCVDZ", "cc-pcvdz.gbs", "Dunning cc-pCVXZ", false},
+    {"cc-pCVTZ", "cc-pcvtz.gbs", "Dunning cc-pCVXZ", false},
+    {"cc-pCVQZ", "cc-pcvqz.gbs", "Dunning cc-pCVXZ", false},
+    {"cc-pCV5Z", "cc-pcv5z.gbs", "Dunning cc-pCVXZ", false},
+    {"aug-cc-pCVDZ", "aug-cc-pcvdz.gbs", "Dunning aug-cc-pCVXZ", false},
+    {"aug-cc-pCVTZ", "aug-cc-pcvtz.gbs", "Dunning aug-cc-pCVXZ", false},
+    {"aug-cc-pCVQZ", "aug-cc-pcvqz.gbs", "Dunning aug-cc-pCVXZ", false},
+    {"aug-cc-pCV5Z", "aug-cc-pcv5z.gbs", "Dunning aug-cc-pCVXZ", false},
     {"def2-SVP", "def2-svp.gbs", "Karlsruhe def2", false},
     {"def2-mTZVP", "def2-mtzvp.gbs", "Karlsruhe def2", false},
     {"def2-mTZVPP", "def2-mtzvpp.gbs", "Karlsruhe def2", false},
@@ -111,14 +128,6 @@ const BasisSetInfo kBases[] = {
     {"def2-QZVP", "def2-qzvp.gbs", "Karlsruhe def2", false},
     {"def2-QZVPP", "def2-qzvpp.gbs", "Karlsruhe def2", false},
     {"def2-QZVPPD", "def2-qzvppd.gbs", "Karlsruhe def2", false},
-    {"aug-cc-pVDZ", "aug-cc-pvdz.gbs", "Dunning aug-cc-pVXZ", false},
-    {"aug-cc-pVTZ", "aug-cc-pvtz.gbs", "Dunning aug-cc-pVXZ", false},
-    {"aug-cc-pVQZ", "aug-cc-pvqz.gbs", "Dunning aug-cc-pVXZ", false},
-    {"aug-cc-pV5Z", "aug-cc-pv5z.gbs", "Dunning aug-cc-pVXZ", false},
-    {"aug-cc-pCVDZ", "aug-cc-pcvdz.gbs", "Dunning aug-cc-pCVXZ", false},
-    {"aug-cc-pCVTZ", "aug-cc-pcvtz.gbs", "Dunning aug-cc-pCVXZ", false},
-    {"aug-cc-pCVQZ", "aug-cc-pcvqz.gbs", "Dunning aug-cc-pCVXZ", false},
-    {"aug-cc-pCV5Z", "aug-cc-pcv5z.gbs", "Dunning aug-cc-pCVXZ", false},
 };
 
 // Spelling-independent key of a basis-set name: lower case without blanks; Gaussian's
@@ -136,9 +145,10 @@ std::string name_key(const std::string& name) {
     return k;
 }
 
-// aug-cc-pCVXZ -> aug-cc-pVXZ (the valence set used for hydrogen), else "".
+// (aug-)cc-pCVXZ -> (aug-)cc-pVXZ (the valence set used for hydrogen and helium), else "".
 std::string valence_partner(const std::string& canonical) {
     if (canonical.rfind("aug-cc-pCV", 0) == 0) return "aug-cc-pV" + canonical.substr(10);
+    if (canonical.rfind("cc-pCV", 0) == 0) return "cc-pV" + canonical.substr(6);  // 16.0
     return "";
 }
 
@@ -447,19 +457,22 @@ BasisSet build_basis(const Molecule& mol, const std::string& basis_name,
                     else
                         msg += " (6-31G and 6-31G* cover H–Kr, the def2 sets H–Rn.)";
                 } else if (name.find("pCV") != std::string::npos && atom.Z > 18)
-                    msg += " (The core-valence sets are defined for Li–Ar; use the aug-cc-pVXZ set.)";
+                    msg += name.rfind("aug", 0) == 0
+                               ? " (The core-valence sets aug-cc-pCVXZ are defined for Li–Ar; use the aug-cc-pVXZ set.)"
+                               : " (The core-valence sets cc-pCVXZ are defined for Li–Ar and Ca; use the cc-pVXZ set.)";
                 else if (atom.Z == 19 || atom.Z == 20)
-                    msg += " (The Basis Set Exchange has no aug-cc-pVXZ sets for K and Ca.)";
-                else if (atom.Z >= 21 && atom.Z <= 30 && name == "aug-cc-pV5Z")
-                    msg += " (aug-cc-pV5Z of Sc–Zn contains i functions, l = 6; ΨLab's integrals go up to h functions. "
-                           "Use aug-cc-pVQZ or a smaller set.)";
+                    msg += name.rfind("aug", 0) == 0 ? " (The Basis Set Exchange has no aug-cc-pVXZ sets for K and Ca.)"
+                                                     : " (The Basis Set Exchange has no cc-pVXZ sets for K.)";
+                else if (atom.Z >= 21 && atom.Z <= 30 && (name == "aug-cc-pV5Z" || name == "cc-pV5Z"))
+                    msg += " (" + name + " of Sc–Zn contains i functions, l = 6; ΨLab's integrals go up to h functions. "
+                           "Use the QZ set or a smaller one.)";
                 else if (atom.Z > 36)
-                    msg += " (Elements beyond Kr need effective core potentials: ΨLab has the aug-cc-pVXZ sets for "
-                           "H–Ar and Sc–Kr and, 14.0, the def2 sets with their effective core potentials up to Rn: "
+                    msg += " (Elements beyond Kr need effective core potentials: ΨLab has the (aug-)cc-pVXZ sets up to "
+                           "Kr and, 14.0, the def2 sets with their effective core potentials up to Rn: "
                            "use def2-SVP ... def2-QZVPPD.)";
-                if (name == "aug-cc-pCV5Z" && atom.Z == 3)
-                    msg += " (The BSE has aug-cc-pCV5Z only for B–Ar.) For " + mol.display_name() +
-                           " choose aug-cc-pCVQZ or aug-cc-pV5Z.";
+                if ((name == "aug-cc-pCV5Z" || name == "cc-pCV5Z") && (atom.Z == 3 || atom.Z == 4))
+                    msg += " (The BSE has " + name + " only from B on.) For " + mol.display_name() + " choose " +
+                           (name[0] == 'a' ? "aug-cc-pCVQZ or aug-cc-pV5Z." : "cc-pCVQZ or cc-pV5Z.");
                 throw std::runtime_error(msg);
             }
         }

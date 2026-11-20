@@ -144,6 +144,19 @@ jobs:
           printf 'molecule = H2O\nmultiplicity = 2\n' > bad.inp
           if ./build/psilab bad.inp > bad.out; then echo "10 electrons with multiplicity 2 must be refused"; exit 1; fi
 
+      - name: Terminal version, 16.0 (cc-pVXZ and cc-pCVXZ basis sets)
+        run: |
+          printf 'molecule = H2O\nbasis = cc-pVDZ\nR = 0.9572 angstrom\nangle = 104.52\n' > h2o-vdz.inp
+          ./build/psilab h2o-vdz.inp > h2o-vdz.out
+          grep -q "24 basis functions" h2o-vdz.out
+          grep -q "RHF) total energy:  -76.02679" h2o-vdz.out
+          printf 'molecule = N2\nbasis = cc-pCVTZ\nmethod = HF\n' > n2-cvtz.inp
+          ./build/psilab --estimate n2-cvtz.inp | grep -q "86 basis functions"
+          printf '2\n\nK 0 0 0\nH 0 0 2.2\n' > kh.xyz
+          printf 'molecule = custom\ngeometry = kh.xyz\nbasis = cc-pCVDZ\nmethod = HF\n' > kh.inp
+          if ./build/psilab kh.inp > kh.out 2>&1; then echo "cc-pCVDZ for K must be refused"; exit 1; fi
+          grep -q "Li–Ar and Ca" kh.out
+
   # The same build and tests on macOS (Apple clang, libc++, matrix products through Apple's
   # Accelerate), and the installed terminal version: psilab must find its basis-set files in
   # <prefix>/share/psilab/basis through the executable's path, without the source tree.
