@@ -166,8 +166,7 @@ LinearBatchSolution solve_symmetric_batch(
             std::vector<double> M(m * m), b(m), c;
             for (std::size_t i = 0; i < m; ++i) {
                 b[i] = vdot(V[x][i], rhs[x]);
-                for (std::size_t j = 0; j < m; ++j)
-                    M[i * m + j] = 0.5 * (vdot(V[x][i], AV[x][j]) + vdot(V[x][j], AV[x][i]));
+                for (std::size_t j = 0; j < m; ++j) M[i * m + j] = vdot(V[x][i], AV[x][j]);  // Galerkin, unsymmetrised
             }
             if (!solve_dense(M, b, m, c)) throw std::runtime_error("orbital response: singular subspace matrix");
             std::vector<double> xs(dim, 0.0), r = rhs[x];

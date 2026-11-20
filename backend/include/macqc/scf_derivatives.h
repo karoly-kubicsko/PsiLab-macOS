@@ -41,7 +41,10 @@ RHFHessianResult scf_hessian(const Molecule& mol, const BasisSet& basis, const R
 // Krylov (Galerkin) solver for several symmetric linear systems A x = b at once (the open-shell
 // response and Z-vector equations): `apply` maps a batch of vectors to A times them (one call per
 // iteration, so the Fock builds of all right-hand sides share one pass over the integrals);
-// `diagonal` preconditions.
+// `diagonal` preconditions. 15.0: the projected matrix V'AV is not symmetrised, so that the
+// residual also converges when A is slightly unsymmetric: the orbital Hessian of an open-shell
+// SCF solution is symmetric only at exact stationarity, and its asymmetry (of the order of the
+// remaining orbital gradient, ~1e-9) had stopped the solver above a threshold of 1e-10.
 struct LinearBatchSolution {
     std::vector<std::vector<double>> x;
     bool converged = false;

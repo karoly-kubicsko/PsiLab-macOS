@@ -361,6 +361,40 @@ static void test_open_shell_derivatives() {
         check_small(label + " Hessian - differences of gradients", wh, 1e-7);
         check_small(label + " dipole derivatives - differences", wd, 1e-7);
     }
+    // The orbital response and Z-vector equations also converge on a loosely converged ROHF
+    // solution, whose orbital Hessian is slightly unsymmetric (NO2 near its ROMP2/STO-3G minimum;
+    // the symmetrised subspace solver of the first version stalled near 3e-8 here)
+    {
+        const double pi = 3.14159265358979323846, R = 1.308194 / kBohrInAngstrom, th = 126.3281 * pi / 180.0;
+        std::vector<Atom> no2(3);
+        no2[0].Z = 7;
+        no2[1].Z = 8;
+        no2[2].Z = 8;
+        no2[1].position = {R * std::sin(th / 2), 0.0, R * std::cos(th / 2)};
+        no2[2].position = {-R * std::sin(th / 2), 0.0, R * std::cos(th / 2)};
+        const Molecule mn = make_custom_molecule(no2, 0, "NO2");
+        const BasisSet bn = build_basis(mn, "STO-3G", "");
+        RHFOptions o;
+        o.reference = "ROHF";
+        o.multiplicity = 2;
+        o.energy_tol = 1e-8;
+        o.gradient_tol = 1e-6;
+        const RHFResult scf = run_scf(mn, bn, o);
+        const MOIntegrals mo = transform_to_mo(bn, scf.H, scf.C, 0);
+        SpatialHamiltonian H = closed_shell_hamiltonian(mo, scf.n_occupied, scf.nuclear_repulsion);
+        H.nocc[0] = scf.n_alpha;
+        H.nocc[1] = scf.n_beta;
+        SOResult res = run_so_method("MP2", H, "ROHF", tight());
+        SOOptions so = tight();
+        so.amplitude_tol = 1e-9;
+        const CorrelatedHessianResult h = open_shell_correlated_hessian(mn, bn, scf, mo, mo, mo, res, so);
+        ++g_checks;
+        const bool ok = h.cphf_converged && h.zvector_converged && h.method_converged;
+        if (!ok) ++g_failures;
+        std::printf("%s %-44s CPHF %d it (%.1e), Z-vector %d it (%.1e)\n", ok ? "ok  " : "FAIL",
+                    "NO2/STO-3G ROMP2 Hessian, loose SCF: converged", h.cphf_iterations, h.cphf_residual,
+                    h.zvector_iterations, h.zvector_residual);
+    }
 }
 
 // ---- 15.0: Full CI on open-shell references (orbital-invariant: no Z-vector)
