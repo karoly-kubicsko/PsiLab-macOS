@@ -333,7 +333,7 @@ nonisolated enum MethodChoice: String, CaseIterable, Identifiable, Sendable {
         MethodFamily(title: "Configuration interaction", methods: [.cisd, .cisdT, .cisdt, .cisdtq]),
         MethodFamily(title: "Quadratic configuration interaction", methods: [.qcisd, .qcisdT, .qcisdt, .qcisdtq]),
         MethodFamily(title: "Coupled cluster", methods: [.ccsd, .ccsdT, .ccsdt, .ccsdtq]),
-        // 15.0: Full CI, the exact limit of every method above, at the end of the menu
+        // 16.0: Full CI, the exact limit of every method above, at the end of the menu
         MethodFamily(title: "Full configuration interaction", methods: [.fci]),
     ]
 
@@ -625,7 +625,7 @@ nonisolated struct BasisFamily: Sendable, Hashable {
 
 nonisolated enum BasisSets {
     /// The Gaussian94 files in the app bundle's basis folder (from basissetexchange.org), by family
-    /// (15.0: STO-nG, Pople, Dunning, then Karlsruhe). 14.0: the Pople 6-31G family (Cartesian
+    /// (16.0: STO-nG, Pople, Dunning, then Karlsruhe). 14.0: the Pople 6-31G family (Cartesian
     /// d functions, 6D, as Gaussian uses them) and 6-311G family and the Karlsruhe def2 sets.
     static let families: [BasisFamily] = [
         // 15.0: the minimal STO-nG sets for every molecule (STO-1G H–Ca, STO-2G and STO-3G H–Xe)
@@ -635,7 +635,7 @@ nonisolated enum BasisSets {
         BasisFamily(title: "Pople 6-311G",
                     names: ["6-311G", "6-311G*", "6-311+G", "6-311+G*", "6-311+G**", "6-311++G*", "6-311++G**",
                             "6-311++G(2d,2p)", "6-311++G(3df,3pd)"]),
-        // 15.0: the Dunning sets before the Karlsruhe sets; 16.0: also cc-pVXZ and cc-pCVXZ
+        // 16.0: the Dunning sets (with cc-pVXZ and cc-pCVXZ) before the Karlsruhe sets
         BasisFamily(title: "Dunning cc-pVXZ",
                     names: ["cc-pVDZ", "cc-pVTZ", "cc-pVQZ", "cc-pV5Z"]),
         BasisFamily(title: "Dunning aug-cc-pVXZ",

@@ -723,7 +723,7 @@ view_tab "a1-o2-ump2-optimisation" "Optimisation"
 print_shot "a1-o2-ump2-optimisation"
 view_tab "a1b-o2-ump2-frequencies" "Frequencies"
 print_shot "a1b-o2-ump2-frequencies"
-# 15.0: the segmented controls of the sidebar (Hessian: Initial | CalcFC | CalcAll | RecalcFC) lie
+# 16.0: the segmented controls of the sidebar (Hessian: Initial | CalcFC | CalcAll | RecalcFC) lie
 # inside the 340-pt panel
 layout "a1d-sidebar-controls"
 grep -E "Initial|CalcFC|RecalcFC" "$OUT/layout-a1d-sidebar-controls.txt" || echo "Hessian control not in the accessibility layout"
@@ -756,7 +756,7 @@ view_tab "a6-no2-romp2-summary" "Summary"
 print_shot "a6-no2-romp2-summary"
 view_tab "a7-no2-romp2-frequencies" "Frequencies"
 print_shot "a7-no2-romp2-frequencies"
-# 15.0: the estimate of an impossible job (Full CI of Cl2 in aug-cc-pCV5Z) shows its time and memory
+# 16.0: the estimate of an impossible job (Full CI of Cl2 in aug-cc-pCV5Z) shows its time and memory
 relaunch -appearanceChoice light -psilabMolecule Cl2 -psilabBasis aug-cc-pCV5Z -psilabMethod FCI
 dump_tab "a8-cl2-fci-impossible-estimate" ""
 grep -E "Estimated time|Full CI memory|Determinants" "$OUT/a8-cl2-fci-impossible-estimate.txt" || echo "estimate rows not found"

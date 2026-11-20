@@ -23,7 +23,7 @@ struct SidebarView: View {
     var body: some View {
         Form {
             Section("Atom/Molecule") {
-                // the atoms H–Ar, the molecules (15.0: in the order of MoleculeMenu.molecules), the
+                // the atoms H–Ar, the molecules (16.0: in the order of MoleculeMenu.molecules), the
                 // kept custom molecules (by name; 9.0) and "Custom molecule…", which opens a
                 // structure file
                 Picker("Atom/Molecule", selection: $model.moleculeSelection) {
@@ -266,7 +266,7 @@ struct SidebarView: View {
         generalSectionsBelowGeometry
     }
 
-    /// 15.0: the geometry parameters of a molecule of the menu (as for H₂O), none for an atom.
+    /// 16.0: the geometry parameters of a molecule of the menu (as for H₂O), none for an atom.
     @ViewBuilder
     private var presetGeometrySection: some View {
         let key = model.presetKey
@@ -837,7 +837,7 @@ struct EstimatePanel: View {
 
     var body: some View {
         if let out = model.estimate {
-            // 15.0: an estimate of earlier inputs (e.g. the previous basis set) is dimmed while the
+            // 16.0: an estimate of earlier inputs (e.g. the previous basis set) is dimmed while the
             // new one is computed
             let stale = model.estimatedKey != model.estimateKey
             VStack(alignment: .leading, spacing: 6) {
@@ -855,7 +855,7 @@ struct EstimatePanel: View {
                         ForEach(Fmt.uniqueAtoms(b.atoms), id: \.symbol) { atom in
                             InfoRow("  \(atom.symbol)", (atom.basis == model.currentBasis ? "" : atom.basis + " ") + atom.contraction)
                         }
-                        // 15.0: another set of the menu with exactly the same functions for these elements
+                        // 16.0: another set of the menu with exactly the same functions for these elements
                         let elements = Fmt.uniqueAtoms(b.atoms).map(\.symbol)
                         let same = BasisIdentity.sameFunctions(as: out.input.basis, elements: elements)
                         if !same.isEmpty {
@@ -871,14 +871,14 @@ struct EstimatePanel: View {
                                 Fmt.count(e.uniqueIntegrals) + (e.integralsStored ? " (in memory)" : " (direct)"))
                         if let f = e.fci {
                             InfoRow("Determinants", Fmt.count(f.determinants))
-                            InfoRow("Full CI memory", Fmt.memory(f.memoryMB))  // 15.0: also when not possible
+                            InfoRow("Full CI memory", Fmt.memory(f.memoryMB))  // 16.0: also when not possible
                         }
                         if let c = e.coupledCluster {
                             InfoRow("\(MethodChoice.title(of: c.method)) amplitudes", Fmt.count(c.amplitudes))
                             InfoRow("Orbitals (occ./virt.)", "\(c.occupied) / \(c.virtuals)")
                             InfoRow("\(MethodChoice.title(of: c.method)) memory", Fmt.memory(c.memoryMB))
                         }
-                        // 15.0: the estimated times also of impossible jobs (marked as such)
+                        // 16.0: the estimated times also of impossible jobs (marked as such)
                         let impossible = model.refusal != nil
                         if let j = out.job, j.type != "energy" {
                             ForEach(j.estimate.steps) { step in

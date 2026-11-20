@@ -38,7 +38,7 @@ nonisolated enum Fmt {
 
     /// Integer count with thousands separators ("11,029,041"), or "5.62e+11" when very large.
     static func count(_ x: Double) -> String {
-        if !x.isFinite || x > 1.0e300 { return "more than 10³⁰⁰" }  // 15.0: impossible Full CI spaces
+        if !x.isFinite || x > 1.0e300 { return "more than 10³⁰⁰" }  // 16.0: impossible Full CI spaces
         if x >= 1.0e10 { return String(format: "%.2e", x) }
         let formatter = NumberFormatter()
         formatter.numberStyle = .decimal
@@ -48,7 +48,7 @@ nonisolated enum Fmt {
         return formatter.string(from: NSNumber(value: x.rounded())) ?? String(format: "%.0f", x)
     }
 
-    /// Seconds as "less than a second", "about 25 s", "about 4 min", "about 1.5 h"; 15.0, also for
+    /// Seconds as "less than a second", "about 25 s", "about 4 min", "about 1.5 h"; 16.0, also for
     /// the estimates of impossible jobs: "about 3.2 days", "about 41 years", "about 2.2 × 10⁷³ years".
     static func duration(_ seconds: Double) -> String {
         if !(seconds >= 1) { return "less than a second" }
@@ -62,7 +62,7 @@ nonisolated enum Fmt {
         return "about " + powerOfTen(years) + " years"
     }
 
-    /// Memory in MB as "43 MB", "2.8 GB"; 15.0: "1.5 TB", "3.4 PB", "1.2 × 10⁴⁹ TB".
+    /// Memory in MB as "43 MB", "2.8 GB"; 16.0: "1.5 TB", "3.4 PB", "1.2 × 10⁴⁹ TB".
     static func memory(_ megabytes: Double) -> String {
         if !(megabytes >= 1024) { return String(format: "%.0f MB", max(megabytes.isNaN ? 1 : megabytes, 1)) }
         let gb = megabytes / 1024, tb = gb / 1024, pb = tb / 1024

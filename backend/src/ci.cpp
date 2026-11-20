@@ -25,7 +25,7 @@ double seconds_since(Clock::time_point t0) { return std::chrono::duration<double
 
 std::string human_count(double v) {
     char buf[64];
-    if (!std::isfinite(v) || v > 1.0e300) return "more than 10^300";  // 15.0
+    if (!std::isfinite(v) || v > 1.0e300) return "more than 10^300";  // 16.0
     if (v >= 1e9) {
         std::snprintf(buf, sizeof buf, "%.2e", v);
         return buf;

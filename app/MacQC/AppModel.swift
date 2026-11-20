@@ -140,7 +140,7 @@ final class AppModel {
     // multiplicity chosen in the sidebar for each molecule (missing: the molecule's own), the
     // reference, and HeH⁺ in STO-nG as the Szabo–Ostlund calculation (or a general one)
     var presetKey: String = "O2"
-    /// 15.0: the geometry parameters of the molecules of the menu (Å, degrees; missing: the
+    /// 16.0: the geometry parameters of the molecules of the menu (Å, degrees; missing: the
     /// backend's geometry), see PresetGeometry
     var presetValues: [String: [Double]] = [:]
     var charges: [String: Int] = [:]
@@ -302,7 +302,7 @@ final class AppModel {
 
     /// Output of an `estimateOnly` call for the current inputs (nil for HeH+).
     var estimate: MacQCOutput?
-    /// 15.0: the `estimateKey` the displayed estimate was made for (it is out of date while a new
+    /// 16.0: the `estimateKey` the displayed estimate was made for (it is out of date while a new
     /// one is computed)
     var estimatedKey = ""
 
@@ -558,7 +558,7 @@ final class AppModel {
         }
         if isGeneral {
             if molecule == .preset {
-                // 15.0: an atom or molecule of the menu: the backend's geometry, or the coordinates of
+                // 16.0: an atom or molecule of the menu: the backend's geometry, or the coordinates of
                 // the changed geometry parameters
                 input.molecule = presetKey
                 input.R = 0

@@ -1,6 +1,6 @@
 //
 //  PresetGeometry.swift
-//  ΨLab 15.0
+//  ΨLab 16.0
 //
 //  The geometry parameters of the molecules of the menu that came with 15.0 (H₂⁺, H₃⁺, H₅⁺, N₂, O₂,
 //  F₂, Cl₂, NO, NO₂, CO, CO₂, N₂O, H₂CO, CH₄), as the sidebar shows them for H₂, LiH, H₂O, H₂O₂ and

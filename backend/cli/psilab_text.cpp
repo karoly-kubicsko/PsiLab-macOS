@@ -640,7 +640,7 @@ std::optional<CurveMinimum> curve_minimum(const std::vector<std::pair<double, do
     return m;
 }
 
-// 15.0: seconds below a day, beyond that the readable estimate (also for impossible jobs)
+// 16.0: seconds below a day, beyond that the readable estimate (also for impossible jobs)
 static std::string wall_time(double s) {
     return s < 86400.0 ? format("%.0f s", s) : macqc::estimate_duration(s);
 }
