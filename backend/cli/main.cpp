@@ -15,7 +15,7 @@ namespace {
 void usage(const char* prog) {
     std::fprintf(stderr,
                  "Usage: %s [options]\n"
-                 "  Restricted HF + Full-CI for HeH+ with an STO-nG (n = 1..3) s basis.\n\n"
+                 "  Restricted HF + Full CI for HeH+ with an STO-nG (n = 1..3) s basis.\n\n"
                  "  --R <bohr>            bond length            (default 1.4632)\n"
                  "  --zeta1 <z>           Slater exponent, atom A (default 2.0925)\n"
                  "  --zeta2 <z>           Slater exponent, atom B (default 1.24)\n"

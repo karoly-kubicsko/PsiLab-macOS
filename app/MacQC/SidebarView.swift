@@ -582,7 +582,7 @@ struct SidebarView: View {
         unit == "Å" ? String(format: "%.4f Å", v) : String(format: "%.2f°", v)
     }
 
-    /// ΨLab 10.0: analytic or numerical Hessians of Full-CI, CCSD and CCSD(T).
+    /// ΨLab 10.0: analytic or numerical Hessians of Full CI, CCSD and CCSD(T).
     private var hessianSection: some View {
         Section("Hessian") {
             Picker("Second derivatives", selection: $model.analyticHessian) {

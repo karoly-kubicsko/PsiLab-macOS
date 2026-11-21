@@ -7,10 +7,10 @@
 //    the RHF orbitals of the displaced geometries (made to follow the reference orbitals);
 //  - the general Hessian with the RHF densities against the analytic RHF Hessian (the orbital
 //    part of the formalism, independent of any correlated method);
-//  - the analytic Full-CI Hessian against 4-point central differences of analytic Full-CI
+//  - the analytic Full CI Hessian against 4-point central differences of analytic Full CI
 //    gradients (H2, HeH+ and H3+ at unsymmetric geometries, LiH);
 //  - the analytic CCSD Hessian against differences of analytic CCSD gradients (LiH, H2O, HOF):
-//    also the first test of the Z-vector terms (zero for RHF and Full-CI).
+//    also the first test of the Z-vector terms (zero for RHF and Full CI).
 #include <array>
 #include <chrono>
 #include <cmath>
@@ -185,8 +185,8 @@ static void test_fci(const char* xyz, int charge, const std::string& basis_name,
                 label.c_str(), basis_name.c_str(), f.determinants, ta, h.method_iterations, h.method_residual,
                 h.zvector_iterations, tf, big, h.asymmetry);
     CHECK(h.method_converged && h.cphf_converged && h.zvector_converged);
-    check_max(label + " " + basis_name + ": analytic Full-CI Hessian vs differences of analytic gradients", worst, tol);
-    check_dipoles(label + " " + basis_name + " Full-CI", h, fr);
+    check_max(label + " " + basis_name + ": analytic Full CI Hessian vs differences of analytic gradients", worst, tol);
+    check_dipoles(label + " " + basis_name + " Full CI", h, fr);
 }
 
 static void test_ccsd(const char* xyz, int charge, const std::string& basis_name, const std::string& label, double tol,

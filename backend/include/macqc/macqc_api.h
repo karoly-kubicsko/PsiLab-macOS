@@ -12,7 +12,7 @@
  *                               then the result has "error": "calculation cancelled";
  *   macqc_job_cancel(job)       requests cancellation (returns at once);
  *   macqc_job_progress(job, …)  current stage (0 idle, 1 integrals, 2 SCF, 3 integral
- *                               transformation, 4 Full-CI, 5 done, 6 coupled-cluster
+ *                               transformation, 4 Full CI, 5 done, 6 coupled-cluster
  *                               iterations, 7 (T) correction), iteration (for 7: percent
  *                               done), total energy (E_h) and residual (SCF gradient, CI
  *                               residual or largest amplitude change);
@@ -41,7 +41,7 @@
  * in calculation.h joins them); the app opens output files with it.
  *
  * Molecular orbitals (ΨLab 8.0). The result has "orbitals": the atoms, the basis shells and the
- * orbital sets ("sets": RHF canonical orbitals, all occupied and up to 10 virtual ones; Full-CI
+ * orbital sets ("sets": RHF canonical orbitals, all occupied and up to 10 virtual ones; Full CI
  * natural orbitals; for HeH+ in STO-nG the two Szabo-Ostlund orbitals) with their AO
  * coefficients. Pass that object back as text:
  *   macqc_orbital_surface(orbitals, set, orbital, isovalue, max_points, &positive, &negative)

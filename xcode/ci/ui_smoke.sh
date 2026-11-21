@@ -2,7 +2,7 @@
 # UI smoke test for the built ΨLab.app on a GitHub macOS runner.
 # Launches the app, screenshots each tab, dumps the visible text of every tab to the log,
 # runs the potential-curve scan and checks the Edit/File menu commands; then relaunches with
-# launch arguments for H2O (RHF), LiH (Full-CI), an H2 potential curve, the refused Full-CI
+# launch arguments for H2O (RHF), LiH (Full CI), an H2 potential curve, the refused Full CI
 # of H2O, a long H2O calculation (warning) and the coupled-cluster methods of ΨLab 4.0
 # (open method menu, H2O CCSD(T), LiH CCSDT, refused H2O CCSDTQ), and the job types of ΨLab 5.0
 # (open job menu, H2O RHF optimisation, LiH CCSD(T) frequencies and thermochemistry, H2O
@@ -10,10 +10,10 @@
 # the refused CCSDTQ frequencies of H2O), ΨLab 6.0 (the molecule of each optimisation step,
 # played step by step; the animated normal modes of LiH and H2O: two frames 0.3 s apart must
 # differ, and a few screenshots are printed into the log as small JPEGs), and ΨLab 7.0 (HeH+ with
-# Full-CI/aug-cc-pVTZ opt+freq, the relaxed torsion scan of H2O2 with its points played, the
+# Full CI/aug-cc-pVTZ opt+freq, the relaxed torsion scan of H2O2 with its points played, the
 # inversion transition state of NH3 and the trans transition state of H2O2 with CalcAll, the
 # scan settings in the sidebar, the refused TS search of LiH) and ΨLab 8.0 (the orbitals:
-# isosurfaces, a contour plot, Full-CI natural orbitals, the Szabo-Ostlund orbitals), ΨLab 9.0 (custom
+# isosurfaces, a contour plot, Full CI natural orbitals, the Szabo-Ostlund orbitals), ΨLab 9.0 (custom
 # molecules from XYZ and Gaussian input text, the kept optimised geometry, the molecule menu, the
 # file panel, refusals), ΨLab 10.0 (the analytic CCSD Hessian of H2O, the Hessian setting), ΨLab 12.0
 # (the 3D molecule viewer: sticks with atom numbers, spheres on black) and ΨLab 13.0 (an output file of
@@ -208,7 +208,7 @@ dump_tab() {   # $1 = file prefix, $2 = element to click ("" = none)
 }
 
 # Selects a tab or page through View > <item> (unambiguous: the sidebar and the Methods tab
-# also have "Full-CI" segments), then dumps the visible text and takes a screenshot.
+# also have "Full CI" segments), then dumps the visible text and takes a screenshot.
 cat > "$OUT/view-menu.applescript" <<'APPLESCRIPT'
 on run argv
     tell application "System Events"
@@ -226,7 +226,7 @@ view_tab() {   # $1 = file prefix, $2 = View menu item
     dump_tab "$1" ""
 }
 
-# 17.0: without launch arguments ΨLab opens with the H2 Full-CI example; HeH+ in STO-nG is the
+# 17.0: without launch arguments ΨLab opens with the H2 Full CI example; HeH+ in STO-nG is the
 # Szabo-Ostlund calculation only with -psilabSzaboOstlund YES (off by default)
 echo "== launching $APP (HeH+ STO-3G, Szabo-Ostlund)"
 open -n "$APP" --args -psilabMolecule HeH+ -psilabBasis STO-3G -psilabSzaboOstlund YES
@@ -350,19 +350,19 @@ layout "h2o-rhf-relaunch"
 view_tab "11-h2o-rhf-hartree-fock" "Hartree–Fock"
 view_tab "12-h2o-rhf-output" "Output"
 
-echo "== LiH, Full-CI/aug-cc-pVDZ"
+echo "== LiH, Full CI/aug-cc-pVDZ"
 relaunch -appearanceChoice light -psilabMolecule LiH -psilabBasis aug-cc-pVDZ -psilabMethod FCI
 view_tab "13-lih-fci-summary" "Summary"
 view_tab "14-lih-fci-full-ci" "Full-CI"
 
-echo "== H2, Full-CI/aug-cc-pVDZ potential curve"
+echo "== H2, Full CI/aug-cc-pVDZ potential curve"
 relaunch -appearanceChoice light -psilabMolecule H2 -psilabBasis aug-cc-pVDZ -psilabMethod FCI
 view_tab "15-h2-curve" "Potential Curve"
 with_timeout 90 osascript "$OUT/tab.applescript" "__SCAN__" | grep -E "CLICKED|NOT FOUND"
 sleep 25
 dump_tab "16-h2-curve-after-scan" ""
 
-echo "== H2O, Full-CI (must be refused) and a long calculation (warning)"
+echo "== H2O, Full CI (must be refused) and a long calculation (warning)"
 relaunch -appearanceChoice light -psilabMolecule H2O -psilabBasis aug-cc-pVDZ -psilabMethod FCI
 view_tab "17-h2o-fci-refused" "Summary"
 relaunch -appearanceChoice dark -psilabMolecule H2O -psilabBasis aug-cc-pCV5Z -psilabMethod RHF
@@ -525,7 +525,7 @@ view_tab "41-h2o-ccsdtq-freq-refused" "Summary"
 
 # --- ΨLab 7.0: HeH+ in a correlation-consistent basis set, H2O2 and NH3, relaxed scans and
 # transition-state searches -------------------------------------------------------------------
-echo "== HeH+ Full-CI/aug-cc-pVTZ opt+freq (the general path)"
+echo "== HeH+ Full CI/aug-cc-pVTZ opt+freq (the general path)"
 relaunch -appearanceChoice light -psilabMolecule HeH+ -psilabBasis aug-cc-pVTZ -psilabMethod FCI -psilabJob opt+freq -psilabAutoRun YES
 sleep 15
 view_tab "50-heh-fci-opt-freq-summary" "Summary"
@@ -560,7 +560,7 @@ view_tab "61-h2o2-ts-frequencies" "Frequencies"
 print_shot "61-h2o2-ts-frequencies"
 
 # --- ΨLab 8.0: the molecular orbitals ------------------------------------------------------------
-echo "== orbitals: H2O RHF/aug-cc-pVDZ HOMO and LUMO isosurfaces, NH3 contour plot, HeH+ Full-CI natural orbitals, Szabo-Ostlund HeH+"
+echo "== orbitals: H2O RHF/aug-cc-pVDZ HOMO and LUMO isosurfaces, NH3 contour plot, HeH+ Full CI natural orbitals, Szabo-Ostlund HeH+"
 relaunch -appearanceChoice light -psilabMolecule H2O -psilabBasis aug-cc-pVDZ -psilabMethod RHF -psilabTab orbitals
 sleep 8
 dump_tab "64-h2o-orbitals-homo" ""
@@ -631,7 +631,7 @@ dump_tab "78-oh-radical-refused" ""
 relaunch -appearanceChoice light -psilabStructure $'2\nRbH\nRb 0 0 0\nH 0 0 2.37\n' -psilabStructureName rbh.xyz -psilabBasis aug-cc-pVDZ -psilabMethod RHF
 dump_tab "79-rbh-refused" ""
 
-# --- ΨLab 10.0: analytic Hessians of Full-CI, CCSD and CCSD(T) -----------------------------------
+# --- ΨLab 10.0: analytic Hessians of Full CI, CCSD and CCSD(T) -----------------------------------
 echo "== H2O CCSD/aug-cc-pVDZ frequencies with the analytic Hessian (sidebar: the Hessian section)"
 relaunch -appearanceChoice light -psilabMolecule H2O -psilabBasis aug-cc-pVDZ -psilabMethod CCSD -psilabJob freq -psilabAutoRun YES
 dump_tab "80-h2o-ccsd-analytic-hessian-sidebar" ""
@@ -758,14 +758,14 @@ view_tab "a6-no2-romp2-summary" "Summary"
 print_shot "a6-no2-romp2-summary"
 view_tab "a7-no2-romp2-frequencies" "Frequencies"
 print_shot "a7-no2-romp2-frequencies"
-# 16.0: the estimate of an impossible job (Full-CI of Cl2 in aug-cc-pCV5Z) shows its time and memory
+# 16.0: the estimate of an impossible job (Full CI of Cl2 in aug-cc-pCV5Z) shows its time and memory
 relaunch -appearanceChoice light -psilabMolecule Cl2 -psilabBasis aug-cc-pCV5Z -psilabMethod FCI
 dump_tab "a8-cl2-fci-impossible-estimate" ""
 grep -E "Estimated time|Full-CI memory|Determinants" "$OUT/a8-cl2-fci-impossible-estimate.txt" || echo "estimate rows not found"
 
 # --- ΨLab 17.0: the start-up example (no launch arguments), the Summary viewer with its caption,
 # the save buttons of the optimisation steps, and HeH+ STO-3G with the Szabo-Ostlund switch off ---
-echo "== 17.0: launch without arguments: H2 Full-CI/aug-cc-pCV5Z//Full-CI/aug-cc-pCVQZ (opt+freq+sp)"
+echo "== 17.0: launch without arguments: H2 Full CI/aug-cc-pCV5Z//Full CI/aug-cc-pCVQZ (opt+freq+sp)"
 pkill -x "ΨLab" || true
 sleep 3
 open -n "$APP" --args -appearanceChoice light

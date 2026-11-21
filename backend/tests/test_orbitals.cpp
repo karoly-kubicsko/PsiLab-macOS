@@ -6,13 +6,13 @@
 //  - RHF canonical orbitals of H2O, NH3 and H2O2 (aug-cc-pVDZ) at points around the molecules:
 //    energies, every occupied orbital and the lowest four virtual ones (up to the sign; the
 //    degenerate e orbitals of NH3 through the sum of their squares) and the electron density;
-//  - Full-CI natural orbitals of LiH (aug-cc-pVDZ): the occupations, the Full-CI density
+//  - Full CI natural orbitals of LiH (aug-cc-pVDZ): the occupations, the Full CI density
 //    sum_k n_k chi_k(r)^2 and the orthonormality of the natural orbitals (C^T S C = 1);
 //  - the two Szabo-Ostlund orbitals of HeH+ (STO-3G): normalised and orthogonal on a grid;
 //  - isosurfaces (marching tetrahedra): a Gaussian sphere (radius, normals, a closed and
 //    consistently oriented surface, enclosed volume), the lobes of the HOMO of H2O (|psi| at the
 //    vertices, the two lobes mirror images of each other);
-//  - the "orbitals" object of the output (energy, Full-CI, a job, Szabo-Ostlund, estimate) and the
+//  - the "orbitals" object of the output (energy, Full CI, a job, Szabo-Ostlund, estimate) and the
 //    C API (macqc_orbital_surface, macqc_orbital_plane, errors).
 #include <algorithm>
 #include <array>
@@ -278,7 +278,7 @@ static void test_natural(const json& ref) {
         scale = std::max(scale, r);
         worst = std::max(worst, std::fabs(rho - r));
     }
-    check_max("LiH: Full-CI density sum_k n_k chi_k^2 at 18 points vs PySCF (relative)", worst / scale, 1e-7);
+    check_max("LiH: Full CI density sum_k n_k chi_k^2 at 18 points vs PySCF (relative)", worst / scale, 1e-7);
     // the output keeps the occupied and ten more natural orbitals
     const OrbitalData shown = make_orbital_data(m.molecule, m.basis, *m.rhf, &*m.fci);
     CHECK(shown.sets.size() == 2 && shown.sets[1].orbitals.size() == 12);
@@ -484,7 +484,7 @@ static void test_output() {
         CHECK(opt["orbitals"]["sets"].size() == 1);
         CHECK(opt["orbitals"]["sets"][0]["orbitals"].size() == 11);  // 1 occupied + 10 virtual
     }
-    // CCSD: canonical orbitals only; Full-CI: also natural orbitals
+    // CCSD: canonical orbitals only; Full CI: also natural orbitals
     const json cc = run({{"molecule", "H2"}, {"basis", "aug-cc-pVDZ"}, {"method", "CCSD"}, {"basisDirectory", dir}});
     CHECK(cc["orbitals"].is_object() && cc["orbitals"]["sets"].size() == 1);
     const json f = run({{"molecule", "HeH+"}, {"basis", "aug-cc-pVDZ"}, {"method", "FCI"}, {"basisDirectory", dir}});

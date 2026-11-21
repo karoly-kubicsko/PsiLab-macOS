@@ -255,7 +255,7 @@ NumericalHessianCost numerical_hessian_cost(const Molecule& mol, bool analytic_g
 
 bool analytic_hessian_method(const std::string& m, const std::string& reference) {
     if (m == "RHF") return true;
-    // 15.0: the spin-orbital engine's methods and Full-CI on UHF and ROHF references (open_shell_correlated.h)
+    // 15.0: the spin-orbital engine's methods and Full CI on UHF and ROHF references (open_shell_correlated.h)
     if (!(reference.empty() || reference == "RHF")) return uses_so_engine(m, reference) || m == "FCI";
     return m == "FCI" || m == "CCSD" || m == "CCSD(T)" || uses_so_engine(m, "RHF");
 }
@@ -335,7 +335,7 @@ HessianResult run_hessian(const Molecule& mol, const BasisSet& basis, const std:
         r.seconds = seconds_since(t0);
         return r;
     }
-    // ---- 10.0: analytic Full-CI, CCSD and CCSD(T) Hessians
+    // ---- 10.0: analytic Full CI, CCSD and CCSD(T) Hessians
     std::string correlated_reason;
     // ---- 15.0: analytic Hessians of the spin-orbital engine's methods (closed shells)
     if (scf_ref == "RHF" && uses_so_engine(method, "RHF") && !ho.force_numerical && !ho.from_energies) {
@@ -442,7 +442,7 @@ HessianResult run_hessian(const Molecule& mol, const BasisSet& basis, const std:
             }
         }
     }
-    // ---- 15.0: analytic Full-CI Hessians on UHF and ROHF references (orbital-invariant energy: CI vector
+    // ---- 15.0: analytic Full CI Hessians on UHF and ROHF references (orbital-invariant energy: CI vector
     // responses in the space of the requested spin, no CPHF or Z-vector)
     if (scf_ref != "RHF" && method == "FCI" && !ho.force_numerical && !ho.from_energies) {
         const RHFResult& scf = ref.point.rhf;
@@ -468,7 +468,7 @@ HessianResult run_hessian(const Molecule& mol, const BasisSet& basis, const std:
             const FCIResultGeneral f =
                 run_fci_determinants(mo, scf.n_alpha, scf.n_beta, scf.nuclear_repulsion, scf.total_energy, fo, cb.fci);
             CorrelatedHessianResult ch;
-            if (!f.converged) correlated_reason = "the Full-CI vector at the geometry did not converge";
+            if (!f.converged) correlated_reason = "the Full CI vector at the geometry did not converge";
             else {
                 ch = open_shell_fci_hessian(mol, basis, scf, mo, f.vector, f.electronic_energy, eo.threads, eo.memory_mb,
                                             eo.fci_memory_mb, ho.dipoles);
@@ -479,7 +479,7 @@ HessianResult run_hessian(const Molecule& mol, const BasisSet& basis, const std:
                 const std::size_t m = ch.perturbations;
                 r.hessian = ch.hessian;
                 r.analytic = true;
-                r.description = format("analytic (Full-CI on %s orbitals: CI vector responses in the space of S = %.1f along "
+                r.description = format("analytic (Full CI on %s orbitals: CI vector responses in the space of S = %.1f along "
                                        "%zu internal direction%s; the energy is invariant to the orbital rotations, so the "
                                        "orbitals follow the geometry by symmetric orthonormalisation without CPHF or "
                                        "Z-vector; translations and rotations by invariance)",
@@ -527,10 +527,10 @@ HessianResult run_hessian(const Molecule& mol, const BasisSet& basis, const std:
                 fo.max_iter = 200;
                 fo.keep_vector = true;
                 const FCIResultGeneral f = run_fci_determinants(mo, nocc, nocc, rhf.nuclear_repulsion, rhf.total_energy, fo, cb.fci);
-                if (!f.converged) correlated_reason = "the Full-CI vector at the geometry did not converge";
+                if (!f.converged) correlated_reason = "the Full CI vector at the geometry did not converge";
                 else ch = fci_hessian(mol, basis, rhf, mo, f.vector, f.electronic_energy, eo.threads, eo.memory_mb,
                                       eo.fci_memory_mb, ho.dipoles);
-                what = "Full-CI vector";
+                what = "Full CI vector";
             } else {
                 const bool triples = method == "CCSD(T)";
                 std::vector<double> t1, t2, l1 = ref.l1, l2 = ref.l2;
@@ -611,7 +611,7 @@ HessianResult run_hessian(const Molecule& mol, const BasisSet& basis, const std:
         if (!ref.analytic || ho.from_energies)
             throw std::runtime_error("a numerical Hessian from " + method + " energies is not available for a custom "
                                      "molecule of three or more atoms; use a method with analytic gradients (HF, CCSD, "
-                                     "CCSD(T), Full-CI)");
+                                     "CCSD(T), Full CI)");
         bool linear = false;
         const std::vector<std::vector<double>> dirs = vibrational_directions(mol, &linear);
         const std::size_t m = dirs.size();

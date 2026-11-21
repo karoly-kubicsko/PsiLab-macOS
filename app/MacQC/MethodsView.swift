@@ -2,7 +2,7 @@
 //  MethodsView.swift
 //  MacQC
 //
-//  Methods tab: the detailed results of Hartree–Fock, coupled cluster and Full-CI, one page each
+//  Methods tab: the detailed results of Hartree–Fock, coupled cluster and Full CI, one page each
 //  (the tabs of versions 3.0 and 4.0, combined so that the window keeps six tabs), and (7.0) the
 //  molecular orbitals.
 //

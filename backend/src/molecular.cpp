@@ -93,7 +93,7 @@ std::string thousands(std::size_t v) {
 }
 
 std::string thousands_d(double v) {
-    if (!std::isfinite(v) || v > 1.0e300) return "more than 10^300";  // 16.0: impossible Full-CI spaces
+    if (!std::isfinite(v) || v > 1.0e300) return "more than 10^300";  // 16.0: impossible Full CI spaces
     if (v >= 1.0e15) return format("%.2e", v);
     return thousands(static_cast<std::size_t>(std::llround(v)));
 }
@@ -108,7 +108,7 @@ std::string fci_section_impl(const FCIResultGeneral& f, double rhf_energy, int l
     const int mult = f.alpha - f.beta + 1;
     static const char* spin_names[] = {"singlet", "doublet", "triplet", "quartet", "quintet", "sextet", "septet"};
     const std::string spin_name = mult >= 1 && mult <= 7 ? spin_names[mult - 1] : format("multiplicity %d", mult);
-    std::string s = format("\nFull-CI         all electrons correlated, M_S = %s determinants, lowest %s state\n",
+    std::string s = format("\nFull CI         all electrons correlated, M_S = %s determinants, lowest %s state\n",
                            f.alpha == f.beta ? "0" : format("%g", 0.5 * (f.alpha - f.beta)).c_str(), spin_name.c_str());
     s += format("    %d electrons (%d alpha, %d beta) in %d orbitals: %s alpha x %s beta strings = %s determinants\n",
                 f.alpha + f.beta, f.alpha, f.beta, f.orbitals, thousands(f.alpha_strings).c_str(),
@@ -129,9 +129,9 @@ std::string fci_section_impl(const FCIResultGeneral& f, double rhf_energy, int l
     }
     s += f.converged ? format("    Davidson converged in %d iterations (%.2f s)\n", f.iterations, f.ci_seconds)
                      : format("    Davidson NOT converged after %d iterations\n", f.iterations);
-    s += "\nFull-CI energies (E_h)\n";
+    s += "\nFull CI energies (E_h)\n";
     s += format("    RHF energy                %20.10f\n", rhf_energy);
-    s += format("    Full-CI energy            %20.10f\n", f.total_energy);
+    s += format("    Full CI energy            %20.10f\n", f.total_energy);
     s += format("    correlation energy        %20.10f\n", f.correlation_energy);
     s += format("    <S^2>                     %20.10f\n", f.s2);
     s += format("    weight of the RHF determinant |C_0|^2  %.8f\n", f.hf_weight);
@@ -352,7 +352,7 @@ std::string validate_molecular(const MolecularInput& in) {
     if (!in.reference.empty() && canonical_reference_name(in.reference).empty())
         return "reference must be RHF, UHF or ROHF";
     if (!std::isfinite(in.fci_memory_mb) || in.fci_memory_mb < 64.0)
-        return "fciMemoryMB (memory limit of Full-CI and coupled cluster) must be at least 64";
+        return "fciMemoryMB (memory limit of Full CI and coupled cluster) must be at least 64";
     if (!std::isfinite(in.R) || in.R < 0.0) return "R must be a positive, finite number (bohr)";
     if (in.R > 0.0 && in.R < 0.3) return "R must be at least 0.3 bohr (0.16 \xC3\x85)";
     if (in.R > 50.0) return "R must be at most 50 bohr (26.5 \xC3\x85)";
@@ -540,16 +540,16 @@ MolecularResult prepare_molecular(const MolecularInput& input) {
         if (!e.fci->feasible) {
             r.refusal = e.fci->reason;
             if (r.molecule.custom)
-                r.refusal += " Full-CI is feasible only for very few electrons in small basis sets; use coupled cluster.";
+                r.refusal += " Full CI is feasible only for very few electrons in small basis sets; use coupled cluster.";
             else if (r.molecule.name == "H2O" || r.molecule.name == "H2O2" || r.molecule.name == "NH3")
-                r.refusal += " Full-CI for " + r.molecule.name + " is impossible in every basis set offered; use RHF.";
+                r.refusal += " Full CI for " + r.molecule.name + " is impossible in every basis set offered; use RHF.";
             else if (r.molecule.name == "LiH")
-                r.refusal += " For LiH, Full-CI is possible up to aug-cc-pCVTZ (11 million determinants).";
+                r.refusal += " For LiH, Full CI is possible up to aug-cc-pCVTZ (11 million determinants).";
             return r;
         }
         if (e.total_seconds > kLongCalculationSeconds)
             r.warnings.push_back(format(
-                "Long calculation: Full-CI with %s determinants in %d orbitals after RHF; about %.1f GB of "
+                "Long calculation: Full CI with %s determinants in %d orbitals after RHF; about %.1f GB of "
                 "memory. Estimated time %s on %d threads.",
                 thousands(static_cast<std::size_t>(e.fci->determinants)).c_str(), e.fci->orbitals,
                 e.fci->memory_bytes / (1024.0 * 1024.0 * 1024.0), human_seconds(e.total_seconds).c_str(), e.threads));
@@ -564,13 +564,13 @@ MolecularResult prepare_molecular(const MolecularInput& input) {
         e.total_seconds += e.cc->seconds;
         const int rank = cc_max_rank(ccm);
         if (nel == 2)
-            r.notes.push_back(ccm == CCMethod::CCSD ? "For two electrons CCSD is exact (identical to Full-CI)."
+            r.notes.push_back(ccm == CCMethod::CCSD ? "For two electrons CCSD is exact (identical to Full CI)."
                               : ccm == CCMethod::CCSD_T
-                                  ? "For two electrons CCSD is exact (identical to Full-CI); the (T) correction is zero."
-                                  : "For two electrons CCSD is exact (identical to Full-CI); triple and quadruple "
+                                  ? "For two electrons CCSD is exact (identical to Full CI); the (T) correction is zero."
+                                  : "For two electrons CCSD is exact (identical to Full CI); triple and quadruple "
                                     "excitations vanish, so CCSDT and CCSDTQ give the CCSD energy.");
         else if (nel == 4 && rank == 4)
-            r.notes.push_back("For four electrons CCSDTQ is exact (identical to Full-CI).");
+            r.notes.push_back("For four electrons CCSDTQ is exact (identical to Full CI).");
         if (!e.cc->feasible) {
             r.refusal = e.cc->reason;
             if (rank >= 3) r.refusal += " Use a smaller basis set, or CCSD(T).";
@@ -654,7 +654,7 @@ void run_molecular(MolecularResult& r, const RHFProgress& progress, const FCIPro
         r.fci = run_fci_determinants(mo, nocc, nocc, r.rhf->nuclear_repulsion, r.rhf->total_energy, fo, fci_progress);
         r.fci->transform_seconds = transform;
         if (!r.fci->converged)
-            r.warnings.push_back(format("The Full-CI (Davidson) did not converge in %d iterations.", r.fci->iterations));
+            r.warnings.push_back(format("The Full CI (Davidson) did not converge in %d iterations.", r.fci->iterations));
     }
     CCMethod ccm;
     if (coupled_cluster_method(r.input.method, &ccm) && r.rhf->converged) {
@@ -699,7 +699,7 @@ std::string molecular_report(const MolecularResult& r) {
                                  : r.reference == "ROHF" ? "restricted open-shell Hartree–Fock"
                                                           : "restricted Hartree–Fock";
     s += std::string("\xCE\xA8Lab \xE2\x80\x93 ") + scf_name +
-         (r.input.method == "FCI" ? " and Full-CI"
+         (r.input.method == "FCI" ? " and Full CI"
                                   : (r.input.method == "RHF" ? "" : " and " + method_label(r.input.method, r.reference))) +
          "\n" + rule + "\n";
     s += format("Molecule        %s, %d electrons%s, %s (charge %d, multiplicity %d)\n", mol.display_name().c_str(),
@@ -753,7 +753,7 @@ std::string molecular_report(const MolecularResult& r) {
                       : format("integral-direct (storing them would need %s)\n", estimate_memory_mb(e.eri_memory_mb).c_str());
     if (e.fci) {
         const FCISize& f = *e.fci;
-        s += format("    Full-CI: %d electrons (%d alpha, %d beta) in %d orbitals, %s x %s = %s determinants,\n"
+        s += format("    Full CI: %d electrons (%d alpha, %d beta) in %d orbitals, %s x %s = %s determinants,\n"
                     "             about %s of memory, estimated time %s\n",
                     f.alpha + f.beta, f.alpha, f.beta, f.orbitals, thousands_d(f.alpha_strings).c_str(),
                     thousands_d(f.beta_strings).c_str(), thousands_d(f.determinants).c_str(),

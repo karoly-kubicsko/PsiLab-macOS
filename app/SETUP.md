@@ -46,7 +46,7 @@ Use *File ▸ Add Files to "PsiLab"…* (or drag from Finder). Always: **"Copy i
 | App | everything in `app/MacQC/` (18 `.swift` files, `MacQC-Bridging-Header.h` and `Assets.xcassets`) | `.swift`: PsiLab; header: none needed |
 | Backend sources | `backend/src/linalg.cpp`, `integrals.cpp`, `report.cpp`, `scf.cpp`, `fci.cpp`, `molecule.cpp`, `structure_file.cpp`, `basis.cpp`, `gto_integrals.cpp`, `ecp.cpp`, `rhf.cpp`, `molecular.cpp`, `gemm.cpp`, `mo_integrals.cpp`, `ci.cpp`, `cc_general.cpp`, `cc_closed_shell.cpp`, `cc_estimate.cpp`, `gto_derivatives.cpp`, `rhf_derivatives.cpp`, `tensor.cpp`, `correlated_gradient.cpp`, `cc_gradient.cpp`, `gradient.cpp`, `internal_coordinates.cpp`, `optimizer.cpp`, `constants.cpp`, `frequencies.cpp`, `hessian.cpp`, `job.cpp`, `output.cpp`, `jobs.cpp`, `calculation.cpp`, `api.cpp` | PsiLab |
 | Basis sets | the folder `basis/` — add it as a **folder reference** ("Create folder references"), so it is copied as `Contents/Resources/basis` | PsiLab (Copy Bundle Resources) |
-| Startup example (17.0) | `examples/outputs/h2-fullci-aug-cc-pcv5z-opt-aug-cc-pcvqz-optfreqsp.out` — the results the app opens with (H₂, Full-CI/aug-cc-pCV5Z//Full-CI/aug-cc-pCVQZ) | PsiLab (Copy Bundle Resources) |
+| Startup example (17.0) | `examples/outputs/h2-fullci-aug-cc-pcv5z-opt-aug-cc-pcvqz-optfreqsp.out` — the results the app opens with (H₂, Full CI/aug-cc-pCV5Z//Full CI/aug-cc-pCVQZ) | PsiLab (Copy Bundle Resources) |
 | Backend headers | `backend/include/macqc/*.h` and `cc_diagrams.inc` (the generated diagram table) | (headers only) |
 | Framework | `Accelerate.framework` (*General ▸ Frameworks and Libraries*, "Do Not Embed") | PsiLab |
 | JSON library | `third_party/nlohmann/json.hpp` | (header only) |

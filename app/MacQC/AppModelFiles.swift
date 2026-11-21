@@ -46,8 +46,9 @@ nonisolated enum OutputArchive {
         copy.output = nil
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
-        guard let data = try? encoder.encode(copy), var json = String(data: data, encoding: .utf8),
-              json.hasPrefix("{") else { return nil }
+        guard let data = try? encoder.encode(copy), let encoded = String(data: data, encoding: .utf8),
+              encoded.hasPrefix("{") else { return nil }
+        var json = InterfaceText.backendForm(encoded)   // 17.0: the backend's "Full CI" in files
         // the "archive" object of the backend's archives: format, program and time
         let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? ""
         let formatter = DateFormatter()
@@ -119,16 +120,13 @@ extension AppModel {
     /// as they are). `showSummary`: select the Summary tab; `example`: the startup example (17.0).
     func loadOutputFile(from url: URL, showSummary: Bool = true, example: Bool = false) {
         let name = url.lastPathComponent
-        var text: String
+        let text: String
         do {
             text = try String(contentsOf: url, encoding: .utf8)
         } catch {
             errorMessage = "“\(name)” could not be read: \(error.localizedDescription)"
             return
         }
-        // 17.0: the method is written Full-CI (files of earlier versions: Full CI); no key of the
-        // archive contains the name, so the results read the same.
-        text = text.replacingOccurrences(of: "Full CI", with: "Full-CI")
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         let isJSON = url.pathExtension.lowercased() == "json" || trimmed.hasPrefix("{")
         guard let json = isJSON ? trimmed : OutputArchive.json(in: text) else {
@@ -137,7 +135,7 @@ extension AppModel {
         }
         var out: MacQCOutput
         do {
-            out = try JSONDecoder().decode(MacQCOutput.self, from: Data(json.utf8))
+            out = try InterfaceText.decodeOutput(json)   // 17.0: Full-CI in the interface
         } catch {
             errorMessage = "The results in “\(name)” could not be read: \(error.localizedDescription)"
             return
@@ -212,7 +210,7 @@ extension AppModel {
 }
 
 extension SavedMolecule {
-    /// Gaussian's keyword for a ΨLab method; nil where Gaussian has none (CCSDT, CCSDTQ, Full-CI).
+    /// Gaussian's keyword for a ΨLab method; nil where Gaussian has none (CCSDT, CCSDTQ, Full CI).
     /// ΨLab correlates all electrons: Gaussian's coupled cluster freezes the core unless asked
     /// for Full.
     static func gaussianMethod(_ method: String) -> String? {

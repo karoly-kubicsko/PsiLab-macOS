@@ -29,7 +29,7 @@ struct MolecularInput {
     std::string title;
     // 15.0: charge and multiplicity of every molecule (built-in molecules and presets take their own
     // unless these are set), the reference ("RHF", "UHF", "ROHF"; "" = RHF for closed-shell singlets,
-    // UHF otherwise, ROHF orbitals for an open-shell Full-CI) and the preset of the molecule menu
+    // UHF otherwise, ROHF orbitals for an open-shell Full CI) and the preset of the molecule menu
     // (atoms H-Ar, H2+, H3+, H5+, N2, O2, F2, Cl2, NO, NO2, CO, CO2, N2O, H2CO, CH4: find_molecule_preset).
     bool charge_given = false;
     bool multiplicity_given = false;
@@ -42,7 +42,7 @@ struct MolecularInput {
     std::string basis_directory;  // "" -> default_basis_directory()
     int threads = 0;              // 0 -> all hardware threads
     double memory_mb = 1024.0;    // limit for keeping the two-electron integrals in memory
-    double fci_memory_mb = 4096.0;  // hard memory limit of a Full-CI or coupled-cluster calculation
+    double fci_memory_mb = 4096.0;  // hard memory limit of a Full CI or coupled-cluster calculation
     int max_iter = 100;
     double energy_tol = 1.0e-10;
     double gradient_tol = 1.0e-7;
@@ -71,7 +71,7 @@ struct CostEstimate {
         std::string reason;
     };
     std::optional<SOCost> so;
-    double total_seconds = 0.0;  // RHF (+ Full-CI or coupled cluster)
+    double total_seconds = 0.0;  // RHF (+ Full CI or coupled cluster)
 };
 
 struct MolecularResult {
@@ -93,7 +93,7 @@ struct MolecularResult {
 // Canonical method name ("RHF", "CCSD", "CCSD(T)", "CCSDT", "CCSDTQ", "FCI"; 15.0: "MP2" ... "MP5",
 // "CISD", "CISD(T)", "CISDT", "CISDTQ", "QCISD", "QCISD(T)", "QCISDT", "QCISDTQ") of a name
 // given in any case, with or without spaces and hyphens ("HF" and "SCF" mean RHF,
-// "Full-CI" means FCI; 15.0: "UHF" and "ROHF" also mean the SCF, "UMP2" MP2 and so on, the prefix
+// "Full CI" means FCI; 15.0: "UHF" and "ROHF" also mean the SCF, "UMP2" MP2 and so on, the prefix
 // giving the reference, see parse_method_spec); "" if unknown. "RHF" stands for the SCF method.
 std::string canonical_method_name(const std::string& method);
 
@@ -105,7 +105,7 @@ struct MethodSpec {
 };
 MethodSpec parse_method_spec(const std::string& text);
 // The reference a calculation uses: the requested one, else RHF for a singlet, UHF for open shells
-// (ROHF orbitals for Full-CI). Throws std::runtime_error if RHF is requested for an open shell.
+// (ROHF orbitals for Full CI). Throws std::runtime_error if RHF is requested for an open shell.
 std::string effective_reference(const std::string& canonical_method, const std::string& requested, int multiplicity);
 // "MP2", "UMP2", "ROMP2", "UHF", "ROHF", "RHF": the method with the prefix of its reference.
 std::string method_label(const std::string& canonical_method, const std::string& reference);
@@ -117,7 +117,7 @@ std::string validate_molecular(const MolecularInput& in);
 
 // Builds molecule and basis and estimates the cost without computing anything.
 // Throws std::runtime_error with an explanation if the input cannot be set up (e.g. basis
-// set not defined for an element). A Full-CI that is too large is not an exception here:
+// set not defined for an element). A Full CI that is too large is not an exception here:
 // result.refusal explains why it is not possible (run_molecular then refuses to run).
 MolecularResult prepare_molecular(const MolecularInput& in);
 
@@ -134,7 +134,7 @@ int expected_scf_iterations(const std::string& molecule);
 void run_molecular(MolecularResult& result, const RHFProgress& progress = RHFProgress(),
                    const FCIProgress& fci_progress = FCIProgress(), const CCProgress& cc_progress = CCProgress());
 
-// The Full-CI and coupled-cluster sections of the report (also used by the job output).
+// The Full CI and coupled-cluster sections of the report (also used by the job output).
 std::string fci_report_section(const FCIResultGeneral& f, double rhf_energy, int level);
 std::string cc_report_section(const CCResult& c, int level);
 // 15.0: the section of a method of the spin-orbital engine (energies by order or component,

@@ -2,7 +2,7 @@
 //  FullCIView.swift
 //  MacQC
 //
-//  Full-CI tab: determinants and CI vector, singlet configuration weights, all states.
+//  Full CI tab: determinants and CI vector, singlet configuration weights, all states.
 //
 
 import SwiftUI

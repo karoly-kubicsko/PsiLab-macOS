@@ -1,4 +1,4 @@
-// Determinant-based Full-CI for closed-shell molecules (ΨLab 3.0: H2, LiH).
+// Determinant-based Full CI for closed-shell molecules (ΨLab 3.0: H2, LiH).
 //
 // The CI vector is a matrix C(I_alpha, I_beta) over alpha and beta occupation strings
 // (M_S = 0, all electrons correlated). sigma = H C is built from
@@ -66,7 +66,7 @@ struct FCISize {
 // Hard limit on the determinant space (about 160 MB per CI vector).
 constexpr double kMaxFCIDeterminants = 2.0e7;
 
-// Size, memory and time of a Full-CI with n orbitals (N basis functions) and the
+// Size, memory and time of a Full CI with n orbitals (N basis functions) and the
 // given electrons; `rhf_pass_seconds` is the time of one pass over all two-electron
 // integrals (from the RHF estimate). Sets feasible = false with a reason above the
 // determinant limit or the memory limit.
@@ -121,7 +121,7 @@ struct FCIResultGeneral {
 
 using FCIProgress = std::function<void(const FCIIteration&)>;
 
-// Full-CI in the MO basis (electronic Hamiltonian from `mo`), lowest singlet root.
+// Full CI in the MO basis (electronic Hamiltonian from `mo`), lowest singlet root.
 FCIResultGeneral run_fci_determinants(const MOIntegrals& mo, int n_alpha, int n_beta, double nuclear_repulsion,
                                       double rhf_energy, const FCIOptions& options,
                                       const FCIProgress& progress = FCIProgress());
@@ -144,7 +144,7 @@ SODensities fci_spin_densities(int n_orbitals, int n_alpha, int n_beta, const st
 // Memory (bytes) of fci_densities.
 double fci_density_bytes(int n_orbitals, int n_alpha);
 
-// ΨLab 10.0: first-order response of the Full-CI ground state (normalised vector c, electronic
+// ΨLab 10.0: first-order response of the Full CI ground state (normalised vector c, electronic
 // energy E) to perturbed Hamiltonians H^(x) (the electronic part, e.g. perturbed_hamiltonian):
 //   (H - E) c^x = -(H^(x) - E^(x)) c,  c' c^x = 0,  E^(x) = c' H^(x) c,
 // solved by preconditioned conjugate gradients in the orthogonal complement of c (where H - E

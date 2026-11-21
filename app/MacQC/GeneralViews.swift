@@ -3,7 +3,7 @@
 //  MacQC
 //
 //  Detail views of the general path (H₂, LiH, H₂O, H₂O₂, NH₃, HeH⁺ in a Gaussian
-//  basis set): summary, Hartree–Fock and Full-CI pages; the
+//  basis set): summary, Hartree–Fock and Full CI pages; the
 //  coupled-cluster page is in CoupledClusterView.swift, the job tabs in JobViews.swift and the
 //  output file in OutputView.swift.
 //
@@ -151,7 +151,7 @@ struct GeneralSummaryView: View {
             let job = JobChoice(rawValue: out.input.job).map { $0 == .energy ? "" : " · " + $0.shortTitle } ?? ""
             // the name drawn from its LaTeX source (custom molecules: the structure file's name line)
             // 17.0: a job with a single point as Level1//Level2 (the single point at the geometry
-            // optimised at Level2): "RHF and Full-CI/aug-cc-pCV5Z//Full-CI/aug-cc-pCVQZ"
+            // optimised at Level2): "RHF and Full CI/aug-cc-pCV5Z//Full CI/aug-cc-pCVQZ"
             let rest: String = out.singlePoint != nil
                 ? " · " + (scfOnly ? "" : reference + " and ") + out.compositeLevel + job
                 : " · " + (out.basis?.name ?? out.input.basis) + " · " + method + job
@@ -382,7 +382,7 @@ struct GeneralHartreeFockView: View {
     }
 }
 
-// MARK: - Full-CI
+// MARK: - Full CI
 
 struct GeneralFullCIView: View {
     var model: AppModel

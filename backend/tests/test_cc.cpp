@@ -2,7 +2,7 @@
 //  - the general-order spin-orbital engine (CCSD, CCSDT, CCSDTQ) against brute-force
 //    coupled cluster in the determinant space (backend/tests/data/cc_reference.json, from
 //    gen_cc_reference.py): random integrals with a non-diagonal Fock matrix, H2O/STO-3G
-//    and LiH/6-31G (CCSDTQ = Full-CI for four electrons);
+//    and LiH/6-31G (CCSDTQ = Full CI for four electrons);
 //  - the closed-shell CCSD and (T) against the same data and PySCF;
 //  - molecules through the driver and the JSON API.
 #include <cmath>
@@ -152,12 +152,12 @@ static void test_molecules_pyscf() {
 
 // CCSDT and CCSDTQ through the driver: exact for two and four electrons.
 static void test_molecules_exact() {
-    std::printf("-- CCSDT/CCSDTQ equal Full-CI for H2 and LiH (fci_reference.json)\n");
+    std::printf("-- CCSDT/CCSDTQ equal Full CI for H2 and LiH (fci_reference.json)\n");
     const json data = json::parse(read_file(std::string(MACQC_TEST_DATA_DIR) + "/fci_reference.json"));
     auto fci = [&](const std::string& m, const std::string& b) {
         for (const json& c : data["cases"])
             if (c["molecule"] == m && c["basis"] == b) return c["fci_energy"].get<double>();
-        throw std::runtime_error("no Full-CI reference for " + m + "/" + b);
+        throw std::runtime_error("no Full CI reference for " + m + "/" + b);
     };
     for (const char* method : {"CCSD", "CCSDT", "CCSDTQ"}) {
         const MolecularResult r = run("H2", "aug-cc-pVDZ", method);
@@ -167,7 +167,7 @@ static void test_molecules_exact() {
     const MolecularResult t = run("LiH", "aug-cc-pVDZ", "CCSDT");
     CHECK(t.cc && t.cc->converged);
     const double e_fci = fci("LiH", "aug-cc-pVDZ");
-    // CCSDT lies within 0.05 mE_h of Full-CI for LiH; CCSDTQ is exact.
+    // CCSDT lies within 0.05 mE_h of Full CI for LiH; CCSDTQ is exact.
     CHECK(std::fabs(t.cc->total_energy - e_fci) < 5e-5 && std::fabs(t.cc->total_energy - e_fci) > 1e-9);
     std::printf("     LiH/aug-cc-pVDZ CCSDT - FCI = %.3e E_h\n", t.cc->total_energy - e_fci);
     const MolecularResult q = run("LiH", "aug-cc-pVDZ", "CCSDTQ");

@@ -163,7 +163,7 @@ void correlated_energy(SinglePoint& sp, const BasisSet& basis, const ElectronicO
         return;
     }
     if (m == "FCI" && sp.rhf.n_alpha != sp.rhf.n_beta) {
-        // open shell: Full-CI in the (ROHF) orbitals of one set, alpha and beta strings
+        // open shell: Full CI in the (ROHF) orbitals of one set, alpha and beta strings
         MOIntegrals local;
         if (!mo_in) local = transform_to_mo(basis, sp.rhf.H, sp.rhf.C, o.threads);
         const MOIntegrals& mo = mo_in ? *mo_in : local;
@@ -184,7 +184,7 @@ void correlated_energy(SinglePoint& sp, const BasisSet& basis, const ElectronicO
         sp.energy = sp.fci->total_energy;
         sp.converged = sp.fci->converged;
         if (!sp.fci->converged)
-            sp.warnings.push_back(format("The Full-CI (Davidson) did not converge in %d iterations.", sp.fci->iterations));
+            sp.warnings.push_back(format("The Full CI (Davidson) did not converge in %d iterations.", sp.fci->iterations));
         return;
     }
     CCMethod ccm = CCMethod::CCSD;
@@ -228,7 +228,7 @@ bool analytic_gradient_method(const std::string& m, const std::string& reference
     if (m == "RHF") return true;  // the SCF of every reference
     if (closed) return m == "CCSD" || m == "CCSD(T)" || m == "FCI" || uses_so_engine(m, "RHF");
     // 15.0: UHF (coupled-perturbed UHF) and ROHF (ROHF orbital Hessian) Z-vectors, open_shell_correlated.h;
-    // Full-CI (orbital-invariant: no Z-vector)
+    // Full CI (orbital-invariant: no Z-vector)
     if (reference == "UHF" || reference == "ROHF") return uses_so_engine(m, reference) || m == "FCI";
     return false;
 }
@@ -566,7 +566,7 @@ GradientResult run_gradient(const Molecule& mol, const BasisSet& basis, const st
             g.dipole = dipole_moment(mol, basis, sp.rhf.P);
             g.has_dipole = true;
         } else if (method == "FCI" && sp.rhf.open_shell()) {
-            // 15.0: Full-CI on an open-shell reference (orbitals of one set: ROHF, or the alpha orbitals of
+            // 15.0: Full CI on an open-shell reference (orbitals of one set: ROHF, or the alpha orbitals of
             // UHF); the energy is invariant to the orbital rotations, so no Z-vector
             report_progress(JobStage::Transformation);
             const MOIntegrals mo = transform_to_mo(basis, sp.rhf.H, sp.rhf.C, o.threads);
@@ -577,9 +577,9 @@ GradientResult run_gradient(const Molecule& mol, const BasisSet& basis, const st
             sp.energy = sp.fci->total_energy;
             sp.converged = sp.fci->converged;
             if (!sp.fci->converged)
-                sp.warnings.push_back(format("The Full-CI (Davidson) did not converge in %d iterations.", sp.fci->iterations));
+                sp.warnings.push_back(format("The Full CI (Davidson) did not converge in %d iterations.", sp.fci->iterations));
             if (sp.converged) {
-                if (cb.note) cb.note("Full-CI spin densities from the CI vector");
+                if (cb.note) cb.note("Full CI spin densities from the CI vector");
                 const OpenShellGradient og = open_shell_fci_gradient(mol, basis, sp.rhf, mo, sp.fci->vector, o.threads, o.memory_mb);
                 CorrelatedGradientResult cg;
                 cg.gradient = og.gradient;
@@ -600,7 +600,7 @@ GradientResult run_gradient(const Molecule& mol, const BasisSet& basis, const st
             }
             sp.fci->vector.clear();
             sp.fci->vector.shrink_to_fit();
-            g.description = "analytic (Full-CI on " + ref +
+            g.description = "analytic (Full CI on " + ref +
                             " orbitals: spin-resolved one- and two-particle densities of the CI vector; the energy is "
                             "invariant to the orbital rotations, so there is no Z-vector)";
         } else if (so) {
@@ -709,11 +709,11 @@ GradientResult run_gradient(const Molecule& mol, const BasisSet& basis, const st
                                               fci_options(o, true), cb.fci);
                 sp.energy = sp.fci->total_energy;
                 sp.converged = sp.fci->converged;
-                if (cb.note) cb.note("Full-CI densities from the CI vector");
+                if (cb.note) cb.note("Full CI densities from the CI vector");
                 dens = fci_densities(nmo, nocc, nocc, sp.fci->vector, o.threads);
                 sp.fci->vector.clear();
                 sp.fci->vector.shrink_to_fit();
-                g.description = "analytic (Full-CI one- and two-particle densities, orbital response by Z-vector)";
+                g.description = "analytic (Full CI one- and two-particle densities, orbital response by Z-vector)";
             } else {
                 const bool triples = method == "CCSD(T)";
                 const CCIntegrals ints = cc_integrals_from_mo(mo, nocc);

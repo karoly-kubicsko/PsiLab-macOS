@@ -1,5 +1,5 @@
 // Molecular orbitals for display (ΨLab 8.0): the atoms, the basis and sets of orbitals as AO
-// coefficients (RHF canonical orbitals; Full-CI natural orbitals; the two orbitals of the
+// coefficients (RHF canonical orbitals; Full CI natural orbitals; the two orbitals of the
 // Szabo-Ostlund HeH+ calculation), their values at points, on grids and in planes, and their
 // isosurfaces psi = +c and psi = -c (marching tetrahedra).
 #pragma once
@@ -21,7 +21,7 @@ struct OrbitalInfo {
     int number = 0;            // 1-based number in its full set (energy order or occupation order)
     double energy = 0.0;       // E_h (canonical orbitals)
     bool has_energy = false;   // false for natural orbitals
-    double occupation = 0.0;   // 2 or 0 (RHF), the natural occupation (Full-CI)
+    double occupation = 0.0;   // 2 or 0 (RHF), the natural occupation (Full CI)
     std::string label;         // "HOMO", "HOMO-1", "LUMO", "LUMO+2" or ""
 };
 
@@ -41,7 +41,7 @@ struct OrbitalData {
 };
 
 // RHF canonical orbitals (all occupied ones and up to `virtuals` virtual ones) and, with a Full
-// CI result that has natural orbitals, as many Full-CI natural orbitals (largest occupation
+// CI result that has natural orbitals, as many Full CI natural orbitals (largest occupation
 // first).
 OrbitalData make_orbital_data(const Molecule& mol, const BasisSet& basis, const RHFResult& rhf,
                               const FCIResultGeneral* fci = nullptr, int virtuals = 10);

@@ -79,7 +79,7 @@ OrbitalData make_orbital_data(const Molecule& mol, const BasisSet& basis, const 
         const Matrix& U = fci->natural_orbitals;  // MO x NO
         OrbitalSet nat;
         nat.kind = "natural";
-        nat.title = "Full-CI natural orbitals";
+        nat.title = "Full CI natural orbitals";
         const int nno = std::min<int>(last, static_cast<int>(U.cols()));
         for (int k = 0; k < nno; ++k) {
             OrbitalInfo o;

@@ -62,7 +62,7 @@ nonisolated struct SavedMolecule: Codable, Sendable, Equatable, Identifiable, Ha
     /// 17.0: the end of the suggested file name of such a structure ("step2", "point03").
     var fileTag: String? = nil
 
-    /// A level or tag as part of a file name: "Full-CI/aug-cc-pCVQZ" -> "Full-CI-aug-cc-pCVQZ".
+    /// A level or tag as part of a file name: "Full CI/aug-cc-pCVQZ" -> "Full CI-aug-cc-pCVQZ".
     static func fileNamePart(_ text: String) -> String {
         text.replacingOccurrences(of: "/", with: "-").replacingOccurrences(of: " ", with: "")
             .replacingOccurrences(of: ",", with: "")
@@ -136,7 +136,7 @@ nonisolated struct SavedMolecule: Codable, Sendable, Equatable, Identifiable, Ha
     func xyzText() -> String {
         var comment = title
         if let label = structureLabel, let l = level {
-            // 17.0: "H$_2$ (optimisation step 2 of 3 at Full-CI/aug-cc-pCVQZ, E = … E_h)"
+            // 17.0: "H$_2$ (optimisation step 2 of 3 at Full CI/aug-cc-pCVQZ, E = … E_h)"
             comment += (comment.isEmpty ? "" : " ") + "(" + label + " at " + l
             if let e = energy { comment += String(format: ", E = %.10f E_h", e) }
             comment += ")"

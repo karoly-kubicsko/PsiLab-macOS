@@ -3,10 +3,10 @@
 //    rank of G, back-transformation round trip;
 //  - tight optimisations from ΨLab's default geometries against PySCF + geomeTRIC
 //    (backend/tests/data/optimization_reference.json from reference/pyscf_optimization_reference.py):
-//    RHF, CCSD, CCSD(T), Full-CI for H2O, LiH, H2;
+//    RHF, CCSD, CCSD(T), Full CI for H2O, LiH, H2;
 //  - difficult starts: asymmetric H2O (ends C2v), nearly linear and exactly linear H2O (leaves
 //    the saddle point, keeps C2v);
-//  - a numerical-gradient optimisation (CCSDT of H2, equal to Full-CI) and the step limit.
+//  - a numerical-gradient optimisation (CCSDT of H2, equal to Full CI) and the step limit.
 #include <chrono>
 #include <cmath>
 #include <cstdio>
@@ -183,7 +183,7 @@ static void test_numerical_and_limits() {
     const OptimizationResult f = optimize(h2, "aug-cc-pVDZ", "FCI", true);
     CHECK(t.converged && f.converged);
     CHECK(!t.final_point.analytic && f.final_point.analytic);
-    check_max("H2 CCSDT (numerical gradient) = Full-CI (analytic) optimum, angstrom",
+    check_max("H2 CCSDT (numerical gradient) = Full CI (analytic) optimum, angstrom",
               std::fabs(geo_of(t).r1 - geo_of(f).r1), 2e-5);
     const OptimizationResult l = optimize(water(1.2, 1.2, 70.0), "aug-cc-pVDZ", "RHF", false, 2);
     CHECK(!l.converged);

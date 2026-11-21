@@ -71,7 +71,7 @@ final class WindowFitterView: NSView {
 }
 
 /// Six tabs (they fit next to the 340-pt sidebar at the minimum window width of 1000 pt, about 600 pt): Summary,
-/// Methods (Hartree–Fock, coupled cluster, Full-CI), Optimisation, Frequencies (with the
+/// Methods (Hartree–Fock, coupled cluster, Full CI), Optimisation, Frequencies (with the
 /// thermochemistry page), Scan (relaxed scan and potential curve), Output.
 struct DetailView: View {
     @Bindable var model: AppModel

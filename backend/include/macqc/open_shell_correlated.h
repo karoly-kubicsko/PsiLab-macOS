@@ -1,5 +1,5 @@
 // ΨLab 15.0: analytic gradients and Hessians of the spin-orbital engine's methods (MP2-MP5, CISD ...
-// CISDTQ, QCISD ... QCISDTQ, CCSD ... CCSDTQ) and of Full-CI on open-shell references, UHF and ROHF
+// CISDTQ, QCISD ... QCISDTQ, CCSD ... CCSDTQ) and of Full CI on open-shell references, UHF and ROHF
 // (open_shell_correlated.cpp).
 //
 // The energy is the Lagrangian
@@ -87,10 +87,10 @@ CorrelatedHessianResult open_shell_scf_hessian_check(const Molecule& mol, const 
                                                      const MOIntegrals& aa, const MOIntegrals& bb, const MOIntegrals& ab,
                                                      int threads = 0, bool dipoles = true);
 
-// Full-CI on an open-shell reference (n_alpha != n_beta) in the orbitals of one set, scf.C (ROHF; UHF:
+// Full CI on an open-shell reference (n_alpha != n_beta) in the orbitals of one set, scf.C (ROHF; UHF:
 // the alpha orbitals), with the integrals `mo` in these orbitals and the (spin-adapted) CI vector c.
 // The energy is invariant to every rotation of the orbitals (all of them are correlated), so the
-// generalized Fock matrix of the Full-CI densities is symmetric by itself: no Z-vector, and the
+// generalized Fock matrix of the Full CI densities is symmetric by itself: no Z-vector, and the
 // orbitals follow the geometry by symmetric orthonormalisation alone (U^x = -S~^x/2, no CPHF).
 // The Hessian adds the CI vector responses c^x (fci_vector_responses, in the space of the
 // requested spin): E^xy = <Gamma, H^[xy]> + 2 <c^x|H^[y]|c> (variational).

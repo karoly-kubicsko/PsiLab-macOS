@@ -22,7 +22,7 @@ namespace {
 
 void usage(const char* prog) {
     std::fprintf(stdout,
-                 "\xCE\xA8Lab - Hartree–Fock, perturbation theory, CI, QCI, coupled cluster and Full-CI in the terminal\n\n"
+                 "\xCE\xA8Lab - Hartree–Fock, perturbation theory, CI, QCI, coupled cluster and Full CI in the terminal\n\n"
                  "Usage:\n"
                  "  %s INPUT > OUTPUT   run INPUT, write the output file to the standard output (15.0)\n"
                  "  %s INPUT OUTPUT     run INPUT, write the output file to OUTPUT\n"
@@ -39,7 +39,7 @@ void usage(const char* prog) {
                  "  R = <number> [bohr | angstrom]       bond length (H2O, H2O2: O–H; NH3: N–H)\n"
                  "  charge = <n>   multiplicity = <2S+1>   (15.0: every molecule; default: the molecule's)\n"
                  "  reference = RHF | UHF | ROHF   (15.0; default RHF for closed-shell singlets, else UHF)\n"
-                 "HeH+ (Hartree–Fock and Full-CI, Szabo–Ostlund):\n"
+                 "HeH+ (Hartree–Fock and Full CI, Szabo–Ostlund):\n"
                  "  basis = STO-1G | STO-2G | STO-3G      zeta_He = <number>   zeta_H = <number>\n"
                  "  exact_erf = yes | no   scan = yes | no   scan_step = <bohr>  (R = 0.8 ... 5.0 bohr)\n"
                  "  szabo_ostlund = no   HeH+ in STO-nG as a general molecule (all methods and jobs, 15.0)\n"
@@ -62,7 +62,7 @@ void usage(const char* prog) {
                  "           QCISD | QCISD(T) | QCISDT | QCISDTQ | CCSD | CCSD(T) | CCSDT | CCSDTQ | FCI\n"
                  "           (all electrons correlated; prefixes U and RO select the reference: UMP2, ROCCSD(T))\n"
                  "  memory = <MB> (two-electron integrals kept in memory up to this size)\n"
-                 "  fci_memory = <MB> (memory limit of Full-CI and coupled cluster, default 4096)\n"
+                 "  fci_memory = <MB> (memory limit of Full CI and coupled cluster, default 4096)\n"
                  "  basis_dir = <folder with the .gbs files> (or environment variable PSILAB_BASIS_DIR)\n"
                  "  job = energy | opt | freq | opt+freq | opt+freq+sp | scan | ts | ts+freq | ts+freq+sp\n"
                  "        (default energy)\n"

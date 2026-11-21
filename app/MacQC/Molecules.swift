@@ -333,7 +333,7 @@ nonisolated enum MethodChoice: String, CaseIterable, Identifiable, Sendable {
         MethodFamily(title: "Configuration interaction", methods: [.cisd, .cisdT, .cisdt, .cisdtq]),
         MethodFamily(title: "Quadratic configuration interaction", methods: [.qcisd, .qcisdT, .qcisdt, .qcisdtq]),
         MethodFamily(title: "Coupled cluster", methods: [.ccsd, .ccsdT, .ccsdt, .ccsdtq]),
-        // 16.0: Full-CI, the exact limit of every method above, at the end of the menu
+        // 16.0: Full CI, the exact limit of every method above, at the end of the menu
         MethodFamily(title: "Full configuration interaction", methods: [.fci]),
     ]
 
@@ -347,7 +347,7 @@ nonisolated enum MethodChoice: String, CaseIterable, Identifiable, Sendable {
     }
 
     /// ΨLab 10.0: an analytic Hessian beyond the SCF (closed-shell references; 15.0 every method
-    /// of the spin-orbital engine and Full-CI, CCSD, CCSD(T); CCSDT and CCSDTQ numerical).
+    /// of the spin-orbital engine and Full CI, CCSD, CCSD(T); CCSDT and CCSDTQ numerical).
     var hasAnalyticCorrelatedHessian: Bool {
         switch self {
         case .hf, .ccsdt, .ccsdtq: return false
@@ -393,7 +393,7 @@ nonisolated enum MethodChoice: String, CaseIterable, Identifiable, Sendable {
             self = .hf
             return
         }
-        if n == "full ci" || n == "full-ci" {   // 17.0: the title is Full-CI (before: Full CI)
+        if n == "full ci" || n == "full-ci" {   // 17.0: the title is Full CI (before: Full CI)
             self = .fci
             return
         }
@@ -689,7 +689,7 @@ nonisolated enum MachineLimits {
         min(max(physicalMemoryMB / 4, 512), 8192)
     }
 
-    /// Memory limit of Full-CI and coupled cluster: 60 % of the RAM (at least 2 GB, at most
+    /// Memory limit of Full CI and coupled cluster: 60 % of the RAM (at least 2 GB, at most
     /// 48 GB).
     static var fciMemoryMB: Double {
         min(max(physicalMemoryMB * 0.6, 2048), 49152)

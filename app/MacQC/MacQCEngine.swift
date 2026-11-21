@@ -55,7 +55,7 @@ nonisolated struct MacQCInput: Codable, Sendable, Equatable {
     var scanStart: Double? = nil    // Å or degrees (nil: the value at the input geometry)
     var tsHessian: String = "calcfc" // "calcfc" (first step) or "calcall" (every step)
     var eigenTest: Bool = true      // the TS search needs exactly one negative eigenvalue
-    // ΨLab 10.0: Hessians of Full-CI, CCSD and CCSD(T): "analytic" or "numerical"
+    // ΨLab 10.0: Hessians of Full CI, CCSD and CCSD(T): "analytic" or "numerical"
     var hessian: String = "analytic"
     var initialHessian: String = "auto"   // minimisations: "auto", "analytic" or "model"
     // ΨLab 9.0: molecule "custom" (a structure file): atoms in Å, charge, multiplicity, name (LaTeX)
@@ -811,7 +811,7 @@ nonisolated struct MacQCShell: Codable, Sendable, Equatable {
 nonisolated struct MacQCOrbitalInfo: Codable, Sendable, Equatable, Identifiable {
     var number: Int                  // 1-based, in energy order (canonical) or occupation order (natural)
     var energy: Double?              // E_h (canonical orbitals)
-    var occupation: Double           // 2 or 0 (RHF), natural occupation (Full-CI)
+    var occupation: Double           // 2 or 0 (RHF), natural occupation (Full CI)
     var label: String                // "HOMO", "HOMO-1", "LUMO", "LUMO+2" or ""
 
     var id: Int { number }
@@ -827,7 +827,7 @@ nonisolated struct MacQCOrbitalSet: Codable, Sendable, Equatable {
 }
 
 /// The "orbitals" object of the output: atoms, basis and orbital sets (RHF canonical orbitals,
-/// all occupied and up to ten virtual ones; Full-CI natural orbitals; for HeH⁺ in STO-nG the
+/// all occupied and up to ten virtual ones; Full CI natural orbitals; for HeH⁺ in STO-nG the
 /// two Szabo–Ostlund orbitals). Passed back to the backend to draw an orbital.
 nonisolated struct MacQCOrbitals: Codable, Sendable, Equatable {
     var basis: String
@@ -879,13 +879,13 @@ nonisolated struct MacQCOutput: Codable, Sendable, Equatable {
     var orbitals: MacQCOrbitals?     // ΨLab 8.0: molecular orbitals of the final calculation
     var output: String?
 
-    /// Energy of the correlated method of this result (Full-CI or coupled cluster).
+    /// Energy of the correlated method of this result (Full CI or coupled cluster).
     var correlatedEnergy: Double? { coupledCluster?.totalEnergy ?? correlated?.totalEnergy ?? fullCI?.totalEnergy }
 
     /// 15.0: the reference of the SCF ("RHF", "UHF", "ROHF").
     var referenceLabel: String { rhf?.reference ?? reference ?? "RHF" }
 
-    /// Title of the method of this result: "HF", "CCSD(T)", "Full-CI", …
+    /// Title of the method of this result: "HF", "CCSD(T)", "Full CI", …
     var methodTitle: String { MethodChoice.title(of: input.method) }
 
     /// True for the general path (all molecules except HeH⁺ in STO-nG).
@@ -911,7 +911,7 @@ nonisolated struct MacQCOutput: Codable, Sendable, Equatable {
     var moleculeTitle: String { LaTeX.plain(moleculeNameSource) }
 
     /// 17.0: the level of the result as Level1//Level2 when a single point followed the
-    /// optimisation ("Full-CI/aug-cc-pCV5Z//Full-CI/aug-cc-pCVQZ": the single-point energy at
+    /// optimisation ("Full CI/aug-cc-pCV5Z//Full CI/aug-cc-pCVQZ": the single-point energy at
     /// Level1 on the geometry optimised at Level2), else method/basis set.
     var compositeLevel: String {
         let level = MethodChoice.title(of: input.method) + "/" + input.basis
@@ -925,7 +925,7 @@ nonisolated struct MacQCOutput: Codable, Sendable, Equatable {
 
 /// Progress of a running calculation, as reported by the backend.
 nonisolated struct MacQCProgress: Sendable, Equatable {
-    var stage: Int = 0        // 0 idle, 1 integrals, 2 SCF, 3 transformation, 4 Full-CI, 5 done,
+    var stage: Int = 0        // 0 idle, 1 integrals, 2 SCF, 3 transformation, 4 Full CI, 5 done,
                               // 6 coupled cluster, 7 (T) correction (iteration = percent);
                               // 5.0: 8 gradient, 9 Hessian, 10 CPHF, 11 Lambda, 12 optimisation,
                               // 13 numerical Hessian; 7.0: 14 scan point (iteration = point,
@@ -1023,7 +1023,7 @@ nonisolated final class MacQCJob: @unchecked Sendable {
     func progressText() -> String {
         guard let raw = macqc_job_progress_text(handle) else { return "" }
         defer { macqc_free(raw) }
-        return String(cString: raw)
+        return InterfaceText.fullCI(String(cString: raw))   // 17.0: shown in the interface
     }
 
     fileprivate var pointer: OpaquePointer? { handle }
@@ -1090,7 +1090,7 @@ nonisolated enum MacQCEngine {
         let outputText = String(cString: raw)
 
         do {
-            return try JSONDecoder().decode(MacQCOutput.self, from: Data(outputText.utf8))
+            return try InterfaceText.decodeOutput(outputText)
         } catch {
             throw MacQCEngineError.decodingFailed(String(describing: error))
         }
@@ -1149,5 +1149,41 @@ nonisolated enum MacQCEngine {
             throw MacQCEngineError.orbital(String(cString: error))
         }
         return values
+    }
+}
+
+// MARK: - The name Full-CI in the interface (17.0)
+
+/// 17.0: the app's interface writes the method Full-CI; the backend's texts — the output file,
+/// the report of HeH⁺, the archive and the JSON — keep "Full CI". Results are decoded with every
+/// text in the Full-CI form except the output file and the report, which stay as written; exports
+/// of the results (JSON, archive) are turned back into the backend's form.
+nonisolated enum InterfaceText {
+    /// A text of the backend as the interface shows it.
+    static func fullCI(_ text: String) -> String {
+        text.replacingOccurrences(of: "Full CI", with: "Full-CI")
+    }
+
+    /// A text of the interface in the backend's form (for files written from the results).
+    static func backendForm(_ text: String) -> String {
+        text.replacingOccurrences(of: "Full-CI", with: "Full CI")
+    }
+
+    /// The results of the backend's JSON for the interface (labels, notes, warnings, messages in
+    /// the Full-CI form); `output` and `report` exactly as the backend wrote them.
+    static func decodeOutput(_ json: String) throws -> MacQCOutput {
+        let decoder = JSONDecoder()
+        guard json.contains("Full CI") else { return try decoder.decode(MacQCOutput.self, from: Data(json.utf8)) }
+        var out = try decoder.decode(MacQCOutput.self, from: Data(fullCI(json).utf8))
+        let texts = try decoder.decode(BackendTexts.self, from: Data(json.utf8))
+        out.output = texts.output
+        out.report = texts.report ?? out.report
+        return out
+    }
+
+    /// The two texts that stay in the backend's form.
+    private struct BackendTexts: Decodable {
+        var output: String?
+        var report: String?
     }
 }

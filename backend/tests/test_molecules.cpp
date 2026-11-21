@@ -12,7 +12,7 @@
 //  - numerical gradients (energies) and Hessians (gradients) against the analytic ones;
 //  - relaxed scans: the H2O2 torsion (RHF 0-180 degrees; CCSD(T) frozen at 180) and the NH3 umbrella
 //    (improper dihedral H2-N1-H3-H4 to -180 degrees, planar) against constrained minima from
-//    PySCF + geomeTRIC; refusals (Full-CI, CCSDT frequencies of four atoms) and input errors.
+//    PySCF + geomeTRIC; refusals (Full CI, CCSDT frequencies of four atoms) and input errors.
 #include <chrono>
 #include <cmath>
 #include <cstdio>
@@ -460,8 +460,8 @@ int main() {
             const json j = run(in);
             return j["error"].is_null() ? std::string() : j["error"].get<std::string>();
         };
-        CHECK(contains(err({{"molecule", "NH3"}, {"method", "FCI"}}), "Full-CI for NH3 is impossible"));
-        CHECK(contains(err({{"molecule", "H2O2"}, {"method", "FCI"}}), "Full-CI for H2O2 is impossible"));
+        CHECK(contains(err({{"molecule", "NH3"}, {"method", "FCI"}}), "Full CI for NH3 is impossible"));
+        CHECK(contains(err({{"molecule", "H2O2"}, {"method", "FCI"}}), "Full CI for H2O2 is impossible"));
         CHECK(contains(err({{"molecule", "NH3"}, {"method", "CCSDT"}, {"job", "freq"}}),
                        "CCSDT frequencies for NH3 are not possible"));
         CHECK(contains(err({{"molecule", "NH3"}, {"angle", 125.0}}), "between 60 and 120"));

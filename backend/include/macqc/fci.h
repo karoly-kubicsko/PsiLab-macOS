@@ -1,4 +1,4 @@
-// Full-CI for two electrons (M_s = 0) in the converged RHF molecular-orbital basis.
+// Full CI for two electrons (M_s = 0) in the converged RHF molecular-orbital basis.
 #pragma once
 
 #include <string>

@@ -11,7 +11,7 @@
 //    ROHF SCF gradients and Hessians, ROHF-based analytic gradients against differences of
 //    energies, and UHF- and ROHF-based analytic Hessians and dipole derivatives against
 //    differences of analytic gradients and relaxed dipole moments (OH, H2O+);
-//  - open-shell Full-CI (ROHF and UHF orbitals): the energy of the spin-resolved densities, the
+//  - open-shell Full CI (ROHF and UHF orbitals): the energy of the spin-resolved densities, the
 //    gradient against differences of energies, the Hessian and dipole derivatives against
 //    differences of analytic gradients and dipole moments (OH, H2O+).
 #include <array>
@@ -397,7 +397,7 @@ static void test_open_shell_derivatives() {
     }
 }
 
-// ---- 15.0: Full-CI on open-shell references (orbital-invariant: no Z-vector)
+// ---- 15.0: Full CI on open-shell references (orbital-invariant: no Z-vector)
 struct FCIPoint {
     Reference r;
     FCIResultGeneral fci;
@@ -429,7 +429,7 @@ static void test_open_shell_fci() {
     w[2].position = {-0.73 / kBohrInAngstrom, 0.0, 0.61 / kBohrInAngstrom};
     const Molecule mw = make_custom_molecule(w, 1, "H2O+");
     const BasisSet bw = build_basis(mw, "STO-3G", "");
-    // the gradient against differences of the Full-CI energies
+    // the gradient against differences of the Full CI energies
     {
         FCIPoint p;
         fci_point(p, moh, boh, "ROHF", nullptr);
