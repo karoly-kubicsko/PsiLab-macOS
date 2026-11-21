@@ -286,6 +286,18 @@ struct SidebarView: View {
                                     value: Binding(get: { model.presetParameter(i) }, set: { model.setPresetParameter(i, $0) }))
                     }
                 }
+                // 18.0: the bond lengths and angles the symmetry fixes (not inputs)
+                let derived = PresetGeometry.derived(key, model.presetParameterValues)
+                ForEach(derived.indices, id: \.self) { i in
+                    let p = derived[i].parameter
+                    LabeledContent("\(p.label) (\(p.unit))") {
+                        Text(String(format: p.angular ? "%.2f" : "%.4f", derived[i].value))
+                            .monospacedDigit()
+                            .foregroundStyle(.secondary)
+                            .frame(width: 96, alignment: .trailing)
+                    }
+                    .accessibilityLabel("\(p.label), derived")
+                }
                 if let note = PresetGeometry.note(key) {
                     Text(note)
                         .font(.caption)

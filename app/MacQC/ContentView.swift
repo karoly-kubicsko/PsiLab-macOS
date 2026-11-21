@@ -116,13 +116,14 @@ struct DetailView: View {
     }
 }
 
-/// 15.0: the banner of an opened output file above the content of a tab.
+/// 15.0: the banner of an opened output file above the content of a tab; 18.0: none for the
+/// start-up example (the H₂ Full-CI job of the app's resources).
 struct OpenedFileInset: ViewModifier {
     @Bindable var model: AppModel
 
     func body(content: Content) -> some View {
         content.safeAreaInset(edge: .top, spacing: 0) {
-            if let file = model.openedFile, model.result != nil {
+            if let file = model.openedFile, model.result != nil, !file.example {
                 OpenedFileBanner(file: file)
             }
         }
@@ -138,12 +139,8 @@ struct OpenedFileBanner: View {
     var body: some View {
         let detail = [file.program, file.written.isEmpty ? "" : "written " + file.written]
             .filter { !$0.isEmpty }.joined(separator: ", ")
-        // 17.0: the startup example (the output file in the app's resources)
-        let text: String = file.example
-            ? "Example: H₂, optimisation + frequencies + single point at Full-CI/aug-cc-pCV5Z//Full-CI/aug-cc-pCVQZ"
-              + (detail.isEmpty ? "" : " (\(detail))") + ". Run repeats it with the inputs of the sidebar."
-            : "Results read from “\(file.name)”" + (detail.isEmpty ? "" : " (\(detail))")
-              + ". Run calculates the inputs of the sidebar."
+        let text: String = "Results read from “\(file.name)”" + (detail.isEmpty ? "" : " (\(detail))")
+            + ". Run calculates the inputs of the sidebar."
         Label {
             Text(text)
                 .font(.callout)
