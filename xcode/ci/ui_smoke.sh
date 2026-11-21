@@ -772,10 +772,14 @@ open -n "$APP" --args -appearanceChoice light
 sleep 15
 view_tab "b1-startup-example-summary" "Summary"
 print_shot "b1-startup-example-summary"
-grep -E "Example|//|Drag to turn" "$OUT/b1-startup-example-summary.txt" || echo "example banner, Level1//Level2 or caption not found"
+grep -E "//|Drag to turn" "$OUT/b1-startup-example-summary.txt" || echo "Level1//Level2 or caption not found"
+# the banner and the buttons are not static text: they are in the accessibility tree
+with_timeout 60 osascript "$OUT/tab.applescript" "__TREE__" > "$OUT/b1-startup-example-tree.txt" 2>&1
+grep -E "Example: H" "$OUT/b1-startup-example-tree.txt" || echo "example banner not found"
 view_tab "b2-startup-example-optimisation" "Optimisation"
 print_shot "b2-startup-example-optimisation"
-grep -E "Save Step as XYZ|Save Step as GJF|Save All Steps as XYZ" "$OUT/b2-startup-example-optimisation.txt" || echo "save buttons not found"
+with_timeout 60 osascript "$OUT/tab.applescript" "__TREE__" > "$OUT/b2-startup-example-tree.txt" 2>&1
+grep -E "Save (Step|All Steps) as|this step as|all steps as" "$OUT/b2-startup-example-tree.txt" || echo "save buttons not found"
 view_tab "b3-startup-example-frequencies" "Frequencies"
 relaunch -appearanceChoice light -psilabMolecule HeH+ -psilabBasis STO-3G
 sleep 5
