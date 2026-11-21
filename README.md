@@ -236,6 +236,8 @@ The line of the optimised parameters also lists the derived values.
 without the banner "Example: H₂, optimisation + frequencies + single point …" above the tabs; a
 file the user opens still has its banner.
 
+**About ΨLab** shows Version 18.0 (18): build number 18 (17.0 still had build 16).
+
 ### 17.0
 **Start-up, the Summary viewer and saving the structures of a job.**
 
