@@ -296,7 +296,6 @@ struct SidebarView: View {
                             .foregroundStyle(.secondary)
                             .frame(width: 96, alignment: .trailing)
                     }
-                    .accessibilityLabel("\(p.label), derived")
                 }
                 if let note = PresetGeometry.note(key) {
                     Text(note)
