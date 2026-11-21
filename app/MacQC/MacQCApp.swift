@@ -84,7 +84,7 @@ struct MacQCApp: App {
                     .keyboardShortcut("2", modifiers: [.command])
                 Button("Coupled Cluster") { model.show(.methods, methods: .coupledCluster) }
                     .keyboardShortcut("3", modifiers: [.command])
-                Button("Full CI") { model.show(.methods, methods: .fullCI) }
+                Button("Full-CI") { model.show(.methods, methods: .fullCI) }
                     .keyboardShortcut("4", modifiers: [.command])
                 Button("Orbitals") { model.show(.methods, methods: .orbitals) }
                     .keyboardShortcut("o", modifiers: [.command, .option])

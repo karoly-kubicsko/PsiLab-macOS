@@ -31,7 +31,7 @@ struct OrbitalsView: View {
                 ContentUnavailableView(
                     "No orbitals",
                     systemImage: "circle.hexagongrid",
-                    description: Text("Run a calculation: the orbitals of its Hartree–Fock step (and the natural orbitals of Full CI) appear here, as isosurfaces or as a contour plot.")
+                    description: Text("Run a calculation: the orbitals of its Hartree–Fock step (and the natural orbitals of Full-CI) appear here, as isosurfaces or as a contour plot.")
                 )
             }
             .padding()
@@ -326,7 +326,7 @@ struct OrbitalExplorer: View {
             .monospacedDigit()
             .textSelection(.enabled)
             Text(orbitalSet.isNatural
-                 ? "Natural orbitals: eigenvectors of the Full CI one-particle density matrix, by occupation."
+                 ? "Natural orbitals: eigenvectors of the Full-CI one-particle density matrix, by occupation."
                  : "All occupied orbitals and up to ten virtual ones. Click a number to draw the orbital.")
                 .font(.caption)
                 .foregroundStyle(.secondary)

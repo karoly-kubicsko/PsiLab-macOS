@@ -59,11 +59,14 @@ struct SidebarView: View {
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
+                // 17.0: the switch is off by default and stays visible for HeH⁺ in STO-nG either way
+                if model.molecule == .heh && BasisSets.isSzaboOstlund(model.hehBasis) {
+                    Toggle("Szabo–Ostlund calculation", isOn: $model.hehSzaboOstlund)
+                        .disabled(model.isRunning || model.isScanning)
+                        .help("On: the Hartree–Fock and Full-CI program of Szabo and Ostlund (STO-nG Slater functions). Off: HeH⁺ in STO-nG as a general molecule (every method and job, charge and multiplicity).")
+                }
                 if model.isGeneral {
                     spinControls
-                } else if model.molecule == .heh {
-                    Toggle("Szabo–Ostlund calculation", isOn: $model.hehSzaboOstlund)
-                        .help("Off: HeH⁺ in STO-nG as a general molecule (every method and job, charge and multiplicity).")
                 }
             }
 
@@ -128,7 +131,7 @@ struct SidebarView: View {
 
         Section("Basis") {
             basisPicker
-            Text("STO-nG: the Slater functions of Szabo and Ostlund, Hartree–Fock and Full CI. Any other basis set (6-31G … aug-cc-pCV5Z), or STO-nG with the Szabo–Ostlund calculation switched off, gives HeH⁺ every method and job type.")
+            Text("STO-nG: the Slater functions of Szabo and Ostlund, Hartree–Fock and Full-CI. Any other basis set (6-31G … aug-cc-pCV5Z), or STO-nG with the Szabo–Ostlund calculation switched off, gives HeH⁺ every method and job type.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
             LabeledContent("ζ (He)") {
@@ -186,7 +189,7 @@ struct SidebarView: View {
         switch model.molecule {
         case .heh:
             return kind + " He is not in the 6-311++G sets and has no core-valence sets (they fall back to aug-cc-pVXZ)."
-                + (BasisSets.isSzaboOstlund(model.currentBasis) ? " STO-nG: switch the Szabo–Ostlund calculation on (Molecule) for the original HF and Full CI program." : "")
+                + (BasisSets.isSzaboOstlund(model.currentBasis) ? " STO-nG: switch the Szabo–Ostlund calculation on (Molecule) for the original HF and Full-CI program." : "")
         case .preset:
             return kind + " STO-1G covers H–Ca, STO-2G and STO-3G H–Xe; 6-31G H–Kr; aug-cc-pVXZ H–Ar."
         case .custom:
@@ -601,7 +604,7 @@ struct SidebarView: View {
         var orbitals = "orbital response by CPHF"
         if reference == .uhf || reference == .rohf {
             orbitals = model.method == .fci
-                ? "no orbital response (the Full CI energy does not depend on the orbitals)"
+                ? "no orbital response (the Full-CI energy does not depend on the orbitals)"
                 : "orbital response by coupled-perturbed \(reference.title)"
         }
         return "Analytic: \(what) responses along the internal directions and to an electric field (IR intensities), "
@@ -871,7 +874,7 @@ struct EstimatePanel: View {
                                 Fmt.count(e.uniqueIntegrals) + (e.integralsStored ? " (in memory)" : " (direct)"))
                         if let f = e.fci {
                             InfoRow("Determinants", Fmt.count(f.determinants))
-                            InfoRow("Full CI memory", Fmt.memory(f.memoryMB))  // 16.0: also when not possible
+                            InfoRow("Full-CI memory", Fmt.memory(f.memoryMB))  // 16.0: also when not possible
                         }
                         if let c = e.coupledCluster {
                             InfoRow("\(MethodChoice.title(of: c.method)) amplitudes", Fmt.count(c.amplitudes))

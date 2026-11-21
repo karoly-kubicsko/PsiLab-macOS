@@ -909,6 +909,16 @@ nonisolated struct MacQCOutput: Codable, Sendable, Equatable {
 
     /// The name in plain text with Unicode subscripts ("CO₂", "H₂O", "HeH⁺").
     var moleculeTitle: String { LaTeX.plain(moleculeNameSource) }
+
+    /// 17.0: the level of the result as Level1//Level2 when a single point followed the
+    /// optimisation ("Full CI/aug-cc-pCV5Z//Full CI/aug-cc-pCVQZ": the single-point energy at
+    /// Level1 on the geometry optimised at Level2), else method/basis set.
+    var compositeLevel: String {
+        let level = MethodChoice.title(of: input.method) + "/" + input.basis
+        guard let sp = singlePoint else { return level }
+        let spBasis = job?.singlePointBasis ?? (input.spBasis.isEmpty ? input.basis : input.spBasis)
+        return MethodChoice.title(of: sp.method) + "/" + spBasis + "//" + level
+    }
 }
 
 // MARK: - Jobs (cancellation and progress)
@@ -933,8 +943,8 @@ nonisolated struct MacQCProgress: Sendable, Equatable {
         case 3:
             return "Transforming the integrals to the RHF orbitals…"
         case 4:
-            if iteration == 0 { return "Full CI: setting up the string Hamiltonian…" }
-            return String(format: "Full CI · Davidson iteration %ld · E = %.8f E_h · residual %.1e",
+            if iteration == 0 { return "Full-CI: setting up the string Hamiltonian…" }
+            return String(format: "Full-CI · Davidson iteration %ld · E = %.8f E_h · residual %.1e",
                           iteration, energy, residual)
         case 5:
             return "Done"
@@ -1013,7 +1023,7 @@ nonisolated final class MacQCJob: @unchecked Sendable {
     func progressText() -> String {
         guard let raw = macqc_job_progress_text(handle) else { return "" }
         defer { macqc_free(raw) }
-        return String(cString: raw)
+        return InterfaceText.fullCI(String(cString: raw))   // 17.0: shown in the interface
     }
 
     fileprivate var pointer: OpaquePointer? { handle }
@@ -1080,7 +1090,7 @@ nonisolated enum MacQCEngine {
         let outputText = String(cString: raw)
 
         do {
-            return try JSONDecoder().decode(MacQCOutput.self, from: Data(outputText.utf8))
+            return try InterfaceText.decodeOutput(outputText)
         } catch {
             throw MacQCEngineError.decodingFailed(String(describing: error))
         }
@@ -1139,5 +1149,41 @@ nonisolated enum MacQCEngine {
             throw MacQCEngineError.orbital(String(cString: error))
         }
         return values
+    }
+}
+
+// MARK: - The name Full-CI in the interface (17.0)
+
+/// 17.0: the app's interface writes the method Full-CI; the backend's texts — the output file,
+/// the report of HeH⁺, the archive and the JSON — keep "Full CI". Results are decoded with every
+/// text in the Full-CI form except the output file and the report, which stay as written; exports
+/// of the results (JSON, archive) are turned back into the backend's form.
+nonisolated enum InterfaceText {
+    /// A text of the backend as the interface shows it.
+    static func fullCI(_ text: String) -> String {
+        text.replacingOccurrences(of: "Full CI", with: "Full-CI")
+    }
+
+    /// A text of the interface in the backend's form (for files written from the results).
+    static func backendForm(_ text: String) -> String {
+        text.replacingOccurrences(of: "Full-CI", with: "Full CI")
+    }
+
+    /// The results of the backend's JSON for the interface (labels, notes, warnings, messages in
+    /// the Full-CI form); `output` and `report` exactly as the backend wrote them.
+    static func decodeOutput(_ json: String) throws -> MacQCOutput {
+        let decoder = JSONDecoder()
+        guard json.contains("Full CI") else { return try decoder.decode(MacQCOutput.self, from: Data(json.utf8)) }
+        var out = try decoder.decode(MacQCOutput.self, from: Data(fullCI(json).utf8))
+        let texts = try decoder.decode(BackendTexts.self, from: Data(json.utf8))
+        out.output = texts.output
+        out.report = texts.report ?? out.report
+        return out
+    }
+
+    /// The two texts that stay in the backend's form.
+    private struct BackendTexts: Decodable {
+        var output: String?
+        var report: String?
     }
 }

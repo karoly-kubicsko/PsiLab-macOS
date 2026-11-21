@@ -106,6 +106,7 @@ nonisolated enum MoleculeBackgroundChoice: String, CaseIterable, Identifiable, S
 /// 16.0: a fraction of the height of the tab's visible area (the scroll view), at least the
 /// minimum and at most the maximum: on a 16-inch MacBook Pro with the window filling the screen,
 /// about 630 pt for the optimisation steps, scan points and normal modes and 490 pt in the Summary.
+/// 17.0: the Summary as tall as the optimisation steps (about 630 pt there; before 490 pt).
 nonisolated enum Viewer3DSize {
     struct Rule: Sendable {
         var fraction: CGFloat
@@ -121,8 +122,9 @@ nonisolated enum Viewer3DSize {
     static let steps = Rule(fraction: 0.78, minimum: 560, maximum: 1000)
     /// The animated normal mode (its title above, the mode chooser below).
     static let mode = Rule(fraction: 0.78, minimum: 580, maximum: 1000)
-    /// The molecule in the Summary tab (the coordinates below it).
-    static let summary = Rule(fraction: 0.6, minimum: 420, maximum: 800)
+    /// The molecule in the Summary tab (its caption and the coordinates below it); 17.0: taller
+    /// (0.6, 420–800 pt before).
+    static let summary = Rule(fraction: 0.78, minimum: 560, maximum: 1000)
 }
 
 extension View {

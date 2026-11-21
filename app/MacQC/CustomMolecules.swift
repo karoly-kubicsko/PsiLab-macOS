@@ -55,6 +55,26 @@ nonisolated struct SavedMolecule: Codable, Sendable, Equatable, Identifiable, Ha
     var energy: Double? = nil        // E_h at the optimised geometry
     var added = Date()
     var warnings: [String] = []
+    /// 17.0: a structure along an optimisation or a relaxed scan ("optimisation step 2 of 5",
+    /// "relaxed scan point 3 of 13, D(H3-O1-O2-H4) = 30.00 deg"; ASCII); nil for an input or the
+    /// final geometry.
+    var structureLabel: String? = nil
+    /// 17.0: the end of the suggested file name of such a structure ("step2", "point03").
+    var fileTag: String? = nil
+
+    /// A level or tag as part of a file name: "Full CI/aug-cc-pCVQZ" -> "Full CI-aug-cc-pCVQZ".
+    static func fileNamePart(_ text: String) -> String {
+        text.replacingOccurrences(of: "/", with: "-").replacingOccurrences(of: " ", with: "")
+            .replacingOccurrences(of: ",", with: "")
+    }
+
+    /// The suggested file name without extension: formula, level and (17.0) the step or point.
+    var fileStem: String {
+        var stem = formula.replacingOccurrences(of: " ", with: "")
+        if let level { stem += "-" + SavedMolecule.fileNamePart(level) }
+        if let fileTag { stem += "-" + SavedMolecule.fileNamePart(fileTag) }
+        return stem
+    }
 
     var electrons: Int { atoms.reduce(0) { $0 + $1.Z } - charge }
 
@@ -115,7 +135,12 @@ nonisolated struct SavedMolecule: Codable, Sendable, Equatable, Identifiable, Ha
     /// the energy of an optimised geometry.
     func xyzText() -> String {
         var comment = title
-        if let l = levelText {
+        if let label = structureLabel, let l = level {
+            // 17.0: "H$_2$ (optimisation step 2 of 3 at Full CI/aug-cc-pCVQZ, E = … E_h)"
+            comment += (comment.isEmpty ? "" : " ") + "(" + label + " at " + l
+            if let e = energy { comment += String(format: ", E = %.10f E_h", e) }
+            comment += ")"
+        } else if let l = levelText {
             comment += (comment.isEmpty ? "" : " ") + "(optimised " + l
             if let e = energy { comment += String(format: ", E = %.10f E_h", e) }
             comment += ")"

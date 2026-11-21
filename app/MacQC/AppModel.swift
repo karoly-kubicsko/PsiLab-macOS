@@ -21,7 +21,7 @@ enum DetailTab: Hashable {
 enum MethodsPage: String, CaseIterable, Identifiable {
     case hartreeFock = "Hartree–Fock"
     case coupledCluster = "Coupled cluster"
-    case fullCI = "Full CI"
+    case fullCI = "Full-CI"
     case orbitals = "Orbitals"
     var id: String { rawValue }
 }
@@ -161,7 +161,9 @@ final class AppModel {
         if method == .hf { return false }
         return effectiveReference == .rhf ? method.hasAnalyticCorrelatedHessian : true
     }
-    var hehSzaboOstlund = true
+    /// 17.0: off by default (HeH⁺ in STO-nG is then a general molecule); on with the switch in the
+    /// sidebar or the launch argument -psilabSzaboOstlund YES.
+    var hehSzaboOstlund = false
 
     // Job (ΨLab 5.0)
     var job: JobChoice = .energy
@@ -536,7 +538,44 @@ final class AppModel {
             loadOutputFile(from: URL(fileURLWithPath: (path as NSString).expandingTildeInPath),
                            showSummary: defaults.string(forKey: "psilabTab") == nil)
         }
+        // 17.0: -psilabSzaboOstlund YES: HeH⁺ in STO-nG as the Szabo–Ostlund calculation (off by default)
+        if defaults.object(forKey: "psilabSzaboOstlund") != nil {
+            hehSzaboOstlund = defaults.bool(forKey: "psilabSzaboOstlund")
+        }
+        // 17.0: without launch arguments of ΨLab the app opens with the results of H₂,
+        // Full CI/aug-cc-pCV5Z//Full CI/aug-cc-pCVQZ (opt+freq+sp), read from the bundled output file.
+        if !AppModel.hasPsiLabLaunchArguments {
+            showStartupExample()
+        }
     }
+
+    /// 17.0: the app was launched with arguments of ΨLab (-psilabMolecule, -psilabOpenOutput, …;
+    /// the UI test uses them); otherwise it opens with the startup example.
+    static var hasPsiLabLaunchArguments: Bool {
+        ProcessInfo.processInfo.arguments.dropFirst().contains { $0.hasPrefix("-psilab") }
+    }
+
+    /// 17.0: the startup example: H₂ optimised and its frequencies computed with Full CI/aug-cc-pCVQZ,
+    /// then a Full CI/aug-cc-pCV5Z single point at the optimised geometry (tight convergence, hybrid
+    /// GEDIIS/RFO steps). The sidebar holds the inputs of that job, so that Run repeats it; its
+    /// results are read from the output file in the app's resources (no calculation at launch).
+    func showStartupExample() {
+        molecule = .h2
+        method = .fci
+        basis = "aug-cc-pCVQZ"
+        job = .optFreqSP
+        spMethod = nil
+        spBasis = "aug-cc-pCV5Z"
+        tightConvergence = true
+        gediis = true
+        bondLengths[.h2] = nil   // 0.74144 Å, the starting geometry of the example
+        guard let url = Bundle.main.url(forResource: AppModel.startupExampleName, withExtension: "out") else { return }
+        openedAtLaunch = true
+        loadOutputFile(from: url, example: true)
+    }
+
+    /// The output file of the startup example in the app's resources (examples/outputs).
+    static let startupExampleName = "h2-fullci-aug-cc-pcv5z-opt-aug-cc-pcvqz-optfreqsp"
 
     // MARK: Inputs
 
@@ -1052,7 +1091,7 @@ final class AppModel {
         }
         if let fci = out.fci {
             lines.append("")
-            lines.append("Full CI")
+            lines.append("Full-CI")
             lines.append("  total energy:         " + Fmt.energyWithUnit(fci.totalEnergy))
             lines.append("  correlation energy:   " + Fmt.energyWithUnit(fci.correlationEnergy))
             for (i, s) in fci.states.enumerated() {
@@ -1093,7 +1132,7 @@ final class AppModel {
         }
         if let f = out.fullCI {
             lines.append("")
-            lines.append("Full CI")
+            lines.append("Full-CI")
             lines.append(String(format: "  determinants:         %@ (%ld orbitals, %ld electrons)",
                                 Fmt.count(f.determinants), f.orbitals, f.alphaElectrons + f.betaElectrons))
             lines.append("  converged:            \(f.converged ? "yes" : "no") (\(f.iterations) Davidson iterations)")
@@ -1271,7 +1310,9 @@ final class AppModel {
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]
         let data: Data
         do {
-            data = try encoder.encode(out)
+            // 17.0: the file in the backend's form ("Full CI"; the interface writes Full-CI)
+            let encoded = try encoder.encode(out)
+            data = Data(InterfaceText.backendForm(String(decoding: encoded, as: UTF8.self)).utf8)
         } catch {
             errorMessage = "Could not encode the results: \(error.localizedDescription)"
             return

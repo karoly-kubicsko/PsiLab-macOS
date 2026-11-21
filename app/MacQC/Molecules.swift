@@ -146,12 +146,12 @@ nonisolated enum MoleculeChoice: String, CaseIterable, Identifiable, Sendable {
     /// Short note shown under the molecule picker.
     var subtitle: String {
         switch self {
-        case .heh: return "2 electrons, charge +1: STO-nG (Szabo–Ostlund, HF and Full CI) or a Gaussian basis set (all methods and jobs; 15.0 also STO-nG)"
+        case .heh: return "2 electrons, charge +1: STO-nG (Szabo–Ostlund, HF and Full-CI) or a Gaussian basis set (all methods and jobs; 15.0 also STO-nG)"
         case .h2: return "2 electrons, closed shell"
         case .lih: return "4 electrons, closed shell"
-        case .h2o: return "10 electrons, closed shell (Full CI impossible)"
-        case .h2o2: return "18 electrons, closed shell, C₂ (Full CI impossible)"
-        case .nh3: return "10 electrons, closed shell, C₃ᵥ (Full CI impossible)"
+        case .h2o: return "10 electrons, closed shell (Full-CI impossible)"
+        case .h2o2: return "18 electrons, closed shell, C₂ (Full-CI impossible)"
+        case .nh3: return "10 electrons, closed shell, C₃ᵥ (Full-CI impossible)"
         case .custom: return "A molecule from a structure file: .xyz (Å; the comment line is its name, LaTeX allowed) or Gaussian input (.gjf, .com)"
         case .preset: return "An atom or a molecule with a fixed geometry"
         }
@@ -341,7 +341,7 @@ nonisolated enum MethodChoice: String, CaseIterable, Identifiable, Sendable {
     var title: String {
         switch self {
         case .hf: return "HF"
-        case .fci: return "Full CI"
+        case .fci: return "Full-CI"
         default: return rawValue
         }
     }
@@ -393,6 +393,10 @@ nonisolated enum MethodChoice: String, CaseIterable, Identifiable, Sendable {
             self = .hf
             return
         }
+        if n == "full ci" || n == "full-ci" {   // 17.0: the title is Full CI (before: Full CI)
+            self = .fci
+            return
+        }
         guard let m = MethodChoice.allCases.first(where: { $0.rawValue.lowercased() == n || $0.title.lowercased() == n })
         else { return nil }
         self = m
@@ -433,7 +437,7 @@ nonisolated enum ReferenceChoice: String, CaseIterable, Identifiable, Sendable {
 
     var explanation: String {
         switch self {
-        case .automatic: return "RHF for closed-shell singlets, UHF for open shells (ROHF for Full CI), as in Gaussian."
+        case .automatic: return "RHF for closed-shell singlets, UHF for open shells (ROHF for Full-CI), as in Gaussian."
         case .rhf: return "Restricted Hartree–Fock: closed-shell singlets only."
         case .uhf: return "Unrestricted Hartree–Fock: separate α and β orbitals; ⟨S²⟩ shows the spin contamination."
         case .rohf: return "Restricted open-shell Hartree–Fock: doubly and singly occupied orbitals, a pure spin state."

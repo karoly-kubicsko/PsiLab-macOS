@@ -226,8 +226,10 @@ view_tab() {   # $1 = file prefix, $2 = View menu item
     dump_tab "$1" ""
 }
 
-echo "== launching $APP"
-open -n "$APP"
+# 17.0: without launch arguments ΨLab opens with the H2 Full CI example; HeH+ in STO-nG is the
+# Szabo-Ostlund calculation only with -psilabSzaboOstlund YES (off by default)
+echo "== launching $APP (HeH+ STO-3G, Szabo-Ostlund)"
+open -n "$APP" --args -psilabMolecule HeH+ -psilabBasis STO-3G -psilabSzaboOstlund YES
 sleep 15
 pgrep -x "ΨLab" >/dev/null && echo "ΨLab process is running" || echo "ΨLab process NOT running"
 
@@ -238,7 +240,7 @@ with_timeout 40 osascript "$OUT/tab.applescript" "__TREE__" | tee "$OUT/tree.txt
 echo "::endgroup::"
 dump_tab "01-summary" ""
 view_tab "02-hartree-fock" "Hartree–Fock"
-view_tab "03-full-ci" "Full CI"
+view_tab "03-full-ci" "Full-CI"
 view_tab "04-potential-curve" "Potential Curve"
 
 echo "== running the potential-curve scan"
@@ -315,7 +317,7 @@ echo "::endgroup::"
 echo "== dark mode pass"
 pkill -x "ΨLab" || true
 sleep 3
-open -n "$APP" --args -appearanceChoice dark
+open -n "$APP" --args -appearanceChoice dark -psilabMolecule HeH+ -psilabBasis STO-3G -psilabSzaboOstlund YES
 sleep 15
 click_shot() {   # $1 = file prefix, $2 = tab to click ("" = none)
     with_timeout 60 osascript "$OUT/tab.applescript" "$2" > "$OUT/$1.txt" 2>&1
@@ -328,7 +330,7 @@ view_shot() {   # $1 = file prefix, $2 = View menu item
 }
 view_shot "dark-01-summary" "Summary"
 view_shot "dark-02-hartree-fock" "Hartree–Fock"
-view_shot "dark-03-full-ci" "Full CI"
+view_shot "dark-03-full-ci" "Full-CI"
 view_shot "dark-04-potential-curve" "Potential Curve"
 with_timeout 90 osascript "$OUT/tab.applescript" "__SCAN__" | grep -E "CLICKED|NOT FOUND"
 sleep 8
@@ -351,7 +353,7 @@ view_tab "12-h2o-rhf-output" "Output"
 echo "== LiH, Full CI/aug-cc-pVDZ"
 relaunch -appearanceChoice light -psilabMolecule LiH -psilabBasis aug-cc-pVDZ -psilabMethod FCI
 view_tab "13-lih-fci-summary" "Summary"
-view_tab "14-lih-fci-full-ci" "Full CI"
+view_tab "14-lih-fci-full-ci" "Full-CI"
 
 echo "== H2, Full CI/aug-cc-pVDZ potential curve"
 relaunch -appearanceChoice light -psilabMolecule H2 -psilabBasis aug-cc-pVDZ -psilabMethod FCI
@@ -573,7 +575,7 @@ print_shot "66-nh3-orbital-contour"
 relaunch -appearanceChoice light -psilabMolecule HeH+ -psilabBasis aug-cc-pVDZ -psilabMethod FCI -psilabTab orbitals -psilabOrbitalSet natural
 sleep 8
 dump_tab "67-heh-fci-natural-orbitals" ""
-relaunch -appearanceChoice light -psilabTab orbitals
+relaunch -appearanceChoice light -psilabMolecule HeH+ -psilabBasis STO-3G -psilabSzaboOstlund YES -psilabTab orbitals
 sleep 5
 dump_tab "68-heh-sto3g-orbitals" ""
 view_tab "69-orbitals-view-menu" "Orbitals"
@@ -741,7 +743,7 @@ relaunch -appearanceChoice light -psilabMolecule H2O -psilabBasis 6-31G -psilabM
 sleep 40
 view_tab "a3-h2o-qcisdt-frequencies" "Frequencies"
 print_shot "a3-h2o-qcisdt-frequencies"
-relaunch -appearanceChoice light -psilabMolecule HeH+ -psilabBasis STO-3G
+relaunch -appearanceChoice light -psilabMolecule HeH+ -psilabBasis STO-3G -psilabSzaboOstlund YES
 sleep 5
 view_tab "a4-heh-sto3g-summary" "Summary"
 print_shot "a4-heh-sto3g-summary"
@@ -759,7 +761,30 @@ print_shot "a7-no2-romp2-frequencies"
 # 16.0: the estimate of an impossible job (Full CI of Cl2 in aug-cc-pCV5Z) shows its time and memory
 relaunch -appearanceChoice light -psilabMolecule Cl2 -psilabBasis aug-cc-pCV5Z -psilabMethod FCI
 dump_tab "a8-cl2-fci-impossible-estimate" ""
-grep -E "Estimated time|Full CI memory|Determinants" "$OUT/a8-cl2-fci-impossible-estimate.txt" || echo "estimate rows not found"
+grep -E "Estimated time|Full-CI memory|Determinants" "$OUT/a8-cl2-fci-impossible-estimate.txt" || echo "estimate rows not found"
+
+# --- ΨLab 17.0: the start-up example (no launch arguments), the Summary viewer with its caption,
+# the save buttons of the optimisation steps, and HeH+ STO-3G with the Szabo-Ostlund switch off ---
+echo "== 17.0: launch without arguments: H2 Full CI/aug-cc-pCV5Z//Full CI/aug-cc-pCVQZ (opt+freq+sp)"
+pkill -x "ΨLab" || true
+sleep 3
+open -n "$APP" --args -appearanceChoice light
+sleep 15
+view_tab "b1-startup-example-summary" "Summary"
+print_shot "b1-startup-example-summary"
+grep -E "//|Drag to turn" "$OUT/b1-startup-example-summary.txt" || echo "Level1//Level2 or caption not found"
+# the banner and the buttons are not static text: they are in the accessibility tree
+with_timeout 60 osascript "$OUT/tab.applescript" "__TREE__" > "$OUT/b1-startup-example-tree.txt" 2>&1
+grep -E "Example: H" "$OUT/b1-startup-example-tree.txt" || echo "example banner not found"
+view_tab "b2-startup-example-optimisation" "Optimisation"
+print_shot "b2-startup-example-optimisation"
+with_timeout 60 osascript "$OUT/tab.applescript" "__TREE__" > "$OUT/b2-startup-example-tree.txt" 2>&1
+grep -E "Save (Step|All Steps) as|this step as|all steps as" "$OUT/b2-startup-example-tree.txt" || echo "save buttons not found"
+view_tab "b3-startup-example-frequencies" "Frequencies"
+relaunch -appearanceChoice light -psilabMolecule HeH+ -psilabBasis STO-3G
+sleep 5
+dump_tab "b4-heh-sto3g-szabo-ostlund-off" ""
+grep -E "Szabo–Ostlund calculation" "$OUT/b4-heh-sto3g-szabo-ostlund-off.txt" || echo "Szabo-Ostlund switch not found"
 
 pkill -x "ΨLab" || true
 

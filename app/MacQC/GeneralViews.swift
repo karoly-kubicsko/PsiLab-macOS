@@ -35,7 +35,7 @@ struct GeneralSummaryView: View {
                                 EnergyCard(title: "Correlation energy", value: c.correlationEnergy, decimals: 10)
                             }
                             if let fci = out.fullCI {
-                                EnergyCard(title: "Full CI total energy", value: fci.totalEnergy, decimals: 10)
+                                EnergyCard(title: "Full-CI total energy", value: fci.totalEnergy, decimals: 10)
                                 EnergyCard(title: "Correlation energy", value: fci.correlationEnergy, decimals: 10)
                             }
                             if let cc = out.coupledCluster {
@@ -59,6 +59,11 @@ struct GeneralSummaryView: View {
                     // ΨLab 12.0: the molecule in the 3D viewer, then its coordinates
                     Molecule3DView(atoms: mol.atoms, accessibilityText: "Molecule in 3D")
                         .viewer3DFrame(Viewer3DSize.summary, minWidth: 300)
+                    // 17.0: the caption of the viewer, as on the Optimisation tab
+                    Text((out.optimization != nil ? "The 3D optimised structure of the molecule." : "The 3D structure of the molecule.")
+                         + " Drag to turn the molecule, pinch or ⌥-scroll to zoom; click two, three or four atoms to measure a distance, an angle or a dihedral angle.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                     moleculePanel(mol)
                 }
                 if let b = out.basis {
@@ -94,7 +99,7 @@ struct GeneralSummaryView: View {
                     .dataPanel()
                 }
                 if let f = out.fullCI {
-                    SectionTitle("Full CI")
+                    SectionTitle("Full-CI")
                     VStack(spacing: 8) {
                         InfoRow("Determinants", Fmt.count(f.determinants) + String(
                             format: " (%@ α × %@ β strings)", Fmt.count(f.alphaStrings), Fmt.count(f.betaStrings)))
@@ -145,7 +150,11 @@ struct GeneralSummaryView: View {
             let method = scfOnly ? reference : "\(reference) and \(label)"
             let job = JobChoice(rawValue: out.input.job).map { $0 == .energy ? "" : " · " + $0.shortTitle } ?? ""
             // the name drawn from its LaTeX source (custom molecules: the structure file's name line)
-            let rest: String = " · " + (out.basis?.name ?? out.input.basis) + " · " + method + job
+            // 17.0: a job with a single point as Level1//Level2 (the single point at the geometry
+            // optimised at Level2): "RHF and Full CI/aug-cc-pCV5Z//Full CI/aug-cc-pCVQZ"
+            let rest: String = out.singlePoint != nil
+                ? " · " + (scfOnly ? "" : reference + " and ") + out.compositeLevel + job
+                : " · " + (out.basis?.name ?? out.input.basis) + " · " + method + job
             let name: Text = LaTeX.text(out.moleculeNameSource, size: 17, weight: .semibold)
             let tail: Text = Text(verbatim: rest).font(.system(size: 17, weight: .semibold))
             (name + tail)
@@ -391,7 +400,7 @@ struct GeneralFullCIView: View {
                         if let rhf = out.rhf {
                             InfoRow("\(out.referenceLabel) energy", Fmt.energy10(rhf.totalEnergy))
                         }
-                        InfoRow("Full CI energy", Fmt.energy10(f.totalEnergy))
+                        InfoRow("Full-CI energy", Fmt.energy10(f.totalEnergy))
                         InfoRow("Correlation energy", Fmt.energy10(f.correlationEnergy))
                         InfoRow("⟨S²⟩", String(format: "%.8f", f.S2))
                         InfoRow(f.alphaElectrons == f.betaElectrons ? "Determinants (M_S = 0)" : "Determinants (M_S = S)", Fmt.count(f.determinants))
@@ -419,7 +428,7 @@ struct GeneralFullCIView: View {
                         .frame(maxWidth: 560)
                 }
                 ContentUnavailableView(
-                    "No Full CI result",
+                    "No Full-CI result",
                     systemImage: "function",
                     description: Text(placeholderText)
                 )
@@ -433,9 +442,9 @@ struct GeneralFullCIView: View {
             return refusal
         }
         if out.input.method != "FCI" {
-            return "This result is \(out.methodTitle). Choose Full CI in the sidebar and press Run (H₂ and LiH up to aug-cc-pCVTZ; for H₂O Full CI is impossible)."
+            return "This result is \(out.methodTitle). Choose Full-CI in the sidebar and press Run (H₂ and LiH up to aug-cc-pCVTZ; for H₂O Full-CI is impossible)."
         }
-        return "Full CI needs a converged Hartree–Fock calculation."
+        return "Full-CI needs a converged Hartree–Fock calculation."
     }
 
     private func orbitals(_ list: [Int]) -> String {

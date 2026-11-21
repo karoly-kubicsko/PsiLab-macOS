@@ -1,6 +1,6 @@
 # ΨLab — a native macOS quantum-chemistry app
 
-**Current version: 16.0** — see [Versions](#versions).
+**Current version: 17.0** — see [Versions](#versions).
 
 ΨLab computes small molecules — closed and (15.0) open shells, with RHF, UHF and ROHF references —
 with Hartree–Fock, Møller–Plesset perturbation theory (MP2–MP5), configuration interaction (CISD …
@@ -208,6 +208,44 @@ same calculations run in the terminal on Linux and macOS
   `xcode/project.yml`).
 
 ## Versions
+
+### 17.0
+**Start-up, the Summary viewer and saving the structures of a job.**
+
+**The app opens with H₂ at Full CI/aug-cc-pCV5Z//Full CI/aug-cc-pCVQZ.** Without launch arguments
+ΨLab no longer starts with the Szabo–Ostlund calculation of HeH⁺: it shows the results of an
+opt+freq+sp job of H₂ — geometry optimisation and harmonic frequencies with Full CI/aug-cc-pCVQZ
+(tight convergence, hybrid GEDIIS/RFO steps), then a Full CI/aug-cc-pCV5Z single point at the
+optimised geometry (Level1//Level2: the single-point energy at Level1 on the geometry optimised at
+Level2). The results are read from the output file of that job in the app's resources
+(`examples/outputs/h2-fullci-aug-cc-pcv5z-opt-aug-cc-pcvqz-optfreqsp.out`, written by ΨLab 16.0 on
+12 threads in 1 min 24 s: R(H–H) = 0.741995 Å, ω = 4399.92 cm⁻¹, E = −1.1742521028 E_h); every tab
+shows them (the Output tab the output file itself, as written), a banner says that they are the example, and the sidebar holds the inputs of the job,
+so that Run repeats it. The Summary header writes such a job as Level1//Level2.
+
+**The Szabo–Ostlund calculation is off by default.** HeH⁺ in STO-nG is a general molecule unless the
+switch *Szabo–Ostlund calculation* (Atom/Molecule) is on; the switch now stays visible for HeH⁺ in
+STO-nG in both states (in 15.0 and 16.0 it disappeared once switched off). Launch argument:
+`-psilabSzaboOstlund YES`.
+
+**Full-CI in the interface.** The app's interface writes the method Full-CI (menus, tabs, cards,
+labels, notes and messages, also those taken from the results); the output files of the app and of
+`psilab`, the Output tab (which shows the output file as written), the archive and the JSON export
+keep "Full CI".
+
+**Summary tab.** The 3D viewer is as tall as those of the optimisation steps (78 % of the visible
+height, at least 560 pt, at most 1000 pt; before 60 %, 420–800 pt), and a caption under it says how
+to use it, as on the Optimisation tab.
+
+**Saving the structures of an optimisation or a relaxed scan.** Under the 3D viewer of the
+Optimisation tab and of the relaxed scan: *Save Step as XYZ…* / *Save Point as XYZ…*, *Save Step as
+GJF…* / *Save Point as GJF…* (the shown step or point as an .xyz file or a Gaussian input with the
+route for the level of the optimisation; the comment lines give the step or point — for a scan point
+also the scanned coordinate — the level and the energy), and *Save All Steps as XYZ…* / *Save All
+Points as XYZ…* (every structure in one multi-structure .xyz file, the frames of a trajectory for
+Molden, Avogadro, Jmol, VMD or ASE). The Gaussian input of a geometry optimised in an opt+freq+sp
+job with a different single-point basis set now writes the basis set of the optimisation (before:
+the functions of the single-point set could be written out under the name of the optimisation's).
 
 ### 16.0
 **The changes asked for after 15.0** (the 15.0 release does not contain them): the
@@ -2006,7 +2044,8 @@ XcodeGen project spec in `xcode/project.yml`. See [`app/SETUP.md`](app/SETUP.md)
   `-psilabAutoRun`, `-psilabPlaySteps`, (13.0) `-psilabOpenOutput` (opens an output file at launch,
   without a calculation; the app is sandboxed, so the path must lie in its container: the smoke test
   copies the example output of H₂O CCSD opt+freq there and shows its Summary, Optimisation,
-  Frequencies and Orbitals pages)
+  Frequencies and Orbitals pages), (17.0) `-psilabSzaboOstlund` (HeH⁺ in STO-nG as the
+  Szabo–Ostlund calculation; without any `-psilab…` argument the app opens with the H₂ example)
   and the viewer settings `-viewer3D.*` (12.0); screenshots on the runner's 1024-pt-wide screen,
   where the window has its minimum width of 1000 pt) and publishes the **ΨLab-app** download.
   The first build of `main` with a new app version is published as a GitHub Release (tag

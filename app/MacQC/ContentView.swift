@@ -138,9 +138,14 @@ struct OpenedFileBanner: View {
     var body: some View {
         let detail = [file.program, file.written.isEmpty ? "" : "written " + file.written]
             .filter { !$0.isEmpty }.joined(separator: ", ")
+        // 17.0: the startup example (the output file in the app's resources)
+        let text: String = file.example
+            ? "Example: H₂, optimisation + frequencies + single point at Full-CI/aug-cc-pCV5Z//Full-CI/aug-cc-pCVQZ"
+              + (detail.isEmpty ? "" : " (\(detail))") + ". Run repeats it with the inputs of the sidebar."
+            : "Results read from “\(file.name)”" + (detail.isEmpty ? "" : " (\(detail))")
+              + ". Run calculates the inputs of the sidebar."
         Label {
-            Text("Results read from “\(file.name)”" + (detail.isEmpty ? "" : " (\(detail))")
-                 + ". Run calculates the inputs of the sidebar.")
+            Text(text)
                 .font(.callout)
                 .textSelection(.enabled)
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -240,7 +245,7 @@ struct NoResultView: View {
                 systemImage: "atom",
                 description: Text(model.isGeneral
                                   ? "Choose the job, method and basis set in the sidebar and press Run."
-                                  : "Press Run to start a Hartree–Fock and Full CI calculation (Szabo–Ostlund).")
+                                  : "Press Run to start a Hartree–Fock and Full-CI calculation (Szabo–Ostlund).")
             )
         }
         .padding()

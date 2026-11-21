@@ -174,3 +174,43 @@ struct SaveOptimizedGeometryBox: View {
         return text
     }
 }
+
+/// 17.0: saves a structure of an optimisation or a relaxed scan — the shown step or point — as an
+/// .xyz file or a Gaussian input (.gjf), or every step or point as one multi-structure .xyz file
+/// (the structures one after the other, read as a trajectory by Molden, Avogadro, Jmol, VMD and ASE).
+/// The level of the Gaussian route is that of the optimisation (`method`/`basis`, ΨLab's names).
+struct SaveStructureButtons: View {
+    var model: AppModel
+    /// The shown structure (nil: nothing to save).
+    var structure: SavedMolecule?
+    /// "Step" or "Point".
+    var noun: String
+    var method: String
+    var basis: String
+    /// The end of the file name of all structures ("opt-steps", "scan-points").
+    var allTag: String
+    /// Every structure, in order (built when the button is pressed).
+    var all: () -> [SavedMolecule]
+
+    var body: some View {
+        if let m = structure {
+            VStack(alignment: .leading, spacing: 4) {
+                HStack(spacing: 8) {
+                    Button("Save \(noun) as XYZ…") { model.exportXYZ(m) }
+                        .accessibilityLabel("Save this \(noun.lowercased()) as XYZ")
+                        .help("The coordinates of this \(noun.lowercased()) in Å as an .xyz file; the comment line gives the \(noun.lowercased()), the level and the energy.")
+                    Button("Save \(noun) as GJF…") {
+                        model.exportGaussianInput(m, method: method, basis: basis, orbitals: model.optimizationOrbitals)
+                    }
+                    .accessibilityLabel("Save this \(noun.lowercased()) as Gaussian input")
+                    .help("A Gaussian input file (.gjf) with the coordinates of this \(noun.lowercased()): the route for the level of the optimisation, Cartesian coordinates in Å.")
+                    Button("Save All \(noun)s as XYZ…") { model.exportXYZSequence(all(), tag: allTag) }
+                        .accessibilityLabel("Save all \(noun.lowercased())s as one XYZ file")
+                        .help("Every \(noun.lowercased()) in one multi-structure .xyz file (the frames of a trajectory for Molden, Avogadro, Jmol, VMD or ASE).")
+                }
+                .controlSize(.small)
+                .disabled(model.isRunning)
+            }
+        }
+    }
+}

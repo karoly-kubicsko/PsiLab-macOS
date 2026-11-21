@@ -38,9 +38,9 @@ struct FullCIView: View {
                         .frame(maxWidth: 560)
                 }
                 ContentUnavailableView(
-                    "No Full CI result",
+                    "No Full-CI result",
                     systemImage: "function",
-                    description: Text("Full CI needs a converged Hartree–Fock calculation. Press Run.")
+                    description: Text("Full-CI needs a converged Hartree–Fock calculation. Press Run.")
                 )
             }
             .padding()
