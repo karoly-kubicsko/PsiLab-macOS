@@ -594,6 +594,7 @@ final class Molecule3DController {
         }
         SCNTransaction.commit()
         updateDepthCue(force: true)
+        Molecule3DController.debug("apply Z=\(c.Z) structureChanged=\(structureChanged) positionsChanged=\(positionsChanged) glide=\(glide) bounds=\(view?.bounds ?? .zero) window=\(view?.window != nil) camera=\(cameraNode.simdWorldPosition) atoms=\(atomNodes.map { $0.simdWorldPosition })")
     }
 
     /// The starting view changes only with another molecule or another first geometry (the start of
@@ -834,6 +835,21 @@ final class Molecule3DController {
         view.cameraTouched = false
         depthCueDistance = -1
         updateDepthCue(force: true)
+        Molecule3DController.debug("resetView Z=\(c.Z) framing=\(geometries.count) positions=\(c.positions) reference=\(c.reference.map { "\($0)" } ?? "nil") axisH=\(frame.axisH) axisV=\(frame.axisV) axisD=\(frame.axisD) flip=\(frame.flipVertical) center=\(center) distance=\(distance) camera=\(cameraNode.simdWorldPosition) orientation=\(cameraNode.simdWorldOrientation) bounds=\(bounds) fog=\(scene?.fogStartDistance ?? -1)…\(scene?.fogEndDistance ?? -1) atoms=\(atomNodes.map { $0.simdWorldPosition }) bonds=\(bondNodes.count) annotations=\(annotationRoot.childNodes.count) ghost=\(ghostRoot.childNodes.count) playing=\(view.isPlaying)")
+    }
+
+    /// DIAGNOSTIC (-psilabDebug3D YES): appends a line to /tmp/psilab-3d.log.
+    static func debug(_ text: String) {
+        guard UserDefaults.standard.bool(forKey: "psilabDebug3D") else { return }
+        let line = "\(Date()) \(text)\n"
+        let url = URL(fileURLWithPath: "/tmp/psilab-3d.log")
+        if let h = try? FileHandle(forWritingTo: url) {
+            h.seekToEndOfFile()
+            h.write(line.data(using: .utf8)!)
+            try? h.close()
+        } else {
+            try? line.data(using: .utf8)!.write(to: url)
+        }
     }
 
     /// A new size of the view (its first layout, a resized window): fit the molecule again unless

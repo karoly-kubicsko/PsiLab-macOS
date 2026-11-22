@@ -234,6 +234,29 @@ sleep 15
 pgrep -x "ΨLab" >/dev/null && echo "ΨLab process is running" || echo "ΨLab process NOT running"
 
 shot "00-launch"
+
+# DIAGNOSTIC (19.0): H3+ Full CI opt+freq+sp, the Optimisation tab's 3D viewer
+echo "== DIAG: H3+ Full CI/aug-cc-pVDZ opt+freq+sp"
+rm -f /tmp/psilab-3d.log
+pkill -x "ΨLab" || true
+sleep 3
+open -n "$APP" --args -appearanceChoice dark -psilabDebug3D YES -psilabMolecule H3+ -psilabBasis aug-cc-pVDZ -psilabMethod FCI -psilabJob opt+freq+sp -psilabAutoRun YES
+sleep 60
+view_tab "diag-h3-optimisation" "Optimisation"
+sleep 3
+print_shot "diag-h3-optimisation"
+view_tab "diag-h3-frequencies" "Frequencies"
+print_shot "diag-h3-frequencies"
+view_tab "diag-h3-summary" "Summary"
+print_shot "diag-h3-summary"
+view_tab "diag-h3-optimisation-again" "Optimisation"
+sleep 3
+print_shot "diag-h3-optimisation-again"
+echo "::group::3D viewer log"
+cat /tmp/psilab-3d.log || echo "no 3D log"
+echo "::endgroup::"
+pkill -x "ΨLab" || true
+exit 0
 layout "launch-heh"
 echo "::group::accessibility tree"
 with_timeout 40 osascript "$OUT/tab.applescript" "__TREE__" | tee "$OUT/tree.txt"
