@@ -280,10 +280,22 @@ struct SidebarView: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
             } else {
-                ForEach(params.indices, id: \.self) { i in
-                    LabeledContent("\(params[i].label) (\(params[i].unit))") {
-                        numberField(params[i].label,
+                ForEach(Array(params.enumerated()), id: \.element.label) { i, param in
+                    LabeledContent("\(param.label) (\(param.unit))") {
+                        numberField(param.label,
                                     value: Binding(get: { model.presetParameter(i) }, set: { model.setPresetParameter(i, $0) }))
+                    }
+                }
+                // 18.0: the bond lengths and angles the symmetry fixes (not inputs); identified by
+                // their labels, not by index, so that they do not take the place of the inputs above
+                // (both ForEach are in the same section)
+                ForEach(PresetGeometry.derived(key, model.presetParameterValues), id: \.parameter.label) { row in
+                    let p = row.parameter
+                    LabeledContent("\(p.label) (\(p.unit))") {
+                        Text(String(format: p.angular ? "%.2f" : "%.4f", row.value))
+                            .monospacedDigit()
+                            .foregroundStyle(.secondary)
+                            .frame(width: 96, alignment: .trailing)
                     }
                 }
                 if let note = PresetGeometry.note(key) {

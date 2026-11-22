@@ -1,6 +1,6 @@
 # ΨLab — a native macOS quantum-chemistry app
 
-**Current version: 17.0** — see [Versions](#versions).
+**Current version: 18.0** — see [Versions](#versions).
 
 ΨLab computes small molecules — closed and (15.0) open shells, with RHF, UHF and ROHF references —
 with Hartree–Fock, Møller–Plesset perturbation theory (MP2–MP5), configuration interaction (CISD …
@@ -208,6 +208,35 @@ same calculations run in the terminal on Linux and macOS
   `xcode/project.yml`).
 
 ## Versions
+
+### 18.0
+**The complete starting geometry of the molecules of the menu; no banner on the start-up example.**
+
+**Starting geometry.** Every bond length, angle and dihedral angle of a molecule of the menu is
+listed in the sidebar; those the symmetry leaves free are inputs, those it fixes are shown below
+them as derived values (grey):
+
+| Molecule | Inputs | Derived |
+|---|---|---|
+| H₂⁺, N₂, O₂, F₂, Cl₂ | R(H–H), R(N–N), R(O–O), R(F–F), R(Cl–Cl) (Å; in 16.0 and 17.0 "R") | — |
+| H₃⁺ | R(H1–H2) = R(H1–H3) (Å), angle H2–H1–H3 (°; 60° = D₃ₕ, the equilateral triangle) | R(H2–H3) |
+| H₅⁺ | R(H1–H2) = R(H1–H3), angle H2–H1–H3, R(H4–H5), R(H1–X) | R(H2–H3), R(H1–H4) = R(H1–H5), angle H4–H1–H5, dihedral H2–H1–X–H4 (90°) |
+| CO₂ | R(C–O), angle O–C–O (180° = linear) | — |
+| N₂O | R(N–N), R(N–O), angle N–N–O (180° = linear) | — |
+| CH₄ | R(C–H) | angle H–C–H (109.47°) |
+| H₂CO | R(C–O), R(C–H), angle H–C–H | angle O–C–H |
+
+H₂, LiH, HeH⁺, H₂O (R(O–H), angle H–O–H), H₂O₂ and NH₃ (R(N–H), angle H–N–H) keep their inputs.
+H₃⁺ and the H₃⁺ unit of H₅⁺ are now given by a bond length and the angle at H1 (before: the H–H
+distance(s)); an angle other than 60° gives an isosceles triangle (C₂ᵥ), an angle of CO₂ or N₂O
+below 180° a bent starting geometry. Unchanged parameters still run the backend's own geometry.
+The line of the optimised parameters also lists the derived values.
+
+**No banner on the start-up example.** The results of the H₂ Full-CI example at start-up are shown
+without the banner "Example: H₂, optimisation + frequencies + single point …" above the tabs; a
+file the user opens still has its banner.
+
+**About ΨLab** shows Version 18.0 (18): build number 18 (17.0 still had build 16).
 
 ### 17.0
 **Start-up, the Summary viewer and saving the structures of a job.**

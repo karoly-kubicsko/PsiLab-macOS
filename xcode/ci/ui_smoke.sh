@@ -773,9 +773,9 @@ sleep 15
 view_tab "b1-startup-example-summary" "Summary"
 print_shot "b1-startup-example-summary"
 grep -E "//|Drag to turn" "$OUT/b1-startup-example-summary.txt" || echo "Level1//Level2 or caption not found"
-# the banner and the buttons are not static text: they are in the accessibility tree
+# 18.0: the start-up example has no banner (the buttons are in the accessibility tree)
 with_timeout 60 osascript "$OUT/tab.applescript" "__TREE__" > "$OUT/b1-startup-example-tree.txt" 2>&1
-grep -E "Example: H" "$OUT/b1-startup-example-tree.txt" || echo "example banner not found"
+if grep -E "Example: H|Results read from" "$OUT/b1-startup-example-tree.txt"; then echo "unexpected example banner"; else echo "no example banner (expected)"; fi
 view_tab "b2-startup-example-optimisation" "Optimisation"
 print_shot "b2-startup-example-optimisation"
 with_timeout 60 osascript "$OUT/tab.applescript" "__TREE__" > "$OUT/b2-startup-example-tree.txt" 2>&1
@@ -785,6 +785,24 @@ relaunch -appearanceChoice light -psilabMolecule HeH+ -psilabBasis STO-3G
 sleep 5
 dump_tab "b4-heh-sto3g-szabo-ostlund-off" ""
 grep -E "Szabo–Ostlund calculation" "$OUT/b4-heh-sto3g-szabo-ostlund-off.txt" || echo "Szabo-Ostlund switch not found"
+
+# --- ΨLab 18.0: the complete starting geometry of the molecules of the menu ---
+# (the derived rows are static text: they are in the text dump, not in the accessibility tree)
+echo "== 18.0: starting geometry of H3+, CH4, N2O and N2"
+for spec in "H3+|R\(H1–H2\), R\(H1–H3\) \(Å\)|Angle H2–H1–H3 \(°\)|R\(H2–H3\) \(Å\)" \
+            "CH4|R\(C–H\) \(Å\)|Angle H–C–H \(°\)" \
+            "N2O|R\(N–N\) \(Å\)|R\(N–O\) \(Å\)|Angle N–N–O \(°\)" \
+            "N2|R\(N–N\) \(Å\)"; do
+    mol="${spec%%|*}"
+    relaunch -appearanceChoice light -psilabMolecule "$mol" -psilabJob opt
+    sleep 3
+    dump_tab "c1-geometry-$mol" ""
+    rest="${spec#*|}"
+    IFS='|' read -r -a rows <<< "$rest"
+    for row in "${rows[@]}"; do
+        grep -E "^$row" "$OUT/c1-geometry-$mol.txt" > /dev/null && echo "$mol: found $row" || echo "$mol: geometry row $row not found"
+    done
+done
 
 pkill -x "ΨLab" || true
 

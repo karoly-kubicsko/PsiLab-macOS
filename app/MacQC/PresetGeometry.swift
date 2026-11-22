@@ -1,6 +1,6 @@
 //
 //  PresetGeometry.swift
-//  ΨLab 16.0
+//  ΨLab 18.0
 //
 //  The geometry parameters of the molecules of the menu that came with 15.0 (H₂⁺, H₃⁺, H₅⁺, N₂, O₂,
 //  F₂, Cl₂, NO, NO₂, CO, CO₂, N₂O, H₂CO, CH₄), as the sidebar shows them for H₂, LiH, H₂O, H₂O₂ and
@@ -8,6 +8,12 @@
 //  measured from the backend's coordinates (molecule.cpp, copied here), so unchanged parameters
 //  run the backend's own geometry; changed ones are sent as Cartesian coordinates (Å) in the
 //  backend's atom order.
+//
+//  18.0: every diatomic names its bond (R(N–N), R(O–O), …); H₃⁺ and the H₃⁺ unit of H₅⁺ take a bond
+//  length and the angle at H1 (60°: the equilateral triangle); CO₂ and N₂O also take their angle
+//  (180°: linear). The parameters the symmetry fixes (H₃⁺ R(H2–H3), CH₄ angle H–C–H, …) are shown
+//  below the inputs as derived values, so that every bond length, angle and dihedral angle of the
+//  starting geometry is listed.
 //
 
 import Foundation
@@ -61,14 +67,18 @@ nonisolated enum PresetGeometry {
         func r(_ s: String) -> PresetParameter { PresetParameter(label: s, angular: false) }
         func a(_ s: String) -> PresetParameter { PresetParameter(label: s, angular: true) }
         switch key {
-        case "H2+", "N2", "O2", "F2", "Cl2": return [r("R")]
+        case "H2+": return [r("R(H–H)")]
+        case "N2": return [r("R(N–N)")]
+        case "O2": return [r("R(O–O)")]
+        case "F2": return [r("R(F–F)")]
+        case "Cl2": return [r("R(Cl–Cl)")]
         case "NO": return [r("R(N–O)")]
         case "CO": return [r("R(C–O)")]
-        case "H3+": return [r("R(H–H)")]
-        case "H5+": return [r("R(H1–H2), R(H1–H3)"), r("R(H2–H3)"), r("R(H4–H5)"), r("R(H1–X)")]
+        case "H3+": return [r("R(H1–H2), R(H1–H3)"), a("Angle H2–H1–H3")]
+        case "H5+": return [r("R(H1–H2), R(H1–H3)"), a("Angle H2–H1–H3"), r("R(H4–H5)"), r("R(H1–X)")]
         case "NO2": return [r("R(N–O)"), a("Angle O–N–O")]
-        case "CO2": return [r("R(C–O)")]
-        case "N2O": return [r("R(N–N)"), r("R(N–O)")]
+        case "CO2": return [r("R(C–O)"), a("Angle O–C–O")]
+        case "N2O": return [r("R(N–N)"), r("R(N–O)"), a("Angle N–N–O")]
         case "H2CO": return [r("R(C–O)"), r("R(C–H)"), a("Angle H–C–H")]
         case "CH4": return [r("R(C–H)")]
         default: return []
@@ -78,12 +88,12 @@ nonisolated enum PresetGeometry {
     /// The symmetry the parameters keep (as the notes of H₂O and H₂O₂).
     static func note(_ key: String) -> String? {
         switch key {
-        case "H3+": return "D₃ₕ: an equilateral triangle."
+        case "H3+": return "D₃ₕ at 60°: an equilateral triangle (all three H–H bonds equal); another angle gives an isosceles triangle (C₂ᵥ)."
         case "H5+": return "C₂ᵥ: an H₃⁺ unit H1 H2 H3 (H2–H3 at the base) and an H₂ unit H4 H5 perpendicular to it; X is the midpoint of H4–H5, on the axis through H1."
         case "NO2": return "C₂ᵥ: both N–O bonds equal."
-        case "CO2": return "D∞ₕ: linear, both C–O bonds equal."
-        case "N2O": return "C∞ᵥ: linear N–N–O."
-        case "H2CO": return "C₂ᵥ: both C–H bonds equal."
+        case "CO2": return "D∞ₕ at 180°: linear, both C–O bonds equal; a smaller angle bends it (C₂ᵥ)."
+        case "N2O": return "C∞ᵥ at 180°: linear N–N–O; a smaller angle bends it (Cₛ)."
+        case "H2CO": return "C₂ᵥ: planar, both C–H bonds equal."
         case "CH4": return "T_d: four equal C–H bonds, tetrahedral angles."
         default: return nil
         }
@@ -109,14 +119,14 @@ nonisolated enum PresetGeometry {
         }
         switch key {
         case "H2+", "N2", "O2", "F2", "Cl2", "NO", "CO": return [d(0, 1)]
-        case "H3+": return [(d(0, 1) + d(1, 2) + d(0, 2)) / 3]
+        case "H3+": return [0.5 * (d(0, 1) + d(0, 2)), angle(1, 0, 2)]
         case "H5+":
             let m = (0..<3).map { 0.5 * (x[3][$0] + x[4][$0]) }
             let dx = (0..<3).map { x[0][$0] - m[$0] }
-            return [0.5 * (d(0, 1) + d(0, 2)), d(1, 2), d(3, 4), (dx[0] * dx[0] + dx[1] * dx[1] + dx[2] * dx[2]).squareRoot()]
+            return [0.5 * (d(0, 1) + d(0, 2)), angle(1, 0, 2), d(3, 4), (dx[0] * dx[0] + dx[1] * dx[1] + dx[2] * dx[2]).squareRoot()]
         case "NO2": return [0.5 * (d(0, 1) + d(0, 2)), angle(1, 0, 2)]
-        case "CO2": return [0.5 * (d(0, 1) + d(0, 2))]
-        case "N2O": return [d(0, 1), d(1, 2)]
+        case "CO2": return [0.5 * (d(0, 1) + d(0, 2)), angle(1, 0, 2)]
+        case "N2O": return [d(0, 1), d(1, 2), angle(0, 1, 2)]
         case "H2CO": return [d(0, 1), 0.5 * (d(0, 2) + d(0, 3)), angle(2, 0, 3)]
         case "CH4": return [(d(0, 1) + d(0, 2) + d(0, 3) + d(0, 4)) / 4]
         default: return nil
@@ -130,7 +140,7 @@ nonisolated enum PresetGeometry {
     }
 
     /// Cartesian coordinates (Å, the backend's atom order) of parameters, or nil if they do not
-    /// give a geometry (H₅⁺: R(H1–H2) must exceed half of R(H2–H3)).
+    /// give a geometry.
     static func coordinates(_ key: String, _ v: [Double]) -> [[Double]]? {
         guard v.count == parameters(key).count, !v.isEmpty, v.allSatisfy({ $0 > 0 && $0.isFinite }) else { return nil }
         let deg: Double = Double.pi / 180.0
@@ -142,26 +152,27 @@ nonisolated enum PresetGeometry {
         case "NO", "CO":
             return [o, [0.0, 0.0, v[0]]]
         case "H3+":
-            let rc: Double = v[0] / 3.0.squareRoot()
-            var x: [[Double]] = []
-            for k in 0..<3 {
-                let t: Double = (90.0 + 120.0 * Double(k)) * deg
-                x.append([rc * cos(t), rc * sin(t), 0.0])
-            }
-            return x
+            // H1 at the apex, H2 and H3 at the base (60°: D₃ₕ)
+            let half: Double = 0.5 * v[1] * deg
+            let y: Double = v[0] * sin(half), z: Double = -v[0] * cos(half)
+            return [o, [0.0, y, z], [0.0, -y, z]]
         case "H5+":
-            let h: Double = v[0] * v[0] - 0.25 * v[1] * v[1]
-            guard h > 1e-6 else { return nil }
-            let z: Double = -h.squareRoot(), y: Double = 0.5 * v[1], x: Double = 0.5 * v[2]
+            let half: Double = 0.5 * v[1] * deg
+            let y: Double = v[0] * sin(half), z: Double = -v[0] * cos(half), x: Double = 0.5 * v[2]
             return [o, [0.0, y, z], [0.0, -y, z], [x, 0.0, v[3]], [-x, 0.0, v[3]]]
         case "NO2":
             let half: Double = 0.5 * v[1] * deg
             let x: Double = v[0] * sin(half), z: Double = -v[0] * cos(half)
             return [o, [x, 0.0, z], [-x, 0.0, z]]
         case "CO2":
-            return [o, [0.0, 0.0, v[0]], [0.0, 0.0, -v[0]]]
+            // 180°: along z; a smaller angle bends both C–O bonds towards −x
+            let half: Double = 0.5 * v[1] * deg
+            let x: Double = -v[0] * cos(half), z: Double = v[0] * sin(half)
+            return [o, [x, 0.0, z], [x, 0.0, -z]]
         case "N2O":
-            return [[0.0, 0.0, -v[0]], o, [0.0, 0.0, v[1]]]
+            // the terminal N on −z, O at the angle N–N–O from it (180°: on +z)
+            let t: Double = (180.0 - v[2]) * deg
+            return [[0.0, 0.0, -v[0]], o, [v[1] * sin(t), 0.0, v[1] * cos(t)]]
         case "H2CO":
             let half: Double = 0.5 * v[2] * deg
             let y: Double = v[1] * sin(half), z: Double = -v[1] * cos(half)
@@ -174,9 +185,57 @@ nonisolated enum PresetGeometry {
         }
     }
 
-    /// The parameters with their units for a text line ("R(N–O) = 1.1934 Å, angle O–N–O = 134.10°").
+    /// 18.0: the bond lengths, angles and dihedral angles of the geometry that the symmetry fixes
+    /// (not inputs), measured from the coordinates of the parameters: H₃⁺ R(H2–H3); H₅⁺ R(H2–H3),
+    /// R(H1–H4) = R(H1–H5), angle H4–H1–H5 and the dihedral angle H2–H1–X–H4; CH₄ angle H–C–H;
+    /// H₂CO angle O–C–H.
+    static func derived(_ key: String, _ v: [Double]) -> [(parameter: PresetParameter, value: Double)] {
+        guard let x = coordinates(key, v) else { return [] }
+        func r(_ s: String, _ value: Double) -> (parameter: PresetParameter, value: Double) {
+            (PresetParameter(label: s, angular: false), value)
+        }
+        func a(_ s: String, _ value: Double) -> (parameter: PresetParameter, value: Double) {
+            (PresetParameter(label: s, angular: true), value)
+        }
+        func sub(_ p: [Double], _ q: [Double]) -> [Double] { (0..<3).map { p[$0] - q[$0] } }
+        func dot(_ p: [Double], _ q: [Double]) -> Double { p[0] * q[0] + p[1] * q[1] + p[2] * q[2] }
+        func cross(_ p: [Double], _ q: [Double]) -> [Double] {
+            [p[1] * q[2] - p[2] * q[1], p[2] * q[0] - p[0] * q[2], p[0] * q[1] - p[1] * q[0]]
+        }
+        func d(_ p: [Double], _ q: [Double]) -> Double { dot(sub(p, q), sub(p, q)).squareRoot() }
+        func angle(_ p: [Double], _ c: [Double], _ q: [Double]) -> Double {
+            let u = sub(p, c), w = sub(q, c)
+            return acos(min(max(dot(u, w) / (dot(u, u) * dot(w, w)).squareRoot(), -1), 1)) * 180 / Double.pi
+        }
+        func dihedral(_ p: [Double], _ q: [Double], _ s: [Double], _ t: [Double]) -> Double {
+            let b1 = sub(q, p), b2 = sub(s, q), b3 = sub(t, s)
+            let n1 = cross(b1, b2), n2 = cross(b2, b3)
+            let m = cross(n1, b2.map { $0 / dot(b2, b2).squareRoot() })
+            return atan2(dot(m, n2), dot(n1, n2)) * 180 / Double.pi
+        }
+        switch key {
+        case "H3+":
+            return [r("R(H2–H3)", d(x[1], x[2]))]
+        case "H5+":
+            let m = (0..<3).map { 0.5 * (x[3][$0] + x[4][$0]) }
+            return [r("R(H2–H3)", d(x[1], x[2])),
+                    r("R(H1–H4), R(H1–H5)", 0.5 * (d(x[0], x[3]) + d(x[0], x[4]))),
+                    a("Angle H4–H1–H5", angle(x[3], x[0], x[4])),
+                    a("Dihedral H2–H1–X–H4", abs(dihedral(x[1], x[0], m, x[3])))]
+        case "CH4":
+            return [a("Angle H–C–H", angle(x[1], x[0], x[2]))]
+        case "H2CO":
+            return [a("Angle O–C–H", 0.5 * (angle(x[1], x[0], x[2]) + angle(x[1], x[0], x[3])))]
+        default:
+            return []
+        }
+    }
+
+    /// The parameters with their units for a text line ("R(N–O) = 1.1934 Å, angle O–N–O = 134.10°");
+    /// 18.0: followed by the derived bond lengths and angles.
     static func describe(_ key: String, _ v: [Double]) -> String {
-        zip(parameters(key), v).map { p, x in
+        let rows = zip(parameters(key), v).map { ($0, $1) } + derived(key, v).map { ($0.parameter, $0.value) }
+        return rows.map { p, x in
             p.angular ? String(format: "%@ = %.2f°", p.label, x) : String(format: "%@ = %.4f Å", p.label, x)
         }.joined(separator: ", ")
     }
