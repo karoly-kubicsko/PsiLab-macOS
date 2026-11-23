@@ -97,6 +97,38 @@ jobs:
           printf 'molecule = custom\ngeometry = nh4.gjf\ncharge = 0\n' > nh4-odd.inp
           if ./build/psilab nh4-odd.inp; then echo "an odd number of electrons must be refused"; exit 1; fi
 
+      - name: Terminal version, structure files on the command line (19.0)
+        run: |
+          mkdir -p xyzrun && cp examples/methane.xyz examples/co2.xyz xyzrun/
+          # a structure file without an input file: HF/aug-cc-pVDZ energy on the standard output
+          ./build/psilab xyzrun/methane.xyz > methane-default.out
+          grep -q "method           = HF" methane-default.out
+          grep -q "Normal termination" methane-default.out
+          # settings as key=value, -o writes xyzrun/methane.out
+          ./build/psilab xyzrun/methane.xyz method=MP2 job=opt+freq -o
+          grep -q "Point group Td" xyzrun/methane.out
+          grep -q "Normal termination" xyzrun/methane.out
+          # several structure files, each into its own .out
+          rm -f xyzrun/*.out
+          ./build/psilab xyzrun/*.xyz method=HF basis=6-31G*
+          test -s xyzrun/methane.out && test -s xyzrun/co2.out
+          # the estimate takes the same arguments
+          ./build/psilab --estimate xyzrun/co2.xyz method='CCSD(T)' | grep -q "CCSD(T)"
+          # a mistyped key, a key set twice and an unknown dash option are refused (exit status 2)
+          set +e
+          ./build/psilab xyzrun/co2.xyz methd=MP2; test $? -eq 2 || exit 1
+          ./build/psilab xyzrun/co2.xyz molecule=CO2; test $? -eq 2 || exit 1
+          ./build/psilab xyzrun/co2.xyz --foo; test $? -eq 2 || exit 1
+          set -e
+          ./build/psilab --version | grep -q "19.0"
+          # ORCA-style geometry blocks: the atoms in the input file, or '* xyzfile' (the same result)
+          ./build/psilab examples/water-orca-style.inp inline.out
+          grep -q "Normal termination" inline.out
+          printf '3\nwater\nO 0 0 0.1173\nH 0 0.7572 -0.4692\nH 0 -0.7572 -0.4692\n' > xyzrun/water.xyz
+          printf 'method = MP2\nbasis = aug-cc-pVDZ\njob = opt+freq\n* xyzfile 0 1 water.xyz\n' > xyzrun/water-file.inp
+          ./build/psilab xyzrun/water-file.inp xyzfile.out
+          test "$(grep 'final energy' inline.out | tail -1)" = "$(grep 'final energy' xyzfile.out | tail -1)"
+
       - name: Terminal version, transition states (7.0)
         run: |
           printf 'molecule = NH3\nmethod = HF\njob = ts+freq+sp\nangle = 116\nsp_method = CCSD(T)\n' > nh3ts.inp

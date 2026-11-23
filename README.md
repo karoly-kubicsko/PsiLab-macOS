@@ -1,6 +1,6 @@
 # ΨLab — a native macOS quantum-chemistry app
 
-**Current version: 18.0** — see [Versions](#versions).
+**Current version: 19.0** — see [Versions](#versions).
 
 ΨLab computes small molecules — closed and (15.0) open shells, with RHF, UHF and ROHF references —
 with Hartree–Fock, Møller–Plesset perturbation theory (MP2–MP5), configuration interaction (CISD …
@@ -208,6 +208,53 @@ same calculations run in the terminal on Linux and macOS
   `xcode/project.yml`).
 
 ## Versions
+
+### 19.0
+**The 3D viewers after a new result; H₃⁺ drawn as a triangle; atom labels as badges; the units of
+the frequency table explained; in the terminal, structure files run directly and ORCA-style
+geometry blocks (`* xyz`, `* xyzfile`) in input files.**
+
+**3D viewers.** The viewer of the Optimisation tab could stay empty (only the background) after a
+new job, e.g. H₃⁺ OPT + FREQ + SP after the start-up example. SceneKit's camera control can render
+through a camera other than the viewer's own after the molecule was turned or zoomed, while the
+depth cueing (fog) and Reset view used the viewer's own camera: the fog, placed for that camera,
+could hide the whole molecule. Now every fit of a new molecule (and Reset view) makes the viewer's
+camera the point of view again and stops a turn still in motion, and the fog follows the distance
+of the camera that renders.
+
+**H₃⁺.** All three H–H bonds are drawn (hydrogen pairs are bonded up to 1.45 times the sum of their
+covalent radii, 0.90 Å; before 1.25 times, 0.775 Å, which left out H2–H3 at 0.87 Å), and the
+starting view puts H1 at the apex and H2–H3 horizontal, as in the sidebar: for a planar symmetric
+top the two axes in the plane are degenerate, and the view before took an arbitrary pair (the
+triangle turned by 30°).
+
+**Atom labels** (display menu ▸ Element symbols / Symbols and atom numbers) are rounded badges in
+front of their atoms: the symbol in semibold, the atom number as a subscript (H₁, H₂, …), a rim in
+the atom's CPK colour (grey for H), drawn over the other atoms, so that a label is no longer cut by
+a neighbouring atom, and rendered at three times the text size (sharp when zoomed in). Before: large
+text with a heavy outline that the neighbouring atoms could hide.
+
+**Units of the frequency table** (unchanged, now explained below the table): force constants
+k = 4π²c²ν̃²μ in mdyn/Å (1 mdyn/Å = 100 N/m = 0.06423 E_h/bohr²), IR intensities in km/mol, the
+integrated absorption coefficient of the fundamental in the double-harmonic approximation,
+A = N_A/(12ε₀c²)·|∂μ/∂Q|² (974.88 km/mol per e²/u), both as in Gaussian. Each component of a
+degenerate mode carries its own intensity: H₃⁺ Full CI/aug-cc-pVTZ, ν₂ (E′) 2760.13 cm⁻¹,
+177.9 km/mol per component, 355.9 km/mol for the band; ν₁ (A₁′) is IR-inactive (0 km/mol).
+
+**Terminal version.** `psilab --version` prints the program version (19.0); since 15.0 it had
+printed 15.0. The build needs only a C++17 compiler and CMake 3.16: checked with GCC 9 and CMake
+3.16 (Ubuntu 20.04, Linux Mint 20) and GCC 13 and CMake 3.28 (Ubuntu 24.04); on macOS the CI
+builds it with Xcode's clang.
+
+**Structures of your own in the terminal.** `psilab water.xyz` runs a structure file (.xyz,
+Gaussian .gjf/.com/.gau) without an input file, the settings as `key=value` on the command line;
+`psilab *.xyz …` runs several, each into its own `.out`. Input files take ORCA's geometry blocks:
+`* xyz <charge> <multiplicity>` with the atoms up to a line `*`, or
+`* xyzfile <charge> <multiplicity> <file.xyz>` (see
+[Terminal version](#terminal-version-linux-and-macos)). `psilab --help` now lists `geometry` and
+`title`, which it had left out.
+
+**About ΨLab** shows Version 19.0 (19).
 
 ### 18.0
 **The complete starting geometry of the molecules of the menu; no banner on the start-up example.**
@@ -700,6 +747,43 @@ psilab input.inp output.txt       # read input.inp, write the results to output.
 psilab input.inp -o               # output name input.out
 psilab --example > input.inp      # start from a commented example input
 ```
+
+**Structures of your own (19.0).** Any molecule can be given in three ways:
+
+1. **A structure file directly**, without an input file: `.xyz` (Å) or a Gaussian
+   `.gjf`/`.com`/`.gau`. The settings go on the command line as `key=value`, with the keys of the
+   input file. The default is HF/aug-cc-pVDZ, single-point energy, neutral closed shell.
+
+   ```bash
+   psilab water.xyz                                                  # HF energy on the terminal
+   psilab water.xyz method='CCSD(T)' basis=aug-cc-pVTZ job=opt+freq -o   # -> water.out
+   psilab radical.xyz multiplicity=2 method=UHF -o                   # open shell
+   psilab *.xyz method=MP2 job=opt                                   # each file into its own .out
+   psilab --estimate water.xyz method='CCSD(T)' basis=aug-cc-pVTZ    # size and time only
+   ```
+
+2. **The coordinates in the input file**, as in ORCA: a block `* xyz <charge> <multiplicity>`
+   with one atom per line (element x y z, Å), closed by `*`
+   (see [`examples/water-orca-style.inp`](examples/water-orca-style.inp)):
+
+   ```text
+   method = MP2
+   basis  = aug-cc-pVDZ
+   job    = opt+freq
+
+   * xyz 0 1
+   O   0.000000   0.000000   0.117300
+   H   0.000000   0.757200  -0.469200
+   H   0.000000  -0.757200  -0.469200
+   *
+   ```
+
+3. **A structure file named in the input file**: `* xyzfile <charge> <multiplicity> water.xyz`,
+   as in ORCA, or `molecule = custom` with `geometry = water.xyz` (9.0). The path is relative to
+   the input file, not to the folder `psilab` is started in.
+
+Settings on the command line also work with an input file (`psilab job.inp method=MP2`) when the
+input file does not set them already; an option adds a setting, it does not replace one.
 
 The input file has one `key = value` per line; `#` starts a comment; keys are case-insensitive:
 

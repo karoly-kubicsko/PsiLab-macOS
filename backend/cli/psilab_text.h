@@ -7,7 +7,7 @@
 //   opt_hessian  auto | calcfc | calcall | recalcfc=N (15.0, minimisations)   recalc_fc  N
 //   opt_algorithm  rfo | gediis (15.0, minimisations)   szabo_ostlund  no: HeH+ in STO-nG as a general molecule
 //   geometry   molecule = custom: the structure file, .xyz (angstrom) or Gaussian .gjf/.com (relative to
-//              the input file); charge, multiplicity (1; closed-shell singlets only) and title override
+//              the input file); charge, multiplicity (15.0: open shells too) and title override
 //              the file's (an XYZ file has charge 0; its comment line is the title)
 //   basis      aug-cc-pVXZ, aug-cc-pCVXZ (X = D, T, Q, 5); HeH+ also STO-1G | STO-2G | STO-3G, the
 //              Szabo-Ostlund calculation (HeH+ with a correlation-consistent set: all methods and jobs)
@@ -44,11 +44,13 @@
 #include <vector>
 
 #include "macqc/calculation.h"
+#include "macqc/jobs.h"
 
 namespace psilab {
 
-// ΨLab version (same as the macOS app).
-constexpr const char* kVersion = "15.0";
+// ΨLab version (same as the macOS app); 19.0: the program version of the backend (psilab --version
+// printed 15.0 since 15.0).
+constexpr const char* kVersion = macqc::kProgramVersion;
 
 // 1 bohr in angstrom (CODATA 2022).
 constexpr double kBohrToAngstrom = 0.529177210544;

@@ -1,6 +1,9 @@
 // ΨLab for the terminal (Linux, macOS): reads a plain-text input file, writes a
 // plain-text output file.  Usage: psilab INPUT > OUTPUT (15.0) or psilab INPUT OUTPUT
 // (see psilab --help)
+#include <algorithm>
+#include <cctype>
+#include <vector>
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
@@ -24,11 +27,22 @@ void usage(const char* prog) {
     std::fprintf(stdout,
                  "\xCE\xA8Lab - Hartree–Fock, perturbation theory, CI, QCI, coupled cluster and Full CI in the terminal\n\n"
                  "Usage:\n"
-                 "  %s INPUT > OUTPUT   run INPUT, write the output file to the standard output (15.0)\n"
+                 "  %s INPUT > OUTPUT   run INPUT, write the output file to the standard output (15.0;\n"
+                 "                      the summary and messages go to the standard error)\n"
                  "  %s INPUT OUTPUT     run INPUT, write the output file to OUTPUT\n"
                  "  %s INPUT -o         run INPUT, write INPUT with the extension replaced by .out\n"
-                 "                      (the summary and messages go to the standard error)\n"
-                 "  %s --estimate INPUT size of the calculation and time estimate, no calculation\n"
+                 "  %s INPUT key=value ...  settings on the command line (19.0), e.g. method=MP2 job=opt\n"
+                 "                      (quote values with parentheses: method='CCSD(T)')\n"
+                 "  %s INPUT1 INPUT2 ... several jobs, one after the other, each into its INPUT.out (19.0)\n"
+                 "\n"
+                 "  INPUT is an input file (.inp, keys below) or a structure file (19.0): .xyz (Å) or a\n"
+                 "  Gaussian .gjf/.com/.gau, run as molecule = custom (default HF/aug-cc-pVDZ, job = energy):\n"
+                 "    psilab water.xyz                                     HF energy, output on the terminal\n"
+                 "    psilab water.xyz method='CCSD(T)' basis=aug-cc-pVTZ job=opt+freq -o   -> water.out\n"
+                 "    psilab *.xyz method=MP2 job=opt                      every .xyz file of the folder\n"
+                 "    psilab radical.xyz multiplicity=2 method=UHF         open shell (charge=, multiplicity=)\n"
+                 "\n"
+                 "  %s --estimate INPUT [key=value ...]  size of the calculation and time estimate, no calculation\n"
                  "  %s --example        print a commented example input file (HeH+)\n"
                  "  %s --version        print the version\n"
                  "  %s --help           this help\n\n"
@@ -36,6 +50,16 @@ void usage(const char* prog) {
                  "  molecule = HeH+ | H2 | LiH | H2O | H2O2 | NH3 | custom   (default HeH+)\n"
                  "             15.0: the atoms H He Li Be B C N O F Ne Na Mg Al Si P S Cl Ar (ground-state\n"
                  "             multiplicity) and H2+ H3+ H5+ N2 O2 F2 Cl2 NO NO2 CO CO2 N2O H2CO CH4 (fixed geometries)\n"
+                 "  geometry = <file>   molecule = custom: any structure, an .xyz file (Å; the comment line is\n"
+                 "             the title) or a Gaussian .gjf/.com (charge and multiplicity from the file),\n"
+                 "             relative to the input file; any element H–Lr, open shells with multiplicity\n"
+                 "  title = <text>       name of a custom molecule (default: the file's title)\n"
+                 "  * xyz <charge> <multiplicity>     19.0, as in ORCA: the atoms in the input file, one per line\n"
+                 "    O  0.0000  0.0000  0.1173       (element x y z in Å), closed by a line '*'; means\n"
+                 "    H  0.0000  0.7572 -0.4692       molecule = custom with this charge and multiplicity\n"
+                 "    H  0.0000 -0.7572 -0.4692\n"
+                 "    *\n"
+                 "  * xyzfile <charge> <multiplicity> <file.xyz>   19.0, as in ORCA: the atoms from a structure file\n"
                  "  R = <number> [bohr | angstrom]       bond length (H2O, H2O2: O–H; NH3: N–H)\n"
                  "  charge = <n>   multiplicity = <2S+1>   (15.0: every molecule; default: the molecule's)\n"
                  "  reference = RHF | UHF | ROHF   (15.0; default RHF for closed-shell singlets, else UHF)\n"
@@ -84,7 +108,7 @@ void usage(const char* prog) {
                  "  initial_hessian = auto | analytic | model   (minimisations: auto = analytic for HF, FCI, CCSD, CCSD(T)\n"
                  "                    where possible, else Lindh's model; model = Lindh; 10.0)\n\n"
                  "The output file is written while the job runs (tail -f OUTPUT follows it).\n",
-                 prog, prog, prog, prog, prog, prog, prog);
+                 prog, prog, prog, prog, prog, prog, prog, prog, prog);
 }
 
 bool is_directory(const std::string& path) {
@@ -110,19 +134,67 @@ std::string installed_basis_directory() {
     return is_directory(dir) ? dir : "";
 }
 
-std::string read_input(const std::string& path, psilab::Settings& settings, int& status) {
+// 19.0: a structure file (.xyz, Gaussian .gjf/.com/.gau) is run directly, as molecule = custom.
+std::string lower_extension(const std::string& path) {
+    const auto slash = path.find_last_of('/');
+    const auto dot = path.find_last_of('.');
+    if (dot == std::string::npos || (slash != std::string::npos && dot < slash)) return "";
+    std::string e = path.substr(dot);
+    for (auto& c : e) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+    return e;
+}
+
+bool is_structure_file(const std::string& path) {
+    const std::string e = lower_extension(path);
+    return e == ".xyz" || e == ".gjf" || e == ".com" || e == ".gau";
+}
+
+bool is_input_file(const std::string& path) {
+    return is_structure_file(path) || lower_extension(path) == ".inp";
+}
+
+// The input text of a run: the input file, or for a structure file "molecule = custom" and
+// "geometry = <file>"; then the settings given on the command line (key=value), one per line.
+// Errors in the added lines name the command-line option (or the structure file).
+std::string read_input(const std::string& path, const std::vector<std::string>& options, psilab::Settings& settings,
+                       int& status) {
     std::ifstream file(path, std::ios::binary);
     if (!file) {
         std::fprintf(stderr, "error: cannot open %s\n", path.c_str());
         status = 2;
         return "";
     }
-    const std::string text((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
+    const auto slash = path.find_last_of('/');
+    const std::string folder = slash == std::string::npos ? std::string(".") : path.substr(0, slash);
+    const bool structure = is_structure_file(path);
+    std::string text;
+    if (structure) {
+        text = "molecule = custom\ngeometry = " + (slash == std::string::npos ? path : path.substr(slash + 1)) + "\n";
+    } else {
+        text.assign((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
+        if (!text.empty() && text.back() != '\n') text += '\n';
+    }
+    const int fileLines = static_cast<int>(std::count(text.begin(), text.end(), '\n'));
+    for (const auto& o : options) text += o + "\n";
     try {
-        const auto slash = path.find_last_of('/');
-        settings = psilab::parse_input_text(text, slash == std::string::npos ? std::string(".") : path.substr(0, slash));
+        settings = psilab::parse_input_text(text, folder);
     } catch (const std::exception& e) {
-        std::fprintf(stderr, "error in %s: %s\n", path.c_str(), e.what());
+        std::string message = e.what();
+        int line = 0;
+        if (std::sscanf(message.c_str(), "line %d:", &line) == 1) {
+            const auto colon = message.find(':');
+            const std::string rest = message.substr(colon + 2);
+            if (line > fileLines && line - fileLines <= static_cast<int>(options.size())) {
+                message = "command-line option '" + options[static_cast<std::size_t>(line - fileLines - 1)] + "': " + rest;
+                if (rest.find("is given twice") != std::string::npos)
+                    message += structure ? " (molecule = custom and geometry come from the structure file)"
+                                         : " (it is set in the input file, or in another option: an option adds a setting,"
+                                           " it does not replace one)";
+            }
+            else if (structure)
+                message = rest + " (molecule = custom and geometry come from the structure file; do not give them as options)";
+        }
+        std::fprintf(stderr, "error in %s: %s\n", path.c_str(), message.c_str());
         status = 2;
         return "";
     }
@@ -144,57 +216,64 @@ std::string default_output_name(const std::string& input) {
     return input + ".out";
 }
 
-}  // namespace
+// The arguments: input files (.inp) and structure files (.xyz, .gjf, .com, .gau), settings as
+// key=value (also --key=value), -o, and at most one output file (with a single input).
+struct Arguments {
+    std::vector<std::string> inputs;
+    std::vector<std::string> options;
+    std::string output;
+    bool defaultOutput = false;
+};
 
-int main(int argc, char** argv) {
-    if (argc < 2 || !std::strcmp(argv[1], "-h") || !std::strcmp(argv[1], "--help")) {
-        usage(argv[0]);
-        return argc < 2 ? 2 : 0;
-    }
-    if (!std::strcmp(argv[1], "--version")) {
-        std::printf("\xCE\xA8Lab %s\n", psilab::kVersion);
-        return 0;
-    }
-    if (!std::strcmp(argv[1], "--example")) {
-        std::cout << psilab::example_input();
-        return 0;
-    }
-    if (!std::strcmp(argv[1], "--estimate")) {
-        if (argc != 3) {
-            std::fprintf(stderr, "usage: %s --estimate INPUT\n", argv[0]);
-            return 2;
+bool parse_arguments(int first, int argc, char** argv, Arguments& a, const char* prog) {
+    std::vector<std::string> positional;
+    for (int i = first; i < argc; ++i) {
+        std::string arg = argv[i];
+        if (arg == "-o") {
+            a.defaultOutput = true;
+        } else if (arg.find('=') != std::string::npos && !is_input_file(arg)) {
+            if (arg.rfind("--", 0) == 0) arg = arg.substr(2);
+            a.options.push_back(arg);
+        } else if (arg.size() > 1 && arg[0] == '-') {
+            std::fprintf(stderr, "error: unknown option %s (settings are given as key=value; see %s --help)\n", arg.c_str(), prog);
+            return false;
+        } else {
+            positional.push_back(arg);
         }
-        psilab::Settings settings;
-        int status = 0;
-        read_input(argv[2], settings, status);
-        if (status) return status;
-        const std::string t = psilab::estimate_text(settings);
-        if (t.empty()) {
-            std::printf("HeH+ (STO-nG): a two-function calculation, it takes milliseconds.\n");
-            return 0;
+    }
+    for (std::size_t i = 0; i < positional.size(); ++i) {
+        // the first argument is always an input; later ones are inputs if they look like one
+        if (i == 0 || is_input_file(positional[i])) {
+            a.inputs.push_back(positional[i]);
+        } else if (a.output.empty()) {
+            a.output = positional[i];
+        } else {
+            std::fprintf(stderr, "error: too many arguments (see %s --help)\n", prog);
+            return false;
         }
-        std::fputs(t.c_str(), stdout);
-        return t.rfind("Error: ", 0) == 0 ? 1 : 0;
     }
-    if (argc > 3) {
-        std::fprintf(stderr, "error: too many arguments (see %s --help)\n", argv[0]);
-        return 2;
+    if (a.inputs.empty()) {
+        std::fprintf(stderr, "error: no input file or structure file (see %s --help)\n", prog);
+        return false;
     }
+    if (!a.output.empty() && (a.inputs.size() > 1 || a.defaultOutput)) {
+        std::fprintf(stderr, "error: an output file name goes with a single input and without -o (see %s --help)\n", prog);
+        return false;
+    }
+    return true;
+}
 
-    const std::string inputPath = argv[1];
+// Runs one input; the output goes to `outputPath`, or to the standard output if it is empty.
+int run_one(const std::string& inputPath, const std::vector<std::string>& options, const std::string& outputPath) {
     psilab::Settings settings;
     int status = 0;
-    read_input(inputPath, settings, status);
+    read_input(inputPath, options, settings, status);
     if (status) return status;
     for (const auto& w : psilab::estimate_warnings(settings)) std::fprintf(stderr, "warning: %s\n", w.c_str());
 
     // The output file is opened at the first piece of output and flushed after every piece, so
-    // `tail -f` follows the job (H2, LiH, H2O); HeH+ writes it at the end.
-    // 15.0: without an output file the output goes to the standard output (psilab INPUT > OUTPUT);
-    // "-o": the default name INPUT.out
-    const bool to_stdout = argc == 2;
-    const std::string outputPath =
-        argc == 3 ? (std::strcmp(argv[2], "-o") == 0 ? default_output_name(inputPath) : std::string(argv[2])) : "";
+    // `tail -f` follows the job; HeH+ (Szabo–Ostlund) writes it at the end.
+    const bool to_stdout = outputPath.empty();
     std::ofstream out;
     bool write_failed = false;
     auto sink = [&](const std::string& text) {
@@ -282,4 +361,61 @@ int main(int argc, char** argv) {
         return 1;
     }
     return 0;
+}
+
+}  // namespace
+
+int main(int argc, char** argv) {
+    if (argc < 2 || !std::strcmp(argv[1], "-h") || !std::strcmp(argv[1], "--help")) {
+        usage(argv[0]);
+        return argc < 2 ? 2 : 0;
+    }
+    if (!std::strcmp(argv[1], "--version")) {
+        std::printf("\xCE\xA8Lab %s\n", psilab::kVersion);
+        return 0;
+    }
+    if (!std::strcmp(argv[1], "--example")) {
+        std::cout << psilab::example_input();
+        return 0;
+    }
+    const bool estimate = !std::strcmp(argv[1], "--estimate");
+    Arguments args;
+    if (!parse_arguments(estimate ? 2 : 1, argc, argv, args, argv[0])) return 2;
+
+    if (estimate) {
+        int worst = 0;
+        for (const auto& input : args.inputs) {
+            if (args.inputs.size() > 1) std::printf("== %s\n", input.c_str());
+            psilab::Settings settings;
+            int status = 0;
+            read_input(input, args.options, settings, status);
+            if (status) {
+                worst = std::max(worst, status);
+                continue;
+            }
+            const std::string t = psilab::estimate_text(settings);
+            if (t.empty()) {
+                std::printf("HeH+ (STO-nG): a two-function calculation, it takes milliseconds.\n");
+                continue;
+            }
+            std::fputs(t.c_str(), stdout);
+            if (t.rfind("Error: ", 0) == 0) worst = std::max(worst, 1);
+        }
+        return worst;
+    }
+
+    // One input: the standard output (15.0), OUTPUT or with -o INPUT.out. 19.0: several inputs
+    // (e.g. psilab *.xyz method=MP2) run one after the other, each into its own INPUT.out.
+    if (args.inputs.size() == 1) {
+        const std::string& input = args.inputs.front();
+        return run_one(input, args.options, args.defaultOutput ? default_output_name(input) : args.output);
+    }
+    int worst = 0;
+    for (std::size_t i = 0; i < args.inputs.size(); ++i) {
+        const std::string& input = args.inputs[i];
+        std::printf("== %s (%zu of %zu)\n", input.c_str(), i + 1, args.inputs.size());
+        std::fflush(stdout);
+        worst = std::max(worst, run_one(input, args.options, default_output_name(input)));
+    }
+    return worst;
 }

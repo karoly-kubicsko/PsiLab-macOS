@@ -58,6 +58,26 @@ int main() {
     CHECK(rejects("R = -1\n", "R must be"));
     CHECK(rejects("zeta_H = 0\n", "zeta2"));
 
+    // 19.0: ORCA's geometry blocks: '* xyz charge multiplicity' with the atoms, up to '*'
+    {
+        const psilab::Settings w = psilab::parse_input_text(
+            "method = MP2\n* xyz 1 2   # H2O+\nO 0 0 0.1173\n\nH 0 0.7572 -0.4692  # comment\nH 0 -0.7572 -0.4692\n*\n");
+        CHECK(w.input.molecule == "custom");
+        CHECK(w.input.atoms.size() == 3 && w.input.atoms[0].Z == 8 && w.input.atoms[2].Z == 1);
+        CHECK(std::fabs(w.input.atoms[1].position[1] - 0.7572 / psilab::kBohrToAngstrom) < 1e-12);
+        CHECK(w.input.charge == 1 && w.input.multiplicity == 2 && w.input.geometryFile.empty());
+        CHECK(w.input.method == "MP2");
+    }
+    CHECK(rejects("* xyz 0\nH 0 0 0\n*\n", "charge and the multiplicity"));
+    CHECK(rejects("* xyz 0 1\nH 0 0 0\nH 0 0 0.74\n", "no closing line '*'"));
+    CHECK(rejects("* xyz 0 1\n*\n", "no atoms"));
+    CHECK(rejects("charge = 1\n* xyz 0 1\nH 0 0 0\nH 0 0 0.74\n*\n", "given before (line 1)"));
+    CHECK(rejects("* xyz 0 1\nH 0 0 0\nH 0 0 0.74\n*\nmultiplicity = 3\n", "already set by the geometry block"));
+    CHECK(rejects("molecule = H2\n* xyz 0 1\nH 0 0 0\nH 0 0 0.74\n*\n", "molecule = custom"));
+    CHECK(rejects("* int 0 1\n*\n", "'* xyz <charge> <multiplicity>'"));
+    CHECK(rejects("* xyz 0 1\nH 0 0 0\nX 0 0 0.74\n*\n", "line 3: geometry block: dummy atoms"));
+    CHECK(rejects("* xyzfile 0 1\n", "needs the structure file"));
+
     // Scan grid: 0.8 ... 5.0 inclusive.
     const auto grid = psilab::scan_grid(0.1);
     CHECK(grid.size() == 43 && std::fabs(grid.front() - 0.8) < 1e-12 && std::fabs(grid.back() - 5.0) < 1e-9);
@@ -121,14 +141,14 @@ int main() {
                                                      });
     CHECK(h2.error.empty());
     CHECK(streamed == h2.text && pieces > 10);
-    CHECK(contains(h2.text, "\xCE\xA8Lab 18.0"));
+    CHECK(contains(h2.text, "\xCE\xA8Lab 19.0"));
     CHECK(contains(h2.text, "Job          Energy (energy)"));
     CHECK(contains(h2.text, "    | molecule = H2"));  // the input file as given
     CHECK(contains(h2.text, "Hartree–Fock (RHF) total energy:  -1.1287937367 E_h"));
     CHECK(contains(h2.text, "total energy (RHF)               -1.1287937367"));
     CHECK(contains(h2.text, "18 basis functions"));
     CHECK(contains(h2.text, "H   aug-cc-pVDZ   (5s2p)           -> [3s2p]"));
-    CHECK(contains(h2.text, "Normal termination of \xCE\xA8Lab 18.0"));
+    CHECK(contains(h2.text, "Normal termination of \xCE\xA8Lab 19.0"));
     CHECK(contains(psilab::estimate_text(psilab::parse_input_text("molecule = H2O\nbasis = aug-cc-pCVDZ\n")),
                    "aug-cc-pCVDZ is not defined for H"));
     // Full CI: H2 runs, H2O is refused with an explanation (in the output file and the error).
