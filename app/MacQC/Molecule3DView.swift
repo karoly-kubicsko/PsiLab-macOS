@@ -594,7 +594,6 @@ final class Molecule3DController {
         }
         SCNTransaction.commit()
         updateDepthCue(force: true)
-        Molecule3DController.debug("apply Z=\(c.Z) structureChanged=\(structureChanged) positionsChanged=\(positionsChanged) glide=\(glide) bounds=\(view?.bounds ?? .zero) window=\(view?.window != nil) camera=\(cameraNode.simdWorldPosition) atoms=\(atomNodes.map { $0.simdWorldPosition })")
     }
 
     /// The starting view changes only with another molecule or another first geometry (the start of
@@ -615,9 +614,9 @@ final class Molecule3DController {
             let node = SCNNode(geometry: sphere(Z, radius: rep.atomRadius(Z)))
             node.name = "atom:\(i)"
             if c.style.labels != .hidden {
-                let text = c.style.labels == .numbered ? "\(c.symbols[i])\(i + 1)" : c.symbols[i]
-                node.addChildNode(label(text, height: 0.55, lift: 0, toward: Float(rep.atomRadius(Z)) + 0.05,
-                                        dark: c.style.darkBackground, plate: false))
+                // 19.0: a badge (symbol, the number as a subscript) in front of the atom
+                node.addChildNode(atomLabel(symbol: c.symbols[i], number: c.style.labels == .numbered ? i + 1 : nil,
+                                            Z: Z, toward: Float(rep.atomRadius(Z)) + 0.05, dark: c.style.darkBackground))
             }
             moleculeRoot.addChildNode(node)
             atomNodes.append(node)
@@ -828,6 +827,13 @@ final class Molecule3DController {
         let aspect = bounds.width > 20 && bounds.height > 20 ? Float(bounds.width / bounds.height) : 1.5
         let t = Float(tan(15.0 * Double.pi / 180))
         let distance = 1.1 * max(halfHeight / t, halfWidth / (t * min(max(aspect, 0.3), 4))) + front + largestAtom
+        // 19.0: the viewer's own camera is the point of view again (SceneKit's camera control
+        // can leave another one, or an inertial turn that would move it after the reset)
+        view.defaultCameraController.stopInertia()
+        if view.pointOfView !== cameraNode {
+            view.pointOfView = cameraNode
+        }
+        view.defaultCameraController.pointOfView = cameraNode
         cameraNode.simdPosition = center + distance * toward
         cameraNode.simdLook(at: center, up: up, localFront: SIMD3<Float>(0, 0, -1))
         view.defaultCameraController.target = scnVector(center)
@@ -835,22 +841,8 @@ final class Molecule3DController {
         view.cameraTouched = false
         depthCueDistance = -1
         updateDepthCue(force: true)
-        Molecule3DController.debug("resetView Z=\(c.Z) framing=\(geometries.count) positions=\(c.positions) reference=\(c.reference.map { "\($0)" } ?? "nil") axisH=\(frame.axisH) axisV=\(frame.axisV) axisD=\(frame.axisD) flip=\(frame.flipVertical) center=\(center) distance=\(distance) camera=\(cameraNode.simdWorldPosition) orientation=\(cameraNode.simdWorldOrientation) bounds=\(bounds) fog=\(scene?.fogStartDistance ?? -1)…\(scene?.fogEndDistance ?? -1) atoms=\(atomNodes.map { $0.simdWorldPosition }) bonds=\(bondNodes.count) annotations=\(annotationRoot.childNodes.count) ghost=\(ghostRoot.childNodes.count) playing=\(view.isPlaying)")
     }
 
-    /// DIAGNOSTIC (-psilabDebug3D YES): appends a line to /tmp/psilab-3d.log.
-    static func debug(_ text: String) {
-        guard UserDefaults.standard.bool(forKey: "psilabDebug3D") else { return }
-        let line = "\(Date()) \(text)\n"
-        let url = URL(fileURLWithPath: "/tmp/psilab-3d.log")
-        if let h = try? FileHandle(forWritingTo: url) {
-            h.seekToEndOfFile()
-            h.write(line.data(using: .utf8)!)
-            try? h.close()
-        } else {
-            try? line.data(using: .utf8)!.write(to: url)
-        }
-    }
 
     /// A new size of the view (its first layout, a resized window): fit the molecule again unless
     /// the camera was moved since the last reset.
@@ -883,7 +875,10 @@ final class Molecule3DController {
             }
             return
         }
-        let distance = simd_length(cameraNode.simdWorldPosition - center)
+        // 19.0: the distance of the camera that renders (the point of view), so that the fog never
+        // hides the molecule from a camera that is not the viewer's own
+        let eye = view?.pointOfView ?? cameraNode
+        let distance = simd_length(eye.simdWorldPosition - center)
         guard force || abs(distance - depthCueDistance) > 0.01 * max(radius, 1) else { return }
         depthCueDistance = distance
         scene.fogDensityExponent = 1
@@ -1024,6 +1019,79 @@ final class Molecule3DController {
         node.renderingOrder = plate ? 2000 : 1000
         holder.addChildNode(node)
         return holder
+    }
+
+    /// 19.0: the label of an atom: a rounded badge with the element symbol and (numbered labels)
+    /// the atom number as a subscript, a rim in the atom's CPK colour, `toward` bohr in front of
+    /// the atom's centre and drawn over the other atoms, so that a label is never cut by a
+    /// neighbouring atom; rendered at three times the text size, sharp when zoomed in.
+    private func atomLabel(symbol: String, number: Int?, Z: Int, toward: Float, dark: Bool) -> SCNNode {
+        let holder = SCNNode()
+        let billboard = SCNBillboardConstraint()
+        billboard.freeAxes = .all
+        holder.constraints = [billboard]
+        guard let image = atomLabelImage(symbol: symbol, number: number, Z: Z, dark: dark) else { return holder }
+        let height: Float = 0.40
+        let width = height * Float(image.width) / Float(max(image.height, 1))
+        let plane = SCNPlane(width: CGFloat(width), height: CGFloat(height))
+        let m = SCNMaterial()
+        m.lightingModel = .constant
+        m.diffuse.contents = image
+        m.isDoubleSided = true
+        m.writesToDepthBuffer = false
+        m.readsFromDepthBuffer = false
+        plane.materials = [m]
+        let node = SCNNode(geometry: plane)
+        node.simdPosition = SIMD3<Float>(0, 0, toward)
+        node.renderingOrder = 1500
+        holder.addChildNode(node)
+        return holder
+    }
+
+    private func atomLabelImage(symbol: String, number: Int?, Z: Int, dark: Bool) -> CGImage? {
+        let key = "atom|\(symbol)|\(number.map(String.init) ?? "")|\(Z)|\(dark)"
+        if let image = labelImages[key] { return image }
+        let scale: CGFloat = 3
+        let text = NSMutableAttributedString(string: symbol, attributes: [
+            .font: NSFont.systemFont(ofSize: 22 * scale, weight: .semibold),
+            .foregroundColor: dark ? NSColor(white: 0.96, alpha: 1) : NSColor(white: 0.08, alpha: 1),
+            .kern: 0.4 * scale,
+        ])
+        if let number {
+            text.append(NSAttributedString(string: "\(number)", attributes: [
+                .font: NSFont.monospacedDigitSystemFont(ofSize: 14 * scale, weight: .medium),
+                .foregroundColor: dark ? NSColor(white: 0.78, alpha: 1) : NSColor(white: 0.30, alpha: 1),
+                .baselineOffset: -3 * scale,
+            ]))
+        }
+        let size = text.size()
+        let padX: CGFloat = 8 * scale, padY: CGFloat = 3 * scale, rim: CGFloat = 1.6 * scale
+        // room below the baseline for the lowered number (size() may not include it)
+        let sub: CGFloat = number == nil ? 0 : 3 * scale
+        let height = (size.height + 2 * padY + sub).rounded(.up)
+        let width = max((size.width + 2 * padX).rounded(.up), height)
+        guard let space = CGColorSpace(name: CGColorSpace.sRGB),
+              let context = CGContext(data: nil, width: Int(width), height: Int(height), bitsPerComponent: 8, bytesPerRow: 0,
+                                      space: space, bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue) else { return nil }
+        let graphics = NSGraphicsContext(cgContext: context, flipped: false)
+        NSGraphicsContext.saveGraphicsState()
+        NSGraphicsContext.current = graphics
+        let rect = NSRect(x: 0, y: 0, width: width, height: height).insetBy(dx: rim / 2, dy: rim / 2)
+        let capsule = NSBezierPath(roundedRect: rect, xRadius: rect.height / 2, yRadius: rect.height / 2)
+        (dark ? NSColor(white: 0.10, alpha: 0.82) : NSColor(white: 1.0, alpha: 0.90)).setFill()
+        capsule.fill()
+        // the rim in the atom's colour (light atoms such as H with a neutral grey rim)
+        let (r, g, b) = Elements.cpk(Z)
+        let light = 0.299 * r + 0.587 * g + 0.114 * b > 0.85
+        (light ? NSColor(white: dark ? 0.55 : 0.62, alpha: 1) : NSColor(srgbRed: CGFloat(r), green: CGFloat(g), blue: CGFloat(b), alpha: 1)).setStroke()
+        capsule.lineWidth = rim
+        capsule.stroke()
+        text.draw(at: NSPoint(x: (width - size.width) / 2, y: (height - size.height + sub) / 2))
+        NSGraphicsContext.restoreGraphicsState()
+        let image = context.makeImage()
+        if labelImages.count > 400 { labelImages.removeAll() }
+        labelImages[key] = image
+        return image
     }
 
     /// The text of a label as an image (26-point text, sharp when zoomed in); cached.

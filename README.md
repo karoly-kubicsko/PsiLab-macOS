@@ -1,6 +1,6 @@
 # ΨLab — a native macOS quantum-chemistry app
 
-**Current version: 18.0** — see [Versions](#versions).
+**Current version: 19.0** — see [Versions](#versions).
 
 ΨLab computes small molecules — closed and (15.0) open shells, with RHF, UHF and ROHF references —
 with Hartree–Fock, Møller–Plesset perturbation theory (MP2–MP5), configuration interaction (CISD …
@@ -208,6 +208,39 @@ same calculations run in the terminal on Linux and macOS
   `xcode/project.yml`).
 
 ## Versions
+
+### 19.0
+**The 3D viewers after a new result; H₃⁺ drawn as a triangle; atom labels as badges; the units of
+the frequency table explained.**
+
+**3D viewers.** The viewer of the Optimisation tab could stay empty (only the background) after a
+new job, e.g. H₃⁺ OPT + FREQ + SP after the start-up example. SceneKit's camera control can render
+through a camera other than the viewer's own after the molecule was turned or zoomed, while the
+depth cueing (fog) and Reset view used the viewer's own camera: the fog, placed for that camera,
+could hide the whole molecule. Now every fit of a new molecule (and Reset view) makes the viewer's
+camera the point of view again and stops a turn still in motion, and the fog follows the distance
+of the camera that renders.
+
+**H₃⁺.** All three H–H bonds are drawn (hydrogen pairs are bonded up to 1.45 times the sum of their
+covalent radii, 0.90 Å; before 1.25 times, 0.775 Å, which left out H2–H3 at 0.87 Å), and the
+starting view puts H1 at the apex and H2–H3 horizontal, as in the sidebar: for a planar symmetric
+top the two axes in the plane are degenerate, and the view before took an arbitrary pair (the
+triangle turned by 30°).
+
+**Atom labels** (display menu ▸ Element symbols / Symbols and atom numbers) are rounded badges in
+front of their atoms: the symbol in semibold, the atom number as a subscript (H₁, H₂, …), a rim in
+the atom's CPK colour (grey for H), drawn over the other atoms, so that a label is no longer cut by
+a neighbouring atom, and rendered at three times the text size (sharp when zoomed in). Before: large
+text with a heavy outline that the neighbouring atoms could hide.
+
+**Units of the frequency table** (unchanged, now explained below the table): force constants
+k = 4π²c²ν̃²μ in mdyn/Å (1 mdyn/Å = 100 N/m = 0.06423 E_h/bohr²), IR intensities in km/mol, the
+integrated absorption coefficient of the fundamental in the double-harmonic approximation,
+A = N_A/(12ε₀c²)·|∂μ/∂Q|² (974.88 km/mol per e²/u), both as in Gaussian. Each component of a
+degenerate mode carries its own intensity: H₃⁺ Full CI/aug-cc-pVTZ, ν₂ (E′) 2760.13 cm⁻¹,
+177.9 km/mol per component, 355.9 km/mol for the band; ν₁ (A₁′) is IR-inactive (0 km/mol).
+
+**About ΨLab** shows Version 19.0 (19).
 
 ### 18.0
 **The complete starting geometry of the molecules of the menu; no banner on the start-up example.**

@@ -235,28 +235,6 @@ pgrep -x "ΨLab" >/dev/null && echo "ΨLab process is running" || echo "ΨLab pr
 
 shot "00-launch"
 
-# DIAGNOSTIC (19.0): H3+ Full CI opt+freq+sp, the Optimisation tab's 3D viewer
-echo "== DIAG: H3+ Full CI/aug-cc-pVDZ opt+freq+sp"
-rm -f /tmp/psilab-3d.log
-pkill -x "ΨLab" || true
-sleep 3
-open -n "$APP" --args -appearanceChoice dark -psilabDebug3D YES -psilabMolecule H3+ -psilabBasis aug-cc-pVDZ -psilabMethod FCI -psilabJob opt+freq+sp -psilabAutoRun YES
-sleep 60
-view_tab "diag-h3-optimisation" "Optimisation"
-sleep 3
-print_shot "diag-h3-optimisation"
-view_tab "diag-h3-frequencies" "Frequencies"
-print_shot "diag-h3-frequencies"
-view_tab "diag-h3-summary" "Summary"
-print_shot "diag-h3-summary"
-view_tab "diag-h3-optimisation-again" "Optimisation"
-sleep 3
-print_shot "diag-h3-optimisation-again"
-echo "::group::3D viewer log"
-cat /tmp/psilab-3d.log || echo "no 3D log"
-echo "::endgroup::"
-pkill -x "ΨLab" || true
-exit 0
 layout "launch-heh"
 echo "::group::accessibility tree"
 with_timeout 40 osascript "$OUT/tab.applescript" "__TREE__" | tee "$OUT/tree.txt"
@@ -826,6 +804,20 @@ for spec in "H3+|R\(H1–H2\), R\(H1–H3\) \(Å\)|Angle H2–H1–H3 \(°\)|R\(
         grep -E "^$row" "$OUT/c1-geometry-$mol.txt" > /dev/null && echo "$mol: found $row" || echo "$mol: geometry row $row not found"
     done
 done
+
+# --- ΨLab 19.0: H3+ in the 3D viewers (three bonds, H1 at the apex), atom labels as badges ---
+echo "== 19.0: H3+ Full CI/aug-cc-pVDZ opt+freq+sp, numbered atom labels"
+relaunch -appearanceChoice dark -viewer3D.labels numbered -psilabMolecule H3+ -psilabBasis aug-cc-pVDZ -psilabMethod FCI -psilabJob opt+freq+sp -psilabAutoRun YES
+sleep 40
+view_tab "d1-h3-optimisation" "Optimisation"
+print_shot "d1-h3-optimisation"
+view_tab "d2-h3-frequencies" "Frequencies"
+print_shot "d2-h3-frequencies"
+grep -E "mdyn/Å \(1 mdyn/Å = 100 N/m|974.88 km/mol" "$OUT/d2-h3-frequencies.txt" || echo "unit note not found"
+relaunch -appearanceChoice light -viewer3D.labels numbered -psilabMolecule H2O -psilabBasis aug-cc-pVDZ -psilabMethod RHF -psilabJob opt -psilabR 1.0 -psilabAngle 110 -psilabAutoRun YES
+sleep 10
+view_tab "d3-h2o-optimisation-labels-light" "Optimisation"
+print_shot "d3-h2o-optimisation-labels-light"
 
 pkill -x "ΨLab" || true
 

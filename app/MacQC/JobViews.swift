@@ -900,6 +900,7 @@ struct FrequencyPage: View {
     }
 
     private var modesTable: some View {
+        VStack(alignment: .leading, spacing: 8) {
         Grid(alignment: .trailing, horizontalSpacing: 22, verticalSpacing: 4) {
             GridRow {
                 Text("Mode").gridColumnAlignment(.leading)
@@ -933,6 +934,12 @@ struct FrequencyPage: View {
         }
         .monospacedDigit()
         .textSelection(.enabled)
+            // 19.0: the units, as in Gaussian's frequency output
+            Text("Units as in Gaussian. Force constant k = 4π²c²ν̃²μ in mdyn/Å (1 mdyn/Å = 100 N/m = 0.06423 E_h/bohr²). IR intensity: the integrated absorption coefficient of the fundamental in the double-harmonic approximation, A = (N_A/(12ε₀c²))·|∂μ/∂Q|², in km/mol (974.88 km/mol per e²/u); each component of a degenerate mode is listed with its own intensity, so the band of an E mode has twice, that of a T mode three times the value of one component.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
         .dataPanel()
     }
 

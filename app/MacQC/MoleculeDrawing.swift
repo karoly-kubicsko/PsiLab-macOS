@@ -64,7 +64,7 @@ func moleculeBonds(_ atoms: [MacQCAtom]) -> [(Int, Int)] {
 }
 
 /// Bonds of a custom molecule: atoms closer than 1.25 times the sum of their covalent radii (the
-/// backend uses 1.3 for its internal coordinates); every atom keeps at least a bond to its
+/// backend uses 1.3 for its internal coordinates; 19.0: H–H 1.45 times); every atom keeps at least a bond to its
 /// nearest neighbour, so that no atom floats alone in the drawing of a stretched geometry.
 func distanceBonds(_ atoms: [MacQCAtom]) -> [(Int, Int)] {
     let p = atomCoordinates(atoms)
@@ -72,7 +72,9 @@ func distanceBonds(_ atoms: [MacQCAtom]) -> [(Int, Int)] {
     var bonded = Array(repeating: false, count: atoms.count)
     for i in 0..<atoms.count {
         for j in (i + 1)..<atoms.count {
-            let limit = 1.25 * (Elements.covalentRadiusBohr(atoms[i].Z) + Elements.covalentRadiusBohr(atoms[j].Z))
+            // 19.0: H–H pairs up to 1.45 times (0.90 Å): the three-centre bonds of H₃⁺ (0.87 Å)
+            let factor = atoms[i].Z == 1 && atoms[j].Z == 1 ? 1.45 : 1.25
+            let limit = factor * (Elements.covalentRadiusBohr(atoms[i].Z) + Elements.covalentRadiusBohr(atoms[j].Z))
             if vectorDistance(p[i], p[j]) < limit {
                 bonds.append((i, j))
                 bonded[i] = true
@@ -260,7 +262,21 @@ struct MoleculeFrame {
         let thickness = all.map { p in vectorDot((0..<3).map { k in p[k] - c[k] }, e[2]) }
         let planar = (thickness.max() ?? 0) - (thickness.min() ?? 0) < 0.05
         axisH = e[0]
-        if planar {
+        if planar, let heavy = heavyAtom, let first = geometries.first, heavy < first.count,
+           values[order[0]] - values[order[1]] <= 1e-3 * max(values[order[0]], 1e-12) {
+            // 19.0: a planar symmetric top (H₃⁺): the two axes in the plane are degenerate, so any
+            // pair would do; the heaviest (first) atom straight above the centre, as in the sidebar
+            // (H1 at the apex, H2–H3 the horizontal base)
+            let d = (0..<3).map { first[heavy][$0] - c[$0] }
+            let inPlane = (0..<3).map { d[$0] - vectorDot(d, e[2]) * e[2][$0] }
+            let n = vectorNorm(inPlane)
+            if n > 1e-3 {
+                axisV = inPlane.map { $0 / n }
+                axisH = vectorCross(axisV, e[2])
+            } else {
+                axisV = e[1]
+            }
+        } else if planar {
             axisV = e[1]
         } else if values[order[1]] > 0.8 * values[order[0]] {
             let b = 25.0 * Double.pi / 180
