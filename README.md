@@ -211,7 +211,8 @@ same calculations run in the terminal on Linux and macOS
 
 ### 19.0
 **The 3D viewers after a new result; H₃⁺ drawn as a triangle; atom labels as badges; the units of
-the frequency table explained.**
+the frequency table explained; in the terminal, structure files run directly and ORCA-style
+geometry blocks (`* xyz`, `* xyzfile`) in input files.**
 
 **3D viewers.** The viewer of the Optimisation tab could stay empty (only the background) after a
 new job, e.g. H₃⁺ OPT + FREQ + SP after the start-up example. SceneKit's camera control can render
