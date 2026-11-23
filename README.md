@@ -242,8 +242,8 @@ degenerate mode carries its own intensity: H₃⁺ Full CI/aug-cc-pVTZ, ν₂ (E
 
 **Terminal version.** `psilab --version` prints the program version (19.0); since 15.0 it had
 printed 15.0. The build needs only a C++17 compiler and CMake 3.16: checked with GCC 9 and CMake
-3.16 (Ubuntu 20.04, Linux Mint 20), GCC 13 and CMake 3.28 (Ubuntu 24.04) and Apple clang 21 with
-CMake 4.5 (macOS 26 on Intel).
+3.16 (Ubuntu 20.04, Linux Mint 20) and GCC 13 and CMake 3.28 (Ubuntu 24.04); on macOS the CI
+builds it with Xcode's clang.
 
 **About ΨLab** shows Version 19.0 (19).
 
