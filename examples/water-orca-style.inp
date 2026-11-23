@@ -1,0 +1,13 @@
+# ΨLab 19.0: the coordinates in the input file, as in ORCA ('* xyz charge multiplicity' ... '*')
+method = MP2
+basis  = aug-cc-pVDZ
+job    = opt+freq
+
+* xyz 0 1
+O   0.000000   0.000000   0.117300
+H   0.000000   0.757200  -0.469200
+H   0.000000  -0.757200  -0.469200
+*
+
+# or the atoms from a structure file (relative to this input file), instead of the block above:
+# * xyzfile 0 1 water.xyz

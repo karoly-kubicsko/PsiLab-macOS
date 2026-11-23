@@ -58,6 +58,26 @@ int main() {
     CHECK(rejects("R = -1\n", "R must be"));
     CHECK(rejects("zeta_H = 0\n", "zeta2"));
 
+    // 19.0: ORCA's geometry blocks: '* xyz charge multiplicity' with the atoms, up to '*'
+    {
+        const psilab::Settings w = psilab::parse_input_text(
+            "method = MP2\n* xyz 1 2   # H2O+\nO 0 0 0.1173\n\nH 0 0.7572 -0.4692  # comment\nH 0 -0.7572 -0.4692\n*\n");
+        CHECK(w.input.molecule == "custom");
+        CHECK(w.input.atoms.size() == 3 && w.input.atoms[0].Z == 8 && w.input.atoms[2].Z == 1);
+        CHECK(std::fabs(w.input.atoms[1].position[1] - 0.7572 / psilab::kBohrToAngstrom) < 1e-12);
+        CHECK(w.input.charge == 1 && w.input.multiplicity == 2 && w.input.geometryFile.empty());
+        CHECK(w.input.method == "MP2");
+    }
+    CHECK(rejects("* xyz 0\nH 0 0 0\n*\n", "charge and the multiplicity"));
+    CHECK(rejects("* xyz 0 1\nH 0 0 0\nH 0 0 0.74\n", "no closing line '*'"));
+    CHECK(rejects("* xyz 0 1\n*\n", "no atoms"));
+    CHECK(rejects("charge = 1\n* xyz 0 1\nH 0 0 0\nH 0 0 0.74\n*\n", "given before (line 1)"));
+    CHECK(rejects("* xyz 0 1\nH 0 0 0\nH 0 0 0.74\n*\nmultiplicity = 3\n", "already set by the geometry block"));
+    CHECK(rejects("molecule = H2\n* xyz 0 1\nH 0 0 0\nH 0 0 0.74\n*\n", "molecule = custom"));
+    CHECK(rejects("* int 0 1\n*\n", "'* xyz <charge> <multiplicity>'"));
+    CHECK(rejects("* xyz 0 1\nH 0 0 0\nX 0 0 0.74\n*\n", "line 3: geometry block: dummy atoms"));
+    CHECK(rejects("* xyzfile 0 1\n", "needs the structure file"));
+
     // Scan grid: 0.8 ... 5.0 inclusive.
     const auto grid = psilab::scan_grid(0.1);
     CHECK(grid.size() == 43 && std::fabs(grid.front() - 0.8) < 1e-12 && std::fabs(grid.back() - 5.0) < 1e-9);

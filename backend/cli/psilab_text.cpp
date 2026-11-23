@@ -211,6 +211,9 @@ Settings parse_input_text(const std::string& text, const std::string& base_direc
         return "";
     };
     std::map<std::string, Entry> entries;
+    std::string inlineXYZ;  // 19.0: the atoms of a '* xyz' block, as an XYZ file
+    std::vector<int> inlineAtomLines;  // the input-file line of each of its atoms
+    int inlineLine = 0;     // the line of the geometry block (0: none)
     std::istringstream in(text);
     std::string raw;
     int line = 0;
@@ -220,6 +223,59 @@ Settings parse_input_text(const std::string& text, const std::string& base_direc
         const auto hash = raw.find('#');
         const std::string content = trim(hash == std::string::npos ? raw : raw.substr(0, hash));
         if (content.empty()) continue;
+        // 19.0: ORCA's geometry blocks
+        //   * xyz <charge> <multiplicity>        the atoms on the following lines (element x y z, Å), up to a line '*'
+        //   * xyzfile <charge> <multiplicity> <file.xyz>   the atoms from a structure file (as geometry = file)
+        // both mean molecule = custom with this charge and multiplicity
+        if (content[0] == '*') {
+            const int blockLine = line;  // the line of '* xyz' / '* xyzfile'
+            std::istringstream words(content.substr(1));
+            std::string kind, file, extra;
+            long charge = 0, mult = 0;
+            words >> kind;
+            for (auto& c : kind) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+            if (kind != "xyz" && kind != "xyzfile")
+                fail(line, "a geometry block starts with '* xyz <charge> <multiplicity>' or "
+                           "'* xyzfile <charge> <multiplicity> <file.xyz>', got '" + content + "'");
+            if (!(words >> charge >> mult)) fail(line, "'* " + kind + "' needs the charge and the multiplicity, e.g. '* " + kind + " 0 1'");
+            if (mult < 1) fail(line, "the multiplicity must be 1 or more, got " + std::to_string(mult));
+            if (kind == "xyzfile") {
+                std::getline(words >> std::ws, file);
+                file = trim(file);
+                if (file.empty()) fail(line, "'* xyzfile' needs the structure file, e.g. '* xyzfile 0 1 water.xyz'");
+            } else if (words >> extra) {
+                fail(line, "unexpected '" + extra + "' after '* xyz " + std::to_string(charge) + " " + std::to_string(mult) + "'");
+            }
+            for (const char* k : {"geometry", "charge", "multiplicity"})
+                if (entries.count(k)) fail(line, std::string("the geometry block sets '") + k + "', which is given before (line " +
+                                                     std::to_string(entries[k].line) + ")");
+            if (inlineLine) fail(line, "a second geometry block (the first is on line " + std::to_string(inlineLine) + ")");
+            if (kind == "xyz") {
+                std::vector<std::string> atoms;
+                bool closed = false;
+                while (std::getline(in, raw)) {
+                    ++line;
+                    const auto h = raw.find('#');
+                    const std::string a = trim(h == std::string::npos ? raw : raw.substr(0, h));
+                    if (a.empty()) continue;
+                    if (a == "*") {
+                        closed = true;
+                        break;
+                    }
+                    atoms.push_back(a);
+                    inlineAtomLines.push_back(line);
+                }
+                if (!closed) fail(blockLine, "the geometry block has no closing line '*'");
+                if (atoms.empty()) fail(blockLine, "the geometry block has no atoms");
+                inlineXYZ = std::to_string(atoms.size()) + "\n\n";
+                for (const auto& a : atoms) inlineXYZ += a + "\n";
+            }
+            inlineLine = blockLine;
+            entries["geometry"] = Entry{"geometry", kind == "xyz" ? std::string("(input file)") : file, blockLine};
+            entries["charge"] = Entry{"charge", std::to_string(charge), blockLine};
+            entries["multiplicity"] = Entry{"multiplicity", std::to_string(mult), blockLine};
+            continue;
+        }
         const auto eq = content.find_first_of("=:");
         if (eq == std::string::npos) fail(line, "expected 'key = value', got '" + content + "'");
         const std::string key = trim(content.substr(0, eq));
@@ -232,12 +288,18 @@ Settings parse_input_text(const std::string& text, const std::string& base_direc
                            "pressure, opt_convergence, max_steps, scan, scan_start, ts_hessian, opt_hessian, recalc_fc, opt_algorithm, eigen_test, "
                            "hessian, initial_hessian, zeta_He, zeta_H, exact_erf, scan_step, szabo_ostlund, threads, memory, "
                            "fci_memory, basis_dir, geometry, charge, multiplicity, reference, title)");
+        if (entries.count(k) && inlineLine && (k == "geometry" || k == "charge" || k == "multiplicity"))
+            fail(line, "'" + key + "' is already set by the geometry block on line " + std::to_string(inlineLine));
         if (entries.count(k)) fail(line, "'" + key + "' is given twice");
         entries[k] = Entry{key, value, line};
     }
 
     Settings s;
     std::string molecule = "HeH+";
+    if (inlineLine && !entries.count("molecule")) entries["molecule"] = Entry{"molecule", "custom", inlineLine};
+    if (inlineLine && macqc::canonical_molecule_name(entries["molecule"].value) != "custom")
+        fail(entries["molecule"].line, "a geometry block ('* xyz' or '* xyzfile') goes with molecule = custom, got molecule = " +
+                                           entries["molecule"].value);
     if (entries.count("molecule")) {
         const Entry& e = entries["molecule"];
         molecule = macqc::canonical_molecule_name(e.value);
@@ -261,23 +323,38 @@ Settings parse_input_text(const std::string& text, const std::string& base_direc
             fail(entries["molecule"].line, "molecule = custom needs 'geometry = <file.xyz or file.gjf>'");
         const Entry& e = entries["geometry"];
         std::string path = e.value;
-        if (path.size() >= 2 && (path.front() == '"' || path.front() == '\'') && path.back() == path.front())
-            path = path.substr(1, path.size() - 2);
-        if (!path.empty() && path[0] != '/' && !base_directory.empty()) path = base_directory + "/" + path;
-        std::ifstream f(path, std::ios::binary);
-        if (!f) fail(e.line, "cannot open the structure file " + path);
-        const std::string content((std::istreambuf_iterator<char>(f)), std::istreambuf_iterator<char>());
+        std::string content;
+        if (!inlineXYZ.empty()) {
+            // 19.0: the atoms of the '* xyz' block
+            path = "geometry block (line " + std::to_string(e.line) + ").xyz";
+            content = inlineXYZ;
+        } else {
+            if (path.size() >= 2 && (path.front() == '"' || path.front() == '\'') && path.back() == path.front())
+                path = path.substr(1, path.size() - 2);
+            if (!path.empty() && path[0] != '/' && !base_directory.empty()) path = base_directory + "/" + path;
+            std::ifstream f(path, std::ios::binary);
+            if (!f) fail(e.line, "cannot open the structure file " + path);
+            content.assign((std::istreambuf_iterator<char>(f)), std::istreambuf_iterator<char>());
+        }
         macqc::StructureFile sf;
         try {
             sf = macqc::parse_structure_file(content, path);
         } catch (const std::exception& ex) {
-            fail(e.line, path + ", " + ex.what());
+            // 19.0: an error in a '* xyz' block names the line of the input file (the XYZ text has two
+            // header lines before the atoms)
+            int n = 0;
+            const std::string what = ex.what();
+            if (!inlineXYZ.empty() && std::sscanf(what.c_str(), "line %d:", &n) == 1 && n >= 3 &&
+                n - 3 < static_cast<int>(inlineAtomLines.size()))
+                fail(inlineAtomLines[static_cast<std::size_t>(n - 3)], "geometry block: " + what.substr(what.find(':') + 2));
+            if (!inlineXYZ.empty()) fail(e.line, "geometry block: " + what);
+            fail(e.line, path + ", " + what);
         }
         s.input.atoms = sf.atoms;
         s.input.title = sf.title;
         s.input.charge = sf.charge;
         s.input.multiplicity = sf.multiplicity;
-        s.input.geometryFile = e.value;
+        s.input.geometryFile = inlineXYZ.empty() ? e.value : std::string();
         s.structureWarnings = sf.warnings;
     }
     // 7.0: HeH+ with a basis set of the library (14.0: also Pople and def2) is a general molecule (all methods and

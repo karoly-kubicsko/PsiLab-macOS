@@ -245,6 +245,14 @@ printed 15.0. The build needs only a C++17 compiler and CMake 3.16: checked with
 3.16 (Ubuntu 20.04, Linux Mint 20) and GCC 13 and CMake 3.28 (Ubuntu 24.04); on macOS the CI
 builds it with Xcode's clang.
 
+**Structures of your own in the terminal.** `psilab water.xyz` runs a structure file (.xyz,
+Gaussian .gjf/.com/.gau) without an input file, the settings as `key=value` on the command line;
+`psilab *.xyz …` runs several, each into its own `.out`. Input files take ORCA's geometry blocks:
+`* xyz <charge> <multiplicity>` with the atoms up to a line `*`, or
+`* xyzfile <charge> <multiplicity> <file.xyz>` (see
+[Terminal version](#terminal-version-linux-and-macos)). `psilab --help` now lists `geometry` and
+`title`, which it had left out.
+
 **About ΨLab** shows Version 19.0 (19).
 
 ### 18.0
@@ -738,6 +746,43 @@ psilab input.inp output.txt       # read input.inp, write the results to output.
 psilab input.inp -o               # output name input.out
 psilab --example > input.inp      # start from a commented example input
 ```
+
+**Structures of your own (19.0).** Any molecule can be given in three ways:
+
+1. **A structure file directly**, without an input file: `.xyz` (Å) or a Gaussian
+   `.gjf`/`.com`/`.gau`. The settings go on the command line as `key=value`, with the keys of the
+   input file. The default is HF/aug-cc-pVDZ, single-point energy, neutral closed shell.
+
+   ```bash
+   psilab water.xyz                                                  # HF energy on the terminal
+   psilab water.xyz method='CCSD(T)' basis=aug-cc-pVTZ job=opt+freq -o   # -> water.out
+   psilab radical.xyz multiplicity=2 method=UHF -o                   # open shell
+   psilab *.xyz method=MP2 job=opt                                   # each file into its own .out
+   psilab --estimate water.xyz method='CCSD(T)' basis=aug-cc-pVTZ    # size and time only
+   ```
+
+2. **The coordinates in the input file**, as in ORCA: a block `* xyz <charge> <multiplicity>`
+   with one atom per line (element x y z, Å), closed by `*`
+   (see [`examples/water-orca-style.inp`](examples/water-orca-style.inp)):
+
+   ```text
+   method = MP2
+   basis  = aug-cc-pVDZ
+   job    = opt+freq
+
+   * xyz 0 1
+   O   0.000000   0.000000   0.117300
+   H   0.000000   0.757200  -0.469200
+   H   0.000000  -0.757200  -0.469200
+   *
+   ```
+
+3. **A structure file named in the input file**: `* xyzfile <charge> <multiplicity> water.xyz`,
+   as in ORCA, or `molecule = custom` with `geometry = water.xyz` (9.0). The path is relative to
+   the input file, not to the folder `psilab` is started in.
+
+Settings on the command line also work with an input file (`psilab job.inp method=MP2`) when the
+input file does not set them already; an option adds a setting, it does not replace one.
 
 The input file has one `key = value` per line; `#` starts a comment; keys are case-insensitive:
 
