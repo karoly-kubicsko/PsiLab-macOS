@@ -240,6 +240,11 @@ A = N_A/(12ε₀c²)·|∂μ/∂Q|² (974.88 km/mol per e²/u), both as in Gauss
 degenerate mode carries its own intensity: H₃⁺ Full CI/aug-cc-pVTZ, ν₂ (E′) 2760.13 cm⁻¹,
 177.9 km/mol per component, 355.9 km/mol for the band; ν₁ (A₁′) is IR-inactive (0 km/mol).
 
+**Terminal version.** `psilab --version` prints the program version (19.0); since 15.0 it had
+printed 15.0. The build needs only a C++17 compiler and CMake 3.16: checked with GCC 9 and CMake
+3.16 (Ubuntu 20.04, Linux Mint 20), GCC 13 and CMake 3.28 (Ubuntu 24.04) and Apple clang 21 with
+CMake 4.5 (macOS 26 on Intel).
+
 **About ΨLab** shows Version 19.0 (19).
 
 ### 18.0

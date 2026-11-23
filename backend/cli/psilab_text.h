@@ -44,11 +44,13 @@
 #include <vector>
 
 #include "macqc/calculation.h"
+#include "macqc/jobs.h"
 
 namespace psilab {
 
-// ΨLab version (same as the macOS app).
-constexpr const char* kVersion = "15.0";
+// ΨLab version (same as the macOS app); 19.0: the program version of the backend (psilab --version
+// printed 15.0 since 15.0).
+constexpr const char* kVersion = macqc::kProgramVersion;
 
 // 1 bohr in angstrom (CODATA 2022).
 constexpr double kBohrToAngstrom = 0.529177210544;
