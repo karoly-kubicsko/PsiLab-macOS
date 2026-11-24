@@ -27,7 +27,9 @@ enum class JobStage : int {
     Lambda = 11,         // coupled-cluster Lambda equations (iteration, residual)
     Optimization = 12,   // geometry optimisation step (iteration = step, energy, residual = max force)
     NumericalHessian = 13,  // displacement of a numerical Hessian (iteration = displacement)
-    Scan = 14               // 7.0: point of a relaxed scan (iteration = point, residual = number of points)
+    Scan = 14,              // 7.0: point of a relaxed scan (iteration = point, residual = number of points)
+    NuclearHamiltonian = 15,  // 20.0: nuclear motion: DVR and Hamiltonian matrix
+    NuclearEigen = 16         // 20.0: nuclear motion: eigensolver step (iteration, lowest level, change)
 };
 
 struct Job {

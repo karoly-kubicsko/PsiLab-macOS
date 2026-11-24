@@ -62,6 +62,8 @@ add_library(macqc STATIC
   backend/src/cc_estimate.cpp
   backend/src/job.cpp
   backend/src/calculation.cpp
+  backend/src/cvrqd.cpp
+  backend/src/nuclear_motion.cpp
   backend/src/api.cpp)
 target_include_directories(macqc PUBLIC backend/include)
 target_include_directories(macqc PRIVATE third_party)
@@ -186,6 +188,12 @@ target_compile_definitions(macqc_scan_tests PRIVATE
 add_test(NAME macqc_scan_tests COMMAND macqc_scan_tests)
 set_tests_properties(macqc_scan_tests PROPERTIES
   ENVIRONMENT "PSILAB_BASIS_DIR=${CMAKE_CURRENT_SOURCE_DIR}/basis" TIMEOUT 7200)
+# ΨLab 20.0: nuclear motion (CVRQD surfaces, DVR Hamiltonian, eigensolvers, C API).
+add_executable(macqc_nuclear_motion_tests backend/tests/test_nuclear_motion.cpp)
+target_link_libraries(macqc_nuclear_motion_tests PRIVATE macqc)
+target_include_directories(macqc_nuclear_motion_tests PRIVATE third_party)
+add_test(NAME macqc_nuclear_motion_tests COMMAND macqc_nuclear_motion_tests)
+set_tests_properties(macqc_nuclear_motion_tests PROPERTIES TIMEOUT 1800)
 # ΨLab 7.0: H2O2 and NH3 (geometry, energies, gradients, optimisation, symmetry, scans).
 add_executable(macqc_molecule_tests backend/tests/test_molecules.cpp)
 target_link_libraries(macqc_molecule_tests PRIVATE macqc)
