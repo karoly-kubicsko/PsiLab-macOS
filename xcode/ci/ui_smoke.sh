@@ -288,7 +288,24 @@ with_timeout 120 osascript "$OUT/popup.applescript" "SP basis set" "aug-cc-pVDZ"
 sleep 3
 shot "e1-h3-chosen"
 print_shot "e1-h3-chosen"
-with_timeout 120 osascript "$OUT/tab.applescript" "Run" | head -3
+cat > "$OUT/run.applescript" <<'APPLESCRIPT'
+tell application "System Events"
+    tell process "ΨLab"
+        set frontmost to true
+        keystroke "r" using command down
+        delay 3
+        try
+            click button "Run" of sheet 1 of window 1
+            return "Run pressed, long calculation confirmed"
+        end try
+        return "Run pressed"
+    end tell
+end tell
+APPLESCRIPT
+with_timeout 60 osascript "$OUT/run.applescript" || echo "run failed"
+sleep 5
+shot "e1b-running"
+print_shot "e1b-running"
 sleep 120
 view_tab "e2-h3-summary" "Summary"
 print_shot "e2-h3-summary"
