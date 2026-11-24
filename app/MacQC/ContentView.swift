@@ -61,22 +61,52 @@ struct ContentView: View {
     }
 }
 
-/// 20.0: the two kinds of calculation (segmented control at the top of the sidebar); locked
-/// while a calculation runs.
+/// 20.0: the two kinds of calculation at the top of the sidebar, drawn like the tab bar of the
+/// detail column: a glass capsule, the chosen kind on a lighter capsule; locked while a
+/// calculation runs.
 struct CalculationKindPicker: View {
     @Bindable var model: AppModel
+    @Namespace private var selection
+
+    private var locked: Bool { model.isRunning || model.isScanning || model.nuclear.isRunning }
 
     var body: some View {
-        Picker("Calculation", selection: $model.calculation) {
+        HStack(spacing: 2) {
             ForEach(CalculationKind.allCases) { kind in
-                Text(kind.title).tag(kind)
+                let selected = model.calculation == kind
+                Button {
+                    withAnimation(.snappy(duration: 0.25)) {
+                        model.calculation = kind
+                    }
+                } label: {
+                    Text(kind.title)
+                        .font(.system(size: 13, weight: selected ? .semibold : .medium))
+                        .foregroundStyle(selected ? Color.primary : Color.secondary)
+                        .lineLimit(1)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 6)
+                        .padding(.horizontal, 10)
+                        .background {
+                            if selected {
+                                Capsule()
+                                    .fill(Color.primary.opacity(0.13))
+                                    .matchedGeometryEffect(id: "selected", in: selection)
+                            }
+                        }
+                        .contentShape(Capsule())
+                }
+                .buttonStyle(.plain)
+                .help(kind.help)
+                .accessibilityLabel(kind.title)
+                .accessibilityAddTraits(selected ? .isSelected : [])
             }
         }
-        .pickerStyle(.segmented)
-        .labelsHidden()
-        .help(model.calculation.help)
+        .padding(3)
+        .glassCapsule()
+        .disabled(locked)
+        .opacity(locked ? 0.6 : 1)
+        .accessibilityElement(children: .contain)
         .accessibilityLabel("Calculation")
-        .disabled(model.isRunning || model.isScanning || model.nuclear.isRunning)
         .padding(.horizontal, 14)
         .padding(.top, 6)
         .padding(.bottom, 4)

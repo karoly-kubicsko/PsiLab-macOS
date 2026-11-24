@@ -245,7 +245,8 @@ with real subscripts and superscripts (LaTeX): C<sub>3v</sub> is one subscript (
 the v at another height), and in X ²Σ<sub>g</sub>⁺ the g is a subscript.
 
 **Nuclear motion: rovibrational energy levels of the water isotopologues.** The switch at the top
-of the sidebar chooses the kind of calculation: *Electronic structure* (the interface of the
+of the sidebar, drawn like the tab bar (a glass capsule, the chosen kind on a lighter capsule),
+chooses the kind of calculation: *Electronic structure* (the interface of the
 earlier versions, unchanged) or *Nuclear motion*, which has its own sidebar and tabs (Levels,
 Expectation values, Convergence, Output). It is the program cpp_DOPI_expval_array.cpp (kept in
 `reference/nuclear_motion`) built into ΨLab:
