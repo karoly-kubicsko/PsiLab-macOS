@@ -18,6 +18,7 @@
 //
 
 import SwiftUI
+import AppKit
 
 nonisolated enum LaTeX {
     enum Position: Equatable, Sendable {
@@ -439,6 +440,24 @@ struct LaTeXText: View {
 
     var body: some View {
         LaTeX.text(source, size: size, weight: weight)
+            .accessibilityLabel(LaTeX.plain(source))
+    }
+}
+
+/// 20.0: the note under the molecule picker (electrons, term symbol, point group, geometry), e.g.
+/// "1 electron, X ^2Σ_g^+, R = 1.0569 Å (2.00 bohr)" or "…, C_{3v}, …": caption size, secondary
+/// colour, with the subscripts and superscripts of LaTeX (Σ_g^+, C_{3v} as one subscript).
+struct MoleculeCaption: View {
+    let source: String
+
+    init(_ source: String) {
+        self.source = source
+    }
+
+    var body: some View {
+        LaTeX.text(source, size: NSFont.preferredFont(forTextStyle: .caption1).pointSize)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
             .accessibilityLabel(LaTeX.plain(source))
     }
 }

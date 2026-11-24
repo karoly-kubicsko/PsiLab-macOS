@@ -51,13 +51,10 @@ struct SidebarView: View {
                 if model.molecule == .custom, let m = model.customMolecule {
                     CustomMoleculeHeader(model: model, molecule: m, confirmRemove: $confirmRemove)
                 } else if model.molecule == .preset, let p = model.selectedPreset {
-                    Text(p.note)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                    // 20.0: term symbols and point groups with real subscripts and superscripts
+                    MoleculeCaption(p.note)
                 } else {
-                    Text(model.molecule.subtitle)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                    MoleculeCaption(model.molecule.subtitle)
                 }
                 // 17.0: the switch is off by default and stays visible for HeH⁺ in STO-nG either way
                 if model.molecule == .heh && BasisSets.isSzaboOstlund(model.hehBasis) {
@@ -276,9 +273,7 @@ struct SidebarView: View {
         let params = PresetGeometry.parameters(key)
         Section(params.isEmpty || !model.job.usesOptimizer ? "Geometry" : "Starting geometry") {
             if params.isEmpty {
-                Text("\(model.selectedPreset?.note ?? "A single atom"): no geometry parameters.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                MoleculeCaption("\(model.selectedPreset?.note ?? "A single atom"): no geometry parameters.")
             } else {
                 ForEach(Array(params.enumerated()), id: \.element.label) { i, param in
                     LabeledContent("\(param.label) (\(param.unit))") {
