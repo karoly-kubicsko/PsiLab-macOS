@@ -98,13 +98,15 @@ struct NuclearLevelsView: View {
                             .foregroundStyle(.orange)
                     }
                     SectionTitle("Energy levels")
-                    HStack(alignment: .top, spacing: 18) {
+                    // the table at its own width (scrolls sideways in a narrow window), the diagram below
+                    ScrollView(.horizontal) {
                         levelTable(r)
-                            .dataPanel()
-                        levelDiagram(r)
-                            .frame(minWidth: 220, maxWidth: 300, minHeight: 360)
+                            .fixedSize()
                             .dataPanel()
                     }
+                    levelDiagram(r)
+                        .frame(height: 320)
+                        .dataPanel()
                     Text("Energies from the minimum of the potential energy surface; E − E₁ from the lowest level of this calculation (for jmax = 0: the vibrational band origins above the zero-point level). ‖Hx − Ex‖ is the residual of the eigenvector (E_h).")
                         .font(.caption)
                         .foregroundStyle(.secondary)
@@ -179,6 +181,7 @@ struct NuclearLevelsView: View {
                 }
         }
         .chartXScale(domain: 0...1)
+        .chartYScale(domain: 0...max(1.0, (points.last?.e ?? 1) * 1.05))
         .chartXAxis(.hidden)
         .chartYAxisLabel("E − E₁ (cm⁻¹)")
         .accessibilityLabel("Energy level diagram")

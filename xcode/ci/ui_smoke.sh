@@ -330,7 +330,8 @@ print_shot "f3-nuclear-expectation"
 view_tab "f4-nuclear-convergence" "Convergence"
 print_shot "f4-nuclear-convergence"
 view_tab "f5-nuclear-output" "Nuclear-Motion Output"
-grep -E "Normal termination of ΨLab 20.0 \(nuclear motion\)" "$OUT/f5-nuclear-output.txt" || echo "nuclear output: no normal termination in the text dump"
+# (the output file is an NSTextView, not in the text dump: the levels are checked instead)
+grep -E "^4638\.3055$" "$OUT/f2-nuclear-levels.txt" > /dev/null && echo "nuclear levels: ZPE 4638.3055 cm-1 (ns1 = 20, np = 24) found" || echo "nuclear levels: ZPE 4638.3055 cm-1 NOT found"
 with_timeout 120 osascript "$OUT/tab.applescript" "Electronic structure" | head -3
 sleep 3
 view_tab "f6-electronic-after-switch" "Summary"
