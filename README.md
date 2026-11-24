@@ -228,8 +228,12 @@ right distance (9.09 bohr), but SceneKit's look-at (simdLook(at:up:localFront:))
 away from the molecule, because it had to turn by exactly 180°. The viewers drew no pixel of the
 molecule (measured in a diagnostic UI run: 0 pixels differing from the background). The camera's orientation is now
 built from the view's own axes (horizontal, vertical, towards the viewer; orthonormal and
-right-handed), so every direction works; the orbital viewer uses the same construction. The UI
-smoke test repeats the job: the start-up example, H₃⁺ chosen in the sidebar's menus, ⌘R.
+right-handed), so every direction works; the orbital viewer uses the same construction. A second
+cause showed up in the same test: a viewer on a hidden tab when the result arrived kept its previous
+frame (the H₂ of the start-up example under the H₃⁺ result), because SceneKit draws a static scene
+only when it sees a change. After every update, camera reset and when its tab is shown, a viewer
+now draws for a moment (0.6 s). The UI smoke test repeats the job: the start-up example, H₃⁺ chosen
+in the sidebar's menus, ⌘R.
 
 **The note under the Atom/Molecule menu** has the same form for every molecule, the form of H₂⁺:
 electrons, ground-state term, closed or open shell, point group, the reference geometry in Å and

@@ -132,8 +132,9 @@ jobs:
         continue-on-error: true
         # 7.0 adds relaxed scans and transition states, 8.0 the orbitals: about 50 minutes in all;
         # with the open-shell jobs and screenshots of 15.0 about 95 minutes (90 cut off the last ones);
-        # 19.0 about 111 minutes, 20.0 adds the H3+ run after the start-up example (about 12 minutes)
-        timeout-minutes: 150
+        # 19.0 about 111 minutes, 20.0 adds the H3+ run after the start-up example and nuclear motion
+        # (about 25 minutes; they run first)
+        timeout-minutes: 170
         run: bash xcode/ci/ui_smoke.sh "build/app/ΨLab.app" ui-smoke
 
       - uses: actions/upload-artifact@v4
