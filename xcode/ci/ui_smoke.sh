@@ -235,6 +235,73 @@ pgrep -x "ΨLab" >/dev/null && echo "ΨLab process is running" || echo "ΨLab pr
 
 shot "00-launch"
 
+# DIAGNOSTIC (20.0, temporary): the start-up example, then H3+ chosen in the sidebar and run
+cat > "$OUT/popup.applescript" <<'APPLESCRIPT'
+on run argv
+    set popName to item 1 of argv
+    set itemName to item 2 of argv
+    tell application "System Events"
+        tell process "ΨLab"
+            set frontmost to true
+            set els to entire contents of window 1
+            repeat with e in els
+                try
+                    if (role of e) is "AXPopUpButton" then
+                        set n to ""
+                        set d to ""
+                        try
+                            set n to name of e
+                        end try
+                        try
+                            set d to description of e
+                        end try
+                        if n is popName or d is popName then
+                            click e
+                            delay 1
+                            click menu item itemName of menu 1 of e
+                            return "SELECTED " & itemName & " in " & popName
+                        end if
+                    end if
+                end try
+            end repeat
+            return "NOT FOUND: " & popName
+        end tell
+    end tell
+end run
+APPLESCRIPT
+D3LOG="$HOME/Library/Containers/org.psilab.PsiLab/Data/Library/Caches/psilab-3d.log"
+echo "== DIAG: start-up example, then H3+ (Full CI/aug-cc-pVDZ opt+freq+sp) chosen in the sidebar"
+pkill -x "ΨLab" || true
+sleep 3
+rm -f "$D3LOG"
+open -n "$APP" --args -appearanceChoice dark -viewer3D.debug YES
+sleep 20
+view_tab "e0-example-optimisation" "Optimisation"
+print_shot "e0-example-optimisation"
+view_tab "e0-example-frequencies" "Frequencies"
+view_tab "e0-example-summary" "Summary"
+with_timeout 120 osascript "$OUT/popup.applescript" "Atom/Molecule" "H₃⁺" || echo "popup failed"
+sleep 3
+with_timeout 120 osascript "$OUT/popup.applescript" "Basis set" "aug-cc-pVDZ" || echo "popup failed"
+sleep 3
+with_timeout 120 osascript "$OUT/popup.applescript" "SP basis set" "aug-cc-pVDZ" || echo "popup failed"
+sleep 3
+shot "e1-h3-chosen"
+print_shot "e1-h3-chosen"
+with_timeout 120 osascript "$OUT/tab.applescript" "Run" | head -3
+sleep 120
+view_tab "e2-h3-summary" "Summary"
+print_shot "e2-h3-summary"
+view_tab "e3-h3-optimisation" "Optimisation"
+print_shot "e3-h3-optimisation"
+view_tab "e4-h3-frequencies" "Frequencies"
+print_shot "e4-h3-frequencies"
+echo "::group::3D viewer log"
+cat "$D3LOG" || find "$HOME/Library/Containers/org.psilab.PsiLab" -name "psilab-3d.log" 2>/dev/null
+echo "::endgroup::"
+pkill -x "ΨLab" || true
+exit 0
+
 layout "launch-heh"
 echo "::group::accessibility tree"
 with_timeout 40 osascript "$OUT/tab.applescript" "__TREE__" | tee "$OUT/tree.txt"
