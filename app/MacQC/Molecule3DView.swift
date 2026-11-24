@@ -391,13 +391,6 @@ final class MoleculeSCNView: SCNView {
     var onResize: (() -> Void)?
     /// Whether the mouse or trackpad moved the camera since the last Reset view.
     var cameraTouched = false
-    /// DIAGNOSTIC (temporary): the view was put into a window or taken out of it.
-    var onWindow: (() -> Void)?
-
-    override func viewDidMoveToWindow() {
-        super.viewDidMoveToWindow()
-        onWindow?()
-    }
 
     override func setFrameSize(_ newSize: NSSize) {
         let old = frame.size
@@ -542,9 +535,6 @@ final class Molecule3DController {
         view.onResize = { [weak self] in
             self?.refitIfUntouched()
         }
-        view.onWindow = { [weak self] in
-            self?.debugLater("window")
-        }
         // Depth cueing follows the distance of the camera (zooming changes it): checked 10 times
         // a second, also while the mouse is dragged.
         let timer = Timer(timeInterval: 0.1, repeats: true) { [weak self] _ in
@@ -554,11 +544,9 @@ final class Molecule3DController {
         }
         RunLoop.main.add(timer, forMode: .common)
         depthTimer = timer
-        debugReport("attach")
     }
 
     func detach() {
-        debugReport("detach")
         depthTimer?.invalidate()
         depthTimer = nil
         view?.isPlaying = false
@@ -606,7 +594,6 @@ final class Molecule3DController {
         }
         SCNTransaction.commit()
         updateDepthCue(force: true)
-        debugLater("apply")
     }
 
     /// The starting view changes only with another molecule or another first geometry (the start of
@@ -859,7 +846,6 @@ final class Molecule3DController {
         view.cameraTouched = false
         depthCueDistance = -1
         updateDepthCue(force: true)
-        debugLater("resetView")
     }
 
 
@@ -903,76 +889,6 @@ final class Molecule3DController {
         scene.fogDensityExponent = 1
         scene.fogStartDistance = CGFloat(max(distance - 0.25 * radius, 0.01))
         scene.fogEndDistance = CGFloat(distance + 2.2 * radius)
-    }
-
-    // MARK: DIAGNOSTIC (temporary; -viewer3D.debug YES)
-
-    private static let debugOn = UserDefaults.standard.bool(forKey: "viewer3D.debug")
-
-    func debugLater(_ event: String) {
-        guard Molecule3DController.debugOn else { return }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { [weak self] in
-            self?.debugReport(event + "+1.5s")
-        }
-    }
-
-    func debugReport(_ event: String) {
-        guard Molecule3DController.debugOn else { return }
-        var t = "\(Date()) ctl=\(UInt(bitPattern: ObjectIdentifier(self).hashValue) % 100000) \(event)"
-        guard let view, let scene, let c = last else {
-            Molecule3DController.debugWrite(t + " view=\(view != nil) scene=\(scene != nil) last=\(last != nil)")
-            return
-        }
-        func f(_ v: SIMD3<Float>) -> String { String(format: "(%.3f,%.3f,%.3f)", v.x, v.y, v.z) }
-        let pov = view.pointOfView
-        t += " Z=\(c.Z) vib=\(c.vibration != nil) ref=\(c.reference != nil) bounds=\(view.bounds.size) window=\(view.window != nil)"
-        t += " hidden=\(view.isHiddenOrHasHiddenAncestor) playing=\(view.isPlaying) cont=\(view.rendersContinuously)"
-        t += " sceneOK=\(view.scene === scene) povIsCam=\(pov === cameraNode) pov=\(pov?.name ?? "nil")"
-        t += " povPos=\(pov.map { f($0.presentation.simdWorldPosition) } ?? "-") camPos=\(f(cameraNode.presentation.simdWorldPosition))"
-        t += " camFwd=\(f(cameraNode.presentation.simdWorldFront)) fov=\(cameraNode.camera?.fieldOfView ?? -1) povFov=\(pov?.camera?.fieldOfView ?? -1)"
-        t += " center=\(f(center)) radius=\(radius) fog=\(scene.fogStartDistance)…\(scene.fogEndDistance)"
-        t += " molParentOK=\(moleculeRoot.parent === scene.rootNode) camParentOK=\(cameraNode.parent === scene.rootNode)"
-        t += " molChildren=\(moleculeRoot.childNodes.count) atoms=\(atomNodes.count) hiddenRoot=\(moleculeRoot.isHidden) opacity=\(moleculeRoot.opacity)"
-        t += " pos=" + atomNodes.map { f($0.presentation.simdWorldPosition) }.joined(separator: ",")
-        t += " proj=" + atomNodes.map { n -> String in
-            let p = view.projectPoint(scnVector(n.presentation.simdWorldPosition))
-            return String(format: "(%.0f,%.0f,%.3f)", p.x, p.y, p.z)
-        }.joined(separator: ",")
-        // what SceneKit renders: pixels that differ from the background
-        let image = view.snapshot()
-        if let cg = image.cgImage(forProposedRect: nil, context: nil, hints: nil) {
-            let w = cg.width, h = cg.height
-            var data = [UInt8](repeating: 0, count: w * h * 4)
-            if let ctx = CGContext(data: &data, width: w, height: h, bitsPerComponent: 8, bytesPerRow: w * 4,
-                                   space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue) {
-                ctx.draw(cg, in: CGRect(x: 0, y: 0, width: w, height: h))
-                let bg = Int((c.style.backgroundWhite * 255).rounded())
-                var differ = 0
-                var k = 0
-                while k < data.count {
-                    let lum = (Int(data[k]) + Int(data[k + 1]) + Int(data[k + 2])) / 3
-                    if abs(lum - bg) > 20 { differ += 1 }
-                    k += 4
-                }
-                t += " snapshot=\(w)x\(h) differ=\(differ) (\(String(format: "%.2f", 100.0 * Double(differ) / Double(max(w * h, 1))))%)"
-            }
-        } else {
-            t += " snapshot=none"
-        }
-        Molecule3DController.debugWrite(t)
-    }
-
-    static func debugWrite(_ text: String) {
-        guard let dir = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first else { return }
-        let url = dir.appendingPathComponent("psilab-3d.log")
-        let line = text + "\n"
-        if let h = try? FileHandle(forWritingTo: url) {
-            h.seekToEndOfFile()
-            h.write(Data(line.utf8))
-            try? h.close()
-        } else {
-            try? Data(line.utf8).write(to: url)
-        }
     }
 
     // MARK: Image
@@ -1228,7 +1144,6 @@ final class Molecule3DController {
         SCNVector3(x: CGFloat(v.x), y: CGFloat(v.y), z: CGFloat(v.z))
     }
 
-    /// The rotation that turns the y axis onto the unit vector u.
     /// 20.0: the rotation that takes the camera's axes y and z to `up` and `toward`
     /// (orthonormalised; x = y × z, the frame's horizontal axis): the camera at centre + d · toward
     /// looks at the centre.
@@ -1246,6 +1161,7 @@ final class Molecule3DController {
         return simd_quatf(simd_float3x3(columns: (x, y, z)))
     }
 
+    /// The rotation that turns the y axis onto the unit vector u.
     nonisolated static func rotationFromY(to u: SIMD3<Float>) -> simd_quatf {
         let y = SIMD3<Float>(0, 1, 0)
         if simd_dot(y, u) < -0.999_999 {

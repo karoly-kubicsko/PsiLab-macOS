@@ -235,90 +235,6 @@ pgrep -x "ΨLab" >/dev/null && echo "ΨLab process is running" || echo "ΨLab pr
 
 shot "00-launch"
 
-# DIAGNOSTIC (20.0, temporary): the start-up example, then H3+ chosen in the sidebar and run
-cat > "$OUT/popup.applescript" <<'APPLESCRIPT'
-on run argv
-    set popName to item 1 of argv
-    set itemName to item 2 of argv
-    tell application "System Events"
-        tell process "ΨLab"
-            set frontmost to true
-            set els to entire contents of window 1
-            repeat with e in els
-                try
-                    if (role of e) is "AXPopUpButton" then
-                        set n to ""
-                        set d to ""
-                        try
-                            set n to name of e
-                        end try
-                        try
-                            set d to description of e
-                        end try
-                        if n is popName or d is popName then
-                            click e
-                            delay 1
-                            click menu item itemName of menu 1 of e
-                            return "SELECTED " & itemName & " in " & popName
-                        end if
-                    end if
-                end try
-            end repeat
-            return "NOT FOUND: " & popName
-        end tell
-    end tell
-end run
-APPLESCRIPT
-D3LOG="$HOME/Library/Containers/org.psilab.PsiLab/Data/Library/Caches/psilab-3d.log"
-echo "== DIAG: start-up example, then H3+ (Full CI/aug-cc-pVDZ opt+freq+sp) chosen in the sidebar"
-pkill -x "ΨLab" || true
-sleep 3
-rm -f "$D3LOG"
-open -n "$APP" --args -appearanceChoice dark -viewer3D.debug YES
-sleep 20
-view_tab "e0-example-optimisation" "Optimisation"
-print_shot "e0-example-optimisation"
-view_tab "e0-example-frequencies" "Frequencies"
-view_tab "e0-example-summary" "Summary"
-with_timeout 120 osascript "$OUT/popup.applescript" "Atom/Molecule" "H₃⁺" || echo "popup failed"
-sleep 3
-with_timeout 120 osascript "$OUT/popup.applescript" "Basis set" "aug-cc-pVDZ" || echo "popup failed"
-sleep 3
-with_timeout 120 osascript "$OUT/popup.applescript" "SP basis set" "aug-cc-pVDZ" || echo "popup failed"
-sleep 3
-shot "e1-h3-chosen"
-print_shot "e1-h3-chosen"
-cat > "$OUT/run.applescript" <<'APPLESCRIPT'
-tell application "System Events"
-    tell process "ΨLab"
-        set frontmost to true
-        keystroke "r" using command down
-        delay 3
-        try
-            click button "Run" of sheet 1 of window 1
-            return "Run pressed, long calculation confirmed"
-        end try
-        return "Run pressed"
-    end tell
-end tell
-APPLESCRIPT
-with_timeout 60 osascript "$OUT/run.applescript" || echo "run failed"
-sleep 5
-shot "e1b-running"
-print_shot "e1b-running"
-sleep 120
-view_tab "e2-h3-summary" "Summary"
-print_shot "e2-h3-summary"
-view_tab "e3-h3-optimisation" "Optimisation"
-print_shot "e3-h3-optimisation"
-view_tab "e4-h3-frequencies" "Frequencies"
-print_shot "e4-h3-frequencies"
-echo "::group::3D viewer log"
-cat "$D3LOG" || find "$HOME/Library/Containers/org.psilab.PsiLab" -name "psilab-3d.log" 2>/dev/null
-echo "::endgroup::"
-pkill -x "ΨLab" || true
-exit 0
-
 layout "launch-heh"
 echo "::group::accessibility tree"
 with_timeout 40 osascript "$OUT/tab.applescript" "__TREE__" | tee "$OUT/tree.txt"
@@ -902,6 +818,83 @@ relaunch -appearanceChoice light -viewer3D.labels numbered -psilabMolecule H2O -
 sleep 10
 view_tab "d3-h2o-optimisation-labels-light" "Optimisation"
 print_shot "d3-h2o-optimisation-labels-light"
+
+# --- ΨLab 20.0: H3+ run after the start-up example (the sidebar's menus, Cmd-R): the 3D viewers of
+# Summary, Optimisation and the normal modes must show the triangle (19.0: only the background) ---
+cat > "$OUT/popup.applescript" <<'APPLESCRIPT'
+on run argv
+    set popName to item 1 of argv
+    set itemName to item 2 of argv
+    tell application "System Events"
+        tell process "ΨLab"
+            set frontmost to true
+            set els to entire contents of window 1
+            repeat with e in els
+                try
+                    if (role of e) is "AXPopUpButton" then
+                        set n to ""
+                        set d to ""
+                        try
+                            set n to name of e
+                        end try
+                        try
+                            set d to description of e
+                        end try
+                        if n is popName or d is popName then
+                            click e
+                            delay 1
+                            click menu item itemName of menu 1 of e
+                            return "SELECTED " & itemName & " in " & popName
+                        end if
+                    end if
+                end try
+            end repeat
+            return "NOT FOUND: " & popName
+        end tell
+    end tell
+end run
+APPLESCRIPT
+echo "== 20.0: start-up example, then H3+ (Full CI/aug-cc-pVDZ opt+freq+sp) chosen in the sidebar"
+pkill -x "ΨLab" || true
+sleep 3
+open -n "$APP" --args -appearanceChoice dark
+sleep 20
+view_tab "e0-example-optimisation" "Optimisation"
+print_shot "e0-example-optimisation"
+view_tab "e0-example-frequencies" "Frequencies"
+view_tab "e0-example-summary" "Summary"
+with_timeout 120 osascript "$OUT/popup.applescript" "Atom/Molecule" "H₃⁺" || echo "popup failed"
+sleep 3
+with_timeout 120 osascript "$OUT/popup.applescript" "Basis set" "aug-cc-pVDZ" || echo "popup failed"
+sleep 3
+with_timeout 120 osascript "$OUT/popup.applescript" "SP basis set" "aug-cc-pVDZ" || echo "popup failed"
+sleep 3
+shot "e1-h3-chosen"
+print_shot "e1-h3-chosen"
+cat > "$OUT/run.applescript" <<'APPLESCRIPT'
+tell application "System Events"
+    tell process "ΨLab"
+        set frontmost to true
+        keystroke "r" using command down
+        delay 3
+        try
+            click button "Run" of sheet 1 of window 1
+            return "Run pressed, long calculation confirmed"
+        end try
+        return "Run pressed"
+    end tell
+end tell
+APPLESCRIPT
+with_timeout 60 osascript "$OUT/run.applescript" || echo "run failed"
+sleep 5
+shot "e1b-running"
+sleep 120
+view_tab "e2-h3-summary" "Summary"
+print_shot "e2-h3-summary"
+view_tab "e3-h3-optimisation" "Optimisation"
+print_shot "e3-h3-optimisation"
+view_tab "e4-h3-frequencies" "Frequencies"
+print_shot "e4-h3-frequencies"
 
 pkill -x "ΨLab" || true
 

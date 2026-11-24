@@ -1,6 +1,6 @@
 # ΨLab — a native macOS quantum-chemistry app
 
-**Current version: 19.0** — see [Versions](#versions).
+**Current version: 20.0** — see [Versions](#versions).
 
 ΨLab computes small molecules — closed and (15.0) open shells, with RHF, UHF and ROHF references —
 with Hartree–Fock, Møller–Plesset perturbation theory (MP2–MP5), configuration interaction (CISD …
@@ -208,6 +208,31 @@ same calculations run in the terminal on Linux and macOS
   `xcode/project.yml`).
 
 ## Versions
+
+### 20.0
+**H₃⁺ in the 3D viewers after another result; one form for the note under the molecule menu.**
+
+**3D viewers.** After the start-up example (H₂), an H₃⁺ job (e.g. Full-CI/aug-cc-pVDZ OPT + FREQ + SP)
+showed only the background in every viewer: the Summary, the optimisation steps and the normal
+modes. The cause was the orientation of the camera, not its distance or the fog (19.0). The starting
+view put the camera on the −z side of the optimised triangle (which lies in the xy plane), at the
+right distance (9.09 bohr), but SceneKit's look-at (simdLook(at:up:localFront:)) left it facing −z,
+away from the molecule, because it had to turn by exactly 180°. The viewers drew no pixel of the
+molecule (measured in a diagnostic UI run: 0 pixels differing from the background). The camera's orientation is now
+built from the view's own axes (horizontal, vertical, towards the viewer; orthonormal and
+right-handed), so every direction works; the orbital viewer uses the same construction. The UI
+smoke test repeats the job: the start-up example, H₃⁺ chosen in the sidebar's menus, ⌘R.
+
+**The note under the Atom/Molecule menu** has the same form for every molecule, the form of H₂⁺:
+electrons, ground-state term, closed or open shell, point group, the reference geometry in Å and
+bohr, then what the note said before (Full-CI impossible, the STO-nG basis sets of HeH⁺, the MP2
+geometry of H₅⁺). For example H₂: *2 electrons, X ¹Σ<sub>g</sub>⁺, closed shell, R = 0.7414 Å (1.40 bohr)*;
+NH₃: *10 electrons, X ¹A₁, closed shell, C<sub>3v</sub>, R(N–H) = 1.012 Å (1.91 bohr), ∠HNH = 106.7° (Full-CI
+impossible)*. The atoms H–Ar: electrons, ground state, closed or open shell. The notes are drawn
+with real subscripts and superscripts (LaTeX): C<sub>3v</sub> is one subscript (before, the Unicode C₃ᵥ set
+the v at another height), and in X ²Σ<sub>g</sub>⁺ the g is a subscript.
+
+**About ΨLab** shows Version 20.0 (20); psilab --version prints 20.0.
 
 ### 19.0
 **The 3D viewers after a new result; H₃⁺ drawn as a triangle; atom labels as badges; the units of
