@@ -82,6 +82,13 @@ struct CurveMinimum: Identifiable {
 @Observable
 final class AppModel {
 
+    // MARK: Kind of calculation (20.0)
+
+    /// Electronic structure or nuclear motion: the switch at the top of the sidebar; the nuclear-
+    /// motion calculation has its own sidebar, tabs and model (NuclearModel).
+    var calculation: CalculationKind = .electronic
+    let nuclear = NuclearModel()
+
     // MARK: Sidebar inputs
 
     static let defaultR = 1.4632
@@ -530,6 +537,8 @@ final class AppModel {
             }
         }
         autoRunLongJobs = defaults.bool(forKey: "psilabAutoRun")
+        // 20.0: -psilabCalculation nuclear opens the nuclear-motion interface
+        if defaults.string(forKey: "psilabCalculation") == "nuclear" { calculation = .nuclear }
         // 13.0: -psilabOpenOutput path: open an output file (or a JSON export) at launch; no
         // calculation then, also when the file cannot be read (its error stays visible). The app is
         // sandboxed: the path must lie in its container.

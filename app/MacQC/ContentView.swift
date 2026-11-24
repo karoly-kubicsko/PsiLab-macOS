@@ -14,16 +14,37 @@ struct ContentView: View {
 
     var body: some View {
         NavigationSplitView {
-            SidebarView(model: model)
-                // 16.0: wide enough for the segmented Hessian control (Initial | CalcFC | CalcAll | RecalcFC)
-                .navigationSplitViewColumnWidth(min: 340, ideal: 340, max: 420)
+            // 20.0: the kind of calculation at the top of the sidebar; each kind has its own
+            // sidebar and tabs (the electronic-structure interface is unchanged)
+            Group {
+                if model.calculation == .electronic {
+                    SidebarView(model: model)
+                } else {
+                    NuclearSidebarView(model: model.nuclear)
+                }
+            }
+            .safeAreaInset(edge: .top, spacing: 0) {
+                CalculationKindPicker(model: model)
+            }
+            // 16.0: wide enough for the segmented Hessian control (Initial | CalcFC | CalcAll | RecalcFC)
+            .navigationSplitViewColumnWidth(min: 340, ideal: 340, max: 420)
         } detail: {
-            DetailView(model: model)
+            if model.calculation == .electronic {
+                DetailView(model: model)
+            } else {
+                NuclearDetailView(model: model.nuclear)
+            }
         }
         .navigationTitle("ΨLab")
         .background(WindowFitter())
         .preferredColorScheme((AppearanceChoice(rawValue: appearanceRaw) ?? .system).colorScheme)
         .task {
+            // 20.0: the nuclear-motion interface at launch (UI test): run it if asked, and no
+            // electronic-structure calculation
+            if model.calculation == .nuclear {
+                if UserDefaults.standard.bool(forKey: "psilabNuclearAutoRun") { await model.nuclear.run() }
+                return
+            }
             // Show a result right away (the Szabo–Ostlund defaults, or the molecule given as a
             // launch argument). Large general calculations wait for Run.
             if model.result == nil && !model.openedAtLaunch {
@@ -37,6 +58,28 @@ struct ContentView: View {
                 }
             }
         }
+    }
+}
+
+/// 20.0: the two kinds of calculation (segmented control at the top of the sidebar); locked
+/// while a calculation runs.
+struct CalculationKindPicker: View {
+    @Bindable var model: AppModel
+
+    var body: some View {
+        Picker("Calculation", selection: $model.calculation) {
+            ForEach(CalculationKind.allCases) { kind in
+                Text(kind.title).tag(kind)
+            }
+        }
+        .pickerStyle(.segmented)
+        .labelsHidden()
+        .help(model.calculation.help)
+        .accessibilityLabel("Calculation")
+        .disabled(model.isRunning || model.isScanning || model.nuclear.isRunning)
+        .padding(.horizontal, 14)
+        .padding(.top, 6)
+        .padding(.bottom, 4)
     }
 }
 

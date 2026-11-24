@@ -21,6 +21,14 @@ CISDTQ, spin-adapted Full CI), quadratic CI (QCISD … QCISDTQ) and coupled clus
 - **HeH⁺** also in a minimal STO-nG basis (n = 1, 2, 3), the Szabo–Ostlund calculation:
   Hartree–Fock identical to the book's program, Full CI with all states and their spin.
 
+**Nuclear motion (20.0).** A second kind of calculation, chosen at the top of the sidebar, computes
+the **vibrational (J = 0) and rovibrational energy levels of H₂¹⁶O, H₂¹⁷O, H₂¹⁸O and D₂¹⁶O** on the
+CVRQD potential energy surfaces: a discrete variable representation in Jacobi coordinates (ns1
+Hermite points in R₁ and in R₂, np Legendre points in cos θ, parity-adapted K blocks up to J =
+jmax), the lowest eigenvalues by shift-invert Lánczos (preconditioned conjugate gradients or
+MINRES), Jacobi–Davidson, Davidson or dense diagonalisation, and the expectation values of the
+O–H bond lengths and of the H–O–H angle for every level.
+
 For these molecules it **optimises geometries** (redundant internal coordinates, analytic gradients
 for HF, MP2–MP5, CISD … CISDTQ, QCISD … QCISDTQ, CCSD, CCSD(T) and Full CI, and (15.0) on UHF and
 ROHF references also for CCSDT and CCSDTQ), finds **transition states** (Gaussian's Opt=TS:
@@ -210,7 +218,7 @@ same calculations run in the terminal on Linux and macOS
 ## Versions
 
 ### 20.0
-**H₃⁺ in the 3D viewers after another result; one form for the note under the molecule menu.**
+**Nuclear motion: the rovibrational levels of the water isotopologues; H₃⁺ in the 3D viewers after another result; one form for the note under the molecule menu.**
 
 **3D viewers.** After the start-up example (H₂), an H₃⁺ job (e.g. Full-CI/aug-cc-pVDZ OPT + FREQ + SP)
 showed only the background in every viewer: the Summary, the optimisation steps and the normal
@@ -231,6 +239,49 @@ NH₃: *10 electrons, X ¹A₁, closed shell, C<sub>3v</sub>, R(N–H) = 1.012 �
 impossible)*. The atoms H–Ar: electrons, ground state, closed or open shell. The notes are drawn
 with real subscripts and superscripts (LaTeX): C<sub>3v</sub> is one subscript (before, the Unicode C₃ᵥ set
 the v at another height), and in X ²Σ<sub>g</sub>⁺ the g is a subscript.
+
+**Nuclear motion: rovibrational energy levels of the water isotopologues.** The switch at the top
+of the sidebar chooses the kind of calculation: *Electronic structure* (the interface of the
+earlier versions, unchanged) or *Nuclear motion*, which has its own sidebar and tabs (Levels,
+Expectation values, Convergence, Output). It is the program cpp_DOPI_expval_array.cpp (kept in
+`reference/nuclear_motion`) built into ΨLab:
+
+- *Potential*: the CVRQD surfaces of H₂¹⁶O, H₂¹⁷O, H₂¹⁸O and D₂¹⁶O (Barletta, Shirin, Zobov,
+  Polyansky, Tennyson, Valeev and Császár, J. Chem. Phys. 125, 204307 (2006)), translated from the
+  Fortran 77 files by a script (`backend/tools/cvrqd`). The four files share one surface and differ
+  in the adiabatic (BODC) term only. The translation keeps the arithmetic of the gfortran build:
+  the default-REAL constants are rounded to single precision, and BREITB3lin clamps R₁ and R₂ to
+  3.5 bohr in place, so the later terms use the clamped distances. It agrees with the gfortran
+  build to the last bit at 300 000 random geometries for each isotopologue. Energies are measured
+  from the minimum of each surface (H₂¹⁶O: 0.003580307136 E_h at r(OH) = 0.957854 Å, 104.500°).
+- *Hamiltonian*: Jacobi coordinates R₁ = r(O–H₁), R₂ from the centre of mass of O–H₁ to H₂ and
+  θ, with the body-fixed z axis along R₁; a discrete variable representation of **ns1** Hermite
+  points in R₁ and in R₂ on Re ± Rmax (default 2.0 ± 0.8 bohr) and **np** associated-Legendre
+  points in cos θ for each K; for **jmax** = J > 0 the centrifugal term [J(J+1) − 2K²]/(2μ₁R₁²)
+  and the Coriolis coupling of K and K ± 1 in parity-adapted (Wang) blocks, K = 0 … J or
+  K = 1 … J. **jmax = 0 gives the vibrational levels.** The matrix (ns1² · np · number of K
+  values) is stored sparse (CSR).
+- *Eigensolvers*: shift-invert Lánczos with full reorthogonalisation, where every step solves
+  H x = q by preconditioned conjugate gradients (ILU, i.e. the symmetric Gauss–Seidel factors of
+  the original; Jacobi; or none) or by MINRES; Jacobi–Davidson, where the correction equation gets
+  a diagonal one-step approximation refined by projected MINRES; Davidson; and dense
+  diagonalisation as a reference for small bases. Every eigenvector is checked by its residual
+  ‖Hx − Ex‖.
+- *Results*: the levels in E_h and cm⁻¹ with E − E₁ (for jmax = 0 the band origins above the
+  zero-point level) and a level diagram; ⟨r⟩, ⟨r²⟩^½, ⟨r³⟩^⅓, ⟨r⁻¹⟩⁻¹, ⟨r⁻²⟩^−½, ⟨r⁻³⟩^−⅓ of both
+  O–H bonds and ⟨H–O–H⟩ for every level; the weights of the K blocks; the solver's history; an
+  output file (File ▸ Export Results as Text).
+- *Checked against the original program* (built with gfortran; 10 × 10 × 12 grid): the J = 0
+  levels of H₂¹⁶O, H₂¹⁷O and D₂¹⁶O and the J = 2 levels of both parity blocks agree with its
+  printed digits once its potential constant is replaced by the minimum (at most 0.007 cm⁻¹ of
+  difference). The expectation values agree as well, and every solver gives the same levels to
+  10⁻⁹ E_h (146 checks in `macqc_nuclear_motion_tests`). Example: H₂¹⁶O with ns1 = 24, np = 36
+  (20 736 functions) gives a zero-point energy of 4638.3055 cm⁻¹ and ν₂ = 1595.07 cm⁻¹ in 3 s.
+- *Two differences from the original*: J = 1 uses the parity-adapted blocks like every other J.
+  The original's special case (K = −1, 0, 1 without parity adaptation) multiplied the K = −1 ↔ 0
+  coupling by √(J(J+1) − |K|(|K|+1)) = 0 and lost the 1₀₁ and 1₁₁ levels; its lowest J = 1 level
+  was 1₁₀. Also, H₂¹⁸O is computed with its own surface (the original's call was commented out,
+  so it had no H₂¹⁸O potential).
 
 **About ΨLab** shows Version 20.0 (20); psilab --version prints 20.0.
 

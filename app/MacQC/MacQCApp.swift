@@ -59,10 +59,14 @@ struct MacQCApp: App {
                 Divider()
 
                 Button("Export Results as Text…") {
-                    model.exportText()
+                    if model.calculation == .nuclear {
+                        model.nuclear.exportText()   // 20.0: the nuclear-motion output file
+                    } else {
+                        model.exportText()
+                    }
                 }
                 .keyboardShortcut("e", modifiers: [.command, .shift])
-                .disabled(!model.canExportOrCopy)
+                .disabled(model.calculation == .nuclear ? model.nuclear.result == nil : !model.canExportOrCopy)
 
                 Button("Export Results as JSON…") {
                     model.exportJSON()
@@ -78,6 +82,8 @@ struct MacQCApp: App {
 
             // View > the tabs and their pages (⌘1 … ⌘9)
             CommandGroup(before: .toolbar) {
+                // 20.0: the electronic-structure tabs (disabled in the nuclear-motion interface)
+                Group {
                 Button("Summary") { model.show(.summary) }
                     .keyboardShortcut("1", modifiers: [.command])
                 Button("Hartree–Fock") { model.show(.methods, methods: .hartreeFock) }
@@ -100,6 +106,17 @@ struct MacQCApp: App {
                     .keyboardShortcut("8", modifiers: [.command])
                 Button("Output") { model.show(.output) }
                     .keyboardShortcut("9", modifiers: [.command])
+                }
+                .disabled(model.calculation == .nuclear)
+                Divider()
+                // 20.0: the nuclear-motion tabs
+                Group {
+                    Button("Energy Levels") { model.nuclear.selectedTab = .levels }
+                    Button("Expectation Values") { model.nuclear.selectedTab = .expectation }
+                    Button("Convergence") { model.nuclear.selectedTab = .convergence }
+                    Button("Nuclear-Motion Output") { model.nuclear.selectedTab = .output }
+                }
+                .disabled(model.calculation != .nuclear)
                 Divider()
             }
 

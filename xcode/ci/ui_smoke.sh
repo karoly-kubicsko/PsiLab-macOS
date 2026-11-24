@@ -896,6 +896,33 @@ print_shot "e3-h3-optimisation"
 view_tab "e4-h3-frequencies" "Frequencies"
 print_shot "e4-h3-frequencies"
 
+# --- ΨLab 20.0: nuclear motion (the second kind of calculation) ---
+echo "== 20.0: nuclear motion: the switch, ns1 = 20, np = 24, jmax = 0 (Lanczos), then jmax = 2"
+view_tab "f0-electronic-before-switch" "Summary"
+with_timeout 120 osascript "$OUT/tab.applescript" "Nuclear motion" | head -3
+sleep 3
+dump_tab "f1-nuclear-sidebar" ""
+print_shot "f1-nuclear-sidebar"
+with_timeout 60 osascript "$OUT/run.applescript" || echo "run failed"
+sleep 30
+view_tab "f2-nuclear-levels" "Energy Levels"
+print_shot "f2-nuclear-levels"
+view_tab "f3-nuclear-expectation" "Expectation Values"
+print_shot "f3-nuclear-expectation"
+view_tab "f4-nuclear-convergence" "Convergence"
+print_shot "f4-nuclear-convergence"
+view_tab "f5-nuclear-output" "Nuclear-Motion Output"
+grep -E "Normal termination of ΨLab 20.0 \(nuclear motion\)" "$OUT/f5-nuclear-output.txt" || echo "nuclear output: no normal termination in the text dump"
+with_timeout 120 osascript "$OUT/tab.applescript" "Electronic structure" | head -3
+sleep 3
+view_tab "f6-electronic-after-switch" "Summary"
+print_shot "f6-electronic-after-switch"
+relaunch -appearanceChoice light -psilabCalculation nuclear -psilabNuclearNs1 10 -psilabNuclearNp 12 -psilabNuclearJmax 2 -psilabNuclearLevels 6 -psilabNuclearSolver jacobi-davidson -psilabNuclearAutoRun YES
+sleep 10
+view_tab "f7-nuclear-j2-levels" "Energy Levels"
+print_shot "f7-nuclear-j2-levels"
+view_tab "f8-nuclear-j2-expectation" "Expectation Values"
+
 pkill -x "ΨLab" || true
 
 # Crash reports of this run (none expected): print the crashed thread's backtrace.
