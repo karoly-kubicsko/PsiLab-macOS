@@ -848,7 +848,12 @@ final class Molecule3DController {
         }
         view.defaultCameraController.pointOfView = cameraNode
         cameraNode.simdPosition = center + distance * toward
-        cameraNode.simdLook(at: center, up: up, localFront: SIMD3<Float>(0, 0, -1))
+        // 20.0: the orientation from the frame itself (camera x = right, y = up, z = toward, the
+        // camera looking along −z), not simdLook(at:up:localFront:): when the camera had to look
+        // exactly along +z (H₃⁺ in the xy plane, seen from −z), SceneKit's look-at left the
+        // camera facing away from the molecule (−z), and the viewers showed only the background.
+        cameraNode.simdOrientation = Molecule3DController.cameraOrientation(up: up, toward: toward)
+        cameraNode.camera?.fieldOfView = 30
         view.defaultCameraController.target = scnVector(center)
         fittedSize = bounds
         view.cameraTouched = false
@@ -1224,6 +1229,23 @@ final class Molecule3DController {
     }
 
     /// The rotation that turns the y axis onto the unit vector u.
+    /// 20.0: the rotation that takes the camera's axes y and z to `up` and `toward`
+    /// (orthonormalised; x = y × z, the frame's horizontal axis): the camera at centre + d · toward
+    /// looks at the centre.
+    nonisolated static func cameraOrientation(up: SIMD3<Float>, toward: SIMD3<Float>) -> simd_quatf {
+        var z = simd_normalize(toward)
+        if !z.x.isFinite || !z.y.isFinite || !z.z.isFinite { z = SIMD3<Float>(0, 0, 1) }
+        var y = up - simd_dot(up, z) * z
+        if simd_length(y) < 1e-4 {
+            // up along the line of sight: any perpendicular axis
+            let a = abs(z.x) < 0.9 ? SIMD3<Float>(1, 0, 0) : SIMD3<Float>(0, 1, 0)
+            y = a - simd_dot(a, z) * z
+        }
+        y = simd_normalize(y)
+        let x = simd_cross(y, z)   // right-handed: x × y = z
+        return simd_quatf(simd_float3x3(columns: (x, y, z)))
+    }
+
     nonisolated static func rotationFromY(to u: SIMD3<Float>) -> simd_quatf {
         let y = SIMD3<Float>(0, 1, 0)
         if simd_dot(y, u) < -0.999_999 {
