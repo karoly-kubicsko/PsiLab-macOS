@@ -99,6 +99,7 @@ struct CalculationKindPicker: View {
                 .help(kind.help)
                 .accessibilityLabel(kind.title)
                 .accessibilityAddTraits(selected ? .isSelected : [])
+                .accessibilityAction { model.calculation = kind }
             }
         }
         .padding(3)

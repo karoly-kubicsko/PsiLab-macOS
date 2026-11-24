@@ -30,7 +30,7 @@ private enum MatrixPart: String, CaseIterable, Identifiable {
 private enum MatrixColouring: String, CaseIterable, Identifiable {
     case pattern, magnitude
     var id: String { rawValue }
-    var title: String { self == .pattern ? "Non-zero elements" : "log₁₀ |Hᵢⱼ|" }
+    var title: String { self == .pattern ? "Non-zero" : "log₁₀ |Hᵢⱼ|" }
 }
 
 struct NuclearMatrixView: View {
@@ -79,10 +79,17 @@ struct NuclearMatrixView: View {
     // MARK: Controls
 
     private func toolbar(_ r: NuclearResult, _ p: NuclearMatrixPicture) -> some View {
-        HStack(spacing: 14) {
+        // scrolls sideways in a narrow window instead of widening it (which squeezed the sidebar)
+        ScrollView(.horizontal, showsIndicators: false) {
+            toolbarContent(r, p)
+        }
+    }
+
+    private func toolbarContent(_ r: NuclearResult, _ p: NuclearMatrixPicture) -> some View {
+        HStack(spacing: 12) {
             Picker("Part", selection: $part) {
-                Text("Whole matrix").tag(MatrixPart.whole)
-                Text("Rows and columns 1 … \(Fmt.count(Double(r.matrixDetail?.span ?? p.span)))").tag(MatrixPart.leading)
+                Text("Whole").tag(MatrixPart.whole)
+                Text("First \(Fmt.count(Double(r.matrixDetail?.span ?? p.span)))").tag(MatrixPart.leading)
             }
             .pickerStyle(.segmented)
             .labelsHidden()
@@ -101,7 +108,7 @@ struct NuclearMatrixView: View {
             Image(systemName: "minus.magnifyingglass")
                 .foregroundStyle(.secondary)
             Slider(value: $zoom, in: 1...16)
-                .frame(width: 130)
+                .frame(width: 100)
                 .accessibilityLabel("Zoom")
             Image(systemName: "plus.magnifyingglass")
                 .foregroundStyle(.secondary)

@@ -317,7 +317,7 @@ print_shot "e4-h3-frequencies"
 # --- ΨLab 20.0: nuclear motion (the second kind of calculation) ---
 echo "== 20.0: nuclear motion: the switch, ns1 = 20, np = 24, jmax = 0 (Lanczos), then jmax = 2"
 view_tab "f0-electronic-before-switch" "Summary"
-with_timeout 120 osascript "$OUT/tab.applescript" "Nuclear motion" | head -3
+with_timeout 20 osascript "$OUT/view-menu.applescript" "Nuclear-Motion Calculation" || echo "could not switch to nuclear motion"
 sleep 3
 dump_tab "f1-nuclear-sidebar" ""
 print_shot "f1-nuclear-sidebar"
@@ -325,7 +325,7 @@ with_timeout 60 osascript "$OUT/run.applescript" || echo "run failed"
 sleep 30
 view_tab "f2-nuclear-levels" "Energy Levels"
 print_shot "f2-nuclear-levels"
-view_tab "f3-nuclear-expectation" "Expectation Values"
+view_tab "f3-nuclear-expectation" "Averaged Geometry"
 print_shot "f3-nuclear-expectation"
 view_tab "f3b-nuclear-matrix" "Matrix Structure"
 print_shot "f3b-nuclear-matrix"
@@ -334,7 +334,7 @@ print_shot "f4-nuclear-convergence"
 view_tab "f5-nuclear-output" "Nuclear-Motion Output"
 # (the output file is an NSTextView, not in the text dump: the levels are checked instead)
 grep -E "^4638\.3055$" "$OUT/f2-nuclear-levels.txt" > /dev/null && echo "nuclear levels: ZPE 4638.3055 cm-1 (ns1 = 20, np = 24) found" || echo "nuclear levels: ZPE 4638.3055 cm-1 NOT found"
-with_timeout 120 osascript "$OUT/tab.applescript" "Electronic structure" | head -3
+with_timeout 20 osascript "$OUT/view-menu.applescript" "Electronic Structure Calculation" || echo "could not switch to electronic structure"
 sleep 3
 view_tab "f6-electronic-after-switch" "Summary"
 print_shot "f6-electronic-after-switch"
@@ -344,7 +344,7 @@ open -n "$APP" --args -appearanceChoice light -psilabCalculation nuclear -psilab
 sleep 25
 view_tab "f7-nuclear-j2-levels" "Energy Levels"
 print_shot "f7-nuclear-j2-levels"
-view_tab "f8-nuclear-j2-expectation" "Expectation Values"
+view_tab "f8-nuclear-j2-expectation" "Averaged Geometry"
 view_tab "f9-nuclear-j2-matrix" "Matrix Structure"
 print_shot "f9-nuclear-j2-matrix"
 

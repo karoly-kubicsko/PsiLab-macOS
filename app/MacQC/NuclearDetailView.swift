@@ -20,7 +20,7 @@ struct NuclearDetailView: View {
                 .tabItem { Label("Levels", systemImage: "list.number") }
                 .tag(NuclearTab.levels)
             NuclearExpectationView(model: model)
-                .tabItem { Label("Expectation values", systemImage: "ruler") }
+                .tabItem { Label("Geometry", systemImage: "ruler") }
                 .tag(NuclearTab.expectation)
             NuclearMatrixView(model: model)
                 .tabItem { Label("Matrix", systemImage: "square.grid.3x3") }
@@ -201,7 +201,7 @@ struct NuclearExpectationView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 18) {
                     NuclearHeader(result: r)
-                    SectionTitle("Bond lengths and angle")
+                    SectionTitle("Vibrationally averaged geometry: expectation values of the bond lengths and the angle")
                     momentsTable(r)
                         .dataPanel()
                     Text("r₁ = r(O–H₁), r₂ = r(O–H₂) in Å; ⟨rⁿ⟩^(1/n) for n = 1, 2, 3, −1, −2, −3 (as the original program's expectval); the angle H–O–H in degrees. The DVR quadrature: |cᵢ|² at the grid points.")

@@ -248,7 +248,8 @@ the v at another height), and in X ²Σ<sub>g</sub>⁺ the g is a subscript.
 of the sidebar, drawn like the tab bar (a glass capsule, the chosen kind on a lighter capsule),
 chooses the kind of calculation: *Electronic structure* (the interface of the
 earlier versions, unchanged) or *Nuclear motion*, which has its own sidebar and tabs (Levels,
-Expectation values, Convergence, Output). It is the program cpp_DOPI_expval_array.cpp (kept in
+Geometry, Matrix, Convergence, Output); View ▸ Electronic Structure Calculation (⌃⌘E) and
+Nuclear-Motion Calculation (⌃⌘N) switch as well. It is the program cpp_DOPI_expval_array.cpp (kept in
 `reference/nuclear_motion`) built into ΨLab:
 
 - *Potential*: the CVRQD surfaces of H₂¹⁶O, H₂¹⁷O, H₂¹⁸O and D₂¹⁶O (Barletta, Shirin, Zobov,
