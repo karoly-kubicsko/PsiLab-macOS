@@ -379,7 +379,7 @@ struct MoleculeSceneRepresentable: NSViewRepresentable {
     }
 
     static func dismantleNSView(_ view: MoleculeSCNView, coordinator: Molecule3DController) {
-        coordinator.detach()
+        coordinator.detach(view)
     }
 }
 
@@ -391,6 +391,13 @@ final class MoleculeSCNView: SCNView {
     var onResize: (() -> Void)?
     /// Whether the mouse or trackpad moved the camera since the last Reset view.
     var cameraTouched = false
+    /// 20.0: the view was put into a window (its tab was shown again).
+    var onWindow: (() -> Void)?
+
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        if window != nil { onWindow?() }
+    }
 
     override func setFrameSize(_ newSize: NSSize) {
         let old = frame.size
@@ -472,6 +479,9 @@ final class Molecule3DController {
     private var depthCueDistance: Float = -1
     private var materials: [String: SCNMaterial] = [:]
     private var labelImages: [String: CGImage] = [:]
+    /// 20.0: a normal mode is animated (the view renders continuously)
+    private var playing = false
+    private var redrawToken = 0
 
     // MARK: Life cycle
 
@@ -535,6 +545,9 @@ final class Molecule3DController {
         view.onResize = { [weak self] in
             self?.refitIfUntouched()
         }
+        view.onWindow = { [weak self] in
+            self?.requestRedraw()
+        }
         // Depth cueing follows the distance of the camera (zooming changes it): checked 10 times
         // a second, also while the mouse is dragged.
         let timer = Timer(timeInterval: 0.1, repeats: true) { [weak self] _ in
@@ -546,10 +559,28 @@ final class Molecule3DController {
         depthTimer = timer
     }
 
-    func detach() {
+    /// 20.0: only for the view the controller draws into: SwiftUI can dismantle an old view after it
+    /// made the new one (attach), and that must not stop the new view's timer and animation.
+    func detach(_ old: MoleculeSCNView) {
+        guard old === view else { return }
         depthTimer?.invalidate()
         depthTimer = nil
         view?.isPlaying = false
+    }
+
+    /// 20.0: draws the scene again. With rendersContinuously off SceneKit draws only when it sees a
+    /// change; a viewer that was on a hidden tab when the new result arrived kept showing its
+    /// previous frame (the H₂ of the start-up example under an H₃⁺ result). After every update,
+    /// reset and (re)appearance the view renders for a short time, then stops unless a mode plays.
+    func requestRedraw() {
+        guard let view else { return }
+        redrawToken += 1
+        let token = redrawToken
+        view.rendersContinuously = true
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) { [weak self] in
+            guard let self, let view = self.view, token == self.redrawToken else { return }
+            view.rendersContinuously = self.playing
+        }
     }
 
     // MARK: Updates
@@ -594,6 +625,7 @@ final class Molecule3DController {
         }
         SCNTransaction.commit()
         updateDepthCue(force: true)
+        requestRedraw()
     }
 
     /// The starting view changes only with another molecule or another first geometry (the start of
@@ -685,6 +717,7 @@ final class Molecule3DController {
         bondNodes.forEach { $0.1.removeAnimation(forKey: "vibration") }
         arrowRoot.childNodes.forEach { $0.removeFromParentNode() }
         guard let v = c.vibration, v.displacement.count == c.positions.count else {
+            playing = false
             view?.isPlaying = false
             view?.rendersContinuously = false
             return
@@ -714,6 +747,7 @@ final class Molecule3DController {
                 node.addAnimation(animation, forKey: "vibration")
             }
         }
+        playing = v.playing
         view?.isPlaying = v.playing
         view?.rendersContinuously = v.playing
         guard v.arrows else { return }
@@ -846,6 +880,7 @@ final class Molecule3DController {
         view.cameraTouched = false
         depthCueDistance = -1
         updateDepthCue(force: true)
+        requestRedraw()
     }
 
 
