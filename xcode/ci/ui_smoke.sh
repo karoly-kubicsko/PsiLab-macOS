@@ -939,6 +939,16 @@ view_tab "d3-h2o-optimisation-labels-light" "Optimisation"
 print_shot "d3-h2o-optimisation-labels-light"
 
 
+# 20.0: the screenshots of the 20.0 sections once more at the end of the log (the job log read
+# through the API is its last part only; the sections run first)
+echo "== 20.0 screenshots again"
+for name in e1-h3-chosen e2-h3-summary e3-h3-optimisation e4-h3-frequencies f1-nuclear-sidebar f2-nuclear-levels \
+            f3-nuclear-expectation f3b-nuclear-matrix f4-nuclear-convergence f6-electronic-after-switch \
+            f7-nuclear-j2-levels f9-nuclear-j2-matrix; do
+    [ -f "$OUT/$name.png" ] && print_shot "$name" || echo "no screenshot $name"
+done
+grep -E "^4638\.3055$" "$OUT/f2-nuclear-levels.txt" > /dev/null && echo "nuclear levels: ZPE 4638.3055 cm-1 found" || echo "nuclear levels: ZPE 4638.3055 cm-1 NOT found"
+
 pkill -x "ΨLab" || true
 
 # Crash reports of this run (none expected): print the crashed thread's backtrace.
