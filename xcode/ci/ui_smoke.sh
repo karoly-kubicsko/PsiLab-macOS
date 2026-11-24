@@ -327,6 +327,8 @@ view_tab "f2-nuclear-levels" "Energy Levels"
 print_shot "f2-nuclear-levels"
 view_tab "f3-nuclear-expectation" "Expectation Values"
 print_shot "f3-nuclear-expectation"
+view_tab "f3b-nuclear-matrix" "Matrix Structure"
+print_shot "f3b-nuclear-matrix"
 view_tab "f4-nuclear-convergence" "Convergence"
 print_shot "f4-nuclear-convergence"
 view_tab "f5-nuclear-output" "Nuclear-Motion Output"
@@ -343,6 +345,8 @@ sleep 25
 view_tab "f7-nuclear-j2-levels" "Energy Levels"
 print_shot "f7-nuclear-j2-levels"
 view_tab "f8-nuclear-j2-expectation" "Expectation Values"
+view_tab "f9-nuclear-j2-matrix" "Matrix Structure"
+print_shot "f9-nuclear-j2-matrix"
 
 echo "== relaunching $APP (HeH+ STO-3G, Szabo-Ostlund) for the sections of the earlier versions"
 pkill -x "ΨLab" || true

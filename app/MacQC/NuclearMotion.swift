@@ -211,6 +211,8 @@ nonisolated struct NuclearResult: Codable, Sendable, Equatable {
     var solver: String?
     var history: [NuclearStep]?
     var levels: [NuclearLevelResult]
+    var matrixWhole: NuclearMatrixPicture?     // 20.0: the structure of the Hamiltonian
+    var matrixDetail: NuclearMatrixPicture?
     var notes: [String]?
     var output: String?
 }
@@ -256,7 +258,7 @@ nonisolated enum NuclearEngine {
 
 /// Tabs of the nuclear-motion interface.
 enum NuclearTab: Hashable {
-    case levels, expectation, convergence, output
+    case levels, expectation, matrix, convergence, output
 }
 
 /// The model of the nuclear-motion interface: its inputs, the running job and the result.

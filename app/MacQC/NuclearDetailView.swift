@@ -22,6 +22,9 @@ struct NuclearDetailView: View {
             NuclearExpectationView(model: model)
                 .tabItem { Label("Expectation values", systemImage: "ruler") }
                 .tag(NuclearTab.expectation)
+            NuclearMatrixView(model: model)
+                .tabItem { Label("Matrix", systemImage: "square.grid.3x3") }
+                .tag(NuclearTab.matrix)
             NuclearConvergenceView(model: model)
                 .tabItem { Label("Convergence", systemImage: "chart.line.downtrend.xyaxis") }
                 .tag(NuclearTab.convergence)

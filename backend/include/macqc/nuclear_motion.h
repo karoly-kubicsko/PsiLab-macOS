@@ -79,6 +79,18 @@ struct NuclearSolverStep {
     int linear_iterations = 0;  // Lanczos: iterations of this step's linear solve
 };
 
+// 20.0: a picture of the sparsity of the Hamiltonian: rows and columns first ... first + span - 1
+// (from 0) in bins x bins pixels (a pixel is one element when span <= bins). density: the fraction
+// of the elements of each pixel that are non-zero (0 ... 255, 0 only when none is); magnitude: the
+// largest |H_ij| of the pixel on a logarithmic scale, 1 ... 255 for 10^log_min ... 10^log_max E_h
+// (0: no non-zero element). Row-major, row 0 at the top.
+struct MatrixPicture {
+    int bins = 0;
+    long long first = 0, span = 0;
+    std::vector<unsigned char> density, magnitude;
+    double log_min = 0, log_max = 0;
+};
+
 struct NuclearMotionResult {
     NuclearMotionInput input;
     std::string isotopologue_name;   // e.g. "H2(16)O"
@@ -100,6 +112,8 @@ struct NuclearMotionResult {
     std::string solver_description;
     std::vector<NuclearSolverStep> history;
     std::vector<NuclearLevel> levels;
+    MatrixPicture matrix_whole;      // the whole Hamiltonian (at most 1024 x 1024 pixels)
+    MatrixPicture matrix_detail;     // its leading rows and columns, one pixel per element
     std::vector<std::string> notes;
     std::string report;              // the output file
 };

@@ -228,6 +228,51 @@ int main() {
         check(e110 > 38 && e110 < 44, "J=1 1_10 above the zero-point level");
     }
 
+    // ---- 6b. the sparsity picture: binned for a large matrix (2400 functions in 1024 pixels: every
+    //          pixel row covers 2 or 3 rows), exact for a small one (one pixel per element)
+    {
+        NuclearMotionInput in;
+        in.radial_points = 10;
+        in.angular_points = 12;
+        in.J = 1;
+        in.levels = 1;
+        in.eigensolver = "jacobi-davidson";
+        const NuclearMotionResult r = run_nuclear_motion(in);
+        check(r.matrix_whole.bins == 1024 && r.matrix_whole.span == 2400, "picture of 2400 functions: 1024 pixels");
+        check(r.matrix_detail.bins == 1024 && r.matrix_detail.span == 1024, "detail: rows 1 ... 1024, one pixel per element");
+        // the Coriolis block (K = 0 rows, K = 1 columns) is not empty, the corner far from both is
+        bool coriolis = false;
+        for (int j = 512; j < 1024 && !coriolis; ++j)
+            if (r.matrix_whole.density[static_cast<std::size_t>(0 * 1024 + j)]) coriolis = true;
+        check(coriolis, "picture: Coriolis coupling of K = 0 and K = 1");
+        check(r.matrix_whole.log_max > r.matrix_whole.log_min, "picture: a range of |H_ij|");
+    }
+    // ---- 6b. the sparsity picture: exact for a small matrix (one pixel per element)
+    {
+        NuclearMotionInput in;
+        in.radial_points = 4;
+        in.angular_points = 5;
+        in.levels = 2;
+        in.eigensolver = "dense";
+        const NuclearMotionResult r = run_nuclear_motion(in);
+        const MatrixPicture& m = r.matrix_whole;
+        check(m.bins == 80 && m.span == 80, "picture of an 80 x 80 matrix: one pixel per element");
+        long long nz = 0;
+        bool symmetric = true;
+        for (int i = 0; i < m.bins; ++i)
+            for (int j = 0; j < m.bins; ++j) {
+                const unsigned char d = m.density[static_cast<std::size_t>(i * m.bins + j)];
+                if (d) ++nz;
+                if ((d != 0) != (m.density[static_cast<std::size_t>(j * m.bins + i)] != 0)) symmetric = false;
+                if (i == j && d != 255) symmetric = false;
+            }
+        check(nz == r.nonzeros, "picture: as many pixels as non-zero elements");
+        check(symmetric, "picture: symmetric pattern with the full diagonal");
+        // ((i*4 + j)*5 + l): T(R2) couples j and j' (offset 5), T(R1) i and i' (offset 20)
+        check(m.density[static_cast<std::size_t>(0 * 80 + 5)] == 255 && m.density[static_cast<std::size_t>(0 * 80 + 20)] == 255, "picture: kinetic-energy diagonals");
+        check(m.density[static_cast<std::size_t>(0 * 80 + 6)] == 0, "picture: no element between them");
+    }
+
     // ---- 7. C API: JSON round trip, estimate, refusals
     {
         const char* input = R"({"isotopologue":"H2(16)O","radialPoints":8,"angularPoints":10,"levels":4,
@@ -243,6 +288,10 @@ int main() {
             check(j["input"]["eigensolver"] == "jacobi-davidson", "JSON echoes the input");
             check(j["output"].get<std::string>().find("Normal termination") != std::string::npos, "JSON output file");
             check(j["levels"][0]["r1"]["mean"].get<double>() > 1.7, "JSON expectation values");
+            // the sparsity pictures: 640 functions, one pixel per element (at most 1024 x 1024)
+            check(j["matrixWhole"]["bins"].get<int>() == 640 && j["matrixWhole"]["span"].get<int>() == 640, "matrix picture: bins");
+            check(j["matrixWhole"]["density"].get<std::string>().size() == (640 * 640 + 2) / 3 * 4, "matrix picture: base64 size");
+            check(j["matrixDetail"]["span"].get<int>() == 640, "matrix detail: all 640 rows");
         }
         char* est = macqc_nuclear_estimate(R"({"radialPoints":30,"angularPoints":40,"J":3})");
         const json e = json::parse(est);

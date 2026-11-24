@@ -272,6 +272,13 @@ Expectation values, Convergence, Output). It is the program cpp_DOPI_expval_arra
   a diagonal one-step approximation refined by projected MINRES; Davidson; and dense
   diagonalisation as a reference for small bases. Every eigenvector is checked by its residual
   ‖Hx − Ex‖.
+- *Matrix*: the structure of the sparse Hamiltonian, as large as the tab allows and zoomable (to
+  16×; pinch or the slider): the whole matrix in up to 1024 × 1024 pixels (a pixel is a block of
+  elements for a larger matrix, coloured by its share of non-zero elements) or its first 1024 rows
+  and columns one pixel per element, which shows the dense np × np blocks of j², the diagonals of the
+  kinetic energy in R₂ (np apart) and in R₁ (ns1·np apart), and for J > 0 the Coriolis blocks of
+  K and K ± 1; or every element's |Hᵢⱼ| on a logarithmic colour scale. Hovering names the rows and
+  columns under the pointer.
 - *Results*: the levels in E_h and cm⁻¹ with E − E₁ (for jmax = 0 the band origins above the
   zero-point level) and a level diagram; ⟨r⟩, ⟨r²⟩^½, ⟨r³⟩^⅓, ⟨r⁻¹⟩⁻¹, ⟨r⁻²⟩^−½, ⟨r⁻³⟩^−⅓ of both
   O–H bonds and ⟨H–O–H⟩ for every level; the weights of the K blocks; the solver's history; an

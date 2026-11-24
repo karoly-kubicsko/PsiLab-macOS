@@ -1033,6 +1033,57 @@ std::string solver_description(const NuclearMotionInput& in) {
     return "dense diagonalisation (Householder tridiagonalisation and implicit QL)";
 }
 
+// 20.0: the picture of the sparsity of rows and columns first ... first + span - 1 (see
+// MatrixPicture); bins = min(span, max_bins).
+MatrixPicture matrix_picture(const Csr& a, std::size_t first, std::size_t span, int max_bins) {
+    MatrixPicture m;
+    if (span == 0) return m;
+    const int bins = static_cast<int>(std::min<std::size_t>(span, static_cast<std::size_t>(max_bins)));
+    m.bins = bins;
+    m.first = static_cast<long long>(first);
+    m.span = static_cast<long long>(span);
+    const std::size_t nb = static_cast<std::size_t>(bins);
+    std::vector<unsigned> count(nb * nb, 0);
+    std::vector<float> largest(nb * nb, 0.0f);
+    auto bin = [&](std::size_t k) { return k * nb / span; };
+    for (std::size_t r = first; r < first + span; ++r) {
+        const std::size_t br = bin(r - first);
+        for (std::size_t p = a.row[r]; p < a.row[r + 1]; ++p) {
+            const std::size_t c = static_cast<std::size_t>(a.col[p]);
+            if (c < first || c >= first + span || a.val[p] == 0.0) continue;
+            const std::size_t q = br * nb + bin(c - first);
+            ++count[q];
+            largest[q] = std::max(largest[q], static_cast<float>(std::fabs(a.val[p])));
+        }
+    }
+    // elements of each bin row/column: the k with bin(k) = b
+    std::vector<std::size_t> width(nb, 0);
+    for (std::size_t k = 0; k < span; ++k) ++width[bin(k)];
+    double lo = std::numeric_limits<double>::infinity(), hi = -lo;
+    for (std::size_t q = 0; q < nb * nb; ++q)
+        if (count[q] > 0) {
+            const double l = std::log10(static_cast<double>(largest[q]));
+            lo = std::min(lo, l);
+            hi = std::max(hi, l);
+        }
+    if (!(hi >= lo)) lo = hi = 0.0;
+    if (hi - lo < 1e-6) hi = lo + 1.0;
+    m.log_min = lo;
+    m.log_max = hi;
+    m.density.assign(nb * nb, 0);
+    m.magnitude.assign(nb * nb, 0);
+    for (std::size_t i = 0; i < nb; ++i)
+        for (std::size_t j = 0; j < nb; ++j) {
+            const std::size_t q = i * nb + j;
+            if (count[q] == 0) continue;
+            const double frac = static_cast<double>(count[q]) / static_cast<double>(width[i] * width[j]);
+            m.density[q] = static_cast<unsigned char>(std::max(1.0, std::min(255.0, std::round(255.0 * frac))));
+            const double t = (std::log10(static_cast<double>(largest[q])) - lo) / (hi - lo);
+            m.magnitude[q] = static_cast<unsigned char>(1 + std::lround(254.0 * std::max(0.0, std::min(1.0, t))));
+        }
+    return m;
+}
+
 }  // namespace
 
 std::string isotopologue_name(CvrqdIsotopologue iso) { return isotopologue_data(iso).name; }
@@ -1115,6 +1166,8 @@ NuclearMotionResult run_nuclear_motion(const NuclearMotionInput& in, const Nucle
     Csr a = build_hamiltonian(p, in, iso, threads);
     res.hamiltonian_seconds = seconds_since(th0);
     res.nonzeros = static_cast<long long>(a.val.size());
+    res.matrix_whole = matrix_picture(a, 0, p.n, 1024);
+    res.matrix_detail = matrix_picture(a, 0, std::min<std::size_t>(p.n, 1024), 1024);
     emit(sink, os, fmt("Hamiltonian       %lld x %lld, %lld non-zero elements (%.2f per row), built in %.2f s\n",
                        res.dimension, res.dimension, res.nonzeros, static_cast<double>(res.nonzeros) / static_cast<double>(res.dimension),
                        res.hamiltonian_seconds));

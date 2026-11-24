@@ -1525,6 +1525,27 @@ nlohmann::json nuclear_input_json(const NuclearMotionInput& in) {
                 {"threads", in.threads}};
 }
 
+std::string base64(const std::vector<unsigned char>& v) {
+    static const char* t = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    std::string out;
+    out.reserve((v.size() + 2) / 3 * 4);
+    for (std::size_t i = 0; i < v.size(); i += 3) {
+        const unsigned b0 = v[i], b1 = i + 1 < v.size() ? v[i + 1] : 0u, b2 = i + 2 < v.size() ? v[i + 2] : 0u;
+        out += t[b0 >> 2];
+        out += t[((b0 & 3u) << 4) | (b1 >> 4)];
+        out += i + 1 < v.size() ? t[((b1 & 15u) << 2) | (b2 >> 6)] : '=';
+        out += i + 2 < v.size() ? t[b2 & 63u] : '=';
+    }
+    return out;
+}
+
+nlohmann::json matrix_picture_json(const MatrixPicture& m) {
+    using nlohmann::json;
+    if (m.bins == 0) return nullptr;
+    return json{{"bins", m.bins}, {"first", m.first}, {"span", m.span}, {"density", base64(m.density)},
+                {"magnitude", base64(m.magnitude)}, {"logMin", m.log_min}, {"logMax", m.log_max}};
+}
+
 nlohmann::json nuclear_result_json(const NuclearMotionResult& r) {
     using nlohmann::json;
     auto moments = [](const DistanceMoments& m) {
@@ -1564,6 +1585,8 @@ nlohmann::json nuclear_result_json(const NuclearMotionResult& r) {
                               {"theta", l.theta * 180.0 / 3.14159265358979323846}, {"cosTheta", l.cos_theta},
                               {"kWeights", l.k_weights}});
     j["levels"] = levels;
+    j["matrixWhole"] = matrix_picture_json(r.matrix_whole);
+    j["matrixDetail"] = matrix_picture_json(r.matrix_detail);
     j["notes"] = r.notes;
     j["output"] = r.report;
     return j;
