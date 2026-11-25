@@ -135,11 +135,14 @@ struct NuclearMatrixView: View {
         let n = r.dimension ?? p.span
         let nz = r.nonzeros ?? 0
         let fill = n > 0 ? Double(nz) / (Double(n) * Double(n)) : 0
-        let pixel = p.span > p.bins ? String(format: "1 pixel = %.1f × %.1f elements", Double(p.span) / Double(p.bins), Double(p.span) / Double(p.bins))
-                                    : "1 pixel = 1 element"
+        let pixel = p.span > p.bins ? String(format: "1 px = %.1f × %.1f elements", Double(p.span) / Double(p.bins), Double(p.span) / Double(p.bins))
+                                    : "1 px = 1 element"
         return HStack(spacing: 16) {
-            Text("\(Fmt.count(Double(n))) × \(Fmt.count(Double(n))) · \(Fmt.count(Double(nz))) non-zero (\(String(format: "%.3g", 100 * fill)) %, \(String(format: "%.1f", Double(nz) / Double(max(n, 1)))) per row) · \(pixel)")
+            Text("\(Fmt.count(Double(n)))² · \(Fmt.count(Double(nz))) non-zero (\(String(format: "%.3g", 100 * fill)) %, \(String(format: "%.1f", Double(nz) / Double(max(n, 1)))) per row) · \(pixel)")
                 .foregroundStyle(.secondary)
+                .lineLimit(1)
+                .truncationMode(.middle)
+                .minimumScaleFactor(0.85)
             Spacer(minLength: 8)
             if colouring == .magnitude {
                 legend(p)
@@ -147,7 +150,8 @@ struct NuclearMatrixView: View {
             Text(hover)
                 .monospacedDigit()
                 .foregroundStyle(.secondary)
-                .frame(minWidth: 220, alignment: .trailing)
+                .lineLimit(1)
+                .frame(minWidth: 180, alignment: .trailing)
         }
         .font(.caption)
         .padding(.horizontal, 14)
