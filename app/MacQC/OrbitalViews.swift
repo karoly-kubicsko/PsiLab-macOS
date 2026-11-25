@@ -764,9 +764,10 @@ struct OrbitalSceneView: View {
         let distance = (g.radius + 5.0) / tan(17.5 * Double.pi / 180)
         let eye = (0..<3).map { g.center[$0] + distance * back[$0] }
         camera.position = SCNVector3(x: CGFloat(eye[0]), y: CGFloat(eye[1]), z: CGFloat(eye[2]))
-        camera.look(at: SCNVector3(x: CGFloat(g.center[0]), y: CGFloat(g.center[1]), z: CGFloat(g.center[2])),
-                    up: SCNVector3(x: CGFloat(up[0]), y: CGFloat(up[1]), z: CGFloat(up[2])),
-                    localFront: SCNVector3(x: 0, y: 0, z: -1))
+        // 20.0: the orientation from the axes (SceneKit's look-at can leave a camera facing away
+        // when it must turn by 180°; see Molecule3DController.cameraOrientation)
+        camera.simdOrientation = Molecule3DController.cameraOrientation(up: SIMD3<Float>(Float(up[0]), Float(up[1]), Float(up[2])),
+                                                                        toward: SIMD3<Float>(Float(back[0]), Float(back[1]), Float(back[2])))
         scene.rootNode.addChildNode(camera)
         let light = SCNNode()
         light.light = SCNLight()

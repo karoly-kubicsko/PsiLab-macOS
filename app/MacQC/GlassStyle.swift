@@ -24,6 +24,17 @@ extension View {
         }
     }
 
+    /// 20.0: a glass capsule on macOS 26+ (as the tab bar), a regular-material capsule before that.
+    @ViewBuilder
+    func glassCapsule() -> some View {
+        if #available(macOS 26, *) {
+            self.glassEffect(.regular, in: .capsule)
+        } else {
+            self.background(.regularMaterial, in: Capsule())
+                .overlay(Capsule().strokeBorder(Color.secondary.opacity(0.2), lineWidth: 1))
+        }
+    }
+
     /// Prominent action button (the "Run" button).
     @ViewBuilder
     func prominentActionStyle() -> some View {

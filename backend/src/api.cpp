@@ -14,6 +14,7 @@
 #include "macqc/job.h"
 #include "macqc/jobs.h"
 #include "macqc/macqc_api.h"
+#include "macqc/nuclear_motion.h"
 #include "macqc/orbitals.h"
 #include "macqc/output.h"
 #include "macqc/structure_file.h"
@@ -1463,6 +1464,187 @@ char* macqc_job_progress_text(const macqc_job* job) {
     } catch (...) {
         return nullptr;
     }
+}
+
+}  // extern "C"
+
+// ---- ΨLab 20.0: nuclear motion (JSON in and out)
+
+namespace macqc {
+
+NuclearMotionInput parse_nuclear_input_json(const std::string& text) {
+    using nlohmann::json;
+    json j = json::parse(text.empty() ? std::string("{}") : text);
+    if (!j.is_object()) throw std::invalid_argument("the input must be a JSON object");
+    NuclearMotionInput in;
+    if (j.contains("isotopologue") && j["isotopologue"].is_string())
+        in.isotopologue = isotopologue_from_name(j["isotopologue"].get<std::string>());
+    in.J = get_int(j, "J", in.J);
+    in.parity_block = get_int(j, "parityBlock", in.parity_block);
+    in.radial_points = get_int(j, "radialPoints", in.radial_points);
+    in.angular_points = get_int(j, "angularPoints", in.angular_points);
+    in.r_centre = get_number(j, "rCentre", in.r_centre);
+    in.r_half_width = get_number(j, "rHalfWidth", in.r_half_width);
+    in.levels = get_int(j, "levels", in.levels);
+    in.eigensolver = get_string(j, "eigensolver", in.eigensolver);
+    in.linear_solver = get_string(j, "linearSolver", in.linear_solver);
+    in.preconditioner = get_string(j, "preconditioner", in.preconditioner);
+    in.eigenvalue_tolerance = get_number(j, "eigenvalueTolerance", in.eigenvalue_tolerance);
+    in.residual_tolerance = get_number(j, "residualTolerance", in.residual_tolerance);
+    in.linear_tolerance = get_number(j, "linearTolerance", in.linear_tolerance);
+    in.max_iterations = get_int(j, "maxIterations", in.max_iterations);
+    in.max_linear_iterations = get_int(j, "maxLinearIterations", in.max_linear_iterations);
+    in.jd_inner_iterations = get_int(j, "jdInnerIterations", in.jd_inner_iterations);
+    in.subspace_size = get_int(j, "subspaceSize", in.subspace_size);
+    in.expectation_values = get_bool(j, "expectationValues", in.expectation_values);
+    in.threads = get_int(j, "threads", in.threads);
+    return in;
+}
+
+nlohmann::json nuclear_input_json(const NuclearMotionInput& in) {
+    using nlohmann::json;
+    return json{{"isotopologue", isotopologue_name(in.isotopologue)},
+                {"J", in.J},
+                {"parityBlock", in.parity_block},
+                {"radialPoints", in.radial_points},
+                {"angularPoints", in.angular_points},
+                {"rCentre", in.r_centre},
+                {"rHalfWidth", in.r_half_width},
+                {"levels", in.levels},
+                {"eigensolver", in.eigensolver},
+                {"linearSolver", in.linear_solver},
+                {"preconditioner", in.preconditioner},
+                {"eigenvalueTolerance", in.eigenvalue_tolerance},
+                {"residualTolerance", in.residual_tolerance},
+                {"linearTolerance", in.linear_tolerance},
+                {"maxIterations", in.max_iterations},
+                {"maxLinearIterations", in.max_linear_iterations},
+                {"jdInnerIterations", in.jd_inner_iterations},
+                {"subspaceSize", in.subspace_size},
+                {"expectationValues", in.expectation_values},
+                {"threads", in.threads}};
+}
+
+std::string base64(const std::vector<unsigned char>& v) {
+    static const char* t = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    std::string out;
+    out.reserve((v.size() + 2) / 3 * 4);
+    for (std::size_t i = 0; i < v.size(); i += 3) {
+        const unsigned b0 = v[i], b1 = i + 1 < v.size() ? v[i + 1] : 0u, b2 = i + 2 < v.size() ? v[i + 2] : 0u;
+        out += t[b0 >> 2];
+        out += t[((b0 & 3u) << 4) | (b1 >> 4)];
+        out += i + 1 < v.size() ? t[((b1 & 15u) << 2) | (b2 >> 6)] : '=';
+        out += i + 2 < v.size() ? t[b2 & 63u] : '=';
+    }
+    return out;
+}
+
+nlohmann::json matrix_picture_json(const MatrixPicture& m) {
+    using nlohmann::json;
+    if (m.bins == 0) return nullptr;
+    return json{{"bins", m.bins}, {"first", m.first}, {"span", m.span}, {"density", base64(m.density)},
+                {"magnitude", base64(m.magnitude)}, {"logMin", m.log_min}, {"logMax", m.log_max}};
+}
+
+nlohmann::json nuclear_result_json(const NuclearMotionResult& r) {
+    using nlohmann::json;
+    auto moments = [](const DistanceMoments& m) {
+        return json{{"mean", m.mean}, {"rms", m.rms}, {"cubic", m.cubic},
+                    {"inverse", m.inverse}, {"inverse2", m.inverse2}, {"inverse3", m.inverse3}};
+    };
+    json j;
+    j["error"] = nullptr;
+    j["input"] = nuclear_input_json(r.input);
+    j["isotopologue"] = r.isotopologue_name;
+    j["masses"] = {r.masses[0], r.masses[1], r.masses[2]};
+    j["mu1"] = r.mu1;
+    j["mu2"] = r.mu2;
+    j["potentialMinimum"] = r.potential_minimum;
+    j["minimumR"] = r.minimum_r;
+    j["minimumAngle"] = r.minimum_angle * 180.0 / 3.14159265358979323846;
+    j["rGrid"] = r.r_grid;
+    j["kValues"] = r.k_values;
+    j["cosGrid"] = r.cos_grid;
+    j["dimension"] = r.dimension;
+    j["nonzeros"] = r.nonzeros;
+    j["hamiltonianSeconds"] = r.hamiltonian_seconds;
+    j["solverSeconds"] = r.solver_seconds;
+    j["iterations"] = r.iterations;
+    j["matrixVectorProducts"] = r.matrix_vector_products;
+    j["linearIterations"] = r.linear_iterations;
+    j["converged"] = r.converged;
+    j["solver"] = r.solver_description;
+    json hist = json::array();
+    for (const NuclearSolverStep& s : r.history)
+        hist.push_back(json{{"iteration", s.iteration}, {"lowest", s.lowest}, {"change", std::isfinite(s.change) ? json(s.change) : json(nullptr)},
+                            {"converged", s.converged}, {"linearIterations", s.linear_iterations}});
+    j["history"] = hist;
+    json levels = json::array();
+    for (const NuclearLevel& l : r.levels)
+        levels.push_back(json{{"energy", l.energy}, {"residual", l.residual}, {"r1", moments(l.r1)}, {"r2", moments(l.r2)},
+                              {"theta", l.theta * 180.0 / 3.14159265358979323846}, {"cosTheta", l.cos_theta},
+                              {"kWeights", l.k_weights}});
+    j["levels"] = levels;
+    j["matrixWhole"] = matrix_picture_json(r.matrix_whole);
+    j["matrixDetail"] = matrix_picture_json(r.matrix_detail);
+    j["notes"] = r.notes;
+    j["output"] = r.report;
+    return j;
+}
+
+}  // namespace macqc
+
+namespace {
+char* nuclear_copy(const std::string& s) {
+    char* buf = static_cast<char*>(std::malloc(s.size() + 1));
+    if (!buf) return nullptr;
+    std::memcpy(buf, s.c_str(), s.size() + 1);
+    return buf;
+}
+}  // namespace
+
+extern "C" {
+
+char* macqc_nuclear_run_job(const char* input_json, macqc_job* job) {
+    macqc::JobScope scope(job ? &job->job : nullptr);
+    using nlohmann::json;
+    std::string result;
+    try {
+        json j;
+        try {
+            const macqc::NuclearMotionInput in = macqc::parse_nuclear_input_json(input_json ? input_json : "");
+            macqc::NuclearOutputSink sink;
+            if (job) sink = [job](const std::string& text) { job->job.append_output(text); };
+            j = macqc::nuclear_result_json(macqc::run_nuclear_motion(in, sink));
+        } catch (const std::exception& e) {
+            j = json{{"error", e.what()}, {"levels", json::array()}};
+            if (job) {
+                std::size_t total = 0;
+                j["output"] = job->job.output_since(0, &total);
+            }
+        }
+        result = j.dump(-1, ' ', false, json::error_handler_t::replace);
+        macqc::report_progress(macqc::JobStage::Done);
+    } catch (...) {
+        result = "{\"error\":\"internal error\",\"levels\":[]}";
+    }
+    return nuclear_copy(result);
+}
+
+char* macqc_nuclear_estimate(const char* input_json) {
+    using nlohmann::json;
+    json j;
+    try {
+        const macqc::NuclearMotionInput in = macqc::parse_nuclear_input_json(input_json ? input_json : "");
+        const macqc::NuclearMotionEstimate e = macqc::estimate_nuclear_motion(in);
+        j = json{{"error", nullptr}, {"dimension", e.dimension}, {"nonzeros", e.nonzeros}, {"memoryMB", e.memory_mb},
+                 {"refusal", e.refusal.empty() ? json(nullptr) : json(e.refusal)}};
+    } catch (const std::exception& e) {
+        j = json{{"error", e.what()}, {"refusal", e.what()}};
+    } catch (...) {
+        j = json{{"error", "internal error"}, {"refusal", "internal error"}};
+    }
+    return nuclear_copy(j.dump(-1, ' ', false, json::error_handler_t::replace));
 }
 
 char* macqc_run_job(const char* input_json, macqc_job* job) {

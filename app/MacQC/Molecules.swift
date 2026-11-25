@@ -143,15 +143,17 @@ nonisolated enum MoleculeChoice: String, CaseIterable, Identifiable, Sendable {
         }
     }
 
-    /// Short note shown under the molecule picker.
+    /// Short note shown under the molecule picker (20.0: LaTeX, drawn by LaTeXText; the same form
+    /// as the molecules of the menu: electrons, ground state, closed shell, point group, the
+    /// reference geometry in Å and bohr, then the notes of the molecule).
     var subtitle: String {
         switch self {
-        case .heh: return "2 electrons, charge +1: STO-nG (Szabo–Ostlund, HF and Full-CI) or a Gaussian basis set (all methods and jobs; 15.0 also STO-nG)"
-        case .h2: return "2 electrons, closed shell"
-        case .lih: return "4 electrons, closed shell"
-        case .h2o: return "10 electrons, closed shell (Full-CI impossible)"
-        case .h2o2: return "18 electrons, closed shell, C₂ (Full-CI impossible)"
-        case .nh3: return "10 electrons, closed shell, C₃ᵥ (Full-CI impossible)"
+        case .heh: return "2 electrons, X ^1Σ^+, closed shell, R = 0.7743 Å (1.4632 bohr); STO-nG (Szabo–Ostlund, HF and Full-CI) or a Gaussian basis set (all methods and jobs; 15.0 also STO-nG)"
+        case .h2: return "2 electrons, X ^1Σ_g^+, closed shell, R = 0.7414 Å (1.40 bohr)"
+        case .lih: return "4 electrons, X ^1Σ^+, closed shell, R = 1.5949 Å (3.01 bohr)"
+        case .h2o: return "10 electrons, X ^1A_1, closed shell, C_{2v}, R(O–H) = 0.9572 Å (1.81 bohr), ∠HOH = 104.52° (Full-CI impossible)"
+        case .h2o2: return "18 electrons, X ^1A, closed shell, C_2, R(O–O) = 1.4556 Å (2.75 bohr), R(O–H) = 0.9670 Å (1.83 bohr), ∠OOH = 102.32°, D(HOOH) = 113.70° (Full-CI impossible)"
+        case .nh3: return "10 electrons, X ^1A_1, closed shell, C_{3v}, R(N–H) = 1.012 Å (1.91 bohr), ∠HNH = 106.7° (Full-CI impossible)"
         case .custom: return "A molecule from a structure file: .xyz (Å; the comment line is its name, LaTeX allowed) or Gaussian input (.gjf, .com)"
         case .preset: return "An atom or a molecule with a fixed geometry"
         }
@@ -481,14 +483,26 @@ nonisolated struct MoleculePreset: Identifiable, Sendable, Hashable {
 }
 
 nonisolated enum MoleculePresets {
+    /// The spin state of a multiplicity in words ("closed shell" for a singlet).
+    static func spinName(_ multiplicity: Int) -> String {
+        switch multiplicity {
+        case 1: return "closed shell"
+        case 2: return "open shell (doublet)"
+        case 3: return "open shell (triplet)"
+        case 4: return "open shell (quartet)"
+        default: return "multiplicity \(multiplicity)"
+        }
+    }
+
     /// The atoms H–Ar in their ground states (term symbols as in NIST's atomic spectra database).
     static let atoms: [MoleculePreset] = {
         let symbols = ["H", "He", "Li", "Be", "B", "C", "N", "O", "F", "Ne", "Na", "Mg", "Al", "Si", "P", "S", "Cl", "Ar"]
         let mult = [2, 1, 2, 1, 2, 3, 4, 3, 2, 1, 2, 1, 2, 3, 4, 3, 2, 1]
-        let terms = ["²S", "¹S", "²S", "¹S", "²P", "³P", "⁴S", "³P", "²P", "¹S", "²S", "¹S", "²P", "³P", "⁴S", "³P", "²P", "¹S"]
+        // the orbital part of the ground-state term (NIST); the multiplicity is written before it
+        let terms = ["S", "S", "S", "S", "P", "P", "S", "P", "P", "S", "S", "S", "P", "P", "S", "P", "P", "S"]
         return symbols.indices.map { k in
             MoleculePreset(key: symbols[k], title: symbols[k], symbols: [symbols[k]], charge: 0, multiplicity: mult[k],
-                           note: "\(symbols[k]) atom, ground state \(terms[k]) (multiplicity \(mult[k]))")
+                           note: "\(k + 1) electron\(k == 0 ? "" : "s"), ground state ^\(mult[k])\(terms[k]), \(MoleculePresets.spinName(mult[k])); \(symbols[k]) atom")
         }
     }()
 
@@ -496,34 +510,34 @@ nonisolated enum MoleculePresets {
     /// and 134.1°, H₃⁺ an equilateral triangle, H₅⁺ C₂ᵥ MP2/aug-cc-pVTZ).
     static let molecules: [MoleculePreset] = [
         MoleculePreset(key: "H2+", title: "H₂⁺", symbols: ["H", "H"], charge: 1, multiplicity: 2,
-                       note: "1 electron, X ²Σg⁺, R = 1.0569 Å (2.00 bohr)"),
+                       note: "1 electron, X ^2Σ_g^+, R = 1.0569 Å (2.00 bohr)"),
         MoleculePreset(key: "H3+", title: "H₃⁺", symbols: ["H", "H", "H"], charge: 1, multiplicity: 1,
-                       note: "2 electrons, D₃ₕ equilateral triangle, R = 0.873 Å (1.65 bohr)"),
+                       note: "2 electrons, X ^1A_1′, closed shell, D_{3h} equilateral triangle, R = 0.8731 Å (1.65 bohr)"),
         MoleculePreset(key: "H5+", title: "H₅⁺", symbols: ["H", "H", "H", "H", "H"], charge: 1, multiplicity: 1,
-                       note: "4 electrons, C₂ᵥ, H₃⁺ + H₂ (MP2/aug-cc-pVTZ geometry)"),
+                       note: "4 electrons, X ^1A_1, closed shell, C_{2v}, H_3^+ + H_2, R(H1–H2) = 0.9696 Å (1.83 bohr), R(H2–H3) = 0.8107 Å (1.53 bohr), R(H4–H5) = 0.7614 Å (1.44 bohr) (MP2/aug-cc-pVTZ geometry)"),
         MoleculePreset(key: "N2", title: "N₂", symbols: ["N", "N"], charge: 0, multiplicity: 1,
-                       note: "14 electrons, X ¹Σg⁺, r_e = 1.0977 Å"),
+                       note: "14 electrons, X ^1Σ_g^+, closed shell, R = r_e = 1.0977 Å (2.07 bohr)"),
         MoleculePreset(key: "O2", title: "O₂", symbols: ["O", "O"], charge: 0, multiplicity: 3,
-                       note: "16 electrons, X ³Σg⁻ (triplet), r_e = 1.2075 Å"),
+                       note: "16 electrons, X ^3Σ_g^−, open shell (triplet), R = r_e = 1.2075 Å (2.28 bohr)"),
         MoleculePreset(key: "F2", title: "F₂", symbols: ["F", "F"], charge: 0, multiplicity: 1,
-                       note: "18 electrons, X ¹Σg⁺, r_e = 1.4119 Å"),
+                       note: "18 electrons, X ^1Σ_g^+, closed shell, R = r_e = 1.4119 Å (2.67 bohr)"),
         MoleculePreset(key: "Cl2", title: "Cl₂", symbols: ["Cl", "Cl"], charge: 0, multiplicity: 1,
-                       note: "34 electrons, X ¹Σg⁺, r_e = 1.9879 Å"),
+                       note: "34 electrons, X ^1Σ_g^+, closed shell, R = r_e = 1.9879 Å (3.76 bohr)"),
         MoleculePreset(key: "NO", title: "NO", symbols: ["N", "O"], charge: 0, multiplicity: 2,
-                       note: "15 electrons, X ²Π (doublet), r_e = 1.1508 Å"),
+                       note: "15 electrons, X ^2Π, open shell (doublet), R = r_e = 1.1508 Å (2.17 bohr)"),
         MoleculePreset(key: "NO2", title: "NO₂", symbols: ["N", "O", "O"], charge: 0, multiplicity: 2,
-                       note: "23 electrons, X ²A₁ (doublet), C₂ᵥ, r(N–O) = 1.1934 Å, ∠ONO = 134.1°"),
+                       note: "23 electrons, X ^2A_1, open shell (doublet), C_{2v}, R(N–O) = 1.1934 Å (2.26 bohr), ∠ONO = 134.1°"),
         // the closed-shell molecules of the structure files in examples/ (fixed experimental geometries)
         MoleculePreset(key: "CO", title: "CO", symbols: ["C", "O"], charge: 0, multiplicity: 1,
-                       note: "14 electrons, X ¹Σ⁺, r(C–O) = 1.1283 Å"),
+                       note: "14 electrons, X ^1Σ^+, closed shell, R(C–O) = 1.1283 Å (2.13 bohr)"),
         MoleculePreset(key: "CO2", title: "CO₂", symbols: ["C", "O", "O"], charge: 0, multiplicity: 1,
-                       note: "22 electrons, X ¹Σg⁺, linear, r(C–O) = 1.160 Å"),
+                       note: "22 electrons, X ^1Σ_g^+, closed shell, D_{∞h} (linear), R(C–O) = 1.160 Å (2.19 bohr)"),
         MoleculePreset(key: "N2O", title: "N₂O", symbols: ["N", "N", "O"], charge: 0, multiplicity: 1,
-                       note: "22 electrons, X ¹Σ⁺, linear N–N–O, r(N–N) = 1.1273 Å, r(N–O) = 1.1851 Å"),
+                       note: "22 electrons, X ^1Σ^+, closed shell, C_{∞v} (linear N–N–O), R(N–N) = 1.1273 Å (2.13 bohr), R(N–O) = 1.1851 Å (2.24 bohr)"),
         MoleculePreset(key: "H2CO", title: "H₂CO", symbols: ["C", "O", "H", "H"], charge: 0, multiplicity: 1,
-                       note: "16 electrons, X ¹A₁, C₂ᵥ, r(C–O) = 1.2033 Å, r(C–H) = 1.1005 Å, ∠HCH = 116.2°"),
+                       note: "16 electrons, X ^1A_1, closed shell, C_{2v}, R(C–O) = 1.2033 Å (2.27 bohr), R(C–H) = 1.1005 Å (2.08 bohr), ∠HCH = 116.2°"),
         MoleculePreset(key: "CH4", title: "CH₄", symbols: ["C", "H", "H", "H", "H"], charge: 0, multiplicity: 1,
-                       note: "10 electrons, X ¹A₁, T_d, r(C–H) = 1.0870 Å"),
+                       note: "10 electrons, X ^1A_1, closed shell, T_d, R(C–H) = 1.0870 Å (2.05 bohr)"),
     ]
 
     static let all: [MoleculePreset] = atoms + molecules

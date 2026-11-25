@@ -1026,7 +1026,7 @@ nonisolated final class MacQCJob: @unchecked Sendable {
         return InterfaceText.fullCI(String(cString: raw))   // 17.0: shown in the interface
     }
 
-    fileprivate var pointer: OpaquePointer? { handle }
+    var pointer: OpaquePointer? { handle }   // 20.0: also for the nuclear-motion engine
 }
 
 // MARK: - Engine

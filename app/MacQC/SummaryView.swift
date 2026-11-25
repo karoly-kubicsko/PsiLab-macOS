@@ -74,6 +74,7 @@ struct EnergyCard: View {
     var title: String
     var value: Double
     var decimals: Int = 8
+    var unit: String = "E_h"   // 20.0: cm⁻¹ for the nuclear-motion levels
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
@@ -85,7 +86,7 @@ struct EnergyCard: View {
                 .textSelection(.enabled)
                 .lineLimit(1)
                 .minimumScaleFactor(0.7)
-            Text("E_h")
+            Text(unit)
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }

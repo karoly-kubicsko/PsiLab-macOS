@@ -235,6 +235,125 @@ pgrep -x "ΨLab" >/dev/null && echo "ΨLab process is running" || echo "ΨLab pr
 
 shot "00-launch"
 
+# 20.0: the sections of the newest version first, so that the time limit of the job cannot cut them
+# off; then the app is launched again as above for the sections of the earlier versions
+# --- ΨLab 20.0: H3+ run after the start-up example (the sidebar's menus, Cmd-R): the 3D viewers of
+# Summary, Optimisation and the normal modes must show the triangle (19.0: only the background) ---
+cat > "$OUT/popup.applescript" <<'APPLESCRIPT'
+on run argv
+    set popName to item 1 of argv
+    set itemName to item 2 of argv
+    tell application "System Events"
+        tell process "ΨLab"
+            set frontmost to true
+            set els to entire contents of window 1
+            repeat with e in els
+                try
+                    if (role of e) is "AXPopUpButton" then
+                        set n to ""
+                        set d to ""
+                        try
+                            set n to name of e
+                        end try
+                        try
+                            set d to description of e
+                        end try
+                        if n is popName or d is popName then
+                            click e
+                            delay 1
+                            click menu item itemName of menu 1 of e
+                            return "SELECTED " & itemName & " in " & popName
+                        end if
+                    end if
+                end try
+            end repeat
+            return "NOT FOUND: " & popName
+        end tell
+    end tell
+end run
+APPLESCRIPT
+echo "== 20.0: start-up example, then H3+ (Full CI/aug-cc-pVDZ opt+freq+sp) chosen in the sidebar"
+pkill -x "ΨLab" || true
+sleep 3
+open -n "$APP" --args -appearanceChoice dark
+sleep 20
+view_tab "e0-example-optimisation" "Optimisation"
+print_shot "e0-example-optimisation"
+view_tab "e0-example-frequencies" "Frequencies"
+view_tab "e0-example-summary" "Summary"
+with_timeout 120 osascript "$OUT/popup.applescript" "Atom/Molecule" "H₃⁺" || echo "popup failed"
+sleep 3
+with_timeout 120 osascript "$OUT/popup.applescript" "Basis set" "aug-cc-pVDZ" || echo "popup failed"
+sleep 3
+with_timeout 120 osascript "$OUT/popup.applescript" "SP basis set" "aug-cc-pVDZ" || echo "popup failed"
+sleep 3
+shot "e1-h3-chosen"
+print_shot "e1-h3-chosen"
+cat > "$OUT/run.applescript" <<'APPLESCRIPT'
+tell application "System Events"
+    tell process "ΨLab"
+        set frontmost to true
+        keystroke "r" using command down
+        delay 3
+        try
+            click button "Run" of sheet 1 of window 1
+            return "Run pressed, long calculation confirmed"
+        end try
+        return "Run pressed"
+    end tell
+end tell
+APPLESCRIPT
+with_timeout 60 osascript "$OUT/run.applescript" || echo "run failed"
+sleep 5
+shot "e1b-running"
+sleep 120
+view_tab "e2-h3-summary" "Summary"
+print_shot "e2-h3-summary"
+view_tab "e3-h3-optimisation" "Optimisation"
+print_shot "e3-h3-optimisation"
+view_tab "e4-h3-frequencies" "Frequencies"
+print_shot "e4-h3-frequencies"
+
+# --- ΨLab 20.0: nuclear motion (the second kind of calculation) ---
+echo "== 20.0: nuclear motion: the switch, ns1 = 20, np = 24, jmax = 0 (Lanczos), then jmax = 2"
+view_tab "f0-electronic-before-switch" "Summary"
+with_timeout 20 osascript "$OUT/view-menu.applescript" "Nuclear-Motion Calculation" || echo "could not switch to nuclear motion"
+sleep 3
+dump_tab "f1-nuclear-sidebar" ""
+print_shot "f1-nuclear-sidebar"
+with_timeout 60 osascript "$OUT/run.applescript" || echo "run failed"
+sleep 30
+view_tab "f2-nuclear-levels" "Energy Levels"
+print_shot "f2-nuclear-levels"
+view_tab "f3-nuclear-expectation" "Averaged Geometry"
+print_shot "f3-nuclear-expectation"
+view_tab "f3b-nuclear-matrix" "Matrix Structure"
+print_shot "f3b-nuclear-matrix"
+view_tab "f4-nuclear-convergence" "Convergence"
+print_shot "f4-nuclear-convergence"
+view_tab "f5-nuclear-output" "Nuclear-Motion Output"
+# (the output file is an NSTextView, not in the text dump: the levels are checked instead)
+grep -E "^4638\.3055$" "$OUT/f2-nuclear-levels.txt" > /dev/null && echo "nuclear levels: ZPE 4638.3055 cm-1 (ns1 = 20, np = 24) found" || echo "nuclear levels: ZPE 4638.3055 cm-1 NOT found"
+with_timeout 20 osascript "$OUT/view-menu.applescript" "Electronic Structure Calculation" || echo "could not switch to electronic structure"
+sleep 3
+view_tab "f6-electronic-after-switch" "Summary"
+print_shot "f6-electronic-after-switch"
+pkill -x "ΨLab" || true
+sleep 3
+open -n "$APP" --args -appearanceChoice light -psilabCalculation nuclear -psilabNuclearNs1 10 -psilabNuclearNp 12 -psilabNuclearJmax 2 -psilabNuclearLevels 6 -psilabNuclearSolver jacobi-davidson -psilabNuclearAutoRun YES
+sleep 25
+view_tab "f7-nuclear-j2-levels" "Energy Levels"
+print_shot "f7-nuclear-j2-levels"
+view_tab "f8-nuclear-j2-expectation" "Averaged Geometry"
+view_tab "f9-nuclear-j2-matrix" "Matrix Structure"
+print_shot "f9-nuclear-j2-matrix"
+
+echo "== relaunching $APP (HeH+ STO-3G, Szabo-Ostlund) for the sections of the earlier versions"
+pkill -x "ΨLab" || true
+sleep 3
+open -n "$APP" --args -psilabMolecule HeH+ -psilabBasis STO-3G -psilabSzaboOstlund YES
+sleep 15
+
 layout "launch-heh"
 echo "::group::accessibility tree"
 with_timeout 40 osascript "$OUT/tab.applescript" "__TREE__" | tee "$OUT/tree.txt"
@@ -818,6 +937,17 @@ relaunch -appearanceChoice light -viewer3D.labels numbered -psilabMolecule H2O -
 sleep 10
 view_tab "d3-h2o-optimisation-labels-light" "Optimisation"
 print_shot "d3-h2o-optimisation-labels-light"
+
+
+# 20.0: the screenshots of the 20.0 sections once more at the end of the log (the job log read
+# through the API is its last part only; the sections run first)
+echo "== 20.0 screenshots again"
+for name in e1-h3-chosen e2-h3-summary e3-h3-optimisation e4-h3-frequencies f1-nuclear-sidebar f2-nuclear-levels \
+            f3-nuclear-expectation f3b-nuclear-matrix f4-nuclear-convergence f6-electronic-after-switch \
+            f7-nuclear-j2-levels f9-nuclear-j2-matrix; do
+    [ -f "$OUT/$name.png" ] && print_shot "$name" || echo "no screenshot $name"
+done
+grep -E "^4638\.3055$" "$OUT/f2-nuclear-levels.txt" > /dev/null && echo "nuclear levels: ZPE 4638.3055 cm-1 found" || echo "nuclear levels: ZPE 4638.3055 cm-1 NOT found"
 
 pkill -x "ΨLab" || true
 

@@ -14,16 +14,37 @@ struct ContentView: View {
 
     var body: some View {
         NavigationSplitView {
-            SidebarView(model: model)
-                // 16.0: wide enough for the segmented Hessian control (Initial | CalcFC | CalcAll | RecalcFC)
-                .navigationSplitViewColumnWidth(min: 340, ideal: 340, max: 420)
+            // 20.0: the kind of calculation at the top of the sidebar; each kind has its own
+            // sidebar and tabs (the electronic-structure interface is unchanged)
+            Group {
+                if model.calculation == .electronic {
+                    SidebarView(model: model)
+                } else {
+                    NuclearSidebarView(model: model.nuclear)
+                }
+            }
+            .safeAreaInset(edge: .top, spacing: 0) {
+                CalculationKindPicker(model: model)
+            }
+            // 16.0: wide enough for the segmented Hessian control (Initial | CalcFC | CalcAll | RecalcFC)
+            .navigationSplitViewColumnWidth(min: 340, ideal: 340, max: 420)
         } detail: {
-            DetailView(model: model)
+            if model.calculation == .electronic {
+                DetailView(model: model)
+            } else {
+                NuclearDetailView(model: model.nuclear)
+            }
         }
         .navigationTitle("ΨLab")
         .background(WindowFitter())
         .preferredColorScheme((AppearanceChoice(rawValue: appearanceRaw) ?? .system).colorScheme)
         .task {
+            // 20.0: the nuclear-motion interface at launch (UI test): run it if asked, and no
+            // electronic-structure calculation
+            if model.calculation == .nuclear {
+                if UserDefaults.standard.bool(forKey: "psilabNuclearAutoRun") { await model.nuclear.run() }
+                return
+            }
             // Show a result right away (the Szabo–Ostlund defaults, or the molecule given as a
             // launch argument). Large general calculations wait for Run.
             if model.result == nil && !model.openedAtLaunch {
@@ -37,6 +58,59 @@ struct ContentView: View {
                 }
             }
         }
+    }
+}
+
+/// 20.0: the two kinds of calculation at the top of the sidebar, drawn like the tab bar of the
+/// detail column: a glass capsule, the chosen kind on a lighter capsule; locked while a
+/// calculation runs.
+struct CalculationKindPicker: View {
+    @Bindable var model: AppModel
+    @Namespace private var selection
+
+    private var locked: Bool { model.isRunning || model.isScanning || model.nuclear.isRunning }
+
+    var body: some View {
+        HStack(spacing: 2) {
+            ForEach(CalculationKind.allCases) { kind in
+                let selected = model.calculation == kind
+                Button {
+                    withAnimation(.snappy(duration: 0.25)) {
+                        model.calculation = kind
+                    }
+                } label: {
+                    Text(kind.title)
+                        .font(.system(size: 13, weight: selected ? .semibold : .medium))
+                        .foregroundStyle(selected ? Color.primary : Color.secondary)
+                        .lineLimit(1)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 6)
+                        .padding(.horizontal, 10)
+                        .background {
+                            if selected {
+                                Capsule()
+                                    .fill(Color.primary.opacity(0.13))
+                                    .matchedGeometryEffect(id: "selected", in: selection)
+                            }
+                        }
+                        .contentShape(Capsule())
+                }
+                .buttonStyle(.plain)
+                .help(kind.help)
+                .accessibilityLabel(kind.title)
+                .accessibilityAddTraits(selected ? .isSelected : [])
+                .accessibilityAction { model.calculation = kind }
+            }
+        }
+        .padding(3)
+        .glassCapsule()
+        .disabled(locked)
+        .opacity(locked ? 0.6 : 1)
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("Calculation")
+        .padding(.horizontal, 14)
+        .padding(.top, 6)
+        .padding(.bottom, 4)
     }
 }
 
