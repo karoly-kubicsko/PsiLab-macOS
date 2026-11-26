@@ -302,7 +302,9 @@ Attila G. Császár and Tibor Furtenbacher) that 20.0 did not have yet:
   Re = 2.000 and Rmax = 0.800 enter the grid R = x/allk + Re of the kinetic energy in atomic units
   (masses in mₑ, amtoau = 1822.8883) and the CVRQD routines, which take bohr; only its printed
   expectation values were converted to Å (× 0.529177249).
-- **Geometry tab**: the table in a larger type, the units in the headers (⟨r⟩ (Å), …, ⟨HOH⟩ (°)).
+- **Geometry tab**: the table in a larger type, the units in the headers (⟨r⟩ (Å), …, ⟨HOH⟩ (°)), each
+  header on two lines (quantity, unit) with narrow column gaps, so that all nine columns fit next to
+  the sidebar.
 - **Convergence tab**: with Lánczos the two history charts were the same for every linear solver
   and preconditioner. That is correct: the Lánczos iteration works in the Krylov space of H⁻¹, and
   when every solve reaches its tolerance (10⁻¹²) the levels and their changes do not depend on how

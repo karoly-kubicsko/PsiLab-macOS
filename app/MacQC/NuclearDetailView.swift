@@ -256,19 +256,22 @@ struct NuclearExpectationView: View {
     private func momentsTable(_ r: NuclearResult) -> some View {
         let a = NuclearUnits.bohrToAngstrom
         func f(_ x: Double) -> String { String(format: "%.5f", x * a) }
-        return Grid(alignment: .trailing, horizontalSpacing: 22, verticalSpacing: 9) {
+        // the quantity and its unit on two lines and narrow column gaps: a column is as wide as its
+        // numbers, so all nine columns fit next to the sidebar (with one-line headers ⟨HOH⟩ was cut off)
+        return Grid(alignment: .trailing, horizontalSpacing: 8, verticalSpacing: 9) {
             GridRow {
                 Text("n")
                 Text("bond")
-                Text("⟨r⟩ (Å)")
-                Text("⟨r²⟩^½ (Å)")
-                Text("⟨r³⟩^⅓ (Å)")
-                Text("⟨r⁻¹⟩⁻¹ (Å)")
-                Text("⟨r⁻²⟩^−½ (Å)")
-                Text("⟨r⁻³⟩^−⅓ (Å)")
-                Text("⟨HOH⟩ (°)")
+                Text("⟨r⟩\n(Å)")
+                Text("⟨r²⟩^½\n(Å)")
+                Text("⟨r³⟩^⅓\n(Å)")
+                Text("⟨r⁻¹⟩⁻¹\n(Å)")
+                Text("⟨r⁻²⟩^−½\n(Å)")
+                Text("⟨r⁻³⟩^−⅓\n(Å)")
+                Text("⟨HOH⟩\n(°)")
             }
             .font(Self.headerFont)
+            .multilineTextAlignment(.trailing)
             .foregroundStyle(.secondary)
             Divider()
             ForEach(Array(r.levels.enumerated()), id: \.offset) { k, l in
@@ -303,7 +306,7 @@ struct NuclearExpectationView: View {
     }
 
     private func kTable(_ r: NuclearResult, _ kv: [Int]) -> some View {
-        Grid(alignment: .trailing, horizontalSpacing: 22, verticalSpacing: 9) {
+        Grid(alignment: .trailing, horizontalSpacing: 12, verticalSpacing: 9) {
             GridRow {
                 Text("n")
                 ForEach(kv, id: \.self) { k in Text("K = \(k)") }
