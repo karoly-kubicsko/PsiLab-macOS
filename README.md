@@ -224,9 +224,11 @@ same calculations run in the terminal on Linux and macOS
 **Nuclear motion: Radau coordinates, the eigenvalues alone or with the eigenvectors, an Eigenvectors tab, inverse power and Rayleigh quotient iteration, every linear solver for every eigensolver, the Gaussian start vector of Algorithm 5.**
 
 The nuclear-motion calculation of 20.0 gains the parts of the original program
-cpp_DOPI_expval_array.cpp and of the MSc thesis behind it (*Nagyméretű rezgési-forgási
-Hamilton-mátrixok sajátértékeinek és sajátvektorainak effektív számítása*, ELTE, 2017) that 20.0
-did not have yet:
+cpp_DOPI_expval_array.cpp and of the MSc thesis behind it (Károly Kubicskó, *Nagyméretű
+rezgési-forgási Hamilton-mátrixok sajátértékeinek és sajátvektorainak effektív számítása*
+[Efficient computation of the eigenvalues and eigenvectors of large vibration–rotation Hamiltonian
+matrices], MSc thesis in chemistry, Eötvös Loránd University (ELTE), Budapest, 2017; supervisors
+Attila G. Császár and Tibor Furtenbacher) that 20.0 did not have yet:
 
 - **Eigenvalues, or eigenvalues and eigenvectors** (the original's `sv`): two switches under
   *Levels*, one always on. With the eigenvalues only, Lánczos forms no Ritz vectors and stops when
