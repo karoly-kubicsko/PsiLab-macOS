@@ -302,6 +302,15 @@ Attila G. Császár and Tibor Furtenbacher) that 20.0 did not have yet:
   Re = 2.000 and Rmax = 0.800 enter the grid R = x/allk + Re of the kinetic energy in atomic units
   (masses in mₑ, amtoau = 1822.8883) and the CVRQD routines, which take bohr; only its printed
   expectation values were converted to Å (× 0.529177249).
+- **Export of the eigenvalues, the eigenvectors and the Gaussian start vector** (File ▸ Export
+  Eigenvalues and Eigenvectors…, or *Export…* on the Levels tab): a sheet chooses any combination,
+  written as one text file. The eigenvalues: the level table of the output file (n, E (E_h),
+  E (cm-1), E - E1 (cm-1), ||Hx-Ex|| (E_h)). The vectors: one row per basis function, n =
+  ((b·ns1 + i)·ns1 + j)·np + l + 1, with K, the grid indices, R₁ and R₂ (bohr), θ (°), the sign s and
+  the weight w of its DVR function (ψ = c/(s√w) at the grid point), then the start vector q₁ and the
+  normalised eigenvectors c₁ … c_m (with their energies in the header). The backend keeps the last
+  result's vectors for this (`macqc_nuclear_export` with the result's `exportId`); the eigenvectors
+  need *Eigenvalues and Eigenvectors*, the start vector the Gaussian start vector switch.
 - **Geometry tab**: the table in a larger type, the units in the headers (⟨r⟩ (Å), …, ⟨HOH⟩ (°)), each
   header on two lines (quantity, unit) with narrow column gaps, so that all nine columns fit next to
   the sidebar.
@@ -313,18 +322,20 @@ Attila G. Császár and Tibor Furtenbacher) that 20.0 did not have yet:
   last linear solve, iteration by iteration (e.g. 10 × 10 × 12, 8 levels: 588 iterations with ILU-CG,
   4290 with MINRES without a preconditioner), and the time of every step; also the start vector,
   the Chebyshev interval and the coordinates.
-- *Tests* (`macqc_nuclear_motion_tests`, now 850 checks): Radau = Jacobi; every new eigensolver,
+- *Tests* (`macqc_nuclear_motion_tests`, now 868 checks): Radau = Jacobi; every new eigensolver,
   linear solver and preconditioner (with and without the Gaussian start vector) gives the levels of
   the dense diagonalisation to 10⁻⁹ E_h; BiCG = CG; the eigenvalues only; the start vector; the
-  eigenvector pictures (normalisation, nodes); the new JSON keys.
+  eigenvector pictures (normalisation, nodes); the new JSON keys; the export (the level table, one
+  row per basis function, normalised vectors, ⟨q₁|x₁⟩, the refusals).
 - The UI smoke test adds the Eigenvectors tab and a run in Radau coordinates with Rayleigh quotient
   iteration and the Gaussian start vector.
 
 C API: new input keys `coordinates` (jacobi | radau), `eigenvectors`, `gaussianStart`,
 `davidsonInnerIterations`; eigensolvers `inverse-power`, `rayleigh-quotient`; linear solvers
 `chebyshev`, `bicg`; in the result `hasVectors`, `g1`, `g2`, `rWeights`, `startVector`,
-`chebyshevInterval`, `firstSolve`/`lastSolve`, per step `level`, `linearResidual`, `seconds`, per
-level `wavefunction` (base64 float32 arrays) and `residual` null when unknown.
+`chebyshevInterval`, `firstSolve`/`lastSolve`, `exportId`, per step `level`, `linearResidual`,
+`seconds`, per level `wavefunction` (base64 float32 arrays) and `residual` null when unknown; the
+new function `macqc_nuclear_export` writes the export file.
 
 **About ΨLab** shows Version 21.0 (21); psilab --version prints 21.0.
 

@@ -167,7 +167,25 @@ struct NuclearMotionResult {
     MatrixPicture matrix_detail;     // its leading rows and columns, one pixel per element
     std::vector<std::string> notes;
     std::string report;              // the output file
+    // 21.0, for the export (not in the JSON result): the normalised eigenvectors (DVR coefficients,
+    // empty with the eigenvalues only), the Gaussian start vector q1 (empty without it), and the
+    // quadrature weights and signs of the angular DVR functions of each K block
+    std::vector<std::vector<double>> vectors;
+    std::vector<double> start_vector;
+    std::vector<std::vector<double>> cos_weights, cos_signs;
 };
+
+// 21.0: the table of the energy levels as in the output file: n, E (E_h), E (cm-1), E - E1 (cm-1),
+// ||Hx-Ex|| (E_h), with its two header lines.
+std::string nuclear_level_table(const NuclearMotionResult& result);
+
+// 21.0: writes the eigenvalues (the level table), the eigenvectors and/or the Gaussian start vector
+// of a result as text to `path` (any combination, at least one). The vectors: one row per basis
+// function (its index, K, the grid indices, R1, R2, theta, the sign and the weight of its DVR
+// function), then q1 and c_1 ... c_m. Throws std::invalid_argument when a part is not available,
+// std::runtime_error when the file cannot be written.
+void write_nuclear_export(const NuclearMotionResult& result, const std::string& path, bool eigenvalues, bool eigenvectors,
+                          bool start_vector);
 
 using NuclearOutputSink = std::function<void(const std::string&)>;
 

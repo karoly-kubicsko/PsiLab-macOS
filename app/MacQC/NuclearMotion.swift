@@ -316,6 +316,7 @@ nonisolated struct NuclearResult: Codable, Sendable, Equatable {
     var matrixDetail: NuclearMatrixPicture?
     var notes: [String]?
     var output: String?
+    var exportId: String?                   // 21.0: macqc_nuclear_export of this result
 }
 
 nonisolated struct NuclearEstimate: Codable, Sendable, Equatable {
@@ -348,6 +349,21 @@ nonisolated enum NuclearEngine {
         return try await task.value
     }
 
+    /// 21.0: writes the eigenvalues, eigenvectors and/or Gaussian start vector of the last result
+    /// (macqc_nuclear_export); nil on success, else the message.
+    static func export(id: String, path: String, eigenvalues: Bool, eigenvectors: Bool, startVector: Bool) -> String? {
+        let request: [String: Any] = ["exportId": id, "path": path, "eigenvalues": eigenvalues,
+                                      "eigenvectors": eigenvectors, "startVector": startVector]
+        guard let data = try? JSONSerialization.data(withJSONObject: request),
+              let json = String(data: data, encoding: .utf8),
+              let raw = macqc_nuclear_export(json) else { return "The export failed." }
+        defer { macqc_free(raw) }
+        guard let reply = try? JSONSerialization.jsonObject(with: Data(String(cString: raw).utf8)) as? [String: Any] else {
+            return "The export failed."
+        }
+        return reply["error"] as? String
+    }
+
     static func estimate(_ input: NuclearInput) -> NuclearEstimate {
         guard let data = try? JSONEncoder().encode(input), let json = String(data: data, encoding: .utf8),
               let raw = macqc_nuclear_estimate(json) else { return NuclearEstimate(refusal: "The estimate failed.") }
@@ -376,6 +392,7 @@ final class NuclearModel {
     var selectedTab: NuclearTab = .levels
     var runStarted: Date?
     var lastRunInput: NuclearInput?
+    var showExportSheet = false        // 21.0: File ▸ Export Eigenvalues and Eigenvectors…
     @ObservationIgnored private var runningJob: MacQCJob?
 
     init() {
@@ -478,6 +495,37 @@ final class NuclearModel {
             try text.write(to: url, atomically: true, encoding: .utf8)
         } catch {
             errorMessage = "The file could not be saved: \(error.localizedDescription)"
+        }
+    }
+
+    /// 21.0: what the last result can export.
+    var canExportVectors: Bool { result?.hasVectors == true }
+    var canExportStartVector: Bool { result?.startVector != nil }
+
+    /// 21.0: the eigenvalues (the level table of the output file), the eigenvectors and/or the
+    /// Gaussian start vector of the last result, as one text file.
+    func exportLevels(eigenvalues: Bool, eigenvectors: Bool, startVector: Bool) {
+        guard let r = result, let id = r.exportId else {
+            errorMessage = "Run the calculation again to export its levels."
+            return
+        }
+        let panel = NSSavePanel()
+        panel.title = "Export Eigenvalues and Eigenvectors"
+        panel.allowedContentTypes = [UTType.plainText]
+        panel.canCreateDirectories = true
+        let i = r.input ?? input
+        let name = i.isotopologue.rawValue.replacingOccurrences(of: "(", with: "").replacingOccurrences(of: ")", with: "")
+        var parts: [String] = []
+        if eigenvalues { parts.append("eigenvalues") }
+        if eigenvectors { parts.append("eigenvectors") }
+        if startVector { parts.append("startvector") }
+        panel.nameFieldStringValue = "PsiLab-\(name)-J\(i.J)-\(i.coordinates.rawValue)-ns1-\(i.radialPoints)-np-\(i.angularPoints)-\(parts.joined(separator: "-")).txt"
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        if let message = NuclearEngine.export(id: id, path: url.path, eigenvalues: eigenvalues,
+                                              eigenvectors: eigenvectors, startVector: startVector) {
+            errorMessage = "The export failed: \(message)"
+        } else {
+            errorMessage = nil
         }
     }
 

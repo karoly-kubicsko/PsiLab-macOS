@@ -37,6 +37,9 @@ struct NuclearDetailView: View {
                 .tag(NuclearTab.output)
         }
         .padding(.top, 4)
+        .sheet(isPresented: $model.showExportSheet) {
+            NuclearExportSheet(model: model)
+        }
     }
 }
 
@@ -105,7 +108,18 @@ struct NuclearLevelsView: View {
                               systemImage: "exclamationmark.triangle.fill")
                             .foregroundStyle(.orange)
                     }
-                    SectionTitle("Energy levels")
+                    HStack {
+                        SectionTitle("Energy levels")
+                        Spacer()
+                        // 21.0: the eigenvalues, eigenvectors and/or Gaussian start vector as text
+                        Button {
+                            model.showExportSheet = true
+                        } label: {
+                            Label("Export…", systemImage: "square.and.arrow.up")
+                        }
+                        .disabled(r.exportId == nil)
+                        .help("Export the eigenvalues, the eigenvectors and/or the Gaussian start vector as text")
+                    }
                     // the table at its own width (scrolls sideways in a narrow window), the diagram below
                     ScrollView(.horizontal) {
                         levelTable(r)

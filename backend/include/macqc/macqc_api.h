@@ -120,10 +120,15 @@ char* macqc_parse_structure(const char* text, const char* hint);
  *                                     degrees, kWeights, 21.0 "wavefunction": cuts and densities
  *                                     as base64 float32 arrays), the grids, the solver history,
  *                                     21.0 "firstSolve"/"lastSolve" (residuals of a linear solve),
- *                                     "startVector", "hasVectors", "output" (the output file) and
+ *                                     "startVector", "hasVectors", "exportId" (21.0, for
+ *                                     macqc_nuclear_export), "output" (the output file) and
  *                                     "error" (null or a message).
  *   macqc_nuclear_estimate(json)      {"dimension", "nonzeros", "memoryMB", "refusal"}.
  * Both return malloc'ed UTF-8 JSON (free with macqc_free). */
+/* 21.0: writes the eigenvalues, eigenvectors and/or Gaussian start vector of the last nuclear-motion
+ * result as text: {"exportId" (from its result), "path", "eigenvalues", "eigenvectors",
+ * "startVector" (bools)} -> {"error": null or a message, "path"}. */
+char* macqc_nuclear_export(const char* request_json);
 char* macqc_nuclear_run_job(const char* input_json, macqc_job* job);
 char* macqc_nuclear_estimate(const char* input_json);
 

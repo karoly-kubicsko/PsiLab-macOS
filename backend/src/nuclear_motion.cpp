@@ -1968,6 +1968,94 @@ CvrqdIsotopologue isotopologue_from_name(const std::string& s) {
     throw std::invalid_argument("isotopologue must be H2(16)O, H2(17)O, H2(18)O or D2(16)O");
 }
 
+std::string nuclear_level_table(const NuclearMotionResult& res) {
+    std::string out = "Energy levels (from the minimum of the potential; E - E1 from the lowest level of this run)\n\n";
+    out += "     n          E (E_h)            E (cm-1)       E - E1 (cm-1)   ||Hx-Ex|| (E_h)\n";
+    const double e1 = res.levels.empty() ? 0.0 : res.levels.front().energy;
+    for (std::size_t k = 0; k < res.levels.size(); ++k) {
+        const NuclearLevel& lv = res.levels[k];
+        out += fmt("  %4zu  %16.12f  %18.6f  %16.6f   %12s\n", k + 1, lv.energy, lv.energy * kHartreeToCm,
+                   (lv.energy - e1) * kHartreeToCm, std::isfinite(lv.residual) ? fmt("%.2e", lv.residual).c_str() : "-");
+    }
+    return out;
+}
+
+void write_nuclear_export(const NuclearMotionResult& res, const std::string& path, bool eigenvalues, bool eigenvectors,
+                          bool start) {
+    if (!eigenvalues && !eigenvectors && !start) throw std::invalid_argument("nothing to export: choose the eigenvalues, the eigenvectors or the start vector");
+    if (eigenvectors && res.vectors.empty())
+        throw std::invalid_argument("this result has no eigenvectors (the eigenvalues only were computed)");
+    if (start && res.start_vector.empty())
+        throw std::invalid_argument("this result has no Gaussian start vector (it was not used)");
+    const NuclearMotionInput& in = res.input;
+    const std::size_t n = static_cast<std::size_t>(res.dimension);
+    const int ns = in.radial_points, np = in.angular_points;
+    const int nb = static_cast<int>(res.k_values.size());
+    if ((eigenvectors || start) && (static_cast<std::size_t>(nb) * ns * ns * np != n || res.cos_grid.size() != static_cast<std::size_t>(nb) ||
+                                    res.cos_weights.size() != static_cast<std::size_t>(nb) || res.r_grid.size() != static_cast<std::size_t>(ns)))
+        throw std::invalid_argument("the grid of this result is incomplete");
+    std::FILE* f = std::fopen(path.c_str(), "w");
+    if (!f) throw std::runtime_error("cannot write " + path);
+    auto put = [&](const std::string& t) { std::fputs(t.c_str(), f); };
+    const bool radau = in.coordinates == "radau";
+    put("# ΨLab 21.0 · nuclear motion · ");
+    std::string parts;
+    if (eigenvalues) parts += "eigenvalues";
+    if (eigenvectors) parts += std::string(parts.empty() ? "" : ", ") + "eigenvectors";
+    if (start) parts += std::string(parts.empty() ? "" : ", ") + "Gaussian start vector";
+    put(parts + "\n");
+    put(fmt("# %s on the CVRQD surface; %s coordinates; J = %d, K = %s; ns1 = %d, np = %d; %zu basis functions\n",
+            res.isotopologue_name.c_str(), radau ? "Radau" : "Jacobi", in.J,
+            in.J == 0 ? "0" : (in.parity_block == 0 ? fmt("0 ... %d", in.J).c_str() : fmt("1 ... %d", in.J).c_str()), ns, np, n));
+    put("# Eigensolver: " + res.solver_description + (res.converged ? "" : " (NOT CONVERGED)") + "\n\n");
+    if (eigenvalues) put(nuclear_level_table(res));
+    if (eigenvectors || start) {
+        if (eigenvalues) put("\n");
+        put(std::string("# ") + (eigenvectors ? "Eigenvectors" : "Gaussian start vector") +
+            ": the coefficients c of the DVR functions (normalised: sum of c^2 = 1).\n");
+        put(fmt("# Row = basis function n = ((b ns1 + i) ns1 + j) np + l + 1, b the K block, i the R1 point, j the R2 point,\n"
+                "# l the angular point (i, j, l from 1). R1, R2 (bohr): %s; theta (deg): its angular DVR point in block b.\n",
+                radau ? "distances of H1, H2 from the canonical point K" : "R1 = r(O-H1), R2 = H2 to the centre of mass of O-H1"));
+        put("# s, w: the sign and the quadrature weight (bohr^2, of R1 R2 and cos theta) of the DVR function; the wavefunction\n"
+            "# at the grid point is psi = c / (s w^1/2).\n");
+        if (start)
+            put(fmt("# q1: the Gaussian start vector of Algorithm 5 (Rayleigh quotient %.6f cm-1%s).\n", res.start_rayleigh * kHartreeToCm,
+                    res.start_overlap >= 0.0 ? fmt(", overlap |<q1|x1>| = %.6f with the lowest eigenvector", res.start_overlap).c_str() : ""));
+        if (eigenvectors) {
+            put("# c_k: the eigenvector of level k:\n");
+            for (std::size_t k = 0; k < res.vectors.size() && k < res.levels.size(); ++k)
+                put(fmt("#   c_%zu: E = %.12f E_h = %.6f cm-1\n", k + 1, res.levels[k].energy, res.levels[k].energy * kHartreeToCm));
+        }
+        put("#        n   K    i    j    l      R1 (bohr)     R2 (bohr)  theta (deg)   s             w");
+        if (start) put("                     q1");
+        if (eigenvectors)
+            for (std::size_t k = 0; k < res.vectors.size(); ++k) put(fmt("  %21s", fmt("c_%zu", k + 1).c_str()));
+        put("\n");
+        std::string line;
+        std::size_t row = 0;
+        for (int b = 0; b < nb; ++b)
+            for (int i = 0; i < ns; ++i)
+                for (int j = 0; j < ns; ++j)
+                    for (int l = 0; l < np; ++l, ++row) {
+                        if ((row & 4095) == 0) check_cancelled();
+                        const std::size_t bl = static_cast<std::size_t>(b), ll = static_cast<std::size_t>(l);
+                        const double q = res.cos_grid[bl][ll];
+                        const double theta = std::acos(std::max(-1.0, std::min(1.0, q))) * 180.0 / kPi;
+                        const int sign = ((i + j) % 2 == 0 ? 1 : -1) * (res.cos_signs[bl][ll] < 0.0 ? -1 : 1);
+                        const double w = res.r_weights[static_cast<std::size_t>(i)] * res.r_weights[static_cast<std::size_t>(j)] * res.cos_weights[bl][ll];
+                        line = fmt("  %8zu %3d %4d %4d %4d %13.8f %13.8f %12.6f %3d %13.6e", row + 1, res.k_values[bl], i + 1, j + 1, l + 1,
+                                   res.r_grid[static_cast<std::size_t>(i)], res.r_grid[static_cast<std::size_t>(j)], theta, sign, w);
+                        if (start) line += fmt("  %21.14e", res.start_vector[row]);
+                        if (eigenvectors)
+                            for (const std::vector<double>& v : res.vectors) line += fmt("  %21.14e", v[row]);
+                        line += '\n';
+                        std::fputs(line.c_str(), f);
+                    }
+    }
+    const bool ok = std::ferror(f) == 0;
+    if (std::fclose(f) != 0 || !ok) throw std::runtime_error("writing " + path + " failed");
+}
+
 NuclearMotionEstimate estimate_nuclear_motion(const NuclearMotionInput& in) {
     NuclearMotionEstimate e;
     try {
@@ -2105,6 +2193,17 @@ NuclearMotionResult run_nuclear_motion(const NuclearMotionInput& in, const Nucle
     res.has_vectors = !e.vectors.empty();
     report_progress_text(res.has_vectors ? "Expectation values" : "Energy levels");
     expectation_values(p, e, res, in.expectation_values);
+    // 21.0: kept for the export (normalised)
+    for (std::vector<double>& v : e.vectors) {
+        const double nv = norm(v);
+        if (nv > 0.0) scale(v, 1.0 / nv);
+    }
+    res.vectors = std::move(e.vectors);
+    res.start_vector = sv.guess;
+    for (const LegendreDvr& d : p.leg) {
+        res.cos_weights.push_back(d.w);
+        res.cos_signs.push_back(d.s);
+    }
 
     const bool lanczos_like = in.eigensolver == "lanczos";
     const bool linear = in.eigensolver != "dense";
@@ -2118,14 +2217,7 @@ NuclearMotionResult run_nuclear_motion(const NuclearMotionInput& in, const Nucle
         emit(sink, os, fmt("Start vector      overlap with the lowest eigenvector |<q1|x1>| = %.6f\n", res.start_overlap));
     emit(sink, os, "\n");
     // levels
-    emit(sink, os, "Energy levels (from the minimum of the potential; E - E1 from the lowest level of this run)\n\n");
-    emit(sink, os, "     n          E (E_h)            E (cm-1)       E - E1 (cm-1)   ||Hx-Ex|| (E_h)\n");
-    const double e1 = res.levels.empty() ? 0.0 : res.levels.front().energy;
-    for (std::size_t k = 0; k < res.levels.size(); ++k) {
-        const NuclearLevel& lv = res.levels[k];
-        emit(sink, os, fmt("  %4zu  %16.12f  %18.6f  %16.6f   %12s\n", k + 1, lv.energy, lv.energy * kHartreeToCm,
-                           (lv.energy - e1) * kHartreeToCm, std::isfinite(lv.residual) ? fmt("%.2e", lv.residual).c_str() : "-"));
-    }
+    emit(sink, os, nuclear_level_table(res));
     if (res.has_vectors && in.expectation_values && !res.levels.empty()) {
         emit(sink, os, "\nExpectation values (angstrom, degrees): r1 = r(O-H1), r2 = r(O-H2)\n\n");
         emit(sink, os, "     n  <r1>     <r1^2>^1/2  <r1^3>^1/3  <r1^-1>^-1  <r1^-2>^-1/2  <r1^-3>^-1/3   <HOH>\n");

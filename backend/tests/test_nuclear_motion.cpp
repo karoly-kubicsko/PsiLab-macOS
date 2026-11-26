@@ -490,6 +490,70 @@ int main() {
         macqc_free(raw3);
         check(j3["hasVectors"] == false && j3["levels"][0]["residual"].is_null() && j3["levels"][0]["wavefunction"].is_null(),
               "21.0 JSON: eigenvalues only");
+        // 21.0: the export of the eigenvalues, the eigenvectors and the Gaussian start vector
+        {
+            char* rawx = macqc_nuclear_run_job(R"({"radialPoints":6,"angularPoints":8,"levels":3,"gaussianStart":true,
+                                                   "eigensolver":"jacobi-davidson","J":1})", nullptr);
+            const json jx = json::parse(rawx);
+            macqc_free(rawx);
+            const std::string id = jx["exportId"].get<std::string>();
+            const std::string path = "nuclear_export_test.txt";
+            auto request = [&](const std::string& what, const std::string& eid) {
+                char* e = macqc_nuclear_export(("{\"exportId\":\"" + eid + "\",\"path\":\"" + path + "\"," + what + "}").c_str());
+                const json r = json::parse(e);
+                macqc_free(e);
+                return r;
+            };
+            check(request(R"("eigenvalues":true,"eigenvectors":true,"startVector":true)", id)["error"].is_null(), "export: all three");
+            // parse: the level table and the vector rows
+            std::FILE* f = std::fopen(path.c_str(), "r");
+            check(f != nullptr, "export: file written");
+            std::vector<double> energies, sum2(3, 0.0), overlap(1, 0.0);
+            double q2 = 0.0;
+            long long rows = 0;
+            bool table_header = false;
+            char line[4096];
+            while (f && std::fgets(line, sizeof line, f)) {
+                const std::string t = line;
+                if (t.find("||Hx-Ex|| (E_h)") != std::string::npos) table_header = true;
+                if (t.empty() || t[0] == '#' || t[0] == '\n' || t.find("Energy levels") == 0 || t.find("     n ") == 0) continue;
+                std::vector<double> x;
+                char* p = line;
+                char* end = nullptr;
+                for (double v = std::strtod(p, &end); end != p; v = std::strtod(p, &end)) {
+                    x.push_back(v);
+                    p = end;
+                }
+                if (x.size() == 5) energies.push_back(x[1]);
+                if (x.size() == 14) {  // n K i j l R1 R2 theta s w q1 c1 c2 c3
+                    ++rows;
+                    q2 += x[10] * x[10];
+                    for (int k = 0; k < 3; ++k) sum2[static_cast<std::size_t>(k)] += x[static_cast<std::size_t>(11 + k)] * x[static_cast<std::size_t>(11 + k)];
+                    overlap[0] += x[10] * x[11];
+                }
+            }
+            if (f) std::fclose(f);
+            check(table_header && energies.size() == 3, "export: the level table");
+            for (std::size_t k = 0; k < energies.size(); ++k)
+                check_near("export: E (E_h) of level " + std::to_string(k + 1), energies[k], jx["levels"][k]["energy"].get<double>(), 1e-11);
+            check(rows == jx["dimension"].get<long long>(), "export: one row per basis function (J = 1: two K blocks)");
+            for (int k = 0; k < 3; ++k) check_near("export: eigenvector normalised", sum2[static_cast<std::size_t>(k)], 1.0, 1e-9);
+            check_near("export: start vector normalised", q2, 1.0, 1e-9);
+            check_near("export: |<q1|x1>| as reported", std::fabs(overlap[0]), jx["startVector"]["overlap"].get<double>(), 1e-9);
+            check(request(R"("eigenvalues":true)", "nuclear-0-0")["error"].is_string(), "export: unknown result refused");
+            check(request(R"("eigenvalues":false)", id)["error"].is_string(), "export: nothing chosen refused");
+            std::remove(path.c_str());
+            // eigenvalues only: no eigenvectors; no Gaussian start vector without it
+            char* rawy = macqc_nuclear_run_job(R"({"radialPoints":5,"angularPoints":6,"levels":2,"eigenvectors":false})", nullptr);
+            const json jy = json::parse(rawy);
+            macqc_free(rawy);
+            const std::string idy = jy["exportId"].get<std::string>();
+            check(request(R"("eigenvectors":true)", idy)["error"].is_string(), "export: no eigenvectors with the eigenvalues only");
+            check(request(R"("startVector":true)", idy)["error"].is_string(), "export: no start vector without it");
+            check(request(R"("eigenvalues":true)", idy)["error"].is_null(), "export: eigenvalues only");
+            check(request(R"("eigenvalues":true)", id)["error"].is_string(), "export: a later run replaces the earlier result");
+            std::remove(path.c_str());
+        }
         char* bad3 = macqc_nuclear_estimate(R"({"coordinates":"valence"})");
         const json b3 = json::parse(bad3);
         macqc_free(bad3);

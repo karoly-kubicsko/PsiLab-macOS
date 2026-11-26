@@ -68,6 +68,12 @@ struct MacQCApp: App {
                 .keyboardShortcut("e", modifiers: [.command, .shift])
                 .disabled(model.calculation == .nuclear ? model.nuclear.result == nil : !model.canExportOrCopy)
 
+                // 21.0: the eigenvalues, eigenvectors and/or Gaussian start vector (a sheet chooses)
+                Button("Export Eigenvalues and Eigenvectors…") {
+                    model.nuclear.showExportSheet = true
+                }
+                .disabled(model.calculation != .nuclear || model.nuclear.result?.exportId == nil)
+
                 Button("Export Results as JSON…") {
                     model.exportJSON()
                 }

@@ -6,6 +6,9 @@
 #include <limits>
 #include <exception>
 #include <new>
+#include <chrono>
+#include <memory>
+#include <mutex>
 #include <optional>
 #include <stdexcept>
 #include <string>
@@ -1645,6 +1648,13 @@ nlohmann::json nuclear_result_json(const NuclearMotionResult& r) {
 }  // namespace macqc
 
 namespace {
+// 21.0: the last nuclear-motion result with its eigenvectors and start vector, for
+// macqc_nuclear_export (the JSON result carries its "exportId"; a new run replaces it).
+std::mutex g_nuclear_export_mutex;
+std::shared_ptr<const macqc::NuclearMotionResult> g_nuclear_export;
+std::string g_nuclear_export_id;
+unsigned long long g_nuclear_export_counter = 0;
+
 char* nuclear_copy(const std::string& s) {
     char* buf = static_cast<char*>(std::malloc(s.size() + 1));
     if (!buf) return nullptr;
@@ -1665,7 +1675,16 @@ char* macqc_nuclear_run_job(const char* input_json, macqc_job* job) {
             const macqc::NuclearMotionInput in = macqc::parse_nuclear_input_json(input_json ? input_json : "");
             macqc::NuclearOutputSink sink;
             if (job) sink = [job](const std::string& text) { job->job.append_output(text); };
-            j = macqc::nuclear_result_json(macqc::run_nuclear_motion(in, sink));
+            auto r = std::make_shared<macqc::NuclearMotionResult>(macqc::run_nuclear_motion(in, sink));
+            j = macqc::nuclear_result_json(*r);
+            {
+                std::lock_guard<std::mutex> lock(g_nuclear_export_mutex);
+                g_nuclear_export_id = "nuclear-" + std::to_string(++g_nuclear_export_counter) + "-" +
+                                      std::to_string(std::chrono::duration_cast<std::chrono::milliseconds>(
+                                                         std::chrono::system_clock::now().time_since_epoch()).count());
+                g_nuclear_export = std::move(r);
+                j["exportId"] = g_nuclear_export_id;
+            }
         } catch (const std::exception& e) {
             j = json{{"error", e.what()}, {"levels", json::array()}};
             if (job) {
@@ -1679,6 +1698,32 @@ char* macqc_nuclear_run_job(const char* input_json, macqc_job* job) {
         result = "{\"error\":\"internal error\",\"levels\":[]}";
     }
     return nuclear_copy(result);
+}
+
+char* macqc_nuclear_export(const char* request_json) {
+    using nlohmann::json;
+    json out;
+    try {
+        const json req = json::parse(request_json ? request_json : "{}");
+        if (!req.is_object()) throw std::invalid_argument("the request must be a JSON object");
+        const std::string id = req.value("exportId", std::string());
+        const std::string path = req.value("path", std::string());
+        if (path.empty()) throw std::invalid_argument("no file name");
+        std::shared_ptr<const macqc::NuclearMotionResult> r;
+        {
+            std::lock_guard<std::mutex> lock(g_nuclear_export_mutex);
+            if (g_nuclear_export && id == g_nuclear_export_id) r = g_nuclear_export;
+        }
+        if (!r) throw std::invalid_argument("this result is no longer in memory (a later calculation replaced it, or the app was restarted): run it again to export");
+        macqc::write_nuclear_export(*r, path, req.value("eigenvalues", false), req.value("eigenvectors", false),
+                                    req.value("startVector", false));
+        out = json{{"error", nullptr}, {"path", path}};
+    } catch (const std::exception& e) {
+        out = json{{"error", e.what()}};
+    } catch (...) {
+        out = json{{"error", "internal error"}};
+    }
+    return nuclear_copy(out.dump(-1, ' ', false, json::error_handler_t::replace));
 }
 
 char* macqc_nuclear_estimate(const char* input_json) {
