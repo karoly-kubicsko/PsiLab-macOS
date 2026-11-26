@@ -332,50 +332,62 @@ struct NuclearConvergenceView: View {
 
     var body: some View {
         if let r = model.result, !r.levels.isEmpty {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 18) {
-                    NuclearHeader(result: r)
-                    SectionTitle("Eigensolver")
-                    stats(r)
-                        .dataPanel()
-                    if let h = r.history, h.count > 1 {
-                        SectionTitle("History")
-                        HStack(spacing: 18) {
-                            lowestChart(h, perLevel: r.input?.eigensolver == .rayleighQuotient)
-                                .frame(minHeight: 240)
-                                .dataPanel()
-                            changeChart(h, lanczos: r.input?.eigensolver == .lanczos)
-                                .frame(minHeight: 240)
-                                .dataPanel()
+            ScrollViewReader { reader in
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 18) {
+                        NuclearHeader(result: r)
+                        SectionTitle("Eigensolver")
+                        stats(r)
+                            .dataPanel()
+                        if let h = r.history, h.count > 1 {
+                            SectionTitle("History")
+                            HStack(spacing: 18) {
+                                lowestChart(h, perLevel: r.input?.eigensolver == .rayleighQuotient)
+                                    .frame(minHeight: 240)
+                                    .dataPanel()
+                                changeChart(h, lanczos: r.input?.eigensolver == .lanczos)
+                                    .frame(minHeight: 240)
+                                    .dataPanel()
+                            }
                         }
-                    }
-                    // 21.0: the linear solves, where the linear solver and the preconditioner show
-                    let linear = (r.history ?? []).contains { $0.linearIterations > 0 }
-                    if linear {
-                        SectionTitle("Linear solves")
-                        HStack(spacing: 18) {
-                            linearIterationsChart(r.history ?? [])
-                                .frame(minHeight: 240)
-                                .dataPanel()
-                            linearTraceChart(r)
-                                .frame(minHeight: 240)
-                                .dataPanel()
+                        // 21.0: the linear solves, where the linear solver and the preconditioner show
+                        let linear = (r.history ?? []).contains { $0.linearIterations > 0 }
+                        if linear {
+                            SectionTitle("Linear solves")
+                                .id(Self.linearAnchor)
+                            HStack(spacing: 18) {
+                                linearIterationsChart(r.history ?? [])
+                                    .frame(minHeight: 240)
+                                    .dataPanel()
+                                linearTraceChart(r)
+                                    .frame(minHeight: 240)
+                                    .dataPanel()
+                            }
+                            Text(linearCaption(r))
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                                .fixedSize(horizontal: false, vertical: true)
                         }
-                        Text(linearCaption(r))
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                            .fixedSize(horizontal: false, vertical: true)
+                        SectionTitle("Grids")
+                        grids(r)
+                            .dataPanel()
                     }
-                    SectionTitle("Grids")
-                    grids(r)
-                        .dataPanel()
+                    .padding(20)
                 }
-                .padding(20)
+                .task {
+                    // UI test (-psilabNuclearConvergenceScroll linear): open at the linear-solve charts
+                    // (after the layout of the charts, on the main actor)
+                    guard UserDefaults.standard.string(forKey: "psilabNuclearConvergenceScroll") == "linear" else { return }
+                    try? await Task.sleep(for: .milliseconds(500))
+                    reader.scrollTo(Self.linearAnchor, anchor: .top)
+                }
             }
         } else {
             NuclearPlaceholder(model: model)
         }
     }
+
+    private static let linearAnchor = "nuclear-convergence-linear-solves"
 
     private func linearCaption(_ r: NuclearResult) -> String {
         let input = r.input ?? NuclearInput()
