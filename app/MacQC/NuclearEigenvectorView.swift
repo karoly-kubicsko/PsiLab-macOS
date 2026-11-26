@@ -304,14 +304,14 @@ struct NuclearEigenvectorView: View {
                 }
             }
             .accessibilityLabel(quantity == .psi ? "Wavefunction cut" : "Probability density")
-            HStack(spacing: 10) {
-                colorBar(f)
-                Spacer(minLength: 8)
-                Text(hover.isEmpty ? "Point at a cell for its value; + marks the largest |ψ|." : hover)
-                    .font(.caption.monospacedDigit())
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
-            }
+            // the colour scale on its own line (in a narrow panel the readout squeezed its labels
+            // to one character), the readout of the cell under the pointer below it
+            colorBar(f)
+            Text(hover.isEmpty ? "Point at a cell for its value; + marks the largest |ψ|." : hover)
+                .font(.caption.monospacedDigit())
+                .foregroundStyle(.secondary)
+                .lineLimit(2)
+                .frame(maxWidth: .infinity, alignment: .leading)
         }
     }
 
@@ -323,12 +323,16 @@ struct NuclearEigenvectorView: View {
         }
         return HStack(spacing: 6) {
             Text(f.diverging ? "−1" : "0")
+                .fixedSize()
             RoundedRectangle(cornerRadius: 3)
                 .fill(LinearGradient(stops: stops, startPoint: .leading, endPoint: .trailing))
-                .frame(width: 140, height: 10)
+                .frame(minWidth: 80, idealWidth: 160, maxWidth: 200)
+                .frame(height: 10)
             Text(f.diverging ? "+1" : String(format: "%.3g", f.scale))
+                .fixedSize()
             Text(f.valueLabel)
                 .foregroundStyle(.secondary)
+                .fixedSize()
         }
         .font(.caption.monospacedDigit())
         .accessibilityLabel("Colour scale")
