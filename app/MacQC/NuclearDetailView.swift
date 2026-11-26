@@ -159,12 +159,13 @@ struct NuclearLevelsView: View {
         let kValues = r.kValues ?? [0]
         let showK = kValues.count > 1
         return Grid(alignment: .trailing, horizontalSpacing: 18, verticalSpacing: 6) {
+            // 21.0: the order of the output file and of the export: E (E_h) first
             GridRow {
                 Text("n")
+                Text("E (E_h)")
                 Text("E (cm⁻¹)")
                 Text("E − E₁ (cm⁻¹)")
-                Text("E (E_h)")
-                Text("‖Hx − Ex‖")
+                Text("‖Hx − Ex‖ (E_h)")
                 if showK { Text("main K") }
             }
             .font(.caption.weight(.semibold))
@@ -173,9 +174,9 @@ struct NuclearLevelsView: View {
             ForEach(Array(r.levels.enumerated()), id: \.offset) { k, l in
                 GridRow {
                     Text("\(k + 1)")
+                    Text(String(format: "%.10f", l.energy))
                     Text(String(format: "%.4f", l.energy * NuclearUnits.hartreeToCm))
                     Text(String(format: "%.4f", (l.energy - e1) * NuclearUnits.hartreeToCm))
-                    Text(String(format: "%.10f", l.energy))
                     if let res = l.residual {
                         Text(String(format: "%.1e", res))
                             .foregroundStyle(res < (r.input?.residualTolerance ?? 1e-8) ? Color.primary : Color.orange)
