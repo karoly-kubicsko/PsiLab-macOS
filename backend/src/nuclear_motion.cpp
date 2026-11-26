@@ -641,7 +641,8 @@ std::vector<int> k_values(int J, int parity_block) {
 void validate(const NuclearMotionInput& in) {
     if (in.J < 0 || in.J > 30) throw std::invalid_argument("J must be from 0 to 30");
     if (in.parity_block != 0 && in.parity_block != 1) throw std::invalid_argument("the parity block must be 0 (K = 0 ... J) or 1 (K = 1 ... J)");
-    if (in.J == 0 && in.parity_block == 1) throw std::invalid_argument("J = 0 has only the block K = 0");
+    // 21.0: J = 0 has only the block K = 0, whatever parity_block says (the app keeps the block of
+    // the last J > 0 when J goes back to 0; 20.0 refused that input and the Run button stayed off)
     if (in.radial_points < 2 || in.radial_points > 200) throw std::invalid_argument("the radial DVR needs 2 to 200 points");
     if (in.angular_points < 2 || in.angular_points > 400) throw std::invalid_argument("the angular DVR needs 2 to 400 points");
     if (!(in.r_half_width > 0.0) || !(in.r_centre > in.r_half_width))
@@ -2090,6 +2091,7 @@ NuclearMotionResult run_nuclear_motion(const NuclearMotionInput& in, const Nucle
     const auto t0 = std::chrono::steady_clock::now();
     NuclearMotionResult res;
     res.input = in;
+    if (in.J == 0) res.input.parity_block = 0;
     const IsotopologueData iso = isotopologue_data(in.isotopologue);
     res.isotopologue_name = iso.name;
     res.potential_minimum = iso.vmin;

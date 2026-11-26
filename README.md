@@ -311,6 +311,10 @@ Attila G. Császár and Tibor Furtenbacher) that 20.0 did not have yet:
   normalised eigenvectors c₁ … c_m (with their energies in the header). The backend keeps the last
   result's vectors for this (`macqc_nuclear_export` with the result's `exportId`); the eigenvectors
   need *Eigenvalues and Eigenvectors*, the start vector the Gaussian start vector switch.
+- **Fixed: J back to 0.** After J > 0 with the block K = 1 … J, setting jmax back to 0 left that
+  block chosen (its picker is hidden for J = 0); the calculation was refused with "J = 0 has only
+  the block K = 0" and Run stayed disabled. J = 0 now always means the block K = 0, and the sidebar
+  resets the block when J becomes 0.
 - **Geometry tab**: the table in a larger type, the units in the headers (⟨r⟩ (Å), …, ⟨HOH⟩ (°)), each
   header on two lines (quantity, unit) with narrow column gaps, so that all nine columns fit next to
   the sidebar.
@@ -322,7 +326,7 @@ Attila G. Császár and Tibor Furtenbacher) that 20.0 did not have yet:
   last linear solve, iteration by iteration (e.g. 10 × 10 × 12, 8 levels: 588 iterations with ILU-CG,
   4290 with MINRES without a preconditioner), and the time of every step; also the start vector,
   the Chebyshev interval and the coordinates.
-- *Tests* (`macqc_nuclear_motion_tests`, now 868 checks): Radau = Jacobi; every new eigensolver,
+- *Tests* (`macqc_nuclear_motion_tests`, now 871 checks): Radau = Jacobi; every new eigensolver,
   linear solver and preconditioner (with and without the Gaussian start vector) gives the levels of
   the dense diagonalisation to 10⁻⁹ E_h; BiCG = CG; the eigenvalues only; the start vector; the
   eigenvector pictures (normalisation, nodes); the new JSON keys; the export (the level table, one

@@ -231,6 +231,21 @@ int main() {
         check(e110 > 38 && e110 < 44, "J=1 1_10 above the zero-point level");
     }
 
+    // ---- 6a. (21.0) J = 0 with the parity block of an earlier J > 0 (K = 1 ... J): the block K = 0,
+    //          as for parity block 0 (20.0 refused it: "J = 0 has only the block K = 0")
+    {
+        NuclearMotionInput in = base;
+        in.levels = 2;
+        in.parity_block = 1;
+        const NuclearMotionEstimate est = estimate_nuclear_motion(in);
+        check(est.refusal.empty() && est.dimension == 1200, "J = 0 with parity block 1: no refusal, one K block");
+        const NuclearMotionResult r1 = run_nuclear_motion(in);
+        in.parity_block = 0;
+        const NuclearMotionResult r0 = run_nuclear_motion(in);
+        check(r1.input.parity_block == 0 && r1.k_values.size() == 1 && r1.k_values[0] == 0, "J = 0: the block K = 0");
+        check_near("J = 0 with parity block 1 = parity block 0", r1.levels[0].energy, r0.levels[0].energy, 1e-14);
+    }
+
     // ---- 6b. the sparsity picture: binned for a large matrix (2400 functions in 1024 pixels: every
     //          pixel row covers 2 or 3 rows), exact for a small one (one pixel per element)
     {

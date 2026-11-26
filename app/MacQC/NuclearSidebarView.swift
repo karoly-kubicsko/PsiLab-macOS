@@ -69,6 +69,11 @@ struct NuclearSidebarView: View {
             Section("Rotation") {
                 integerRow("jmax (J)", help: "Total angular momentum J; jmax = 0: vibrational levels only",
                            value: $model.input.J, range: 0...30)
+                    // 21.0: J = 0 has only the block K = 0; the hidden picker kept K = 1 … J of an
+                    // earlier J > 0 (the backend now ignores it for J = 0 as well)
+                    .onChange(of: model.input.J) { _, newJ in
+                        if newJ == 0 { model.input.parityBlock = 0 }
+                    }
                 if model.input.J > 0 {
                     Picker("K block", selection: $model.input.parityBlock) {
                         Text("K = 0 … \(model.input.J)").tag(0)
