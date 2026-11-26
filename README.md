@@ -316,7 +316,7 @@ Attila G. Császár and Tibor Furtenbacher) that 20.0 did not have yet:
   the block K = 0" and Run stayed disabled. J = 0 now always means the block K = 0, and the sidebar
   resets the block when J becomes 0.
 - **Geometry tab**: the table in a larger type, the units in the headers (⟨r⟩ (Å), …, ⟨HOH⟩ (°)), each
-  header on two lines (quantity, unit) with narrow column gaps, so that all nine columns fit next to
+  header on two lines (quantity, unit) with 12-pt column gaps, so that all nine columns fit next to
   the sidebar.
 - **Convergence tab**: with Lánczos the two history charts were the same for every linear solver
   and preconditioner. That is correct: the Lánczos iteration works in the Krylov space of H⁻¹, and

@@ -272,8 +272,9 @@ struct NuclearExpectationView: View {
         let a = NuclearUnits.bohrToAngstrom
         func f(_ x: Double) -> String { String(format: "%.5f", x * a) }
         // the quantity and its unit on two lines and narrow column gaps: a column is as wide as its
-        // numbers, so all nine columns fit next to the sidebar (with one-line headers ⟨HOH⟩ was cut off)
-        return Grid(alignment: .trailing, horizontalSpacing: 8, verticalSpacing: 9) {
+        // numbers, so all nine columns fit next to the sidebar (with one-line headers ⟨HOH⟩ was cut off;
+        // the UI smoke test at 8-pt gaps left about 50 pt free, so 12)
+        return Grid(alignment: .trailing, horizontalSpacing: 12, verticalSpacing: 9) {
             GridRow {
                 Text("n")
                 Text("bond")
