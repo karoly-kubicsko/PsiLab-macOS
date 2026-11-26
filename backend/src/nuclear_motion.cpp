@@ -201,7 +201,10 @@ void Preconditioner::apply(const std::vector<double>& r, std::vector<double>& z)
 // converged eigenvectors), x0 = 0 (original: CGM, minres, minresfordavidson,
 // minresforjacobidavidson, CGMfordavidson, chebyshev, BiCGM). `op(v, y)`: y = A v; `prec(r, z)`:
 // z = M^-1 r. A trace receives ||r|| (MINRES: its estimate of the preconditioned residual) after
-// every iteration, from the start.
+// every iteration, from the start. floor > 0 (21.0): also converged when the residual reaches
+// floor * ||x||, the rounding level of a solution of large norm (Rayleigh-quotient iteration: the
+// system is singular to machine precision near convergence, and an absolute tolerance cannot be
+// reached).
 
 enum class Linear { Pcg, Minres, Chebyshev, Bicg };
 
@@ -225,7 +228,7 @@ struct LinearStats {
 // Preconditioned conjugate gradients; stops when ||b - A x|| <= tol. strict: A must be positive
 // definite (H); otherwise (a shifted A) a breakdown ends the solve with the current iterate.
 LinearStats pcg(std::size_t n, const VecOp& op, const VecOp& prec, const std::vector<double>& b, std::vector<double>& x,
-                double tol, int maxit, bool strict, std::vector<double>* trace) {
+                double tol, int maxit, bool strict, std::vector<double>* trace, double floor = 0.0) {
     LinearStats st;
     x.assign(n, 0.0);
     std::vector<double> r = b, z, p, q(n);
@@ -253,7 +256,7 @@ LinearStats pcg(std::size_t n, const VecOp& op, const VecOp& prec, const std::ve
         st.iterations = it;
         st.residual = norm(r);
         if (trace) trace->push_back(st.residual);
-        if (st.residual <= tol) {
+        if (st.residual <= tol || (floor > 0.0 && st.residual <= floor * norm(x))) {
             st.converged = true;
             return st;
         }
@@ -274,7 +277,7 @@ LinearStats pcg(std::size_t n, const VecOp& op, const VecOp& prec, const std::ve
 // indefinite allowed, with a symmetric positive definite preconditioner. Stops when the
 // preconditioned residual estimate falls below tol.
 LinearStats minres(std::size_t n, const VecOp& op, const VecOp& prec, const std::vector<double>& b, std::vector<double>& x,
-                   double tol, int maxit, std::vector<double>* trace) {
+                   double tol, int maxit, std::vector<double>* trace, double floor = 0.0) {
     LinearStats st;
     x.assign(n, 0.0);
     std::vector<double> r1 = b, y, r2, v, w(n, 0.0), w1(n, 0.0), w2(n, 0.0);
@@ -324,7 +327,7 @@ LinearStats minres(std::size_t n, const VecOp& op, const VecOp& prec, const std:
         st.iterations = it;
         st.residual = phibar;
         if (trace) trace->push_back(phibar);
-        if (phibar <= tol) {
+        if (phibar <= tol || (floor > 0.0 && phibar <= floor * norm(x))) {
             st.converged = true;
             return st;
         }
@@ -337,7 +340,7 @@ LinearStats minres(std::size_t n, const VecOp& op, const VecOp& prec, const std:
 // Algorithm 12.1) for the eigenvalues of M^-1 A in [lo, hi], 0 < lo < hi: no inner products but the
 // residual norm. The original's chebyshev without the misprint of its first step (alpha = 2/d).
 LinearStats chebyshev(std::size_t n, const VecOp& op, const VecOp& prec, const std::vector<double>& b, std::vector<double>& x,
-                      double tol, int maxit, double lo, double hi, std::vector<double>* trace) {
+                      double tol, int maxit, double lo, double hi, std::vector<double>* trace, double floor = 0.0) {
     LinearStats st;
     x.assign(n, 0.0);
     std::vector<double> r = b, z, d, q;
@@ -365,7 +368,7 @@ LinearStats chebyshev(std::size_t n, const VecOp& op, const VecOp& prec, const s
             st.breakdown = true;
             return st;
         }
-        if (st.residual <= tol) {
+        if (st.residual <= tol || (floor > 0.0 && st.residual <= floor * norm(x))) {
             st.converged = true;
             return st;
         }
@@ -382,7 +385,7 @@ LinearStats chebyshev(std::size_t n, const VecOp& op, const VecOp& prec, const s
 // gradients at twice the products A v (r~ = r throughout), but it does not need A to be positive
 // definite.
 LinearStats bicg(std::size_t n, const VecOp& op, const VecOp& prec, const std::vector<double>& b, std::vector<double>& x,
-                 double tol, int maxit, std::vector<double>* trace) {
+                 double tol, int maxit, std::vector<double>* trace, double floor = 0.0) {
     LinearStats st;
     x.assign(n, 0.0);
     std::vector<double> r = b, rt = b, z, zt, p, pt, q, qt;
@@ -427,7 +430,7 @@ LinearStats bicg(std::size_t n, const VecOp& op, const VecOp& prec, const std::v
         st.iterations = it;
         st.residual = norm(r);
         if (trace) trace->push_back(st.residual);
-        if (st.residual <= tol) {
+        if (st.residual <= tol || (floor > 0.0 && st.residual <= floor * norm(x))) {
             st.converged = true;
             return st;
         }
@@ -893,12 +896,18 @@ struct Solver {
     bool have_interval = false; // Chebyshev: the interval of M^-1 H
     double lo = 0.0, hi = 0.0;
     bool noted_indefinite = false;
+    double h_norm = 0.0;        // ||H||_inf (largest absolute row sum)
 
     Solver(const Csr& a_, const NuclearMotionInput& in_, NuclearMotionResult& res_, const NuclearOutputSink& sink_,
            std::ostringstream& os_)
         : a(a_), in(in_), res(res_), sink(sink_), os(os_), pc(parse_precond(in_.preconditioner)),
           lin(parse_linear(in_.linear_solver)) {
         unshifted.setup(a, pc, 0.0, true);
+        for (std::size_t i = 0; i < a.n; ++i) {
+            double row = 0.0;
+            for (std::size_t q = a.row[i]; q < a.row[i + 1]; ++q) row += std::fabs(a.val[q]);
+            h_norm = std::max(h_norm, row);
+        }
     }
 
     std::size_t n() const { return a.n; }
@@ -959,18 +968,18 @@ struct Solver {
 
     // One linear solve of A x = b with the chosen method. strict: A is H (positive definite).
     LinearStats solve(const VecOp& op, const VecOp& prec, const std::vector<double>& b, std::vector<double>& x, double tol,
-                      int maxit, bool strict, bool cached_interval, int step) {
+                      int maxit, bool strict, bool cached_interval, int step, double floor = 0.0) {
         std::vector<double> trace;
         LinearStats st;
         switch (lin) {
         case Linear::Pcg:
-            st = pcg(n(), op, prec, b, x, tol, maxit, strict, &trace);
+            st = pcg(n(), op, prec, b, x, tol, maxit, strict, &trace, floor);
             break;
         case Linear::Minres:
-            st = minres(n(), op, prec, b, x, tol, maxit, &trace);
+            st = minres(n(), op, prec, b, x, tol, maxit, &trace, floor);
             break;
         case Linear::Bicg:
-            st = bicg(n(), op, prec, b, x, tol, maxit, &trace);
+            st = bicg(n(), op, prec, b, x, tol, maxit, &trace, floor);
             break;
         case Linear::Chebyshev: {
             double l = 0.0, h = 0.0;
@@ -990,7 +999,7 @@ struct Solver {
                     res.chebyshev_max = h;
                 }
             }
-            st = chebyshev(n(), op, prec, b, x, tol, maxit, l, h, &trace);
+            st = chebyshev(n(), op, prec, b, x, tol, maxit, l, h, &trace, floor);
             break;
         }
         }
@@ -1010,7 +1019,7 @@ struct Solver {
     // (Jacobi-Davidson, Rayleigh-quotient iteration; Q empty: Davidson); the preconditioner
     // (I - QQ^T) M^-1 (I - QQ^T), M ~ H - theta (absolute diagonal: positive definite).
     LinearStats solve_shifted(double theta, const std::vector<const std::vector<double>*>& Q, const std::vector<double>& b,
-                              std::vector<double>& x, double tol, int maxit, int step) {
+                              std::vector<double>& x, double tol, int maxit, int step, double floor = 0.0) {
         Preconditioner m;
         m.setup(a, pc, theta, true);
         auto project = [&Q](std::vector<double>& v) {
@@ -1033,7 +1042,7 @@ struct Solver {
             m.apply(pr, z);
             project(z);
         };
-        LinearStats st = solve(op, prec, b, x, tol, maxit, false, false, step);
+        LinearStats st = solve(op, prec, b, x, tol, maxit, false, false, step, floor);
         project(x);
         return st;
     }
@@ -1552,7 +1561,10 @@ Eigenpairs rayleigh_quotient(Solver& sv) {
             } else {
                 std::vector<const std::vector<double>*> Q;
                 for (const auto& q : locked) Q.push_back(&q);
-                ls = sv.solve_shifted(spd ? theta - rho : theta, Q, x, y, in.linear_tolerance, in.max_linear_iterations, it_total);
+                // stop at the rounding level 100 eps ||H|| ||y|| as well: near convergence the system is
+                // singular to machine precision and ||y|| ~ 1/|E - shift|
+                ls = sv.solve_shifted(spd ? theta - rho : theta, Q, x, y, in.linear_tolerance, in.max_linear_iterations, it_total,
+                                      100.0 * std::numeric_limits<double>::epsilon() * sv.h_norm);
             }
             double ny = norm(y);
             if (!(ny > 0.0) || !std::isfinite(ny)) {
