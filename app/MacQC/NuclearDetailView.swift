@@ -2,10 +2,11 @@
 //  NuclearDetailView.swift
 //  MacQC
 //
-//  ΨLab 20.0: the result tabs of the nuclear-motion calculation: Levels (the energy levels, a
-//  level diagram), Expectation values (the bond lengths and the angle of every level, the K
-//  weights for J > 0), Convergence (the eigensolver's history, the DVR grids) and Output (the
-//  output file, streamed while the job runs).
+//  ΨLab 20.0/21.0: the result tabs of the nuclear-motion calculation: Levels (the energy levels, a
+//  level diagram), Geometry (the expectation values of the bond lengths and the angle of every
+//  level, the K weights for J > 0), Matrix, Eigenvectors (21.0, NuclearEigenvectorView),
+//  Convergence (the eigensolver's history, 21.0 with the linear solves, the DVR grids) and Output
+//  (the output file, streamed while the job runs).
 //
 
 import SwiftUI
@@ -25,6 +26,9 @@ struct NuclearDetailView: View {
             NuclearMatrixView(model: model)
                 .tabItem { Label("Matrix", systemImage: "square.grid.3x3") }
                 .tag(NuclearTab.matrix)
+            NuclearEigenvectorView(model: model)
+                .tabItem { Label("Eigenvectors", systemImage: "waveform") }
+                .tag(NuclearTab.eigenvectors)
             NuclearConvergenceView(model: model)
                 .tabItem { Label("Convergence", systemImage: "chart.line.downtrend.xyaxis") }
                 .tag(NuclearTab.convergence)
@@ -37,7 +41,7 @@ struct NuclearDetailView: View {
 }
 
 /// Placeholder of a tab without a result.
-private struct NuclearPlaceholder: View {
+struct NuclearPlaceholder: View {
     var model: NuclearModel
 
     var body: some View {
@@ -63,19 +67,20 @@ private struct NuclearPlaceholder: View {
 }
 
 /// Header of the result: molecule, J and the basis.
-private struct NuclearHeader: View {
+struct NuclearHeader: View {
     var result: NuclearResult
 
     var body: some View {
         let input = result.input ?? NuclearInput()
         let iso = Isotopologue(rawValue: result.isotopologue ?? "") ?? input.isotopologue
+        let linear = input.eigensolver.usesLinearSolver ? " (" + input.linearSolver.title + ", " + input.preconditioner.title + ")" : ""
         VStack(alignment: .leading, spacing: 4) {
             HStack(spacing: 0) {
                 LaTeXText(iso.latex, size: 20, weight: .semibold)
                 Text(input.J == 0 ? " · vibrational levels (J = 0)" : " · rovibrational levels, J = \(input.J), K = \(input.parityBlock == 0 ? 0 : 1) … \(input.J)")
                     .font(.title2.weight(.semibold))
             }
-            Text("CVRQD surface · ns1 = \(input.radialPoints), np = \(input.angularPoints) · \(Fmt.count(Double(result.dimension ?? 0))) basis functions · \(NuclearEigensolver(rawValue: input.eigensolver.rawValue)?.title ?? "")")
+            Text("CVRQD surface · \(input.coordinates.title) coordinates · ns1 = \(input.radialPoints), np = \(input.angularPoints) · \(Fmt.count(Double(result.dimension ?? 0))) basis functions · \(input.eigensolver.title)\(linear)")
                 .foregroundStyle(.secondary)
         }
     }
@@ -110,7 +115,7 @@ struct NuclearLevelsView: View {
                     levelDiagram(r)
                         .frame(height: 320)
                         .dataPanel()
-                    Text("Energies from the minimum of the potential energy surface; E − E₁ from the lowest level of this calculation (for jmax = 0: the vibrational band origins above the zero-point level). ‖Hx − Ex‖ is the residual of the eigenvector (E_h).")
+                    Text("Energies from the minimum of the potential energy surface; E − E₁ from the lowest level of this calculation (for jmax = 0: the vibrational band origins above the zero-point level). ‖Hx − Ex‖ is the residual of the eigenvector (E_h); — when only the eigenvalues were computed by Lánczos.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -157,10 +162,20 @@ struct NuclearLevelsView: View {
                     Text(String(format: "%.4f", l.energy * NuclearUnits.hartreeToCm))
                     Text(String(format: "%.4f", (l.energy - e1) * NuclearUnits.hartreeToCm))
                     Text(String(format: "%.10f", l.energy))
-                    Text(String(format: "%.1e", l.residual))
-                        .foregroundStyle(l.residual < (r.input?.residualTolerance ?? 1e-8) ? Color.primary : Color.orange)
-                    if showK, let i = l.kWeights.indices.max(by: { l.kWeights[$0] < l.kWeights[$1] }), i < kValues.count {
-                        Text(String(format: "%d (%.0f %%)", kValues[i], 100 * l.kWeights[i]))
+                    if let res = l.residual {
+                        Text(String(format: "%.1e", res))
+                            .foregroundStyle(res < (r.input?.residualTolerance ?? 1e-8) ? Color.primary : Color.orange)
+                    } else {
+                        Text("—")
+                            .foregroundStyle(.secondary)
+                    }
+                    if showK {
+                        if let i = l.kWeights.indices.max(by: { l.kWeights[$0] < l.kWeights[$1] }), i < kValues.count {
+                            Text(String(format: "%d (%.0f %%)", kValues[i], 100 * l.kWeights[i]))
+                        } else {
+                            Text("—")
+                                .foregroundStyle(.secondary)
+                        }
                     }
                 }
                 .monospacedDigit()
@@ -196,21 +211,39 @@ struct NuclearLevelsView: View {
 struct NuclearExpectationView: View {
     var model: NuclearModel
 
+    /// 21.0: the table in a larger type (Task: the values were hard to read).
+    private static let valueFont = Font.system(size: 15).monospacedDigit()
+    private static let headerFont = Font.system(size: 13, weight: .semibold)
+
     var body: some View {
         if let r = model.result, !r.levels.isEmpty {
             ScrollView {
                 VStack(alignment: .leading, spacing: 18) {
                     NuclearHeader(result: r)
-                    SectionTitle("Vibrationally averaged geometry: expectation values of the bond lengths and the angle")
-                    momentsTable(r)
-                        .dataPanel()
-                    Text("r₁ = r(O–H₁), r₂ = r(O–H₂) in Å; ⟨rⁿ⟩^(1/n) for n = 1, 2, 3, −1, −2, −3 (as the original program's expectval); the angle H–O–H in degrees. The DVR quadrature: |cᵢ|² at the grid points.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                    if let kv = r.kValues, kv.count > 1 {
+                    if r.hasVectors == false {
+                        ContentUnavailableView("Eigenvalues only", systemImage: "ruler",
+                                               description: Text("The expectation values need the eigenvectors. Choose “Eigenvalues and Eigenvectors” under Levels in the sidebar and run again."))
+                    } else if r.input?.expectationValues == false {
+                        ContentUnavailableView("No expectation values", systemImage: "ruler",
+                                               description: Text("Switch on “Expectation values” under Levels in the sidebar and run again."))
+                    } else {
+                        SectionTitle("Vibrationally averaged geometry: expectation values of the bond lengths and the angle")
+                        ScrollView(.horizontal) {
+                            momentsTable(r)
+                                .fixedSize()
+                                .dataPanel()
+                        }
+                        Text("r₁ = r(O–H₁), r₂ = r(O–H₂) in Å; ⟨rⁿ⟩^(1/n) for n = 1, 2, 3, −1, −2, −3 (as the original program's expectval); the angle H–O–H in degrees. The DVR quadrature: |cᵢ|² at the grid points.")
+                            .font(.callout)
+                            .foregroundStyle(.secondary)
+                    }
+                    if r.hasVectors != false, let kv = r.kValues, kv.count > 1 {
                         SectionTitle("Weights of the K blocks")
-                        kTable(r, kv)
-                            .dataPanel()
+                        ScrollView(.horizontal) {
+                            kTable(r, kv)
+                                .fixedSize()
+                                .dataPanel()
+                        }
                     }
                 }
                 .padding(20)
@@ -223,19 +256,19 @@ struct NuclearExpectationView: View {
     private func momentsTable(_ r: NuclearResult) -> some View {
         let a = NuclearUnits.bohrToAngstrom
         func f(_ x: Double) -> String { String(format: "%.5f", x * a) }
-        return Grid(alignment: .trailing, horizontalSpacing: 14, verticalSpacing: 6) {
+        return Grid(alignment: .trailing, horizontalSpacing: 22, verticalSpacing: 9) {
             GridRow {
                 Text("n")
                 Text("bond")
-                Text("⟨r⟩")
-                Text("⟨r²⟩^½")
-                Text("⟨r³⟩^⅓")
-                Text("⟨r⁻¹⟩⁻¹")
-                Text("⟨r⁻²⟩^−½")
-                Text("⟨r⁻³⟩^−⅓")
+                Text("⟨r⟩ (Å)")
+                Text("⟨r²⟩^½ (Å)")
+                Text("⟨r³⟩^⅓ (Å)")
+                Text("⟨r⁻¹⟩⁻¹ (Å)")
+                Text("⟨r⁻²⟩^−½ (Å)")
+                Text("⟨r⁻³⟩^−⅓ (Å)")
                 Text("⟨HOH⟩ (°)")
             }
-            .font(.caption.weight(.semibold))
+            .font(Self.headerFont)
             .foregroundStyle(.secondary)
             Divider()
             ForEach(Array(r.levels.enumerated()), id: \.offset) { k, l in
@@ -250,7 +283,7 @@ struct NuclearExpectationView: View {
                     Text(f(l.r1.inverse3))
                     Text(String(format: "%.3f", l.theta))
                 }
-                .monospacedDigit()
+                .font(Self.valueFont)
                 GridRow {
                     Text("")
                     Text("r₂")
@@ -262,7 +295,7 @@ struct NuclearExpectationView: View {
                     Text(f(l.r2.inverse3))
                     Text("")
                 }
-                .monospacedDigit()
+                .font(Self.valueFont)
                 .foregroundStyle(.secondary)
             }
         }
@@ -270,12 +303,12 @@ struct NuclearExpectationView: View {
     }
 
     private func kTable(_ r: NuclearResult, _ kv: [Int]) -> some View {
-        Grid(alignment: .trailing, horizontalSpacing: 14, verticalSpacing: 6) {
+        Grid(alignment: .trailing, horizontalSpacing: 22, verticalSpacing: 9) {
             GridRow {
                 Text("n")
                 ForEach(kv, id: \.self) { k in Text("K = \(k)") }
             }
-            .font(.caption.weight(.semibold))
+            .font(Self.headerFont)
             .foregroundStyle(.secondary)
             Divider()
             ForEach(Array(r.levels.enumerated()), id: \.offset) { n, l in
@@ -285,7 +318,7 @@ struct NuclearExpectationView: View {
                         Text(String(format: "%.5f", w))
                     }
                 }
-                .monospacedDigit()
+                .font(Self.valueFont)
             }
         }
         .textSelection(.enabled)
@@ -308,13 +341,30 @@ struct NuclearConvergenceView: View {
                     if let h = r.history, h.count > 1 {
                         SectionTitle("History")
                         HStack(spacing: 18) {
-                            lowestChart(h)
+                            lowestChart(h, perLevel: r.input?.eigensolver == .rayleighQuotient)
                                 .frame(minHeight: 240)
                                 .dataPanel()
                             changeChart(h, lanczos: r.input?.eigensolver == .lanczos)
                                 .frame(minHeight: 240)
                                 .dataPanel()
                         }
+                    }
+                    // 21.0: the linear solves, where the linear solver and the preconditioner show
+                    let linear = (r.history ?? []).contains { $0.linearIterations > 0 }
+                    if linear {
+                        SectionTitle("Linear solves")
+                        HStack(spacing: 18) {
+                            linearIterationsChart(r.history ?? [])
+                                .frame(minHeight: 240)
+                                .dataPanel()
+                            linearTraceChart(r)
+                                .frame(minHeight: 240)
+                                .dataPanel()
+                        }
+                        Text(linearCaption(r))
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
                     }
                     SectionTitle("Grids")
                     grids(r)
@@ -327,6 +377,18 @@ struct NuclearConvergenceView: View {
         }
     }
 
+    private func linearCaption(_ r: NuclearResult) -> String {
+        let input = r.input ?? NuclearInput()
+        var text = "Left: the iterations of the linear solves of every step (\(input.linearSolver.longTitle), preconditioner \(input.preconditioner.title)). Right: the residual norm of a linear solve, iteration by iteration (MINRES: its estimate of the preconditioned residual), for the first and the last step."
+        if input.eigensolver == .lanczos {
+            text += " For Lánczos the outer iteration (the Krylov space of H⁻¹) does not depend on the linear solver or the preconditioner as long as every solve reaches the linear tolerance: the levels and their change (above) are the same for every choice, to rounding; the choices differ in the inner iterations, the products H x and the time."
+        }
+        if input.linearSolver == .bicg {
+            text += " BiCG with r̃₀ = r₀ reproduces the iterates of CG for the symmetric H at twice the products H x."
+        }
+        return text
+    }
+
     private func stats(_ r: NuclearResult) -> some View {
         VStack(spacing: 8) {
             InfoRow("Method", r.solver ?? "")
@@ -336,12 +398,23 @@ struct NuclearConvergenceView: View {
             if let li = r.linearIterations, li > 0 {
                 InfoRow("Linear-solver iterations", Fmt.count(Double(li)))
             }
+            InfoRow("Eigenvectors", (r.hasVectors ?? true) ? "computed" : "not kept (eigenvalues only)")
             InfoRow("Hamiltonian", String(format: "%@ × %@, %@ non-zero elements, %.2f s", Fmt.count(Double(r.dimension ?? 0)),
                                           Fmt.count(Double(r.dimension ?? 0)), Fmt.count(Double(r.nonzeros ?? 0)), r.hamiltonianSeconds ?? 0))
             InfoRow("Eigensolver time", String(format: "%.2f s", r.solverSeconds ?? 0))
+            if let c = r.chebyshevInterval, c.count == 2 {
+                InfoRow("Chebyshev interval", String(format: "eigenvalues of M⁻¹A in [%.3e, %.3e]", c[0], c[1]))
+            }
+            if let sv = r.startVector {
+                InfoRow("Start vector", String(format: "Gaussian (Algorithm 5): μ = %.4f, %.4f bohr, %.2f°; σ = %.4f, %.4f bohr, %.2f°",
+                                               sv.mu[0], sv.mu[1], sv.mu[2], sv.sigma[0], sv.sigma[1], sv.sigma[2]))
+                InfoRow("Its quality", String(format: "Rayleigh quotient %.2f cm⁻¹%@", sv.rayleigh * NuclearUnits.hartreeToCm,
+                                              sv.overlap.map { String(format: ", overlap |⟨q₁|x₁⟩| = %.4f with the lowest eigenvector", $0) } ?? ""))
+            }
             if let m = r.masses, m.count == 3, let mu1 = r.mu1, let mu2 = r.mu2 {
                 InfoRow("Masses", String(format: "%.9f, %.9f, %.7f u", m[0], m[1], m[2]))
-                InfoRow("Reduced masses", String(format: "μ₁ = %.4f, μ₂ = %.4f mₑ", mu1, mu2))
+                InfoRow("Coordinates", String(format: "%@: g₁ = %.6f, g₂ = %.6f (Sutcliffe–Tennyson); μ₁ = %.4f, μ₂ = %.4f mₑ",
+                                              (r.input?.coordinates ?? .jacobi).title, r.g1 ?? 0, r.g2 ?? 0, mu1, mu2))
             }
             if let vmin = r.potentialMinimum, let rm = r.minimumR, let am = r.minimumAngle {
                 InfoRow("Potential minimum", String(format: "%.12f E_h at r(OH) = %.5f Å, %.3f°", vmin, rm * NuclearUnits.bohrToAngstrom, am))
@@ -355,15 +428,19 @@ struct NuclearConvergenceView: View {
         }
     }
 
-    private func lowestChart(_ h: [NuclearStep]) -> some View {
-        Chart(h.filter { $0.lowest > 0 }, id: \.iteration) { s in
-            LineMark(x: .value("Iteration", s.iteration), y: .value("Lowest level (cm⁻¹)", s.lowest * NuclearUnits.hartreeToCm))
-            PointMark(x: .value("Iteration", s.iteration), y: .value("Lowest level (cm⁻¹)", s.lowest * NuclearUnits.hartreeToCm))
+    private func lowestChart(_ h: [NuclearStep], perLevel: Bool) -> some View {
+        let points = h.filter { $0.lowest > 0 }
+        return Chart(points, id: \.iteration) { s in
+            LineMark(x: .value("Iteration", s.iteration), y: .value("Level (cm⁻¹)", s.lowest * NuclearUnits.hartreeToCm))
+                .foregroundStyle(by: .value("Level", perLevel ? "level \(s.level ?? 0)" : "lowest"))
+            PointMark(x: .value("Iteration", s.iteration), y: .value("Level (cm⁻¹)", s.lowest * NuclearUnits.hartreeToCm))
                 .symbolSize(12)
+                .foregroundStyle(by: .value("Level", perLevel ? "level \(s.level ?? 0)" : "lowest"))
         }
         .chartYScale(domain: .automatic(includesZero: false))
+        .chartLegend(perLevel ? .visible : .hidden)
         .chartXAxisLabel("Iteration")
-        .chartYAxisLabel("Lowest level (cm⁻¹)")
+        .chartYAxisLabel(perLevel ? "Level being refined (cm⁻¹)" : "Lowest level (cm⁻¹)")
     }
 
     private func changeChart(_ h: [NuclearStep], lanczos: Bool) -> some View {
@@ -380,8 +457,45 @@ struct NuclearConvergenceView: View {
         .chartYAxisLabel(lanczos ? "log₁₀ change of the levels (E_h)" : "log₁₀ residual (E_h)")
     }
 
+    /// 21.0: the iterations of the linear solver(s) of every eigensolver step.
+    private func linearIterationsChart(_ h: [NuclearStep]) -> some View {
+        Chart(h, id: \.iteration) { s in
+            BarMark(x: .value("Iteration", s.iteration), y: .value("Linear-solver iterations", s.linearIterations))
+        }
+        .chartXAxisLabel("Eigensolver iteration")
+        .chartYAxisLabel("Linear-solver iterations")
+        .accessibilityLabel("Linear-solver iterations per step")
+    }
+
+    /// 21.0: log₁₀ of the residual norm of the first and the last linear solve.
+    private func linearTraceChart(_ r: NuclearResult) -> some View {
+        struct P: Identifiable {
+            let id: Int
+            let series: String
+            let k: Int
+            let y: Double
+        }
+        var pts: [P] = []
+        var n = 0
+        for (name, t) in [("first solve (step \(r.firstSolve?.step ?? 0))", r.firstSolve), ("last solve (step \(r.lastSolve?.step ?? 0))", r.lastSolve)] {
+            guard let t else { continue }
+            for (k, v) in t.residuals.enumerated() where v > 0 && v.isFinite {
+                pts.append(P(id: n, series: name, k: k, y: log10(v)))
+                n += 1
+            }
+        }
+        return Chart(pts) { p in
+            LineMark(x: .value("Inner iteration", p.k), y: .value("log10 residual", p.y))
+                .foregroundStyle(by: .value("Solve", p.series))
+        }
+        .chartXAxisLabel("Linear-solver iteration")
+        .chartYAxisLabel("log₁₀ ‖b − A x‖")
+        .accessibilityLabel("Residual of the linear solves")
+    }
+
     private func grids(_ r: NuclearResult) -> some View {
-        VStack(alignment: .leading, spacing: 10) {
+        let coords = r.input?.coordinates ?? .jacobi
+        return VStack(alignment: .leading, spacing: 10) {
             if let g = r.rGrid {
                 Text("Radial points (R₁ and R₂), Å")
                     .font(.caption.weight(.semibold))
@@ -393,7 +507,7 @@ struct NuclearConvergenceView: View {
             }
             if let c = r.cosGrid, let kv = r.kValues {
                 ForEach(Array(zip(kv, c)), id: \.0) { k, q in
-                    Text("Angular points, K = \(k): Jacobi angle θ (°)")
+                    Text("Angular points, K = \(k): \(coords.title) angle θ (°)")
                         .font(.caption.weight(.semibold))
                         .foregroundStyle(.secondary)
                     Text(q.map { String(format: "%.2f", acos(max(-1, min(1, $0))) * 180 / .pi) }.joined(separator: "  "))

@@ -1468,7 +1468,7 @@ char* macqc_job_progress_text(const macqc_job* job) {
 
 }  // extern "C"
 
-// ---- ΨLab 20.0: nuclear motion (JSON in and out)
+// ---- ΨLab 20.0/21.0: nuclear motion (JSON in and out)
 
 namespace macqc {
 
@@ -1486,6 +1486,9 @@ NuclearMotionInput parse_nuclear_input_json(const std::string& text) {
     in.r_centre = get_number(j, "rCentre", in.r_centre);
     in.r_half_width = get_number(j, "rHalfWidth", in.r_half_width);
     in.levels = get_int(j, "levels", in.levels);
+    in.coordinates = get_string(j, "coordinates", in.coordinates);
+    in.eigenvectors = get_bool(j, "eigenvectors", in.eigenvectors);
+    in.gaussian_start = get_bool(j, "gaussianStart", in.gaussian_start);
     in.eigensolver = get_string(j, "eigensolver", in.eigensolver);
     in.linear_solver = get_string(j, "linearSolver", in.linear_solver);
     in.preconditioner = get_string(j, "preconditioner", in.preconditioner);
@@ -1495,6 +1498,7 @@ NuclearMotionInput parse_nuclear_input_json(const std::string& text) {
     in.max_iterations = get_int(j, "maxIterations", in.max_iterations);
     in.max_linear_iterations = get_int(j, "maxLinearIterations", in.max_linear_iterations);
     in.jd_inner_iterations = get_int(j, "jdInnerIterations", in.jd_inner_iterations);
+    in.davidson_inner_iterations = get_int(j, "davidsonInnerIterations", in.davidson_inner_iterations);
     in.subspace_size = get_int(j, "subspaceSize", in.subspace_size);
     in.expectation_values = get_bool(j, "expectationValues", in.expectation_values);
     in.threads = get_int(j, "threads", in.threads);
@@ -1511,6 +1515,9 @@ nlohmann::json nuclear_input_json(const NuclearMotionInput& in) {
                 {"rCentre", in.r_centre},
                 {"rHalfWidth", in.r_half_width},
                 {"levels", in.levels},
+                {"coordinates", in.coordinates},
+                {"eigenvectors", in.eigenvectors},
+                {"gaussianStart", in.gaussian_start},
                 {"eigensolver", in.eigensolver},
                 {"linearSolver", in.linear_solver},
                 {"preconditioner", in.preconditioner},
@@ -1520,6 +1527,7 @@ nlohmann::json nuclear_input_json(const NuclearMotionInput& in) {
                 {"maxIterations", in.max_iterations},
                 {"maxLinearIterations", in.max_linear_iterations},
                 {"jdInnerIterations", in.jd_inner_iterations},
+                {"davidsonInnerIterations", in.davidson_inner_iterations},
                 {"subspaceSize", in.subspace_size},
                 {"expectationValues", in.expectation_values},
                 {"threads", in.threads}};
@@ -1537,6 +1545,28 @@ std::string base64(const std::vector<unsigned char>& v) {
         out += i + 2 < v.size() ? t[b2 & 63u] : '=';
     }
     return out;
+}
+
+// 21.0: float32 arrays (little-endian, as on every Mac) in base64
+std::string base64_floats(const std::vector<float>& v) {
+    std::vector<unsigned char> bytes(v.size() * sizeof(float));
+    if (!v.empty()) std::memcpy(bytes.data(), v.data(), bytes.size());
+    return base64(bytes);
+}
+
+nlohmann::json wavefunction_json(const WavefunctionPlot& w) {
+    using nlohmann::json;
+    if (w.psi_r1r2.empty()) return nullptr;
+    return json{{"block", w.block},
+                {"i", w.i},
+                {"j", w.j},
+                {"l", w.l},
+                {"psiR1R2", base64_floats(w.psi_r1r2)},
+                {"psiR1Theta", base64_floats(w.psi_r1t)},
+                {"psiR2Theta", base64_floats(w.psi_r2t)},
+                {"rhoR1R2", base64_floats(w.rho_r1r2)},
+                {"rhoR1Theta", base64_floats(w.rho_r1t)},
+                {"rhoR2Theta", base64_floats(w.rho_r2t)}};
 }
 
 nlohmann::json matrix_picture_json(const MatrixPicture& m) {
@@ -1559,10 +1589,27 @@ nlohmann::json nuclear_result_json(const NuclearMotionResult& r) {
     j["masses"] = {r.masses[0], r.masses[1], r.masses[2]};
     j["mu1"] = r.mu1;
     j["mu2"] = r.mu2;
+    j["g1"] = r.g1;
+    j["g2"] = r.g2;
+    j["hasVectors"] = r.has_vectors;
+    if (r.input.gaussian_start && r.input.eigensolver != "dense") {
+        j["startVector"] = json{{"rayleigh", r.start_rayleigh},
+                                {"overlap", r.start_overlap >= 0.0 ? json(r.start_overlap) : json(nullptr)},
+                                {"mu", {r.start_mu[0], r.start_mu[1], r.start_mu[2] * 180.0 / 3.14159265358979323846}},
+                                {"sigma", {r.start_sigma[0], r.start_sigma[1], r.start_sigma[2] * 180.0 / 3.14159265358979323846}}};
+    }
+    if (r.chebyshev_max > 0.0) j["chebyshevInterval"] = {r.chebyshev_min, r.chebyshev_max};
+    auto trace = [](const LinearSolveTrace& t) {
+        if (t.step == 0) return json(nullptr);
+        return json{{"step", t.step}, {"residuals", t.residuals}};
+    };
+    j["firstSolve"] = trace(r.first_solve);
+    j["lastSolve"] = trace(r.last_solve);
     j["potentialMinimum"] = r.potential_minimum;
     j["minimumR"] = r.minimum_r;
     j["minimumAngle"] = r.minimum_angle * 180.0 / 3.14159265358979323846;
     j["rGrid"] = r.r_grid;
+    j["rWeights"] = r.r_weights;
     j["kValues"] = r.k_values;
     j["cosGrid"] = r.cos_grid;
     j["dimension"] = r.dimension;
@@ -1577,13 +1624,16 @@ nlohmann::json nuclear_result_json(const NuclearMotionResult& r) {
     json hist = json::array();
     for (const NuclearSolverStep& s : r.history)
         hist.push_back(json{{"iteration", s.iteration}, {"lowest", s.lowest}, {"change", std::isfinite(s.change) ? json(s.change) : json(nullptr)},
-                            {"converged", s.converged}, {"linearIterations", s.linear_iterations}});
+                            {"converged", s.converged}, {"linearIterations", s.linear_iterations}, {"level", s.level},
+                            {"linearResidual", std::isfinite(s.linear_residual) ? json(s.linear_residual) : json(nullptr)},
+                            {"seconds", s.seconds}});
     j["history"] = hist;
     json levels = json::array();
     for (const NuclearLevel& l : r.levels)
-        levels.push_back(json{{"energy", l.energy}, {"residual", l.residual}, {"r1", moments(l.r1)}, {"r2", moments(l.r2)},
+        levels.push_back(json{{"energy", l.energy}, {"residual", std::isfinite(l.residual) ? json(l.residual) : json(nullptr)},
+                              {"r1", moments(l.r1)}, {"r2", moments(l.r2)},
                               {"theta", l.theta * 180.0 / 3.14159265358979323846}, {"cosTheta", l.cos_theta},
-                              {"kWeights", l.k_weights}});
+                              {"kWeights", l.k_weights}, {"wavefunction", wavefunction_json(l.plot)}});
     j["levels"] = levels;
     j["matrixWhole"] = matrix_picture_json(r.matrix_whole);
     j["matrixDetail"] = matrix_picture_json(r.matrix_detail);

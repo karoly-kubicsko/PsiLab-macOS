@@ -122,6 +122,7 @@ struct MacQCApp: App {
                     Button("Energy Levels") { model.nuclear.selectedTab = .levels }
                     Button("Averaged Geometry") { model.nuclear.selectedTab = .expectation }
                     Button("Matrix Structure") { model.nuclear.selectedTab = .matrix }
+                    Button("Eigenvectors") { model.nuclear.selectedTab = .eigenvectors }
                     Button("Convergence") { model.nuclear.selectedTab = .convergence }
                     Button("Nuclear-Motion Output") { model.nuclear.selectedTab = .output }
                 }
