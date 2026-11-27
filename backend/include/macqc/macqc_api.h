@@ -100,23 +100,35 @@ void macqc_mesh_free(macqc_mesh* mesh);
 
 char* macqc_parse_structure(const char* text, const char* hint);
 
-/* ΨLab 20.0: nuclear motion (rovibrational levels of H2(16)O, H2(17)O, H2(18)O, D2(16)O on the
+/* ΨLab 20.0/21.0: nuclear motion (rovibrational levels of H2(16)O, H2(17)O, H2(18)O, D2(16)O on the
  * CVRQD surfaces; see nuclear_motion.h and README).
  *   macqc_nuclear_run_job(json, job)  runs the calculation (job: progress, cancellation and the
  *                                     output file, as for macqc_run_job; may be NULL). Input keys:
  *                                     "isotopologue", "J", "parityBlock", "radialPoints",
  *                                     "angularPoints", "rCentre", "rHalfWidth" (bohr), "levels",
- *                                     "eigensolver" (lanczos | jacobi-davidson | davidson | dense),
- *                                     "linearSolver" (pcg | minres), "preconditioner" (ilu | jacobi |
- *                                     none), "eigenvalueTolerance", "residualTolerance",
+ *                                     "coordinates" (jacobi | radau; 21.0), "eigenvectors" (bool;
+ *                                     21.0), "gaussianStart" (bool; 21.0), "eigensolver" (lanczos |
+ *                                     jacobi-davidson | davidson | inverse-power | rayleigh-quotient
+ *                                     | dense), "linearSolver" (pcg | minres | chebyshev | bicg),
+ *                                     "preconditioner" (ilu | jacobi | none),
+ *                                     "eigenvalueTolerance", "residualTolerance",
  *                                     "linearTolerance", "maxIterations", "maxLinearIterations",
- *                                     "jdInnerIterations", "subspaceSize", "expectationValues",
- *                                     "threads". The result has "levels" (energy in E_h from the
- *                                     minimum of the surface, residual, r1/r2 moments in bohr,
- *                                     theta in degrees, kWeights), the grids, the solver history,
- *                                     "output" (the output file) and "error" (null or a message).
+ *                                     "jdInnerIterations", "davidsonInnerIterations" (21.0),
+ *                                     "subspaceSize", "expectationValues", "threads". The result
+ *                                     has "levels" (energy in E_h from the minimum of the surface,
+ *                                     residual (null: not known), r1/r2 moments in bohr, theta in
+ *                                     degrees, kWeights, 21.0 "wavefunction": cuts and densities
+ *                                     as base64 float32 arrays), the grids, the solver history,
+ *                                     21.0 "firstSolve"/"lastSolve" (residuals of a linear solve),
+ *                                     "startVector", "hasVectors", "exportId" (21.0, for
+ *                                     macqc_nuclear_export), "output" (the output file) and
+ *                                     "error" (null or a message).
  *   macqc_nuclear_estimate(json)      {"dimension", "nonzeros", "memoryMB", "refusal"}.
  * Both return malloc'ed UTF-8 JSON (free with macqc_free). */
+/* 21.0: writes the eigenvalues, eigenvectors and/or Gaussian start vector of the last nuclear-motion
+ * result as text: {"exportId" (from its result), "path", "eigenvalues", "eigenvectors",
+ * "startVector" (bools)} -> {"error": null or a message, "path"}. */
+char* macqc_nuclear_export(const char* request_json);
 char* macqc_nuclear_run_job(const char* input_json, macqc_job* job);
 char* macqc_nuclear_estimate(const char* input_json);
 

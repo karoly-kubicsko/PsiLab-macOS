@@ -1,4 +1,4 @@
-// ΨLab 20.0: tests of the nuclear-motion module (CTest).
+// ΨLab 20.0/21.0: tests of the nuclear-motion module (CTest).
 //  - the CVRQD surfaces (backend/src/cvrqd.cpp, translated from Fortran) against values of the
 //    gfortran build of the original routines (reference/nuclear_motion/pot_*_cvrqd.f);
 //  - the minima used as the zero of the energies;
@@ -6,7 +6,10 @@
 //    cpp_DOPI_expval_array.cpp (10 Hermite points in R1 and R2, 12 Legendre points; its energies
 //    are shifted by the difference of its potential constant and the minimum);
 //  - every eigensolver and linear solver gives the same levels; J = 1 in both parity blocks;
-//  - the C API (JSON) and refusals.
+//  - the C API (JSON) and refusals;
+//  - 21.0: Radau coordinates (the same levels as Jacobi), inverse power and Rayleigh-quotient
+//    iteration, Chebyshev and BiCG, the linear solvers in Davidson and Jacobi-Davidson, the
+//    eigenvalues only, the Gaussian start vector of Algorithm 5, the eigenvector pictures.
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
@@ -228,6 +231,21 @@ int main() {
         check(e110 > 38 && e110 < 44, "J=1 1_10 above the zero-point level");
     }
 
+    // ---- 6a. (21.0) J = 0 with the parity block of an earlier J > 0 (K = 1 ... J): the block K = 0,
+    //          as for parity block 0 (20.0 refused it: "J = 0 has only the block K = 0")
+    {
+        NuclearMotionInput in = base;
+        in.levels = 2;
+        in.parity_block = 1;
+        const NuclearMotionEstimate est = estimate_nuclear_motion(in);
+        check(est.refusal.empty() && est.dimension == 1200, "J = 0 with parity block 1: no refusal, one K block");
+        const NuclearMotionResult r1 = run_nuclear_motion(in);
+        in.parity_block = 0;
+        const NuclearMotionResult r0 = run_nuclear_motion(in);
+        check(r1.input.parity_block == 0 && r1.k_values.size() == 1 && r1.k_values[0] == 0, "J = 0: the block K = 0");
+        check_near("J = 0 with parity block 1 = parity block 0", r1.levels[0].energy, r0.levels[0].energy, 1e-14);
+    }
+
     // ---- 6b. the sparsity picture: binned for a large matrix (2400 functions in 1024 pixels: every
     //          pixel row covers 2 or 3 rows), exact for a small one (one pixel per element)
     {
@@ -273,6 +291,184 @@ int main() {
         check(m.density[static_cast<std::size_t>(0 * 80 + 6)] == 0, "picture: no element between them");
     }
 
+
+    // ---- 8. (21.0) Radau coordinates: the same converged levels and expectation values as Jacobi;
+    //         the reduced masses of the distances from the canonical point are the atomic masses
+    {
+        NuclearMotionInput in;
+        in.radial_points = 16;
+        in.angular_points = 20;
+        in.levels = 5;
+        const NuclearMotionResult j = run_nuclear_motion(in);
+        in.coordinates = "radau";
+        const NuclearMotionResult r = run_nuclear_motion(in);
+        check(r.converged, "Radau converged");
+        check_near("Radau mu1 = m(H)", r.mu1, 1.00727647 * 1.8228883e3, 1e-9);
+        check_near("Radau mu2 = m(H)", r.mu2, 1.00727647 * 1.8228883e3, 1e-9);
+        check(r.g1 > 0.0 && r.g1 < 0.05 && std::fabs(r.g1 - r.g2) < 1e-15, "Radau g1 = g2 small for H2O");
+        for (int k = 0; k < 5; ++k)
+            check_near("Radau = Jacobi level " + std::to_string(k + 1) + " (cm-1)", r.levels[static_cast<std::size_t>(k)].energy * kCm,
+                       j.levels[static_cast<std::size_t>(k)].energy * kCm, 0.01);
+        check_near("Radau <r1> = Jacobi", r.levels[0].r1.mean, j.levels[0].r1.mean, 1e-4);
+        check_near("Radau <r2> = Jacobi", r.levels[0].r2.mean, j.levels[0].r2.mean, 1e-4);
+        check_near("Radau <HOH> = Jacobi", r.levels[0].theta, j.levels[0].theta, 1e-4);
+        check(r.report.find("Radau: R1 = r(K-H1)") != std::string::npos, "Radau in the output file");
+        // D2O (other masses) runs as well
+        in.isotopologue = CvrqdIsotopologue::D2_16O;
+        in.levels = 2;
+        const NuclearMotionResult d = run_nuclear_motion(in);
+        in.coordinates = "jacobi";
+        const NuclearMotionResult dj = run_nuclear_motion(in);
+        check_near("D2O Radau = Jacobi zero-point level (cm-1)", d.levels[0].energy * kCm, dj.levels[0].energy * kCm, 0.01);
+    }
+
+    // ---- 9. (21.0) the new eigensolvers and linear solvers give the levels of the dense
+    //         diagonalisation (8 levels, 1200 functions)
+    {
+        NuclearMotionInput d = base;
+        d.eigensolver = "dense";
+        const NuclearMotionResult ref = run_nuclear_motion(d);
+        struct Case {
+            const char *e, *l, *p;
+            int inner;
+        };
+        const Case cases[] = {{"inverse-power", "pcg", "ilu", 0},       {"inverse-power", "minres", "jacobi", 0},
+                              {"inverse-power", "chebyshev", "ilu", 0}, {"inverse-power", "bicg", "none", 0},
+                              {"rayleigh-quotient", "minres", "ilu", 0}, {"rayleigh-quotient", "pcg", "ilu", 0},
+                              {"rayleigh-quotient", "bicg", "jacobi", 0}, {"lanczos", "chebyshev", "jacobi", 0},
+                              {"lanczos", "bicg", "ilu", 0},             {"davidson", "pcg", "ilu", 5},
+                              {"davidson", "minres", "jacobi", 5},       {"davidson", "chebyshev", "none", 5},
+                              {"davidson", "bicg", "ilu", 5},            {"davidson", "pcg", "none", 0},
+                              {"jacobi-davidson", "minres", "ilu", 15},  {"jacobi-davidson", "chebyshev", "ilu", 15},
+                              {"jacobi-davidson", "bicg", "jacobi", 15}, {"jacobi-davidson", "pcg", "none", 15}};
+        for (const Case& c : cases) {
+            NuclearMotionInput in = base;
+            in.eigensolver = c.e;
+            in.linear_solver = c.l;
+            in.preconditioner = c.p;
+            in.davidson_inner_iterations = c.inner;
+            in.jd_inner_iterations = c.inner;
+            for (int g = 0; g < 2; ++g) {
+                in.gaussian_start = g == 1;
+                const NuclearMotionResult q = run_nuclear_motion(in);
+                const std::string name = std::string(c.e) + "/" + c.l + "/" + c.p + (g ? "/gauss" : "");
+                check(q.converged, name + " converged");
+                for (int k = 0; k < 8; ++k)
+                    check_near(name + " level " + std::to_string(k + 1), q.levels[static_cast<std::size_t>(k)].energy,
+                               ref.levels[static_cast<std::size_t>(k)].energy, 1e-9);
+                for (const NuclearLevel& l : q.levels) check(l.residual < 1e-9, name + " residual");
+            }
+        }
+        // one level: the inverse power iteration of the original (a single vector)
+        NuclearMotionInput one = base;
+        one.levels = 1;
+        one.eigensolver = "inverse-power";
+        const NuclearMotionResult ip = run_nuclear_motion(one);
+        check_near("inverse power: the lowest level", ip.levels[0].energy, ref.levels[0].energy, 1e-12);
+        check(ip.history.size() > 10 && ip.history.front().level == 1, "inverse power: history of level 1");
+    }
+
+    // ---- 10. (21.0) BiCG with r~0 = r0 reproduces conjugate gradients for the symmetric H; the
+    //          linear solver and the preconditioner change the inner iterations, not the Lanczos levels
+    {
+        NuclearMotionInput in = base;
+        const NuclearMotionResult cg = run_nuclear_motion(in);
+        in.linear_solver = "bicg";
+        const NuclearMotionResult bi = run_nuclear_motion(in);
+        check(bi.linear_iterations == cg.linear_iterations, "BiCG: the iterations of CG");
+        check(bi.matrix_vector_products > cg.matrix_vector_products * 3 / 2, "BiCG: about twice the products H x");
+        in.linear_solver = "minres";
+        in.preconditioner = "none";
+        const NuclearMotionResult mr = run_nuclear_motion(in);
+        check(mr.linear_iterations > 2 * cg.linear_iterations, "MINRES without a preconditioner: more inner iterations than ILU-CG");
+        check(cg.first_solve.step == 1 && cg.first_solve.residuals.size() > 2, "linear-solve trace of step 1");
+        check(cg.last_solve.step == cg.iterations && !cg.last_solve.residuals.empty(), "linear-solve trace of the last step");
+        check(cg.first_solve.residuals.size() != mr.first_solve.residuals.size(), "the traces differ between the solvers");
+        for (std::size_t k = 0; k < 8; ++k) check_near("Lanczos levels independent of the solver", mr.levels[k].energy, cg.levels[k].energy, 1e-10);
+        in.linear_solver = "chebyshev";
+        in.preconditioner = "jacobi";
+        const NuclearMotionResult ch = run_nuclear_motion(in);
+        check(ch.chebyshev_max > ch.chebyshev_min && ch.chebyshev_min > 0.0, "Chebyshev interval estimated");
+    }
+
+    // ---- 11. (21.0) the eigenvalues only (the original's sv = 0)
+    {
+        NuclearMotionInput in = base;
+        in.eigenvectors = false;
+        const NuclearMotionResult r = run_nuclear_motion(in);
+        const NuclearMotionResult v = run_nuclear_motion(base);
+        check(r.converged && !r.has_vectors, "eigenvalues only: converged, no vectors");
+        for (std::size_t k = 0; k < 8; ++k) {
+            check_near("eigenvalues only: level " + std::to_string(k + 1), r.levels[k].energy, v.levels[k].energy, 1e-9);
+            check(std::isnan(r.levels[k].residual), "eigenvalues only: no residual");
+            check(r.levels[k].plot.psi_r1r2.empty() && r.levels[k].k_weights.empty(), "eigenvalues only: no picture, no weights");
+        }
+        check(r.matrix_vector_products < v.matrix_vector_products, "eigenvalues only: no residual products");
+        check(r.report.find("Expectation values") == std::string::npos, "eigenvalues only: no expectation values in the output");
+        in.eigensolver = "jacobi-davidson";
+        const NuclearMotionResult jd = run_nuclear_motion(in);
+        check(!jd.has_vectors && jd.levels[0].residual < 1e-9, "eigenvalues only (Jacobi-Davidson): vectors not kept, residuals known");
+    }
+
+    // ---- 12. (21.0) the Gaussian start vector of Algorithm 5: close to the ground state, fewer iterations
+    {
+        NuclearMotionInput in = base;
+        in.levels = 1;
+        in.eigensolver = "jacobi-davidson";
+        in.preconditioner = "ilu";
+        const NuclearMotionResult plain = run_nuclear_motion(in);
+        in.gaussian_start = true;
+        const NuclearMotionResult g = run_nuclear_motion(in);
+        check(g.start_overlap > 0.99, "Gaussian start vector: overlap with the ground state above 0.99");
+        check(g.start_rayleigh > g.levels[0].energy && (g.start_rayleigh - g.levels[0].energy) * kCm < 100.0,
+              "Gaussian start vector: Rayleigh quotient within 100 cm-1 of the zero-point level");
+        check(g.iterations < plain.iterations, "Gaussian start vector: fewer Jacobi-Davidson iterations");
+        check_near("Gaussian start: sigma(r) of the harmonic ground state (bohr)", g.start_sigma[0], 0.1278, 0.002);
+        check_near("Gaussian start: averaged r (bohr; the original's 1.8437)", g.start_mu[0], 1.8437, 0.01);
+        check(g.report.find("Algorithm 5") != std::string::npos, "Gaussian start vector in the output file");
+        // J > 0: the K blocks combined by Rayleigh-Ritz
+        in.J = 2;
+        in.levels = 2;
+        const NuclearMotionResult j2 = run_nuclear_motion(in);
+        in.gaussian_start = false;
+        in.eigensolver = "lanczos";
+        const NuclearMotionResult j2l = run_nuclear_motion(in);
+        check(j2.converged && j2.start_overlap > 0.9, "Gaussian start vector for J = 2");
+        check_near("Gaussian start J = 2 level", j2.levels[0].energy, j2l.levels[0].energy, 1e-9);
+    }
+
+    // ---- 13. (21.0) the eigenvector pictures: sizes, the normalisation of the density, the
+    //          nodeless ground state, the node of the bending fundamental along theta
+    {
+        NuclearMotionInput in = base;
+        in.levels = 2;
+        const NuclearMotionResult r = run_nuclear_motion(in);
+        const WavefunctionPlot& p0 = r.levels[0].plot;
+        check(p0.psi_r1r2.size() == 100 && p0.psi_r1t.size() == 120 && p0.rho_r2t.size() == 120, "picture sizes");
+        check_near("psi = 1 at its largest", p0.psi_r1r2[static_cast<std::size_t>(p0.i * 10 + p0.j)], 1.0, 1e-6);
+        double norm = 0.0, cross = 0.0;
+        for (int i = 0; i < 10; ++i)
+            for (int j = 0; j < 10; ++j) {
+                norm += p0.rho_r1r2[static_cast<std::size_t>(i * 10 + j)] * r.r_weights[static_cast<std::size_t>(i)] * r.r_weights[static_cast<std::size_t>(j)];
+                cross += p0.rho_r1r2[static_cast<std::size_t>(i * 10 + j)] - p0.rho_r1r2[static_cast<std::size_t>(j * 10 + i)];
+            }
+        check_near("density integrates to 1", norm, 1.0, 1e-5);
+        check(std::fabs(cross) < 1e-3, "ground-state density symmetric in R1, R2 (Radau-like near symmetry of Jacobi)");
+        float most_negative = 0.0f;
+        for (float v : p0.psi_r1r2) most_negative = std::min(most_negative, v);
+        for (float v : p0.psi_r1t) most_negative = std::min(most_negative, v);
+        check(most_negative > -0.02f, "ground state nodeless (the DVR signs are right)");
+        // the bending fundamental (level 2): a change of sign along theta through the maximum
+        const WavefunctionPlot& p1 = r.levels[1].plot;
+        float lo = 0.0f, hi = 0.0f;
+        for (int l = 0; l < 12; ++l) {
+            const float v = p1.psi_r1t[static_cast<std::size_t>(p1.i * 12 + l)];
+            lo = std::min(lo, v);
+            hi = std::max(hi, v);
+        }
+        check(hi > 0.99f && lo < -0.3f, "bending fundamental: a node along theta");
+    }
+
     // ---- 7. C API: JSON round trip, estimate, refusals
     {
         const char* input = R"({"isotopologue":"H2(16)O","radialPoints":8,"angularPoints":10,"levels":4,
@@ -293,6 +489,90 @@ int main() {
             check(j["matrixWhole"]["density"].get<std::string>().size() == (640 * 640 + 2) / 3 * 4, "matrix picture: base64 size");
             check(j["matrixDetail"]["span"].get<int>() == 640, "matrix detail: all 640 rows");
         }
+        // 21.0 keys
+        char* raw2 = macqc_nuclear_run_job(R"({"radialPoints":8,"angularPoints":10,"levels":3,"coordinates":"radau",
+                                               "eigensolver":"rayleigh-quotient","linearSolver":"minres","gaussianStart":true})",
+                                           nullptr);
+        const json j2 = json::parse(raw2);
+        macqc_free(raw2);
+        check(j2["error"].is_null(), "21.0 JSON: no error");
+        check(j2["input"]["coordinates"] == "radau" && j2["input"]["gaussianStart"] == true, "21.0 JSON echoes the input");
+        check(j2["hasVectors"] == true && j2["startVector"]["overlap"].get<double>() > 0.5, "21.0 JSON: vectors, start vector");
+        check(j2["levels"][0]["wavefunction"]["psiR1R2"].get<std::string>().size() == (8 * 8 * 4 + 2) / 3 * 4, "21.0 JSON: float32 picture");
+        check(j2["firstSolve"]["residuals"].size() > 1 && j2["history"][0]["level"] == 1, "21.0 JSON: traces and levels of the steps");
+        char* raw3 = macqc_nuclear_run_job(R"({"radialPoints":6,"angularPoints":8,"levels":2,"eigenvectors":false})", nullptr);
+        const json j3 = json::parse(raw3);
+        macqc_free(raw3);
+        check(j3["hasVectors"] == false && j3["levels"][0]["residual"].is_null() && j3["levels"][0]["wavefunction"].is_null(),
+              "21.0 JSON: eigenvalues only");
+        // 21.0: the export of the eigenvalues, the eigenvectors and the Gaussian start vector
+        {
+            char* rawx = macqc_nuclear_run_job(R"({"radialPoints":6,"angularPoints":8,"levels":3,"gaussianStart":true,
+                                                   "eigensolver":"jacobi-davidson","J":1})", nullptr);
+            const json jx = json::parse(rawx);
+            macqc_free(rawx);
+            const std::string id = jx["exportId"].get<std::string>();
+            const std::string path = "nuclear_export_test.txt";
+            auto request = [&](const std::string& what, const std::string& eid) {
+                char* e = macqc_nuclear_export(("{\"exportId\":\"" + eid + "\",\"path\":\"" + path + "\"," + what + "}").c_str());
+                const json r = json::parse(e);
+                macqc_free(e);
+                return r;
+            };
+            check(request(R"("eigenvalues":true,"eigenvectors":true,"startVector":true)", id)["error"].is_null(), "export: all three");
+            // parse: the level table and the vector rows
+            std::FILE* f = std::fopen(path.c_str(), "r");
+            check(f != nullptr, "export: file written");
+            std::vector<double> energies, sum2(3, 0.0), overlap(1, 0.0);
+            double q2 = 0.0;
+            long long rows = 0;
+            bool table_header = false;
+            char line[4096];
+            while (f && std::fgets(line, sizeof line, f)) {
+                const std::string t = line;
+                if (t.find("||Hx-Ex|| (E_h)") != std::string::npos) table_header = true;
+                if (t.empty() || t[0] == '#' || t[0] == '\n' || t.find("Energy levels") == 0 || t.find("     n ") == 0) continue;
+                std::vector<double> x;
+                char* p = line;
+                char* end = nullptr;
+                for (double v = std::strtod(p, &end); end != p; v = std::strtod(p, &end)) {
+                    x.push_back(v);
+                    p = end;
+                }
+                if (x.size() == 5) energies.push_back(x[1]);
+                if (x.size() == 14) {  // n K i j l R1 R2 theta s w q1 c1 c2 c3
+                    ++rows;
+                    q2 += x[10] * x[10];
+                    for (int k = 0; k < 3; ++k) sum2[static_cast<std::size_t>(k)] += x[static_cast<std::size_t>(11 + k)] * x[static_cast<std::size_t>(11 + k)];
+                    overlap[0] += x[10] * x[11];
+                }
+            }
+            if (f) std::fclose(f);
+            check(table_header && energies.size() == 3, "export: the level table");
+            for (std::size_t k = 0; k < energies.size(); ++k)
+                check_near("export: E (E_h) of level " + std::to_string(k + 1), energies[k], jx["levels"][k]["energy"].get<double>(), 1e-11);
+            check(rows == jx["dimension"].get<long long>(), "export: one row per basis function (J = 1: two K blocks)");
+            for (int k = 0; k < 3; ++k) check_near("export: eigenvector normalised", sum2[static_cast<std::size_t>(k)], 1.0, 1e-9);
+            check_near("export: start vector normalised", q2, 1.0, 1e-9);
+            check_near("export: |<q1|x1>| as reported", std::fabs(overlap[0]), jx["startVector"]["overlap"].get<double>(), 1e-9);
+            check(request(R"("eigenvalues":true)", "nuclear-0-0")["error"].is_string(), "export: unknown result refused");
+            check(request(R"("eigenvalues":false)", id)["error"].is_string(), "export: nothing chosen refused");
+            std::remove(path.c_str());
+            // eigenvalues only: no eigenvectors; no Gaussian start vector without it
+            char* rawy = macqc_nuclear_run_job(R"({"radialPoints":5,"angularPoints":6,"levels":2,"eigenvectors":false})", nullptr);
+            const json jy = json::parse(rawy);
+            macqc_free(rawy);
+            const std::string idy = jy["exportId"].get<std::string>();
+            check(request(R"("eigenvectors":true)", idy)["error"].is_string(), "export: no eigenvectors with the eigenvalues only");
+            check(request(R"("startVector":true)", idy)["error"].is_string(), "export: no start vector without it");
+            check(request(R"("eigenvalues":true)", idy)["error"].is_null(), "export: eigenvalues only");
+            check(request(R"("eigenvalues":true)", id)["error"].is_string(), "export: a later run replaces the earlier result");
+            std::remove(path.c_str());
+        }
+        char* bad3 = macqc_nuclear_estimate(R"({"coordinates":"valence"})");
+        const json b3 = json::parse(bad3);
+        macqc_free(bad3);
+        check(b3["refusal"].is_string(), "refusal of unknown coordinates");
         char* est = macqc_nuclear_estimate(R"({"radialPoints":30,"angularPoints":40,"J":3})");
         const json e = json::parse(est);
         macqc_free(est);

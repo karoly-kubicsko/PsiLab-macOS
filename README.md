@@ -1,6 +1,6 @@
 # ΨLab — a native macOS quantum-chemistry app
 
-**Current version: 20.0** — see [Versions](#versions).
+**Current version: 21.0** — see [Versions](#versions).
 
 ΨLab computes small molecules — closed and (15.0) open shells, with RHF, UHF and ROHF references —
 with Hartree–Fock, Møller–Plesset perturbation theory (MP2–MP5), configuration interaction (CISD …
@@ -21,13 +21,16 @@ CISDTQ, spin-adapted Full CI), quadratic CI (QCISD … QCISDTQ) and coupled clus
 - **HeH⁺** also in a minimal STO-nG basis (n = 1, 2, 3), the Szabo–Ostlund calculation:
   Hartree–Fock identical to the book's program, Full CI with all states and their spin.
 
-**Nuclear motion (20.0).** A second kind of calculation, chosen at the top of the sidebar, computes
+**Nuclear motion (20.0, 21.0).** A second kind of calculation, chosen at the top of the sidebar, computes
 the **vibrational (J = 0) and rovibrational energy levels of H₂¹⁶O, H₂¹⁷O, H₂¹⁸O and D₂¹⁶O** on the
-CVRQD potential energy surfaces: a discrete variable representation in Jacobi coordinates (ns1
-Hermite points in R₁ and in R₂, np Legendre points in cos θ, parity-adapted K blocks up to J =
-jmax), the lowest eigenvalues by shift-invert Lánczos (preconditioned conjugate gradients or
-MINRES), Jacobi–Davidson, Davidson or dense diagonalisation, and the expectation values of the
-O–H bond lengths and of the H–O–H angle for every level.
+CVRQD potential energy surfaces: a discrete variable representation in Jacobi or (21.0) Radau
+coordinates (ns1 Hermite points in R₁ and in R₂, np Legendre points in cos θ, parity-adapted K
+blocks up to J = jmax), the lowest eigenvalues (and optionally the eigenvectors) by shift-invert
+Lánczos, Jacobi–Davidson, Davidson, (21.0) inverse power iteration, Rayleigh quotient iteration
+or dense diagonalisation, the linear systems of every iterative method by preconditioned conjugate
+gradients, MINRES, Chebyshev iteration or BiCG, the Gaussian start vector of the thesis's
+Algorithm 5, the expectation values of the O–H bond lengths and of the H–O–H angle for every
+level and (21.0) pictures of the eigenvectors.
 
 For these molecules it **optimises geometries** (redundant internal coordinates, analytic gradients
 for HF, MP2–MP5, CISD … CISDTQ, QCISD … QCISDTQ, CCSD, CCSD(T) and Full CI, and (15.0) on UHF and
@@ -216,6 +219,129 @@ same calculations run in the terminal on Linux and macOS
   `xcode/project.yml`).
 
 ## Versions
+
+### 21.0
+**Nuclear motion: Radau coordinates, the eigenvalues alone or with the eigenvectors, an Eigenvectors tab, inverse power and Rayleigh quotient iteration, every linear solver for every eigensolver, the Gaussian start vector of Algorithm 5.**
+
+The nuclear-motion calculation of 20.0 gains the parts of the original program
+cpp_DOPI_expval_array.cpp and of the MSc thesis behind it (Károly Kubicskó, *Nagyméretű
+rezgési-forgási Hamilton-mátrixok sajátértékeinek és sajátvektorainak effektív számítása*
+[Efficient computation of the eigenvalues and eigenvectors of large vibration–rotation Hamiltonian
+matrices], MSc thesis in chemistry, Eötvös Loránd University (ELTE), Budapest, 2017; supervisors
+Attila G. Császár and Tibor Furtenbacher) that 20.0 did not have yet:
+
+- **Eigenvalues, or eigenvalues and eigenvectors** (the original's `sv`): two switches under
+  *Levels*, one always on. With the eigenvalues only, Lánczos forms no Ritz vectors and stops when
+  the wanted levels change by less than the tolerance (no residual ‖Hx − Ex‖, shown as —); the
+  other methods need the vectors internally and discard them. Expectation values, K weights and
+  the Eigenvectors tab need the eigenvectors.
+- **Eigenvectors tab** (between Matrix and Convergence): for every level (the first 60) the
+  wavefunction ψ = c/(s√w) at the grid points (the DVR coefficient over the sign and the square
+  root of the quadrature weight of its DVR function), scaled to +1 at its largest value, as a heat
+  map of a cut through that point in the planes R₁–R₂, R₁–θ or R₂–θ (blue–gray–red, so the nodes
+  that count the vibrational quanta are the colour changes), or the probability density integrated
+  over the third coordinate; below, ρ(R₁), ρ(R₂) and ρ(θ). Hovering gives the value of a cell. The
+  signs and weights of the DVR functions are computed (Hermite: (−1)ⁱ for the kinetic-energy
+  formula of the original; Legendre: from the transformation matrix): the ground state comes out
+  nodeless, the bending fundamental with one node along θ (both tested).
+- **Inverse power iteration** (thesis §6.1, the original's `invpower`): x ← H⁻¹x, one linear
+  solve per step, convergence factor E₁/E₂; for several levels a block of levels + max(2, levels/2)
+  vectors with Rayleigh–Ritz (inverse subspace iteration, factor E_k/E_{p+1}), converged leading
+  vectors locked. **Rayleigh quotient iteration** (the original's `RQiteration`): (H − θ)y = x with
+  the Rayleigh quotient θ, cubic convergence, the levels one after the other with deflation, each
+  from inverse-iteration steps until ‖r‖ < 0.01 θ (from the Gaussian start vector the first level
+  directly). MINRES and BiCG solve the indefinite systems; with CG or Chebyshev the shift is
+  θ − ‖r‖, below the level by the Kato–Temple bound, so the shifted matrix stays positive definite
+  on the complement of the converged levels. A step that does not lower the residual is replaced by
+  an inverse-iteration step (after two, the level is finished by inverse iteration): the Chebyshev
+  iteration cannot resolve the nearly singular systems near convergence, so it is a poor partner of
+  this method (it works, slowly; MINRES is the original's and the recommended choice).
+- **Every linear solver for every iterative eigensolver**: preconditioned conjugate gradients,
+  MINRES, the **Chebyshev iteration** (the original's `chebyshev`; Saad's Algorithm 12.1, its
+  interval of M⁻¹A estimated by 40 Lanczos steps in the M inner product, 10 for a shifted matrix)
+  and **BiCG** (the original's `BiCGM`, now preconditioned), each with the ILU (symmetric
+  Gauss–Seidel), Jacobi or no preconditioner. For Davidson and Jacobi–Davidson they solve the
+  correction equation with H − θ (the original's `CGMfordavidson`, `minresfordavidson`,
+  `minresforjacobidavidson`, `ILUprecondfordavidson`, `ILUprecondforjacobidavidson`): Davidson
+  with *Inner iterations* > 0 takes that many steps on (H − θ)t = −r (0: the classical t = −M⁻¹r;
+  an exact solve would give t = −u, nothing new), Jacobi–Davidson the preconditioned one-step
+  correction refined on the projected equation (I − QQᵀ)(H − σ)(I − QQᵀ)d = …, with the projected
+  preconditioner. The inner shift σ is 0 (below the spectrum) while ‖r‖ ≥ 0.01 θ and θ afterwards
+  (Fokkema, Sleijpen and van der Vorst 1998): accurate solves with a Ritz value far up in the
+  spectrum otherwise converged to an excited level from a random start. Where a solver needs a
+  positive definite preconditioner of H − θ, its diagonal is |D − θ|. For the symmetric H, BiCG
+  with r̃₀ = r₀ reproduces the iterates of CG at twice the products H x (tested: the same number of
+  iterations).
+- **The Gaussian start vector** (thesis Algorithm 5, the original's `psikiind`), a switch below
+  the preconditioner: at every grid point the bond lengths and the angle, a product of Gaussians,
+  normalised; the DVR coefficient includes the sign and √w of the DVR function (the original
+  alternated the sign from point to point). σ (Eq. 6.36) is the standard deviation of the harmonic
+  ground state of a bond and of the angle, σ² = (G/k)^½/2 with the curvature of the surface and
+  Wilson's G; μ the vibrationally averaged values the thesis prescribes, estimated from the minimum
+  by the first-order shift of a cubic oscillator, −f₃σ²/(2k) (H₂¹⁶O: 1.840 bohr, cf. the original's
+  hard-coded 1.8437). Two refinements over the thesis's formula: the amplitude whose square has the
+  standard deviation σ is exp(−(x − μ)²/(4σ²)), i.e. Eq. 6.33 with the width √2 σ (with σ itself
+  the overlap with the ground state is 0.89; with √2 σ 0.98, and with the averaged μ 0.997); for
+  J > 0 the K blocks are combined by Rayleigh–Ritz. Example (10 × 10 × 12 grid, one level,
+  Jacobi–Davidson, ILU, CG): Rayleigh quotient 4679 cm⁻¹ against the zero-point level 4639.6 cm⁻¹,
+  5 iterations instead of 9; Rayleigh quotient iteration (MINRES, ILU) converges in 2 iterations
+  instead of 13. Its Rayleigh quotient and overlap are in the output file and on the Convergence
+  tab. With more than one level wanted, Lánczos mixes in 1 % of the random vector (the Gaussian has
+  almost no component of the antisymmetric levels).
+- **Radau coordinates** (the original's `nkoord = 2`, which it had not written out): R₁, R₂ from the
+  canonical point K = α O + (1 − α)(centre of mass of H₁ and H₂), α = (m(O)/M)^½, to H₁ and H₂,
+  θ = ∠H₁KH₂; orthogonal, with the reduced masses m(H₁) and m(H₂). The parameters g₁, g₂ of
+  Sutcliffe and Tennyson (thesis Table 3.1) belong to the vectors H₁ − S and H₂ − P, which are
+  (H₁ − K)/(1 − β + αβ) and (H₂ − K)/(α + β − αβ): the same angle and distances scaled by constants;
+  the program uses the distances from K (a Radau grid around 2.0 ± 0.8 bohr then covers the bond
+  lengths) and the exact transformation to bond lengths and angle for the potential and the
+  expectation values. Checked: the converged levels and expectation values equal those of Jacobi
+  coordinates (H₂¹⁶O, ns1 = 22, np = 26: the eight lowest levels agree to 10⁻⁴ cm⁻¹; ns1 = 16, np = 20:
+  to 0.01 cm⁻¹ for the five lowest, tested, also for D₂¹⁶O).
+- **Units of Re and Rmax** (a question about 20.0): bohr, as in the original program, where
+  Re = 2.000 and Rmax = 0.800 enter the grid R = x/allk + Re of the kinetic energy in atomic units
+  (masses in mₑ, amtoau = 1822.8883) and the CVRQD routines, which take bohr; only its printed
+  expectation values were converted to Å (× 0.529177249).
+- **Export of the eigenvalues, the eigenvectors and the Gaussian start vector** (File ▸ Export
+  Eigenvalues and Eigenvectors…, or *Export…* on the Levels tab): a sheet chooses any combination,
+  written as one text file. The eigenvalues: the level table of the output file (n, E (E_h),
+  E (cm-1), E - E1 (cm-1), ||Hx-Ex|| (E_h)). The vectors: one row per basis function, n =
+  ((b·ns1 + i)·ns1 + j)·np + l + 1, with K, the grid indices, R₁ and R₂ (bohr), θ (°), the sign s and
+  the weight w of its DVR function (ψ = c/(s√w) at the grid point), then the start vector q₁ and the
+  normalised eigenvectors c₁ … c_m (with their energies in the header). The backend keeps the last
+  result's vectors for this (`macqc_nuclear_export` with the result's `exportId`); the eigenvectors
+  need *Eigenvalues and Eigenvectors*, the start vector the Gaussian start vector switch.
+- **Fixed: J back to 0.** After J > 0 with the block K = 1 … J, setting jmax back to 0 left that
+  block chosen (its picker is hidden for J = 0); the calculation was refused with "J = 0 has only
+  the block K = 0" and Run stayed disabled. J = 0 now always means the block K = 0, and the sidebar
+  resets the block when J becomes 0.
+- **Geometry tab**: the table in a larger type, the units in the headers (⟨r⟩ (Å), …, ⟨HOH⟩ (°)), each
+  header on two lines (quantity, unit) with 12-pt column gaps, so that all nine columns fit next to
+  the sidebar.
+- **Convergence tab**: with Lánczos the two history charts were the same for every linear solver
+  and preconditioner. That is correct: the Lánczos iteration works in the Krylov space of H⁻¹, and
+  when every solve reaches its tolerance (10⁻¹²) the levels and their changes do not depend on how
+  the solves were done (tested to 10⁻¹⁰ E_h). The choices differ in the linear solves, which the
+  tab now shows: the linear-solver iterations of every step and the residual of the first and the
+  last linear solve, iteration by iteration (e.g. 10 × 10 × 12, 8 levels: 588 iterations with ILU-CG,
+  4290 with MINRES without a preconditioner), and the time of every step; also the start vector,
+  the Chebyshev interval and the coordinates.
+- *Tests* (`macqc_nuclear_motion_tests`, now 871 checks): Radau = Jacobi; every new eigensolver,
+  linear solver and preconditioner (with and without the Gaussian start vector) gives the levels of
+  the dense diagonalisation to 10⁻⁹ E_h; BiCG = CG; the eigenvalues only; the start vector; the
+  eigenvector pictures (normalisation, nodes); the new JSON keys; the export (the level table, one
+  row per basis function, normalised vectors, ⟨q₁|x₁⟩, the refusals).
+- The UI smoke test adds the Eigenvectors tab and a run in Radau coordinates with Rayleigh quotient
+  iteration and the Gaussian start vector.
+
+C API: new input keys `coordinates` (jacobi | radau), `eigenvectors`, `gaussianStart`,
+`davidsonInnerIterations`; eigensolvers `inverse-power`, `rayleigh-quotient`; linear solvers
+`chebyshev`, `bicg`; in the result `hasVectors`, `g1`, `g2`, `rWeights`, `startVector`,
+`chebyshevInterval`, `firstSolve`/`lastSolve`, `exportId`, per step `level`, `linearResidual`,
+`seconds`, per level `wavefunction` (base64 float32 arrays) and `residual` null when unknown; the
+new function `macqc_nuclear_export` writes the export file.
+
+**About ΨLab** shows Version 21.0 (21); psilab --version prints 21.0.
 
 ### 20.0
 **Nuclear motion: the rovibrational levels of the water isotopologues; H₃⁺ in the 3D viewers after another result; one form for the note under the molecule menu.**

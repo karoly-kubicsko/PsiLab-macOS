@@ -220,6 +220,51 @@ on run argv
     return "VIEW MENU " & (item 1 of argv)
 end run
 APPLESCRIPT
+# 21.0: scrolls the front window so that the static text $1 is visible (for the charts below the
+# first screen of a tab): AXScrollToVisible on the text, else every vertical scroll bar to the end.
+cat > "$OUT/scroll-to.applescript" <<'APPLESCRIPT'
+on run argv
+    set target to item 1 of argv
+    tell application "System Events"
+        tell process "ΨLab"
+            set frontmost to true
+            set els to entire contents of window 1
+            repeat with e in els
+                try
+                    if (role of e) is "AXStaticText" and (value of e as text) is target then
+                        perform action "AXScrollToVisible" of e
+                        return "SCROLLED (AXScrollToVisible) to " & target
+                    end if
+                end try
+            end repeat
+            set moved to 0
+            repeat with e in els
+                try
+                    if (role of e) is "AXScrollArea" then
+                        repeat with b in (scroll bars of e)
+                            try
+                                if (orientation of b) is "AXVerticalOrientation" then
+                                    set value of b to 1.0
+                                    set moved to moved + 1
+                                end if
+                            end try
+                        end repeat
+                    end if
+                end try
+            end repeat
+            return "SCROLL BARS set to the end: " & moved & " (" & target & " not scrollable to)"
+        end tell
+    end tell
+end run
+APPLESCRIPT
+
+scroll_shot() {   # $1 = screenshot name, $2 = static text to scroll to
+    with_timeout 90 osascript "$OUT/scroll-to.applescript" "$2" || echo "could not scroll to $2"
+    sleep 2
+    shot "$1"
+    print_shot "$1"
+}
+
 view_tab() {   # $1 = file prefix, $2 = View menu item
     with_timeout 20 osascript "$OUT/view-menu.applescript" "$2" || echo "could not select $2"
     sleep 2
@@ -329,8 +374,12 @@ view_tab "f3-nuclear-expectation" "Averaged Geometry"
 print_shot "f3-nuclear-expectation"
 view_tab "f3b-nuclear-matrix" "Matrix Structure"
 print_shot "f3b-nuclear-matrix"
+view_tab "f3c-nuclear-eigenvectors" "Eigenvectors"
+print_shot "f3c-nuclear-eigenvectors"
 view_tab "f4-nuclear-convergence" "Convergence"
 print_shot "f4-nuclear-convergence"
+# 21.0: the charts of the linear solves, below the first screen of the tab
+scroll_shot "f4b-nuclear-convergence-linear" "Linear solves"
 view_tab "f5-nuclear-output" "Nuclear-Motion Output"
 # (the output file is an NSTextView, not in the text dump: the levels are checked instead)
 grep -E "^4638\.3055$" "$OUT/f2-nuclear-levels.txt" > /dev/null && echo "nuclear levels: ZPE 4638.3055 cm-1 (ns1 = 20, np = 24) found" || echo "nuclear levels: ZPE 4638.3055 cm-1 NOT found"
@@ -347,6 +396,25 @@ print_shot "f7-nuclear-j2-levels"
 view_tab "f8-nuclear-j2-expectation" "Averaged Geometry"
 view_tab "f9-nuclear-j2-matrix" "Matrix Structure"
 print_shot "f9-nuclear-j2-matrix"
+
+# --- ΨLab 21.0: Radau coordinates, Rayleigh quotient iteration (MINRES), the Gaussian start vector
+echo "== 21.0: nuclear motion in Radau coordinates, Rayleigh quotient iteration, Gaussian start vector"
+pkill -x "ΨLab" || true
+sleep 3
+open -n "$APP" --args -appearanceChoice light -psilabCalculation nuclear -psilabNuclearNs1 16 -psilabNuclearNp 20 -psilabNuclearJmax 0 -psilabNuclearLevels 4 -psilabNuclearSolver rayleigh-quotient -psilabNuclearLinear minres -psilabNuclearCoordinates radau -psilabNuclearGaussian YES -psilabNuclearConvergenceScroll linear -psilabNuclearAutoRun YES
+sleep 25
+dump_tab "g1-nuclear-radau-sidebar" ""
+print_shot "g1-nuclear-radau-sidebar"
+view_tab "g2-nuclear-radau-levels" "Energy Levels"
+print_shot "g2-nuclear-radau-levels"
+grep -E "^4638\.3055$" "$OUT/g2-nuclear-radau-levels.txt" > /dev/null && echo "Radau levels: ZPE 4638.3055 cm-1 (ns1 = 16, np = 20) found" || echo "Radau levels: ZPE 4638.3055 cm-1 NOT found"
+view_tab "g3-nuclear-radau-eigenvectors" "Eigenvectors"
+print_shot "g3-nuclear-radau-eigenvectors"
+# (-psilabNuclearConvergenceScroll linear: the tab opens at its charts of the linear solves)
+view_tab "g4-nuclear-radau-convergence" "Convergence"
+print_shot "g4-nuclear-radau-convergence"
+view_tab "g5-nuclear-radau-geometry" "Averaged Geometry"
+print_shot "g5-nuclear-radau-geometry"
 
 echo "== relaunching $APP (HeH+ STO-3G, Szabo-Ostlund) for the sections of the earlier versions"
 pkill -x "ΨLab" || true
@@ -939,12 +1007,14 @@ view_tab "d3-h2o-optimisation-labels-light" "Optimisation"
 print_shot "d3-h2o-optimisation-labels-light"
 
 
-# 20.0: the screenshots of the 20.0 sections once more at the end of the log (the job log read
-# through the API is its last part only; the sections run first)
-echo "== 20.0 screenshots again"
+# 20.0/21.0: the screenshots of the 20.0 and 21.0 sections once more at the end of the log (the job
+# log read through the API is its last part only; the sections run first)
+echo "== 20.0/21.0 screenshots again"
 for name in e1-h3-chosen e2-h3-summary e3-h3-optimisation e4-h3-frequencies f1-nuclear-sidebar f2-nuclear-levels \
-            f3-nuclear-expectation f3b-nuclear-matrix f4-nuclear-convergence f6-electronic-after-switch \
-            f7-nuclear-j2-levels f9-nuclear-j2-matrix; do
+            f3-nuclear-expectation f3b-nuclear-matrix f3c-nuclear-eigenvectors f4-nuclear-convergence \
+            f4b-nuclear-convergence-linear \
+            f6-electronic-after-switch f7-nuclear-j2-levels f9-nuclear-j2-matrix g1-nuclear-radau-sidebar \
+            g2-nuclear-radau-levels g3-nuclear-radau-eigenvectors g4-nuclear-radau-convergence g5-nuclear-radau-geometry; do
     [ -f "$OUT/$name.png" ] && print_shot "$name" || echo "no screenshot $name"
 done
 grep -E "^4638\.3055$" "$OUT/f2-nuclear-levels.txt" > /dev/null && echo "nuclear levels: ZPE 4638.3055 cm-1 found" || echo "nuclear levels: ZPE 4638.3055 cm-1 NOT found"
