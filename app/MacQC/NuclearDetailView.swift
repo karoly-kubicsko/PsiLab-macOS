@@ -18,27 +18,46 @@ struct NuclearDetailView: View {
     var body: some View {
         TabView(selection: $model.selectedTab) {
             NuclearLevelsView(model: model)
+                .modifier(NuclearOpenedFileInset(model: model))
                 .tabItem { Label("Levels", systemImage: "list.number") }
                 .tag(NuclearTab.levels)
             NuclearExpectationView(model: model)
+                .modifier(NuclearOpenedFileInset(model: model))
                 .tabItem { Label("Geometry", systemImage: "ruler") }
                 .tag(NuclearTab.expectation)
             NuclearMatrixView(model: model)
+                .modifier(NuclearOpenedFileInset(model: model))
                 .tabItem { Label("Matrix", systemImage: "square.grid.3x3") }
                 .tag(NuclearTab.matrix)
             NuclearEigenvectorView(model: model)
+                .modifier(NuclearOpenedFileInset(model: model))
                 .tabItem { Label("Eigenvectors", systemImage: "waveform") }
                 .tag(NuclearTab.eigenvectors)
             NuclearConvergenceView(model: model)
+                .modifier(NuclearOpenedFileInset(model: model))
                 .tabItem { Label("Convergence", systemImage: "chart.line.downtrend.xyaxis") }
                 .tag(NuclearTab.convergence)
             NuclearOutputView(model: model)
+                .modifier(NuclearOpenedFileInset(model: model))
                 .tabItem { Label("Output", systemImage: "doc.plaintext") }
                 .tag(NuclearTab.output)
         }
         .padding(.top, 4)
         .sheet(isPresented: $model.showExportSheet) {
             NuclearExportSheet(model: model)
+        }
+    }
+}
+
+/// 22.0: the banner of an opened nuclear-motion output file above the content of a tab.
+struct NuclearOpenedFileInset: ViewModifier {
+    var model: NuclearModel
+
+    func body(content: Content) -> some View {
+        content.safeAreaInset(edge: .top, spacing: 0) {
+            if let file = model.openedFile, model.result != nil, !file.example {
+                OpenedFileBanner(file: file)
+            }
         }
     }
 }
@@ -230,6 +249,21 @@ struct NuclearExpectationView: View {
     private static let valueFont = Font.system(size: 15).monospacedDigit()
     private static let headerFont = Font.system(size: 13, weight: .semibold)
 
+    /// 22.0: a table across the whole width of the window (its columns share the free width);
+    /// in a window too narrow for it, at its own width with a horizontal scroll bar.
+    private func fullWidth<T: View>(_ table: T) -> some View {
+        ViewThatFits(in: .horizontal) {
+            table
+                .frame(maxWidth: .infinity)
+                .dataPanel()
+            ScrollView(.horizontal) {
+                table
+                    .fixedSize()
+                    .dataPanel()
+            }
+        }
+    }
+
     var body: some View {
         if let r = model.result, !r.levels.isEmpty {
             ScrollView {
@@ -243,22 +277,14 @@ struct NuclearExpectationView: View {
                                                description: Text("Switch on “Expectation values” under Levels in the sidebar and run again."))
                     } else {
                         SectionTitle("Vibrationally averaged geometry: expectation values of the bond lengths and the angle")
-                        ScrollView(.horizontal) {
-                            momentsTable(r)
-                                .fixedSize()
-                                .dataPanel()
-                        }
+                        fullWidth(momentsTable(r))
                         Text("r₁ = r(O–H₁), r₂ = r(O–H₂) in Å; ⟨rⁿ⟩^(1/n) for n = 1, 2, 3, −1, −2, −3 (as the original program's expectval); the angle H–O–H in degrees. The DVR quadrature: |cᵢ|² at the grid points.")
                             .font(.callout)
                             .foregroundStyle(.secondary)
                     }
                     if r.hasVectors != false, let kv = r.kValues, kv.count > 1 {
                         SectionTitle("Weights of the K blocks")
-                        ScrollView(.horizontal) {
-                            kTable(r, kv)
-                                .fixedSize()
-                                .dataPanel()
-                        }
+                        fullWidth(kTable(r, kv))
                     }
                 }
                 .padding(20)
@@ -268,23 +294,29 @@ struct NuclearExpectationView: View {
         }
     }
 
+    /// 22.0: a cell of a value column: as wide as the column, which takes its share of the free
+    /// width of a full-width table (fullWidth); the numbers right-aligned.
+    private func cell(_ text: String) -> some View {
+        Text(text)
+            .frame(maxWidth: .infinity, alignment: .trailing)
+    }
+
     private func momentsTable(_ r: NuclearResult) -> some View {
         let a = NuclearUnits.bohrToAngstrom
         func f(_ x: Double) -> String { String(format: "%.5f", x * a) }
-        // the quantity and its unit on two lines and narrow column gaps: a column is as wide as its
-        // numbers, so all nine columns fit next to the sidebar (with one-line headers ⟨HOH⟩ was cut off;
-        // the UI smoke test at 8-pt gaps left about 50 pt free, so 12)
-        return Grid(alignment: .trailing, horizontalSpacing: 12, verticalSpacing: 9) {
+        // the quantity and its unit on two lines; 22.0: the seven value columns share the width of
+        // the window (21.0: a narrow table at the left), n and the bond as wide as their text
+        return Grid(alignment: .trailing, horizontalSpacing: 16, verticalSpacing: 9) {
             GridRow {
                 Text("n")
                 Text("bond")
-                Text("⟨r⟩\n(Å)")
-                Text("⟨r²⟩^½\n(Å)")
-                Text("⟨r³⟩^⅓\n(Å)")
-                Text("⟨r⁻¹⟩⁻¹\n(Å)")
-                Text("⟨r⁻²⟩^−½\n(Å)")
-                Text("⟨r⁻³⟩^−⅓\n(Å)")
-                Text("⟨HOH⟩\n(°)")
+                cell("⟨r⟩\n(Å)")
+                cell("⟨r²⟩^½\n(Å)")
+                cell("⟨r³⟩^⅓\n(Å)")
+                cell("⟨r⁻¹⟩⁻¹\n(Å)")
+                cell("⟨r⁻²⟩^−½\n(Å)")
+                cell("⟨r⁻³⟩^−⅓\n(Å)")
+                cell("⟨HOH⟩\n(°)")
             }
             .font(Self.headerFont)
             .multilineTextAlignment(.trailing)
@@ -294,24 +326,24 @@ struct NuclearExpectationView: View {
                 GridRow {
                     Text("\(k + 1)")
                     Text("r₁")
-                    Text(f(l.r1.mean))
-                    Text(f(l.r1.rms))
-                    Text(f(l.r1.cubic))
-                    Text(f(l.r1.inverse))
-                    Text(f(l.r1.inverse2))
-                    Text(f(l.r1.inverse3))
-                    Text(String(format: "%.3f", l.theta))
+                    cell(f(l.r1.mean))
+                    cell(f(l.r1.rms))
+                    cell(f(l.r1.cubic))
+                    cell(f(l.r1.inverse))
+                    cell(f(l.r1.inverse2))
+                    cell(f(l.r1.inverse3))
+                    cell(String(format: "%.3f", l.theta))
                 }
                 .font(Self.valueFont)
                 GridRow {
                     Text("")
                     Text("r₂")
-                    Text(f(l.r2.mean))
-                    Text(f(l.r2.rms))
-                    Text(f(l.r2.cubic))
-                    Text(f(l.r2.inverse))
-                    Text(f(l.r2.inverse2))
-                    Text(f(l.r2.inverse3))
+                    cell(f(l.r2.mean))
+                    cell(f(l.r2.rms))
+                    cell(f(l.r2.cubic))
+                    cell(f(l.r2.inverse))
+                    cell(f(l.r2.inverse2))
+                    cell(f(l.r2.inverse3))
                     Text("")
                 }
                 .font(Self.valueFont)
@@ -322,10 +354,10 @@ struct NuclearExpectationView: View {
     }
 
     private func kTable(_ r: NuclearResult, _ kv: [Int]) -> some View {
-        Grid(alignment: .trailing, horizontalSpacing: 12, verticalSpacing: 9) {
+        Grid(alignment: .trailing, horizontalSpacing: 16, verticalSpacing: 9) {
             GridRow {
                 Text("n")
-                ForEach(kv, id: \.self) { k in Text("K = \(k)") }
+                ForEach(kv, id: \.self) { k in cell("K = \(k)") }
             }
             .font(Self.headerFont)
             .foregroundStyle(.secondary)
@@ -334,7 +366,7 @@ struct NuclearExpectationView: View {
                 GridRow {
                     Text("\(n + 1)")
                     ForEach(Array(l.kWeights.enumerated()), id: \.offset) { _, w in
-                        Text(String(format: "%.5f", w))
+                        cell(String(format: "%.5f", w))
                     }
                 }
                 .font(Self.valueFont)

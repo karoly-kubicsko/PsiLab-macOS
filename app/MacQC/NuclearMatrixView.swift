@@ -30,7 +30,45 @@ private enum MatrixPart: String, CaseIterable, Identifiable {
 private enum MatrixColouring: String, CaseIterable, Identifiable {
     case pattern, magnitude
     var id: String { rawValue }
-    var title: String { self == .pattern ? "Non-zero" : "log₁₀ |Hᵢⱼ|" }
+    /// 22.0: plain text (VoiceOver); the control draws `label`.
+    var title: String { self == .pattern ? "Non-zero" : "log10 |H_ij|" }
+    /// 22.0: log₁₀ |H_ij| with the subscript ij as one subscript (21.0's Unicode "ᵢⱼ" was drawn
+    /// as "Hᵢ j": the system font has no subscript j, U+2C7C, and a fallback font drew it).
+    var label: Text {
+        self == .pattern ? Text("Non-zero") : LaTeX.text("log_{10} |H_{ij}|", size: NSFont.systemFontSize)
+    }
+}
+
+/// 22.0: the colouring as a segmented control drawn in SwiftUI, so that its labels can have real
+/// subscripts (the system's segmented control shows plain strings only).
+private struct ColouringControl: View {
+    @Binding var selection: MatrixColouring
+
+    var body: some View {
+        HStack(spacing: 2) {
+            ForEach(MatrixColouring.allCases) { c in
+                let on = selection == c
+                Button {
+                    selection = c
+                } label: {
+                    c.label
+                        .foregroundStyle(on ? Color.white : Color.primary)
+                        .padding(.horizontal, 10)
+                        .frame(minHeight: 20)
+                        .background(on ? Color.accentColor : Color.clear, in: RoundedRectangle(cornerRadius: 5))
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(c.title)
+                .accessibilityAddTraits(on ? .isSelected : [])
+            }
+        }
+        .padding(2)
+        .background(Color.secondary.opacity(0.16), in: RoundedRectangle(cornerRadius: 7))
+        .fixedSize()
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("Colouring")
+    }
 }
 
 struct NuclearMatrixView: View {
@@ -95,15 +133,7 @@ struct NuclearMatrixView: View {
             .labelsHidden()
             .fixedSize()
             .accessibilityLabel("Part of the matrix")
-            Picker("Colour", selection: $colouring) {
-                ForEach(MatrixColouring.allCases) { c in
-                    Text(c.title).tag(c)
-                }
-            }
-            .pickerStyle(.segmented)
-            .labelsHidden()
-            .fixedSize()
-            .accessibilityLabel("Colouring")
+            ColouringControl(selection: $colouring)
             Spacer(minLength: 8)
             Image(systemName: "minus.magnifyingglass")
                 .foregroundStyle(.secondary)

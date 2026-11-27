@@ -21,6 +21,10 @@
 #include "macqc/nuclear_motion.h"
 #include "nlohmann/json.hpp"
 
+namespace macqc {
+std::string archive_from_output_text(const std::string& text);  // calculation.h (22.0 tests)
+}
+
 using nlohmann::json;
 using namespace macqc;
 
@@ -594,6 +598,96 @@ int main() {
         }
         check(threw, "unknown isotopologue refused");
         check(isotopologue_from_name("D2O") == CvrqdIsotopologue::D2_16O, "D2O is D2(16)O");
+    }
+
+    // ---- 22.0: the input files of psilab, the layout of the output file, its archive, the
+    // pictures of every level
+    {
+        using nlohmann::json;
+        const std::string text = "# the input of the app's screenshot\nmolecule = H2(16)O\ncoordinates = Radau\nns1 = 50\nnp  = 50\n"
+                                 "Re (bohr) = 2\n";
+        bool threw = false;
+        try {
+            parse_nuclear_input_text(text);  // "Re (bohr)" is not a key
+        } catch (const std::runtime_error& e) {
+            threw = std::string(e.what()).rfind("line 6:", 0) == 0;
+        }
+        check(threw, "22.0 input: an unknown key names its line");
+        const NuclearMotionInput in = parse_nuclear_input_text(
+            "calculation = nuclear\nmolecule = H2(16)O\ncoordinates = Radau\nns1 = 50\nnp = 50  # angular\nre = 2\nrmax = 0,8\n"
+            "jmax = 0\nlevels = 100\neigenvectors = yes\nexpectation_values = yes\neigensolver = Lánczos\nlinear_solver = CG\n"
+            "preconditioner = ILU\ngaussian_start = ON\n");
+        check(in.coordinates == "radau" && in.radial_points == 50 && in.angular_points == 50 && in.levels == 100 &&
+                  std::fabs(in.r_half_width - 0.8) < 1e-15 && in.eigensolver == "lanczos" && in.linear_solver == "pcg" &&
+                  in.preconditioner == "ilu" && in.gaussian_start && in.eigenvectors,
+              "22.0 input: the settings of the app's screenshot");
+        const NuclearMotionInput back = parse_nuclear_input_text(nuclear_input_text(in));
+        check(back.coordinates == in.coordinates && back.levels == in.levels && back.r_centre == in.r_centre &&
+                  back.r_half_width == in.r_half_width && back.linear_solver == in.linear_solver &&
+                  back.eigenvalue_tolerance == in.eigenvalue_tolerance && back.gaussian_start == in.gaussian_start,
+              "22.0 input: the Input section of the output file reads back");
+        check(std::fabs(parse_nuclear_input_text("re = 1.0 angstrom\n").r_centre - 1.0 / 0.529177210903) < 1e-12,
+              "22.0 input: angstrom");
+        check(is_nuclear_input_text("calculation = nuclear\n") && is_nuclear_input_text("molecule = D2(16)O\n") &&
+                  is_nuclear_input_text("molecule = H2(18)O # heavy\n") && !is_nuclear_input_text("molecule = H2O\nbasis = STO-3G\n"),
+              "22.0 input: nuclear-motion inputs are recognised");
+        threw = false;
+        try {
+            parse_nuclear_input_text("levels = 3\nlevels = 4\n");
+        } catch (const std::runtime_error& e) {
+            threw = std::string(e.what()).find("given twice") != std::string::npos;
+        }
+        check(threw, "22.0 input: a key given twice");
+        check(parse_nuclear_input_text(nuclear_example_input()).coordinates == "radau", "22.0 input: the example reads");
+
+        // 70 levels: pictures of all of them (21.0: the first 60), the level numbers right-aligned
+        char* raw = macqc_nuclear_run_job(R"({"radialPoints":6,"angularPoints":8,"levels":105,"eigensolver":"dense"})", nullptr);
+        const json j = json::parse(raw);
+        macqc_free(raw);
+        check(j["error"].is_null() && j["levels"].size() == 105, "22.0: 105 levels");
+        check(!j["levels"][104]["wavefunction"].is_null(), "22.0: a picture of level 105 (21.0: up to 60)");
+        const std::string out = j["output"].get<std::string>();
+        auto has = [&](const std::string& t) { return out.find(t) != std::string::npos; };
+        check(has("\n     n  <r1>     <r1^2>^1/2") && has("\n  9 r1   ") && has("\n 10 r1   ") && has("\n100 r1   ") &&
+                  has("\n    r2   ") && !has("  10 r1"),
+              "22.0: the level numbers right-aligned (1, 10, 100 in one column)");
+        check(has("\n" + std::string(39, ' ') + "\xCE\xA8Lab 2"), "22.0: the program name centred");
+        check(has("\n---- Input ---") && has("\n  calculation               = nuclear\n"), "22.0: the Input section");
+        check(has("\n========================================================================================\n  Normal termination of "
+                  "\xCE\xA8Lab ") &&
+                  out.size() > 89 && out.compare(out.size() - 89, 89, std::string(88, '=') + "\n") == 0,
+              "22.0: the termination banner ends the output file");
+        // the archive: the result as the app receives it, the matrix pictures with shortened zero runs
+        const std::string a = archive_from_output_text(out);
+        check(!a.empty(), "22.0: the output file has an archive");
+        const json ja = json::parse(a.empty() ? std::string("{}") : a);
+        check(ja["archive"]["kind"] == "nuclear-motion" && ja["levels"].size() == 105 && !ja.contains("output") &&
+                  !ja.contains("exportId"),
+              "22.0: the archive is the nuclear-motion result");
+        check(ja["levels"][104]["wavefunction"] == j["levels"][104]["wavefunction"] && ja["history"] == j["history"] &&
+                  ja["input"] == j["input"] && ja["rGrid"] == j["rGrid"],
+              "22.0: the archive has the pictures, the history, the input and the grids");
+        auto expand = [](const std::string& s) {
+            if (s.rfind("rle:", 0) != 0) return s;
+            std::string o;
+            for (std::size_t i = 4; i < s.size();) {
+                if (s[i] == '~') {
+                    const std::size_t dot = s.find('.', i);
+                    o.append(static_cast<std::size_t>(std::stoul(s.substr(i + 1, dot - i - 1))), 'A');
+                    i = dot + 1;
+                } else {
+                    o += s[i++];
+                }
+            }
+            return o;
+        };
+        const std::string rle = ja["matrixWhole"]["density"].get<std::string>();
+        check(rle.rfind("rle:", 0) == 0 && rle.size() < j["matrixWhole"]["density"].get<std::string>().size() / 2 &&
+                  expand(rle) == j["matrixWhole"]["density"].get<std::string>() &&
+                  expand(ja["matrixDetail"]["magnitude"].get<std::string>()) == j["matrixDetail"]["magnitude"].get<std::string>(),
+              "22.0: the matrix pictures of the archive expand to those of the result");
+        check(nuclear_termination_text("error", 1.0, "boom").find("  Error termination of \xCE\xA8Lab ") != std::string::npos,
+              "22.0: the error banner");
     }
 
     std::printf("%d checks, %d failures\n", g_checks, g_failures);

@@ -1,0 +1,13 @@
+# ΨLab 22.0: a small nuclear-motion calculation (the vibrational levels of H2(16)O in Radau
+# coordinates); its output file examples/outputs/water-radau-small.out opens in the app with
+# File > Open Output File... (every tab of the nuclear-motion interface).
+calculation    = nuclear
+molecule       = H2(16)O
+coordinates    = radau
+ns1            = 10
+np             = 12
+levels         = 12
+eigensolver    = lanczos
+linear_solver  = cg
+preconditioner = ilu
+gaussian_start = yes

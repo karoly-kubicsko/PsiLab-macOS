@@ -1337,11 +1337,14 @@ constexpr const char* kArchiveBegin = "@@PSILAB-ARCHIVE-BEGIN";
 constexpr const char* kArchiveEnd = "@@PSILAB-ARCHIVE-END";
 
 // The archive: the results as ASCII JSON (non-ASCII characters escaped), 100 columns per line.
-std::string archive_text(json j) {
+// 22.0: `kind` "nuclear-motion" marks the archive of a nuclear-motion calculation.
+std::string archive_text(json j, const char* kind = nullptr) {
     j.erase("output");
+    j.erase("exportId");
     j["archive"] = {{"format", 1},
                     {"program", std::string("\xCE\xA8Lab ") + kProgramVersion},
                     {"written", local_time_string()}};
+    if (kind) j["archive"]["kind"] = kind;
     const std::string data = j.dump(-1, ' ', true, json::error_handler_t::replace);
     OutputWriter w;
     w.section("\xCE\xA8Lab archive: the complete results, read by File > Open Output File\xE2\x80\xA6 of the app");
@@ -1645,6 +1648,42 @@ nlohmann::json nuclear_result_json(const NuclearMotionResult& r) {
     return j;
 }
 
+// 22.0: the base64 text of a matrix picture with its runs of zero bytes shortened: "rle:" and the
+// text in which a run of n >= 5 'A' is written "~n." (the pictures are mostly empty: about a
+// tenth of the size). The app's NuclearBase64.data expands it.
+std::string base64_zero_runs(const std::string& b64) {
+    std::string out = "rle:";
+    out.reserve(b64.size() / 4 + 16);
+    for (std::size_t i = 0; i < b64.size();) {
+        std::size_t k = i;
+        while (k < b64.size() && b64[k] == 'A') ++k;
+        if (k - i >= 5) {
+            out += "~" + std::to_string(k - i) + ".";
+            i = k;
+        } else if (k > i) {
+            out.append(b64, i, k - i);
+            i = k;
+        } else {
+            out += b64[i++];
+        }
+    }
+    return out;
+}
+
+std::string nuclear_archive_text(const NuclearMotionResult& r) {
+    nlohmann::json j = nuclear_result_json(r);
+    finite_numbers(j);
+    for (const char* picture : {"matrixWhole", "matrixDetail"})
+        if (j[picture].is_object())
+            for (const char* field : {"density", "magnitude"})
+                if (j[picture][field].is_string()) j[picture][field] = base64_zero_runs(j[picture][field].get<std::string>());
+    return archive_text(std::move(j), "nuclear-motion");
+}
+
+double seconds_since_start(std::chrono::steady_clock::time_point t0) {
+    return std::chrono::duration<double>(std::chrono::steady_clock::now() - t0).count();
+}
+
 }  // namespace macqc
 
 namespace {
@@ -1667,6 +1706,7 @@ extern "C" {
 
 char* macqc_nuclear_run_job(const char* input_json, macqc_job* job) {
     macqc::JobScope scope(job ? &job->job : nullptr);
+    const auto start = std::chrono::steady_clock::now();
     using nlohmann::json;
     std::string result;
     try {
@@ -1675,7 +1715,8 @@ char* macqc_nuclear_run_job(const char* input_json, macqc_job* job) {
             const macqc::NuclearMotionInput in = macqc::parse_nuclear_input_json(input_json ? input_json : "");
             macqc::NuclearOutputSink sink;
             if (job) sink = [job](const std::string& text) { job->job.append_output(text); };
-            auto r = std::make_shared<macqc::NuclearMotionResult>(macqc::run_nuclear_motion(in, sink));
+            auto r = std::make_shared<macqc::NuclearMotionResult>(
+                macqc::run_nuclear_motion(in, sink, macqc::nuclear_archive_text));
             j = macqc::nuclear_result_json(*r);
             {
                 std::lock_guard<std::mutex> lock(g_nuclear_export_mutex);
@@ -1688,7 +1729,12 @@ char* macqc_nuclear_run_job(const char* input_json, macqc_job* job) {
         } catch (const std::exception& e) {
             j = json{{"error", e.what()}, {"levels", json::array()}};
             if (job) {
+                // 22.0: the termination banner after the output written so far
+                const bool cancelled = std::string(e.what()) == "calculation cancelled";
                 std::size_t total = 0;
+                if (!job->job.output_since(0, &total).empty())
+                    job->job.append_output(macqc::nuclear_termination_text(cancelled ? "cancelled" : "error",
+                                                                           macqc::seconds_since_start(start), e.what()));
                 j["output"] = job->job.output_since(0, &total);
             }
         }

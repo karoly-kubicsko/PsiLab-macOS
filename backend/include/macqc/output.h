@@ -42,6 +42,9 @@ private:
 
 std::string local_time_string();  // "2026-11-13 20:41:07"
 std::string duration_string(double seconds);  // "2.4 s", "3 min 12 s", "1 h 05 min"
+// 22.0: `text` centred in a line of `width` characters (UTF-8 code points counted, so that
+// "\xCE\xA8Lab" is 4 characters wide); no trailing blanks.
+std::string centred_line(const std::string& text, int width = 88);
 // 16.0: estimated times and memory, readable also for impossible calculations: "less than a
 // second", "about 25 s", "about 4 min", "about 1.5 h", "about 3.2 days", "about 41 years",
 // "about 2.2 × 10^73 years"; "43 MB", "2.8 GB", "1.5 TB", "3.4 PB", "1.2 × 10^49 TB".

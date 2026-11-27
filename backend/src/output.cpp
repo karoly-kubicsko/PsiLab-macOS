@@ -112,6 +112,14 @@ std::string estimate_memory_mb(double mb) {
     return power_of_ten(tb) + " TB";
 }
 
+std::string centred_line(const std::string& text, int width) {
+    int chars = 0;
+    for (unsigned char c : text)
+        if ((c & 0xC0) != 0x80) ++chars;  // count the first byte of every UTF-8 sequence
+    const int pad = std::max(0, (width - chars) / 2);
+    return std::string(static_cast<std::size_t>(pad), ' ') + text;
+}
+
 std::string duration_string(double s) {
     if (s < 60.0) return strprintf("%.1f s", s);
     if (s < 3600.0) return strprintf("%d min %02d s", static_cast<int>(s / 60.0), static_cast<int>(std::fmod(s, 60.0)));

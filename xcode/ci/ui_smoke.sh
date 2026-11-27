@@ -876,6 +876,24 @@ sleep 5
 dump_tab "93-opened-output-orbitals" ""
 print_shot "93-opened-output-orbitals"
 
+# --- ΨLab 22.0: a nuclear-motion output file opened again (its archive: every nuclear-motion tab) -----
+# examples/outputs/water-radau-small.out, written by psilab 22.0 from examples/water-radau-small.inp
+echo "== 22.0: open a nuclear-motion output file of psilab (H2(16)O, Radau, ns1 = 10, np = 12, 12 levels)"
+cp examples/outputs/water-radau-small.out "$CONTAINER/tmp/" || echo "could not copy the nuclear-motion output into the container"
+relaunch -appearanceChoice light -psilabOpenOutput "$CONTAINER/tmp/water-radau-small.out"
+sleep 3
+view_tab "94-opened-nuclear-levels" "Energy Levels"
+print_shot "94-opened-nuclear-levels"
+grep -E "^4640\.5477$" "$OUT/94-opened-nuclear-levels.txt" > /dev/null && echo "opened nuclear levels: ZPE 4640.5477 cm-1 found" || echo "opened nuclear levels: ZPE 4640.5477 cm-1 NOT found"
+view_tab "95-opened-nuclear-geometry" "Averaged Geometry"
+print_shot "95-opened-nuclear-geometry"
+view_tab "96-opened-nuclear-matrix" "Matrix Structure"
+print_shot "96-opened-nuclear-matrix"
+view_tab "97-opened-nuclear-eigenvectors" "Eigenvectors"
+print_shot "97-opened-nuclear-eigenvectors"
+view_tab "98-opened-nuclear-convergence" "Convergence"
+view_tab "99-opened-nuclear-output" "Nuclear-Motion Output"
+
 # --- ΨLab 14.0: the Pople 6-31G and 6-311G families and the def2 basis sets --------------------------
 # 6-31G* has Cartesian d functions (6D): its orbitals pass through the app with "pure": false.
 echo "== 14.0: H2O RHF/6-31G* orbitals (Cartesian d), NH3 RHF/def2-TZVP opt+freq, H2O CCSD(T)/6-311++G(3df,3pd)"

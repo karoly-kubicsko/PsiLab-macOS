@@ -1,6 +1,6 @@
 # ΨLab — a native macOS quantum-chemistry app
 
-**Current version: 21.0** — see [Versions](#versions).
+**Current version: 22.0** — see [Versions](#versions).
 
 ΨLab computes small molecules — closed and (15.0) open shells, with RHF, UHF and ROHF references —
 with Hartree–Fock, Møller–Plesset perturbation theory (MP2–MP5), configuration interaction (CISD …
@@ -21,7 +21,7 @@ CISDTQ, spin-adapted Full CI), quadratic CI (QCISD … QCISDTQ) and coupled clus
 - **HeH⁺** also in a minimal STO-nG basis (n = 1, 2, 3), the Szabo–Ostlund calculation:
   Hartree–Fock identical to the book's program, Full CI with all states and their spin.
 
-**Nuclear motion (20.0, 21.0).** A second kind of calculation, chosen at the top of the sidebar, computes
+**Nuclear motion (20.0, 21.0, 22.0).** A second kind of calculation, chosen at the top of the sidebar, computes
 the **vibrational (J = 0) and rovibrational energy levels of H₂¹⁶O, H₂¹⁷O, H₂¹⁸O and D₂¹⁶O** on the
 CVRQD potential energy surfaces: a discrete variable representation in Jacobi or (21.0) Radau
 coordinates (ns1 Hermite points in R₁ and in R₂, np Legendre points in cos θ, parity-adapted K
@@ -30,7 +30,8 @@ Lánczos, Jacobi–Davidson, Davidson, (21.0) inverse power iteration, Rayleigh 
 or dense diagonalisation, the linear systems of every iterative method by preconditioned conjugate
 gradients, MINRES, Chebyshev iteration or BiCG, the Gaussian start vector of the thesis's
 Algorithm 5, the expectation values of the O–H bond lengths and of the H–O–H angle for every
-level and (21.0) pictures of the eigenvectors.
+level and (21.0) pictures of the eigenvectors. (22.0) Nuclear-motion output files open again in the
+app with every tab, and the terminal version `psilab` runs nuclear-motion input files.
 
 For these molecules it **optimises geometries** (redundant internal coordinates, analytic gradients
 for HF, MP2–MP5, CISD … CISDTQ, QCISD … QCISDTQ, CCSD, CCSD(T) and Full CI, and (15.0) on UHF and
@@ -219,6 +220,63 @@ same calculations run in the terminal on Linux and macOS
   `xcode/project.yml`).
 
 ## Versions
+
+### 22.0
+**Nuclear motion: output files that open again in every tab, nuclear-motion input files for the terminal version, the expectation-value table aligned, the eigenvectors of every level, the layout of the Geometry and Eigenvectors tabs.**
+
+- **Output file** of the nuclear-motion calculation (app and `psilab`): the header of the
+  electronic-structure output files (rules of 88 columns, *ΨLab 22.0* centred, the program and the
+  start time), an **Input** section with the calculation as a `psilab` input file (it runs the same
+  calculation), and at the end the termination banner of the electronic-structure files:
+
+  ```
+  ========================================================================================
+    Normal termination of ΨLab 22.0 at 2026-11-27 14:34:59; total time 20 min 17 s.
+  ========================================================================================
+  ```
+
+  (*Termination … the eigensolver did NOT converge*, *Error termination* and *Calculation
+  cancelled* otherwise). The header of the electronic-structure output files has *ΨLab 22.0* in the
+  middle of the line as well (21.0: four columns left of it).
+- **Expectation values**: the level number is right-aligned in a column as wide as the largest one
+  (at least three characters), so that r1 and r2 stay in one column: `  1 r1`, ` 10 r1`, `100 r1`
+  (21.0 moved the rows of levels 10–99 one column and those from 100 two columns to the right).
+- **Archive of the results** before the termination banner, as in the electronic-structure files
+  since 13.0: the complete result as JSON (format 1, `"archive": {"kind": "nuclear-motion"}`) —
+  levels, expectation values, K weights, the Hamiltonian pictures (runs of zero bytes shortened,
+  `rle:` and `~n.`; about a tenth of the size), the eigenvector pictures, the eigensolver history,
+  the linear solves and the grids. **File ▸ Open Output File…** recognises it, switches to the
+  nuclear-motion interface and shows the file in **every tab** (Levels, Geometry, Matrix,
+  Eigenvectors, Convergence, Output) with the banner *Results read from …*; the inputs of the
+  sidebar stay. Opening an electronic-structure file from the nuclear-motion interface switches back.
+  Only *Export Eigenvalues and Eigenvectors…* needs a run (the eigenvectors themselves are not in
+  the file). The output file of a calculation like that of the screenshots (ns1 = np = 50, 100
+  levels) is about 10 MB.
+- **Eigenvectors tab: every level.** 21.0 drew the first 60 levels only (the level menu ended at
+  60 of 100). The pictures now cover every level as long as they hold at most 8 million numbers in
+  all — all 500 levels up to ns1 = np = 50, about 130 levels at ns1 = np = 100.
+- **Eigenvectors tab, R₁ – R₂**: both axes in Å at the same scale (the plot is square for the equal
+  ranges of R₁ and R₂; 21.0 stretched it to the width of the panel, so 0.2 Å was longer across
+  than up) and taller.
+- **Geometry tab**: the table of the expectation values (and of the K weights) spans the whole
+  width of the window, its seven value columns sharing the free width (21.0: a narrow table at the
+  left); in a narrow window it scrolls sideways as before.
+- **Matrix tab**: the colouring *log₁₀ |H_ij|* with the subscript *ij* as one subscript (21.0 showed
+  "Hᵢ j": the system font has no subscript j, U+2C7C) — the two buttons are now drawn by SwiftUI.
+- **Terminal version: nuclear-motion input files** (`psilab water.inp > water.out`, see
+  [Nuclear motion in the terminal](#nuclear-motion-in-the-terminal-220)). The output file is the
+  one of the app, archive included, so a calculation run on a Linux machine opens in the app.
+  `psilab --example nuclear` prints a commented input, `psilab --estimate` gives the size and the
+  memory.
+
+C/C++ API: `run_nuclear_motion` takes an appendix writer (the archive); new
+`nuclear_termination_text`, `is_nuclear_input_text`, `parse_nuclear_input_text`,
+`nuclear_input_text`, `nuclear_example_input`, `nuclear_archive_text`, `centred_line`. Tests: 889
+checks of the nuclear-motion module (18 new: the input files, the layout of the output file, the
+archive and its matrix pictures, the pictures of 105 levels); a CTest runs the example input with
+`psilab`.
+
+**About ΨLab** shows Version 22.0 (22); psilab --version prints 22.0.
 
 ### 21.0
 **Nuclear motion: Radau coordinates, the eigenvalues alone or with the eigenvectors, an Eigenvectors tab, inverse power and Rayleigh quotient iteration, every linear solver for every eigensolver, the Gaussian start vector of Algorithm 5.**
@@ -1092,6 +1150,45 @@ summary, the full Hartree–Fock and Full CI report and, with `scan = yes`, the 
 (version 5.0, see below). Mistakes in the input are reported with their line number;
 the exit status is 0 on success, 1 if the calculation failed (e.g. no SCF convergence, an
 optimisation that did not converge or a refused job) and 2 for input or file errors.
+
+### Nuclear motion in the terminal (22.0)
+
+An input file with `calculation = nuclear` (or simply `molecule = H2(16)O`, `H2(17)O`, `H2(18)O`
+or `D2(16)O`) runs the nuclear-motion calculation of the app; the output file is the app's, with
+the archive that File ▸ Open Output File… reads:
+
+```bash
+psilab --example nuclear > water.inp     # a commented example (H2(16)O, Radau, ns1 = 20, np = 24)
+psilab --estimate water.inp              # basis functions, non-zero elements, memory
+psilab water.inp > water.out             # run it (the summary goes to the standard error)
+psilab water.inp levels=30 -o            # settings on the command line too -> water.out
+```
+
+The calculation of the screenshots of 21.0 as an input file:
+
+```
+calculation        = nuclear
+molecule           = H2(16)O     # H2(16)O | H2(17)O | H2(18)O | D2(16)O
+coordinates        = radau       # jacobi | radau
+ns1                = 50          # Hermite DVR points in R1 and in R2
+np                 = 50          # Legendre DVR points in cos(theta)
+re                 = 2.0 bohr    # Re (bohr or angstrom; "0,8" with a decimal comma is read too)
+rmax               = 0.8 bohr    # Rmax
+jmax               = 0           # J; for J > 0 also parity = 0 (K = 0 ... J) | 1 (K = 1 ... J)
+levels             = 100
+eigenvectors       = yes         # no: "Eigenvalues" (the eigenvalues only)
+expectation_values = yes
+eigensolver        = lanczos     # jacobi-davidson | davidson | inverse-power | rayleigh-quotient | dense
+linear_solver      = cg          # minres | chebyshev | bicg
+preconditioner     = ilu         # jacobi | none
+gaussian_start     = yes
+```
+
+Further keys: `eigenvalue_tolerance`, `residual_tolerance`, `linear_tolerance` (E_h),
+`max_iterations`, `max_linear_iterations`, `jd_inner_iterations`, `davidson_inner_iterations`,
+`subspace_size`, `threads` (0: all cores). Keys and values are case-insensitive; the app's and the
+original program's names are accepted as well (`J`, `nmax`, `npar`, `nkoord`, `psikiind`, `sv`,
+`Lánczos`, `CG`). The *Input* section of every nuclear-motion output file is such an input file.
 
 ## The C++ backend
 

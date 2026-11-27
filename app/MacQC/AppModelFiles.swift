@@ -90,6 +90,7 @@ private nonisolated struct ArchiveHeader: Decodable {
         var format: Int?
         var program: String?
         var written: String?
+        var kind: String?     // 22.0: "nuclear-motion" (else an electronic-structure result)
     }
     var archive: Info?
 }
@@ -104,10 +105,10 @@ extension AppModel {
 
     /// File ▸ Open Output File…
     func openOutputFile() {
-        guard !isRunning && !isScanning else { return }
+        guard !isRunning && !isScanning && !nuclear.isRunning else { return }
         let panel = NSOpenPanel()
         panel.title = "Open an Output File"
-        panel.message = "An output file of ΨLab 13.0 or later (the app's text export or psilab's .out file) or a JSON export: every tab shows its results, the orbitals included."
+        panel.message = "An output file of ΨLab 13.0 or later (the app's text export or psilab's .out file) or a JSON export: every tab shows its results, the orbitals included. 22.0: also nuclear-motion output files."
         panel.prompt = "Open"
         panel.allowedContentTypes = AppModel.outputFileTypes
         panel.allowsMultipleSelection = false
@@ -124,23 +125,37 @@ extension AppModel {
         do {
             text = try String(contentsOf: url, encoding: .utf8)
         } catch {
-            errorMessage = "“\(name)” could not be read: \(error.localizedDescription)"
+            openError("“\(name)” could not be read: \(error.localizedDescription)")
             return
         }
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         let isJSON = url.pathExtension.lowercased() == "json" || trimmed.hasPrefix("{")
         guard let json = isJSON ? trimmed : OutputArchive.json(in: text) else {
-            errorMessage = "“\(name)” has no ΨLab archive section, so its results cannot be shown. Output files of ΨLab 13.0 and later end with one (the text export of the app and psilab’s .out files); JSON exports of any version can be opened as well."
+            openError("“\(name)” has no ΨLab archive section, so its results cannot be shown. Output files of ΨLab 13.0 and later end with one (the text export of the app and psilab’s .out files); JSON exports of any version can be opened as well. 22.0: also the output files of nuclear-motion calculations.")
+            return
+        }
+        let header = try? JSONDecoder().decode(ArchiveHeader.self, from: Data(json.utf8))
+        // 22.0: a nuclear-motion output file (its archive is the result of macqc_nuclear_run_job)
+        if header?.archive?.kind == "nuclear-motion" {
+            do {
+                let r = try JSONDecoder().decode(NuclearResult.self, from: Data(json.utf8))
+                nuclear.showOpenedResult(r, text: isJSON ? nil : text,
+                                         file: OpenedOutputFile(name: name, program: header?.archive?.program ?? "",
+                                                                written: header?.archive?.written ?? "", example: example))
+                errorMessage = nil
+                calculation = .nuclear
+            } catch {
+                openError("The nuclear-motion results in “\(name)” could not be read: \(error.localizedDescription)")
+            }
             return
         }
         var out: MacQCOutput
         do {
             out = try InterfaceText.decodeOutput(json)   // 17.0: Full-CI in the interface
         } catch {
-            errorMessage = "The results in “\(name)” could not be read: \(error.localizedDescription)"
+            openError("The results in “\(name)” could not be read: \(error.localizedDescription)")
             return
         }
-        let header = try? JSONDecoder().decode(ArchiveHeader.self, from: Data(json.utf8))
         if out.isGeneral && (out.output ?? "").isEmpty && !isJSON {
             out.output = text   // the Output tab shows the file as it is
         }
@@ -152,7 +167,14 @@ extension AppModel {
         openedFile = OpenedOutputFile(name: name, program: header?.archive?.program ?? "",
                                       written: header?.archive?.written ?? "", example: example)
         if out.scan != nil { scanPage = .relaxed }
+        if !example { calculation = .electronic }   // 22.0: also when opened in the nuclear-motion interface
         if showSummary { selectedTab = .summary }
+    }
+
+    /// 22.0: a file that cannot be shown: the message in the interface on screen.
+    private func openError(_ message: String) {
+        errorMessage = message
+        if calculation == .nuclear { nuclear.errorMessage = message }
     }
 
     /// The text of File ▸ Export Results as Text…: the output file, with an archive section added

@@ -12,8 +12,11 @@
 #include <iostream>
 #include <iterator>
 #include <string>
+#include <chrono>
 
 #include "psilab_text.h"
+#include "macqc/nuclear_motion.h"
+#include "macqc/output.h"
 
 #if defined(__APPLE__)
 #include <mach-o/dyld.h>
@@ -44,6 +47,7 @@ void usage(const char* prog) {
                  "\n"
                  "  %s --estimate INPUT [key=value ...]  size of the calculation and time estimate, no calculation\n"
                  "  %s --example        print a commented example input file (HeH+)\n"
+                 "  %s --example nuclear  print an example nuclear-motion input file (22.0)\n"
                  "  %s --version        print the version\n"
                  "  %s --help           this help\n\n"
                  "Input: one 'key = value' per line, '#' starts a comment. Keys:\n"
@@ -107,8 +111,22 @@ void usage(const char* prog) {
                  "  hessian = analytic | numerical   (frequencies and TS searches with FCI, CCSD, CCSD(T); 10.0)\n"
                  "  initial_hessian = auto | analytic | model   (minimisations: auto = analytic for HF, FCI, CCSD, CCSD(T)\n"
                  "                    where possible, else Lindh's model; model = Lindh; 10.0)\n\n"
+                 "Nuclear motion (22.0): the rovibrational levels of H2(16)O, H2(17)O, H2(18)O, D2(16)O on the\n"
+                 "CVRQD surfaces, as in the app (psilab --example nuclear prints a commented input):\n"
+                 "  calculation = nuclear   (or molecule = H2(16)O | H2(17)O | H2(18)O | D2(16)O alone)\n"
+                 "  molecule = H2(16)O | H2(17)O | H2(18)O | D2(16)O   coordinates = jacobi | radau\n"
+                 "  ns1 = <n> (radial DVR points)   np = <n> (angular)   re = <bohr>   rmax = <bohr> (also angstrom)\n"
+                 "  jmax = <J> (0: vibrational levels)   parity = 0 | 1 (J > 0: K from 0 or 1 to J)   levels = <n>\n"
+                 "  eigenvectors = yes | no (no: the eigenvalues only)   expectation_values = yes | no\n"
+                 "  eigensolver = lanczos | jacobi-davidson | davidson | inverse-power | rayleigh-quotient | dense\n"
+                 "  linear_solver = cg | minres | chebyshev | bicg   preconditioner = ilu | jacobi | none\n"
+                 "  gaussian_start = yes | no   eigenvalue_tolerance, residual_tolerance, linear_tolerance (E_h)\n"
+                 "  max_iterations, max_linear_iterations, jd_inner_iterations, davidson_inner_iterations,\n"
+                 "  subspace_size, threads\n"
+                 "  The output file ends with the archive of the results: File > Open Output File... of the app\n"
+                 "  shows it in every tab (Levels, Geometry, Matrix, Eigenvectors, Convergence, Output).\n\n"
                  "The output file is written while the job runs (tail -f OUTPUT follows it).\n",
-                 prog, prog, prog, prog, prog, prog, prog, prog, prog);
+                 prog, prog, prog, prog, prog, prog, prog, prog, prog, prog);
 }
 
 bool is_directory(const std::string& path) {
@@ -263,8 +281,119 @@ bool parse_arguments(int first, int argc, char** argv, Arguments& a, const char*
     return true;
 }
 
+// 22.0: the input text of a nuclear-motion run (the file and the command-line settings), empty
+// if the input is not a nuclear-motion input (or cannot be read: read_input reports that).
+std::string nuclear_input(const std::string& path, const std::vector<std::string>& options) {
+    if (is_structure_file(path)) return "";
+    std::ifstream file(path, std::ios::binary);
+    if (!file) return "";
+    std::string text((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
+    if (!text.empty() && text.back() != '\n') text += '\n';
+    for (const auto& o : options) text += o + "\n";
+    return macqc::is_nuclear_input_text(text) ? text : "";
+}
+
+bool parse_nuclear(const std::string& path, const std::string& text, std::size_t options, macqc::NuclearMotionInput& in) {
+    try {
+        in = macqc::parse_nuclear_input_text(text);
+    } catch (const std::exception& e) {
+        std::string message = e.what();
+        int line = 0;
+        const int fileLines = static_cast<int>(std::count(text.begin(), text.end(), '\n')) - static_cast<int>(options);
+        if (std::sscanf(message.c_str(), "line %d:", &line) == 1 && line > fileLines)
+            message = "command-line option " + std::to_string(line - fileLines) + ": " + message.substr(message.find(':') + 2);
+        std::fprintf(stderr, "error in %s: %s\n", path.c_str(), message.c_str());
+        return false;
+    }
+    return true;
+}
+
+std::string nuclear_estimate_text(const macqc::NuclearMotionInput& in) {
+    const macqc::NuclearMotionEstimate e = macqc::estimate_nuclear_motion(in);
+    if (!e.refusal.empty()) return "Error: " + e.refusal + "\n";
+    char buf[512];
+    std::snprintf(buf, sizeof buf,
+                  "Nuclear motion: %s, %s coordinates, J = %d, ns1 = %d, np = %d\n"
+                  "  basis functions (dimension of H)  %lld\n"
+                  "  non-zero elements of H            %lld\n"
+                  "  memory                            %.1f MB\n",
+                  macqc::isotopologue_name(in.isotopologue).c_str(), in.coordinates.c_str(), in.J, in.radial_points,
+                  in.angular_points, e.dimension, e.nonzeros, e.memory_mb);
+    return buf;
+}
+
+// Runs a nuclear-motion input (22.0): the output file as the app writes it, archive included.
+int run_nuclear(const std::string& inputPath, const std::string& text, std::size_t options, const std::string& outputPath) {
+    macqc::NuclearMotionInput in;
+    if (!parse_nuclear(inputPath, text, options, in)) return 2;
+    const macqc::NuclearMotionEstimate est = macqc::estimate_nuclear_motion(in);
+    if (!est.refusal.empty()) {
+        std::fprintf(stderr, "error in %s: %s\n", inputPath.c_str(), est.refusal.c_str());
+        return 2;
+    }
+    const bool to_stdout = outputPath.empty();
+    std::ofstream out;
+    bool write_failed = false, written = false;
+    auto sink = [&](const std::string& piece) {
+        if (write_failed) return;
+        written = true;
+        if (to_stdout) {
+            std::fwrite(piece.data(), 1, piece.size(), stdout);
+            std::fflush(stdout);
+            if (std::ferror(stdout)) write_failed = true;
+            return;
+        }
+        if (!out.is_open()) {
+            out.open(outputPath, std::ios::binary | std::ios::trunc);
+            if (!out) {
+                write_failed = true;
+                std::fprintf(stderr, "error: cannot write %s\n", outputPath.c_str());
+                return;
+            }
+        }
+        out << piece;
+        out.flush();
+        if (!out) write_failed = true;
+    };
+    const auto t0 = std::chrono::steady_clock::now();
+    macqc::NuclearMotionResult r;
+    std::string error;
+    try {
+        r = macqc::run_nuclear_motion(in, sink, macqc::nuclear_archive_text);
+    } catch (const std::exception& e) {
+        error = e.what();
+        if (written)
+            sink(macqc::nuclear_termination_text(
+                "error", std::chrono::duration<double>(std::chrono::steady_clock::now() - t0).count(), error));
+    }
+    if (out.is_open()) out.close();
+    if (write_failed) {
+        std::fprintf(stderr, "error: cannot write %s\n", to_stdout ? "the standard output" : outputPath.c_str());
+        return 2;
+    }
+    if (!error.empty()) {
+        std::fprintf(stderr, "error: %s\n", error.c_str());
+        return 1;
+    }
+    FILE* summary = to_stdout ? stderr : stdout;
+    if (!to_stdout) std::fprintf(summary, "Wrote %s\n", outputPath.c_str());
+    std::fprintf(summary, "  %s, J = %d: %zu levels, %s; %lld basis functions\n", r.isotopologue_name.c_str(), in.J,
+                 r.levels.size(), r.converged ? "converged" : "NOT converged", r.dimension);
+    if (!r.levels.empty()) {
+        const double e1 = r.levels.front().energy;
+        std::fprintf(summary, "  E1 = %.10f E_h (%.4f cm^-1 above the minimum); E - E1 (cm^-1):", e1, e1 * 219474.6313632);
+        for (std::size_t k = 1; k < r.levels.size() && k < 8; ++k)
+            std::fprintf(summary, " %.4f", (r.levels[k].energy - e1) * 219474.6313632);
+        std::fprintf(summary, r.levels.size() > 8 ? " ...\n" : "\n");
+    }
+    return r.converged ? 0 : 1;
+}
+
 // Runs one input; the output goes to `outputPath`, or to the standard output if it is empty.
 int run_one(const std::string& inputPath, const std::vector<std::string>& options, const std::string& outputPath) {
+    // 22.0: a nuclear-motion input (calculation = nuclear, or an isotopologue of water)
+    const std::string nuclear = nuclear_input(inputPath, options);
+    if (!nuclear.empty()) return run_nuclear(inputPath, nuclear, options.size(), outputPath);
     psilab::Settings settings;
     int status = 0;
     read_input(inputPath, options, settings, status);
@@ -375,6 +504,11 @@ int main(int argc, char** argv) {
         return 0;
     }
     if (!std::strcmp(argv[1], "--example")) {
+        // 22.0: psilab --example nuclear (a nuclear-motion input)
+        if (argc > 2 && (!std::strcmp(argv[2], "nuclear") || !std::strcmp(argv[2], "nuclear-motion"))) {
+            std::cout << macqc::nuclear_example_input();
+            return 0;
+        }
         std::cout << psilab::example_input();
         return 0;
     }
@@ -386,6 +520,18 @@ int main(int argc, char** argv) {
         int worst = 0;
         for (const auto& input : args.inputs) {
             if (args.inputs.size() > 1) std::printf("== %s\n", input.c_str());
+            const std::string nuclear = nuclear_input(input, args.options);
+            if (!nuclear.empty()) {
+                macqc::NuclearMotionInput in;
+                if (!parse_nuclear(input, nuclear, args.options.size(), in)) {
+                    worst = std::max(worst, 2);
+                    continue;
+                }
+                const std::string t = nuclear_estimate_text(in);
+                std::fputs(t.c_str(), stdout);
+                if (t.rfind("Error: ", 0) == 0) worst = std::max(worst, 1);
+                continue;
+            }
             psilab::Settings settings;
             int status = 0;
             read_input(input, args.options, settings, status);
