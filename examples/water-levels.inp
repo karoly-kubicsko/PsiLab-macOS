@@ -1,0 +1,21 @@
+# ΨLab nuclear-motion input: the vibrational levels (J = 0) of H2(16)O on the CVRQD surface
+# Run:  psilab water-levels.inp > water-levels.out
+calculation        = nuclear        # the nuclear-motion calculation (or molecule = H2(16)O alone)
+molecule           = H2(16)O        # H2(16)O | H2(17)O | H2(18)O | D2(16)O
+coordinates        = radau          # jacobi | radau
+ns1                = 20             # Hermite DVR points in R1 and in R2
+np                 = 24             # Legendre DVR points in cos(theta)
+re                 = 2.0 bohr       # centre of the radial grid (bohr or angstrom)
+rmax               = 0.8 bohr       # the outermost radial points at re +- rmax
+jmax               = 0              # J (0: the vibrational levels); J > 0: parity = 0 (K = 0...J) | 1 (K = 1...J)
+levels             = 10             # number of energy levels (1 ... 500)
+eigenvectors       = yes            # no: the eigenvalues only
+expectation_values = yes            # <r1>, <r2>, ..., <HOH> of every level (needs the eigenvectors)
+eigensolver        = lanczos        # lanczos | jacobi-davidson | davidson | inverse-power |
+                                    # rayleigh-quotient | dense
+linear_solver      = cg             # cg | minres | chebyshev | bicg
+preconditioner     = ilu            # ilu | jacobi | none
+gaussian_start     = yes            # the Gaussian start vector of Algorithm 5
+# eigenvalue_tolerance = 1e-10   residual_tolerance = 1e-8   linear_tolerance = 1e-12 (E_h)
+# max_iterations = 1000   max_linear_iterations = 10000   jd_inner_iterations = 15
+# davidson_inner_iterations = 0   subspace_size = 0 (automatic)   threads = 0 (all cores)

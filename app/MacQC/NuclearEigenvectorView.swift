@@ -3,7 +3,8 @@
 //  MacQC
 //
 //  ΨLab 21.0: the Eigenvectors tab of the nuclear-motion calculation. The backend sends for every
-//  level (with the eigenvectors, at most the first 60) the wavefunction ψ = c/(s√w) at the DVR grid
+//  level (with the eigenvectors; 21.0: at most the first 60, 22.0: all of them up to 8 million
+//  numbers, i.e. all 500 levels up to ns1 = np = 50) the wavefunction ψ = c/(s√w) at the DVR grid
 //  points (c the coefficient of a DVR function, s its sign, w its quadrature weight): cuts through
 //  the point of the largest |ψ| in the planes (R₁, R₂), (R₁, θ) and (R₂, θ), and the probability
 //  densities integrated over the third coordinate. Drawn as heat maps (a cell around every grid
@@ -43,6 +44,8 @@ private struct WaveField {
     var diverging: Bool
     var scale: Double          // largest |value|
     var marker: (x: Double, y: Double)?
+    /// 22.0: both axes in the same unit (R₁ – R₂, Å): one Å as long on both (a square for equal ranges)
+    var equalUnits = false
 
     func value(_ ix: Int, _ iy: Int) -> Double { values[ix * ys.count + iy] }
 
@@ -105,7 +108,7 @@ struct NuclearEigenvectorView: View {
                     let field = makeField(r, w)
                     HStack(alignment: .top, spacing: 18) {
                         heatmap(field)
-                            .frame(minWidth: 360, minHeight: 380)
+                            .frame(minWidth: 360, minHeight: field.equalUnits ? 560 : 380)
                             .dataPanel()
                         info(r, k, w, field)
                             .frame(width: 250, alignment: .leading)
@@ -119,7 +122,7 @@ struct NuclearEigenvectorView: View {
                         .fixedSize(horizontal: false, vertical: true)
                 } else {
                     ContentUnavailableView("No picture of this level", systemImage: "waveform",
-                                           description: Text("The eigenvectors are drawn for the first 60 levels."))
+                                           description: Text("The eigenvectors are drawn for the first \(available.count) levels (as many as fit into 8 million numbers)."))
                 }
             }
             .padding(20)
@@ -208,7 +211,7 @@ struct NuclearEigenvectorView: View {
             valueLabel = plane == .r1r2 ? "ρ (Å⁻²)" : "ρ (Å⁻¹ deg⁻¹)"
         }
         return WaveField(xs: xs, ys: ys, values: values, xLabel: xLabel, yLabel: yLabel, valueLabel: valueLabel,
-                         diverging: psi, scale: scale > 0 ? scale : 1, marker: marker)
+                         diverging: psi, scale: scale > 0 ? scale : 1, marker: marker, equalUnits: plane == .r1r2)
     }
 
     // MARK: Colours (diverging blue – gray – red for ψ; one blue ramp for ρ)
@@ -243,6 +246,10 @@ struct NuclearEigenvectorView: View {
         let ye = WaveField.edges(f.ys, clamp: f.yLabel.hasPrefix("θ") ? 0...180 : nil)
         let xDomain = (xe.map(\.0).min() ?? 0)...(xe.map(\.1).max() ?? 1)
         let yDomain = (ye.map(\.0).min() ?? 0)...(ye.map(\.1).max() ?? 1)
+        // 22.0: R₁ – R₂: the plot area as wide as high per Å (21.0 stretched it to the panel's width,
+        // so 0.2 Å was longer across than up)
+        let xSpan = xDomain.upperBound - xDomain.lowerBound, ySpan = yDomain.upperBound - yDomain.lowerBound
+        let aspect: CGFloat? = f.equalUnits && xSpan > 0 && ySpan > 0 ? CGFloat(xSpan / ySpan) : nil
         return VStack(alignment: .leading, spacing: 8) {
             Chart {
                 // invisible corners: the axes; the cells are drawn below the plot
@@ -257,6 +264,13 @@ struct NuclearEigenvectorView: View {
             }
             .chartXScale(domain: xDomain)
             .chartYScale(domain: yDomain)
+            .chartPlotStyle { plot in
+                if let aspect {
+                    plot.aspectRatio(aspect, contentMode: .fit)
+                } else {
+                    plot
+                }
+            }
             .chartXAxisLabel(f.xLabel)
             .chartYAxisLabel(f.yLabel)
             .chartBackground { proxy in

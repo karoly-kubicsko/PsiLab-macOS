@@ -29,12 +29,13 @@ struct MacQCApp: App {
                 .keyboardShortcut("o", modifiers: [.command])
                 .disabled(model.isRunning || model.isScanning)
 
-                // 13.0: an output file (archive section) or a JSON export, every tab restored
+                // 13.0: an output file (archive section) or a JSON export, every tab restored; 22.0: also
+                // nuclear-motion output files (the nuclear-motion tabs)
                 Button("Open Output File…") {
                     model.openOutputFile()
                 }
                 .keyboardShortcut("o", modifiers: [.command, .shift])
-                .disabled(model.isRunning || model.isScanning)
+                .disabled(model.isRunning || model.isScanning || model.nuclear.isRunning)
 
                 Divider()
 

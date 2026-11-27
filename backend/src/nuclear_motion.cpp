@@ -5,7 +5,9 @@
 
 #include <algorithm>
 #include <atomic>
+#include <cctype>
 #include <cstdarg>
+#include <cstdlib>
 #include <chrono>
 #include <cmath>
 #include <cstdio>
@@ -17,6 +19,8 @@
 #include <thread>
 
 #include "macqc/job.h"
+#include "macqc/jobs.h"
+#include "macqc/output.h"
 #include "macqc/linalg.h"
 #include "macqc/parallel.h"
 
@@ -1870,7 +1874,11 @@ void expectation_values(const Problem& p, const Eigenpairs& e, NuclearMotionResu
             lv.theta = th;
             lv.cos_theta = ct;
         }
-        if (k < 60) lv.plot = wavefunction_plot(p, x);
+        // 22.0: the pictures of every level (21.0: the first 60) up to 8 million numbers in all
+        // (32 MB; all 500 levels up to ns1 = np = 50, fewer only for larger grids)
+        const std::size_t per_level = 2 * static_cast<std::size_t>(p.ns) * static_cast<std::size_t>(p.ns) +
+                                      4 * static_cast<std::size_t>(p.ns) * static_cast<std::size_t>(p.np);
+        if (k < 60 || (k + 1) * per_level <= 8000000) lv.plot = wavefunction_plot(p, x);
         res.levels.push_back(lv);
     }
 }
@@ -1999,7 +2007,7 @@ void write_nuclear_export(const NuclearMotionResult& res, const std::string& pat
     if (!f) throw std::runtime_error("cannot write " + path);
     auto put = [&](const std::string& t) { std::fputs(t.c_str(), f); };
     const bool radau = in.coordinates == "radau";
-    put("# ΨLab 21.0 · nuclear motion · ");
+    put(std::string("# ΨLab ") + kProgramVersion + " · nuclear motion · ");
     std::string parts;
     if (eigenvalues) parts += "eigenvalues";
     if (eigenvectors) parts += std::string(parts.empty() ? "" : ", ") + "eigenvectors";
@@ -2084,7 +2092,8 @@ NuclearMotionEstimate estimate_nuclear_motion(const NuclearMotionInput& in) {
     return e;
 }
 
-NuclearMotionResult run_nuclear_motion(const NuclearMotionInput& in, const NuclearOutputSink& sink) {
+NuclearMotionResult run_nuclear_motion(const NuclearMotionInput& in, const NuclearOutputSink& sink,
+                                       const NuclearAppendixWriter& appendix) {
     validate(in);
     const NuclearMotionEstimate est = estimate_nuclear_motion(in);
     if (!est.refusal.empty()) throw std::invalid_argument(est.refusal);
@@ -2102,9 +2111,21 @@ NuclearMotionResult run_nuclear_motion(const NuclearMotionInput& in, const Nucle
     std::ostringstream os;
     const bool radau = in.coordinates == "radau";
 
-    emit(sink, os, "========================================================================================\n");
-    emit(sink, os, "                      ΨLab 21.0 · nuclear motion (rovibrational levels)\n");
-    emit(sink, os, "========================================================================================\n\n");
+    // 22.0: the banner of the electronic-structure output files: the program name centred, the
+    // started time, and the input as a psilab input file (it runs the same calculation)
+    const std::string rule(88, '=');
+    emit(sink, os, rule + "\n");
+    emit(sink, os, centred_line(std::string("ΨLab ") + kProgramVersion) + "\n");
+    emit(sink, os, centred_line("Nuclear motion: rovibrational energy levels of water on the CVRQD surfaces") + "\n");
+    emit(sink, os, rule + "\n");
+    emit(sink, os, std::string("  Program      ΨLab ") + kProgramVersion + " (C++17 backend; discrete variable representation)\n");
+    emit(sink, os, "  Started      " + local_time_string() + "\n");
+    emit(sink, os, "\n---- Input -----------------------------------------------------------------------------\n");
+    {
+        std::istringstream lines(nuclear_input_text(in));
+        for (std::string l; std::getline(lines, l);) emit(sink, os, "  " + l + "\n");
+    }
+    emit(sink, os, "\n---- Calculation -----------------------------------------------------------------------\n");
     emit(sink, os, fmt("Molecule          %s on the CVRQD potential energy surface\n", iso.name));
     emit(sink, os, "                  (Barletta, Shirin, Zobov, Polyansky, Tennyson, Valeev and Csaszar,\n"
                    "                  J. Chem. Phys. 125, 204307 (2006)); energies from its minimum\n");
@@ -2221,18 +2242,24 @@ NuclearMotionResult run_nuclear_motion(const NuclearMotionInput& in, const Nucle
     // levels
     emit(sink, os, nuclear_level_table(res));
     if (res.has_vectors && in.expectation_values && !res.levels.empty()) {
+        // 22.0: the level number right-aligned in a column as wide as the largest one (at least 3:
+        // "  1 r1", " 10 r1", "100 r1"), so that r1 and r2 stay in one column from level 10 on
+        // (21.0 shifted "10 r1" right by one and "100 r1" by two)
+        const int width = std::max(3, static_cast<int>(std::to_string(res.levels.size()).size()));
         emit(sink, os, "\nExpectation values (angstrom, degrees): r1 = r(O-H1), r2 = r(O-H2)\n\n");
-        emit(sink, os, "     n  <r1>     <r1^2>^1/2  <r1^3>^1/3  <r1^-1>^-1  <r1^-2>^-1/2  <r1^-3>^-1/3   <HOH>\n");
+        emit(sink, os, std::string(static_cast<std::size_t>(width + 2), ' ') +
+                           "n  <r1>     <r1^2>^1/2  <r1^3>^1/3  <r1^-1>^-1  <r1^-2>^-1/2  <r1^-3>^-1/3   <HOH>\n");
+        const std::string r2_label = std::string(static_cast<std::size_t>(width + 1), ' ') + "r2";
         for (std::size_t k = 0; k < res.levels.size(); ++k) {
             const NuclearLevel& lv = res.levels[k];
             auto row = [&](const char* label, const DistanceMoments& m, bool angle) {
-                emit(sink, os, fmt("  %4s  %8.5f  %10.5f  %10.5f  %10.5f  %12.5f  %12.5f", label, m.mean * kBohrToAngstrom,
+                emit(sink, os, fmt("%s  %8.5f  %10.5f  %10.5f  %10.5f  %12.5f  %12.5f", label, m.mean * kBohrToAngstrom,
                                    m.rms * kBohrToAngstrom, m.cubic * kBohrToAngstrom, m.inverse * kBohrToAngstrom,
                                    m.inverse2 * kBohrToAngstrom, m.inverse3 * kBohrToAngstrom));
                 emit(sink, os, angle ? fmt("  %8.3f\n", lv.theta * 180.0 / kPi) : std::string("\n"));
             };
-            row(fmt("%zu r1", k + 1).c_str(), lv.r1, true);
-            row("  r2", lv.r2, false);
+            row(fmt("%*zu r1", width, k + 1).c_str(), lv.r1, true);
+            row(r2_label.c_str(), lv.r2, false);
         }
     }
     if (res.has_vectors && in.J > 0 && !res.levels.empty()) {
@@ -2247,11 +2274,291 @@ NuclearMotionResult run_nuclear_motion(const NuclearMotionInput& in, const Nucle
     }
     for (const std::string& note : res.notes) emit(sink, os, "\nNote: " + note);
     if (!res.notes.empty()) emit(sink, os, "\n");
-    emit(sink, os, fmt("\n%s termination of ΨLab 21.0 (nuclear motion), %.2f s\n", res.converged ? "Normal" : "Unconverged",
-                       seconds_since(t0)));
+    // 22.0: the archive of the results (File > Open Output File... of the app), then the
+    // termination banner of the electronic-structure output files
+    if (appendix) {
+        std::string text;
+        try {
+            text = appendix(res);
+        } catch (const std::exception& ex) {
+            text = std::string("\n    (the archive could not be written: ") + ex.what() + ")\n";
+        }
+        emit(sink, os, text);
+    }
+    emit(sink, os, nuclear_termination_text(res.converged ? "normal" : "unconverged", seconds_since(t0)));
     res.report = os.str();
     report_progress(JobStage::Done);
     return res;
+}
+
+// ---- 22.0: the termination banner and the input files of the terminal version
+
+std::string nuclear_termination_text(const std::string& status, double seconds, const std::string& message) {
+    const std::string rule(88, '=');
+    const std::string version = std::string("ΨLab ") + kProgramVersion;
+    std::string line;
+    if (status == "normal")
+        line = "  Normal termination of " + version + " at " + local_time_string() + "; total time " + duration_string(seconds) + ".";
+    else if (status == "unconverged")
+        line = "  Termination of " + version + " at " + local_time_string() + ": the eigensolver did NOT converge; total time " +
+               duration_string(seconds) + ".";
+    else if (status == "cancelled")
+        line = "  Calculation cancelled at " + local_time_string() + " after " + duration_string(seconds) + ".";
+    else
+        line = "  Error termination of " + version + " at " + local_time_string() + ": " + message;
+    return "\n" + rule + "\n" + line + "\n" + rule + "\n";
+}
+
+namespace {
+
+std::string lower_trimmed(const std::string& v) {
+    const std::size_t a = v.find_first_not_of(" \t\r");
+    if (a == std::string::npos) return "";
+    const std::size_t b = v.find_last_not_of(" \t\r");
+    std::string t = v.substr(a, b - a + 1);
+    for (char& c : t) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+    return t;
+}
+
+// "key = value" of a line without its comment; false for an empty line
+bool key_value(const std::string& raw, std::string& key, std::string& value) {
+    std::string line = raw.substr(0, raw.find('#'));
+    if (lower_trimmed(line).empty()) return false;
+    const std::size_t eq = line.find('=');
+    if (eq == std::string::npos) throw std::runtime_error("expected 'key = value', found '" + lower_trimmed(line) + "'");
+    key = lower_trimmed(line.substr(0, eq));
+    const std::size_t a = line.find_first_not_of(" \t\r", eq + 1);
+    const std::size_t b = line.find_last_not_of(" \t\r");
+    value = a == std::string::npos ? std::string() : line.substr(a, b - a + 1);
+    if (key.empty()) throw std::runtime_error("a line without a key");
+    if (value.empty()) throw std::runtime_error("no value for " + key);
+    return true;
+}
+
+bool is_isotopologue_value(const std::string& v) {
+    try {
+        std::string t;
+        for (char c : v)
+            if (c != '(' && c != ')' && c != ' ' && c != '_' && c != '-') t += static_cast<char>(std::toupper(static_cast<unsigned char>(c)));
+        if (t == "H2O") return false;  // the electronic-structure molecule
+        isotopologue_from_name(v);
+        return true;
+    } catch (const std::exception&) {
+        return false;
+    }
+}
+
+const char* kNuclearCalculationValues[] = {"nuclear", "nuclear-motion", "nuclear_motion", "nuclearmotion", "nuclear motion"};
+
+bool is_nuclear_calculation(const std::string& v) {
+    const std::string t = lower_trimmed(v);
+    for (const char* n : kNuclearCalculationValues)
+        if (t == n) return true;
+    return false;
+}
+
+}  // namespace
+
+bool is_nuclear_input_text(const std::string& text) {
+    std::istringstream lines(text);
+    for (std::string raw; std::getline(lines, raw);) {
+        std::string key, value;
+        try {
+            if (!key_value(raw, key, value)) continue;
+        } catch (const std::exception&) {
+            continue;
+        }
+        if (key == "calculation" && is_nuclear_calculation(value)) return true;
+        if (key == "isotopologue") return true;
+        if (key == "molecule" && is_isotopologue_value(value)) return true;
+    }
+    return false;
+}
+
+NuclearMotionInput parse_nuclear_input_text(const std::string& text) {
+    NuclearMotionInput in;
+    std::istringstream lines(text);
+    std::vector<std::string> seen;
+    int number = 0;
+    for (std::string raw; std::getline(lines, raw);) {
+        ++number;
+        try {
+            std::string key, value;
+            if (!key_value(raw, key, value)) continue;
+            // the spellings of the app and of the original program
+            static const std::pair<const char*, const char*> aliases[] = {
+                {"isotopologue", "molecule"}, {"j", "jmax"}, {"radial_points", "ns1"}, {"ns", "ns1"},
+                {"angular_points", "np"}, {"r_centre", "re"}, {"r_center", "re"}, {"r_half_width", "rmax"},
+                {"nmax", "levels"}, {"number_of_levels", "levels"}, {"parity_block", "parity"}, {"npar", "parity"},
+                {"nkoord", "coordinates"}, {"method", "eigensolver"}, {"linear", "linear_solver"},
+                {"precond", "preconditioner"}, {"psikiind", "gaussian_start"}, {"gaussian_start_vector", "gaussian_start"},
+                {"sv", "eigenvectors"}, {"expectation", "expectation_values"}, {"expval", "expectation_values"}};
+            for (const auto& a : aliases)
+                if (key == a.first) key = a.second;
+            if (std::find(seen.begin(), seen.end(), key) != seen.end()) throw std::runtime_error(key + " is given twice");
+            seen.push_back(key);
+            const std::string v = lower_trimmed(value);
+            auto integer = [&]() {
+                char* end = nullptr;
+                const long x = std::strtol(v.c_str(), &end, 10);
+                if (end == v.c_str() || *end != '\0') throw std::runtime_error(key + " must be an integer, not '" + value + "'");
+                return static_cast<int>(x);
+            };
+            auto number_value = [&]() {
+                std::string t = v;
+                const std::size_t unit = t.find_first_of(" \t");
+                std::string suffix;
+                if (unit != std::string::npos) {
+                    suffix = lower_trimmed(t.substr(unit));
+                    t = t.substr(0, unit);
+                }
+                if (t.find('.') == std::string::npos) std::replace(t.begin(), t.end(), ',', '.');  // "0,8" as in the app
+                char* end = nullptr;
+                double x = std::strtod(t.c_str(), &end);
+                if (end == t.c_str() || *end != '\0') throw std::runtime_error(key + " must be a number, not '" + value + "'");
+                if (suffix == "angstrom" || suffix == "a" || suffix == "\xC3\xA5" || suffix == "ang") x /= kBohrToAngstrom;
+                else if (!suffix.empty() && suffix != "bohr") throw std::runtime_error("unknown unit '" + suffix + "' of " + key + " (bohr or angstrom)");
+                return x;
+            };
+            auto boolean = [&]() {
+                if (v == "yes" || v == "true" || v == "on" || v == "1") return true;
+                if (v == "no" || v == "false" || v == "off" || v == "0") return false;
+                throw std::runtime_error(key + " must be yes or no, not '" + value + "'");
+            };
+            if (key == "calculation") {
+                if (!is_nuclear_calculation(value))
+                    throw std::runtime_error("calculation must be nuclear here (an electronic-structure input has no calculation key)");
+            } else if (key == "molecule") {
+                try {
+                    in.isotopologue = isotopologue_from_name(value);
+                } catch (const std::exception&) {
+                    throw std::runtime_error("molecule must be H2(16)O, H2(17)O, H2(18)O or D2(16)O for nuclear motion, not '" + value + "'");
+                }
+            } else if (key == "coordinates") {
+                if (v == "jacobi" || v == "1") in.coordinates = "jacobi";
+                else if (v == "radau" || v == "2") in.coordinates = "radau";
+                else throw std::runtime_error("coordinates must be jacobi or radau");
+            } else if (key == "ns1") {
+                in.radial_points = integer();
+            } else if (key == "np") {
+                in.angular_points = integer();
+            } else if (key == "re") {
+                in.r_centre = number_value();
+            } else if (key == "rmax") {
+                in.r_half_width = number_value();
+            } else if (key == "jmax") {
+                in.J = integer();
+            } else if (key == "parity") {
+                in.parity_block = integer();
+            } else if (key == "levels") {
+                in.levels = integer();
+            } else if (key == "eigenvectors") {
+                in.eigenvectors = boolean();
+            } else if (key == "expectation_values") {
+                in.expectation_values = boolean();
+            } else if (key == "gaussian_start") {
+                in.gaussian_start = boolean();
+            } else if (key == "eigensolver") {
+                std::string e = v;
+                std::replace(e.begin(), e.end(), '_', '-');
+                if (e == "jd") e = "jacobi-davidson";
+                if (e == "invpower" || e == "inverse-power-iteration") e = "inverse-power";
+                if (e == "rqi" || e == "rqiteration" || e == "rayleigh-quotient-iteration") e = "rayleigh-quotient";
+                if (e == "l\xC3\xA1nczos") e = "lanczos";
+                if (e != "lanczos" && e != "jacobi-davidson" && e != "davidson" && e != "inverse-power" && e != "rayleigh-quotient" && e != "dense")
+                    throw std::runtime_error("eigensolver must be lanczos, jacobi-davidson, davidson, inverse-power, rayleigh-quotient or dense");
+                in.eigensolver = e;
+            } else if (key == "linear_solver") {
+                std::string l = v == "cg" ? "pcg" : (v == "bicgm" ? "bicg" : v);
+                if (l != "pcg" && l != "minres" && l != "chebyshev" && l != "bicg")
+                    throw std::runtime_error("linear_solver must be cg, minres, chebyshev or bicg");
+                in.linear_solver = l;
+            } else if (key == "preconditioner") {
+                std::string q = v == "diagonal" ? "jacobi" : v;
+                if (q != "ilu" && q != "jacobi" && q != "none") throw std::runtime_error("preconditioner must be ilu, jacobi or none");
+                in.preconditioner = q;
+            } else if (key == "eigenvalue_tolerance") {
+                in.eigenvalue_tolerance = number_value();
+            } else if (key == "residual_tolerance") {
+                in.residual_tolerance = number_value();
+            } else if (key == "linear_tolerance") {
+                in.linear_tolerance = number_value();
+            } else if (key == "max_iterations") {
+                in.max_iterations = integer();
+            } else if (key == "max_linear_iterations") {
+                in.max_linear_iterations = integer();
+            } else if (key == "jd_inner_iterations") {
+                in.jd_inner_iterations = integer();
+            } else if (key == "davidson_inner_iterations") {
+                in.davidson_inner_iterations = integer();
+            } else if (key == "subspace_size") {
+                in.subspace_size = integer();
+            } else if (key == "threads") {
+                in.threads = integer();
+            } else {
+                throw std::runtime_error("unknown key '" + key + "' (psilab --help lists the keys of a nuclear-motion input)");
+            }
+        } catch (const std::exception& e) {
+            throw std::runtime_error("line " + std::to_string(number) + ": " + e.what());
+        }
+    }
+    return in;
+}
+
+std::string nuclear_input_text(const NuclearMotionInput& in) {
+    std::string t;
+    auto line = [&](const char* key, const std::string& value) { t += fmt("%-26s= %s\n", key, value.c_str()); };
+    auto yes = [](bool b) { return std::string(b ? "yes" : "no"); };
+    line("calculation", "nuclear");
+    line("molecule", isotopologue_name(in.isotopologue));
+    line("coordinates", in.coordinates);
+    line("ns1", std::to_string(in.radial_points));
+    line("np", std::to_string(in.angular_points));
+    line("re", fmt("%.10g", in.r_centre) + " bohr");
+    line("rmax", fmt("%.10g", in.r_half_width) + " bohr");
+    line("jmax", std::to_string(in.J));
+    if (in.J > 0) line("parity", std::to_string(in.parity_block));
+    line("levels", std::to_string(in.levels));
+    line("eigenvectors", yes(in.eigenvectors));
+    line("expectation_values", yes(in.expectation_values));
+    line("eigensolver", in.eigensolver);
+    line("linear_solver", in.linear_solver == "pcg" ? "cg" : in.linear_solver);
+    line("preconditioner", in.preconditioner);
+    line("gaussian_start", yes(in.gaussian_start));
+    line("eigenvalue_tolerance", fmt("%.3g", in.eigenvalue_tolerance));
+    line("residual_tolerance", fmt("%.3g", in.residual_tolerance));
+    line("linear_tolerance", fmt("%.3g", in.linear_tolerance));
+    line("max_iterations", std::to_string(in.max_iterations));
+    line("max_linear_iterations", std::to_string(in.max_linear_iterations));
+    if (in.eigensolver == "jacobi-davidson") line("jd_inner_iterations", std::to_string(in.jd_inner_iterations));
+    if (in.eigensolver == "davidson") line("davidson_inner_iterations", std::to_string(in.davidson_inner_iterations));
+    if (in.eigensolver == "jacobi-davidson" || in.eigensolver == "davidson") line("subspace_size", std::to_string(in.subspace_size));
+    line("threads", std::to_string(in.threads));
+    return t;
+}
+
+std::string nuclear_example_input() {
+    return "# \xCE\xA8Lab nuclear-motion input: the vibrational levels (J = 0) of H2(16)O on the CVRQD surface\n"
+           "# Run:  psilab water-levels.inp > water-levels.out\n"
+           "calculation        = nuclear        # the nuclear-motion calculation (or molecule = H2(16)O alone)\n"
+           "molecule           = H2(16)O        # H2(16)O | H2(17)O | H2(18)O | D2(16)O\n"
+           "coordinates        = radau          # jacobi | radau\n"
+           "ns1                = 20             # Hermite DVR points in R1 and in R2\n"
+           "np                 = 24             # Legendre DVR points in cos(theta)\n"
+           "re                 = 2.0 bohr       # centre of the radial grid (bohr or angstrom)\n"
+           "rmax               = 0.8 bohr       # the outermost radial points at re +- rmax\n"
+           "jmax               = 0              # J (0: the vibrational levels); J > 0: parity = 0 (K = 0...J) | 1 (K = 1...J)\n"
+           "levels             = 10             # number of energy levels (1 ... 500)\n"
+           "eigenvectors       = yes            # no: the eigenvalues only\n"
+           "expectation_values = yes            # <r1>, <r2>, ..., <HOH> of every level (needs the eigenvectors)\n"
+           "eigensolver        = lanczos        # lanczos | jacobi-davidson | davidson | inverse-power |\n"
+           "                                    # rayleigh-quotient | dense\n"
+           "linear_solver      = cg             # cg | minres | chebyshev | bicg\n"
+           "preconditioner     = ilu            # ilu | jacobi | none\n"
+           "gaussian_start     = yes            # the Gaussian start vector of Algorithm 5\n"
+           "# eigenvalue_tolerance = 1e-10   residual_tolerance = 1e-8   linear_tolerance = 1e-12 (E_h)\n"
+           "# max_iterations = 1000   max_linear_iterations = 10000   jd_inner_iterations = 15\n"
+           "# davidson_inner_iterations = 0   subspace_size = 0 (automatic)   threads = 0 (all cores)\n";
 }
 
 }  // namespace macqc

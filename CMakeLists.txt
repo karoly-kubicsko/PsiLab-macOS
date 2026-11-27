@@ -150,6 +150,9 @@ add_test(NAME psilab_example
   COMMAND psilab ${CMAKE_CURRENT_SOURCE_DIR}/examples/heh.inp ${CMAKE_CURRENT_BINARY_DIR}/heh.out)
 add_test(NAME psilab_example_h2o
   COMMAND psilab ${CMAKE_CURRENT_SOURCE_DIR}/examples/h2o.inp ${CMAKE_CURRENT_BINARY_DIR}/h2o.out)
+# 22.0: a nuclear-motion input file (the vibrational levels of H2(16)O)
+add_test(NAME psilab_example_nuclear
+  COMMAND psilab ${CMAKE_CURRENT_SOURCE_DIR}/examples/water-levels.inp ${CMAKE_CURRENT_BINARY_DIR}/water-levels.out)
 add_test(NAME psilab_missing_input COMMAND psilab does-not-exist.inp)
 set_tests_properties(psilab_missing_input PROPERTIES WILL_FAIL TRUE)
 # ΨLab 5.0: derivative integrals, RHF gradient and Hessian (finite differences, PySCF).

@@ -327,6 +327,34 @@ nonisolated struct NuclearEstimate: Codable, Sendable, Equatable {
     var refusal: String?
 }
 
+/// 22.0: the base64 text of the matrix pictures in the archive of an output file: "rle:" and the
+/// text with every run of n ≥ 5 'A' (zero bytes) written "~n." (backend: base64_zero_runs).
+nonisolated enum NuclearBase64 {
+    static func expand(_ s: String) -> String {
+        guard s.hasPrefix("rle:") else { return s }
+        var out = ""
+        out.reserveCapacity(s.utf8.count * 4)
+        var rest = Substring(s.dropFirst(4))
+        while let tilde = rest.firstIndex(of: "~") {
+            out.append(contentsOf: rest[..<tilde])
+            let after = rest[rest.index(after: tilde)...]
+            guard let dot = after.firstIndex(of: "."), let n = Int(after[..<dot]), n >= 0 else { return out }
+            out += String(repeating: "A", count: n)
+            rest = after[after.index(after: dot)...]
+        }
+        out.append(contentsOf: rest)
+        return out
+    }
+}
+
+extension NuclearMatrixPicture {
+    /// 22.0: the pictures of an archive with their zero runs written out (NuclearBase64).
+    mutating func expandZeroRuns() {
+        density = NuclearBase64.expand(density)
+        magnitude = NuclearBase64.expand(magnitude)
+    }
+}
+
 nonisolated enum NuclearUnits {
     static let hartreeToCm = 219474.6313632     // CODATA 2018 (as the backend)
     static let bohrToAngstrom = 0.529177210903
@@ -393,6 +421,8 @@ final class NuclearModel {
     var runStarted: Date?
     var lastRunInput: NuclearInput?
     var showExportSheet = false        // 21.0: File ▸ Export Eigenvalues and Eigenvectors…
+    /// 22.0: the result shown is that of an output file (File ▸ Open Output File…), not of a run.
+    var openedFile: OpenedOutputFile?
     @ObservationIgnored private var runningJob: MacQCJob?
 
     init() {
@@ -471,6 +501,7 @@ final class NuclearModel {
             }
             result = r
             lastRunInput = input
+            openedFile = nil
         } catch {
             errorMessage = error.localizedDescription
         }
@@ -478,6 +509,23 @@ final class NuclearModel {
 
     func cancel() {
         runningJob?.cancel()
+    }
+
+    /// 22.0: shows the result of an output file (its archive section) in every tab, as after the
+    /// calculation; `text`: the file, shown in the Output tab. The inputs of the sidebar stay.
+    func showOpenedResult(_ r: NuclearResult, text: String?, file: OpenedOutputFile) {
+        var r = r
+        r.matrixWhole?.expandZeroRuns()
+        r.matrixDetail?.expandZeroRuns()
+        if let text, !text.isEmpty { r.output = text }
+        r.exportId = nil   // the eigenvectors themselves are not in the file
+        result = r
+        errorMessage = r.error
+        outputText = r.output ?? ""
+        outputGeneration += 1
+        lastRunInput = r.input
+        openedFile = file
+        selectedTab = .levels
     }
 
     /// File ▸ Export Results as Text…: the output file of the last calculation.

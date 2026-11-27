@@ -567,8 +567,9 @@ std::string scan_value_text(const ScanPlan& pl, double v) {
 void write_header(OutputWriter& w, const JobSettings& s, const std::string& echo, int threads) {
     const std::string rule(88, '=');
     w.line(rule);
-    w.line("                                ΨLab " + std::string(kProgramVersion));
-    w.line("  Hartree–Fock (RHF, UHF, ROHF), Møller–Plesset, CI, QCI, coupled cluster and Full CI");
+    // 22.0: the program name centred in the 88 columns of the rules
+    w.line(centred_line("ΨLab " + std::string(kProgramVersion)));
+    w.line(centred_line("Hartree–Fock (RHF, UHF, ROHF), Møller–Plesset, CI, QCI, coupled cluster and Full CI"));
     w.line(rule);
     w.line("  Program      ΨLab " + std::string(kProgramVersion) + " (C++17 backend; integrals, SCF, CC, CI, derivatives)");
     w.line("  Started      " + local_time_string());

@@ -188,10 +188,36 @@ void write_nuclear_export(const NuclearMotionResult& result, const std::string& 
                           bool start_vector);
 
 using NuclearOutputSink = std::function<void(const std::string&)>;
+// 22.0: text written after the results and before the termination banner (the archive of the
+// results, which File > Open Output File... of the app reads back).
+using NuclearAppendixWriter = std::function<std::string(const NuclearMotionResult&)>;
 
 // Runs the calculation; throws std::invalid_argument for an input it cannot run and Cancelled
-// when the current job is cancelled. `sink` receives the output file while it is written.
-NuclearMotionResult run_nuclear_motion(const NuclearMotionInput& input, const NuclearOutputSink& sink = {});
+// when the current job is cancelled. `sink` receives the output file while it is written; 22.0:
+// `appendix` adds its text before the termination banner.
+NuclearMotionResult run_nuclear_motion(const NuclearMotionInput& input, const NuclearOutputSink& sink = {},
+                                       const NuclearAppendixWriter& appendix = {});
+
+// 22.0: the termination banner of the output file (as that of the electronic-structure jobs):
+// status "normal", "unconverged", "cancelled" or "error" (with `message`).
+std::string nuclear_termination_text(const std::string& status, double seconds, const std::string& message = "");
+
+// 22.0: nuclear-motion input files of the terminal version (psilab INPUT > OUTPUT): one
+// "key = value" per line, '#' starts a comment (keys and values as in nuclear_input_text).
+// is_nuclear_input_text: the text asks for a nuclear-motion calculation (calculation = nuclear,
+// or molecule/isotopologue = H2(16)O, H2(17)O, H2(18)O, D2(16)O).
+bool is_nuclear_input_text(const std::string& text);
+// Throws std::runtime_error("line N: ...") on an unknown key, a key given twice or a bad value.
+NuclearMotionInput parse_nuclear_input_text(const std::string& text);
+// The input as such a file (the "Input" section of the output file; it runs the same calculation).
+std::string nuclear_input_text(const NuclearMotionInput& input);
+// A commented example input file (psilab --example nuclear).
+std::string nuclear_example_input();
+
+// 22.0: the archive section of the output file: the complete results as JSON (as the app receives
+// them, without the output text) between "@@PSILAB-ARCHIVE-BEGIN 1" and "@@PSILAB-ARCHIVE-END",
+// with "archive": {"kind": "nuclear-motion", ...} (api.cpp).
+std::string nuclear_archive_text(const NuclearMotionResult& result);
 
 // The name of an isotopologue ("H2(16)O", "H2(17)O", "H2(18)O", "D2(16)O") and back.
 std::string isotopologue_name(CvrqdIsotopologue iso);
