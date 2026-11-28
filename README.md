@@ -10,8 +10,8 @@ shift-invert Lánczos, Davidson and other eigensolvers; see below).
 
 For the electronic structure, ΨLab computes small molecules — closed and (15.0) open shells, with
 RHF, UHF and ROHF references — with Hartree–Fock, Møller–Plesset perturbation theory (MP2–MP5),
-configuration interaction (CISD … CISDTQ, spin-adapted Full CI), quadratic CI (QCISD … QCISDTQ) and
-coupled cluster (CCSD … CCSDTQ):
+Configuration Interaction (CISD … CISDTQ, spin-adapted Full-CI), quadratic CI (QCISD … QCISDTQ) and
+Coupled Cluster (CCSD … CCSDTQ):
 
 - **H₂, LiH, H₂O, H₂O₂, NH₃ and HeH⁺** (and custom molecules of H–Rn and Th–Lr) in 44 Gaussian
   basis sets from basissetexchange.org: the correlation-consistent sets cc-pVXZ, aug-cc-pVXZ,
