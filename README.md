@@ -26,7 +26,7 @@ Coupled Cluster (CCSD … CCSDTQ):
   long calculations and refuses impossible ones with an explanation (e.g. Full-CI for H₂O:
   5.6·10¹¹ determinants already in aug-cc-pVDZ).
 - **HeH⁺** also in a minimal STO-nG basis (n = 1, 2, 3), the Szabo–Ostlund calculation:
-  Hartree–Fock identical to the book's program, Full CI with all states and their spin.
+  Hartree–Fock identical to the book's program, Full-CI with all states and their spin.
 
 **Nuclear motion (20.0, 21.0, 22.0).** A second kind of calculation, chosen at the top of the sidebar, computes
 the **vibrational (J = 0) and rovibrational energy levels of H₂¹⁶O, H₂¹⁷O, H₂¹⁸O and D₂¹⁶O** on the
@@ -43,7 +43,7 @@ whole calculation runs on every processor core — the preconditioned linear sol
 interface opens with the results of H₂¹⁶O for J = 10 (1 250 000 basis functions, 100 levels).
 
 For these molecules it **optimises geometries** (redundant internal coordinates, analytic gradients
-for HF, MP2–MP5, CISD … CISDTQ, QCISD … QCISDTQ, CCSD, CCSD(T) and Full CI, and (15.0) on UHF and
+for HF, MP2–MP5, CISD … CISDTQ, QCISD … QCISDTQ, CCSD, CCSD(T) and Full-CI, and (15.0) on UHF and
 ROHF references also for CCSDT and CCSDTQ), finds **transition states** (Gaussian's Opt=TS:
 partitioned RFO with a computed Hessian, CalcFC or CalcAll), runs **relaxed potential-energy scans**
 of a bond, an angle or a dihedral angle (Gaussian's Opt=ModRedundant), computes **harmonic
@@ -55,7 +55,7 @@ output file that is written while the job runs.
 
 It shows energies, orbital energies, SCF, coupled-cluster and Davidson iterations, the largest
 cluster amplitudes, the leading CI determinants and natural-orbital occupations, the **molecular
-orbitals** (canonical RHF orbitals and Full CI natural orbitals as rotatable isosurfaces or as
+orbitals** (canonical RHF orbitals and Full-CI natural orbitals as rotatable isosurfaces or as
 contour plots), a **3D molecule viewer** in the manner of PyMOL (ball and stick, sticks, spheres
 or lines; rotate and zoom with the mouse, depth cueing, labels, bond lengths, click atoms to measure
 distances, angles and dihedral angles) for the molecule, every optimisation step (played step by
