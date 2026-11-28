@@ -83,24 +83,129 @@ std::string fmt(const char* f, ...) {
 }
 
 // ---------------------------------------------------------------------------------------------
-// Dense vector helpers
+// Dense vector helpers. 23.0: on all threads of the calculation (tl_threads, set by
+// run_nuclear_motion) for vectors of at least kParallelMin numbers. A vector is cut into chunks of
+// kChunk numbers; a reduction (dot) sums one partial sum per chunk in chunk order, so the result
+// has the same bits for every number of threads (and, up to kChunk numbers, those of 22.0).
+
+thread_local int tl_threads = 1;
+
+// The threads of the vector operations while a calculation runs on this thread.
+struct VectorThreads {
+    int saved;
+    explicit VectorThreads(int t) : saved(tl_threads) { tl_threads = std::max(1, t); }
+    ~VectorThreads() { tl_threads = saved; }
+    VectorThreads(const VectorThreads&) = delete;
+    VectorThreads& operator=(const VectorThreads&) = delete;
+};
+
+constexpr std::size_t kChunk = 8192;
+constexpr std::size_t kParallelMin = 65536;
+
+int vector_threads(std::size_t n) { return n >= kParallelMin ? tl_threads : 1; }
+
+// f(begin, end, chunk) for the chunks of [0, n), in parallel for long vectors.
+template <class F>
+void for_chunks(std::size_t n, F f) {
+    const std::size_t chunks = (n + kChunk - 1) / kChunk;
+    parallel_chunks(vector_threads(n), chunks, [&](std::size_t c) { f(c * kChunk, std::min(n, (c + 1) * kChunk), c); });
+}
 
 double dot(const std::vector<double>& a, const std::vector<double>& b) {
-    double s = 0.0;
     const std::size_t n = a.size();
-    for (std::size_t i = 0; i < n; ++i) s += a[i] * b[i];
+    if (n <= kChunk) {
+        double s = 0.0;
+        for (std::size_t i = 0; i < n; ++i) s += a[i] * b[i];
+        return s;
+    }
+    std::vector<double> part((n + kChunk - 1) / kChunk);
+    for_chunks(n, [&](std::size_t lo, std::size_t hi, std::size_t c) {
+        double s = 0.0;
+        for (std::size_t i = lo; i < hi; ++i) s += a[i] * b[i];
+        part[c] = s;
+    });
+    double s = 0.0;
+    for (double v : part) s += v;
     return s;
 }
 
 double norm(const std::vector<double>& a) { return std::sqrt(dot(a, a)); }
 
 void axpy(double alpha, const std::vector<double>& x, std::vector<double>& y) {
-    const std::size_t n = x.size();
-    for (std::size_t i = 0; i < n; ++i) y[i] += alpha * x[i];
+    for_chunks(x.size(), [&](std::size_t lo, std::size_t hi, std::size_t) {
+        for (std::size_t i = lo; i < hi; ++i) y[i] += alpha * x[i];
+    });
 }
 
 void scale(std::vector<double>& x, double s) {
-    for (double& v : x) v *= s;
+    for_chunks(x.size(), [&](std::size_t lo, std::size_t hi, std::size_t) {
+        for (std::size_t i = lo; i < hi; ++i) x[i] *= s;
+    });
+}
+
+// y = x + beta y (the search directions of conjugate gradients and BiCG)
+void xpby(const std::vector<double>& x, double beta, std::vector<double>& y) {
+    for_chunks(x.size(), [&](std::size_t lo, std::size_t hi, std::size_t) {
+        for (std::size_t i = lo; i < hi; ++i) y[i] = x[i] + beta * y[i];
+    });
+}
+
+// out[k] = sum_q c(q, k) v[q], q = 0 … m − 1 in this order for every element (the bits of the
+// serial loop of axpy calls); in parallel over blocks of rows, each block of the m vectors read
+// once for all k (the Ritz vectors of the Lanczos iteration: m × k axpy).
+template <class Coef>
+std::vector<std::vector<double>> combine(const std::vector<std::vector<double>>& v, int m, int k, Coef c) {
+    const std::size_t n = v.empty() ? 0 : v.front().size();
+    std::vector<std::vector<double>> out(static_cast<std::size_t>(k), std::vector<double>(n, 0.0));
+    constexpr std::size_t block = 1024;
+    const std::size_t blocks = (n + block - 1) / block;
+    parallel_chunks(vector_threads(n), blocks, [&](std::size_t bl) {
+        const std::size_t lo = bl * block, hi = std::min(n, lo + block);
+        for (int q = 0; q < m; ++q) {
+            const double* vq = v[static_cast<std::size_t>(q)].data();
+            for (int kk = 0; kk < k; ++kk) {
+                const double s = c(q, kk);
+                double* y = out[static_cast<std::size_t>(kk)].data();
+                for (std::size_t i = lo; i < hi; ++i) y[i] += s * vq[i];
+            }
+        }
+    });
+    return out;
+}
+
+// Gram-Schmidt of w against the orthonormal columns `basis`, twice (orthogonal to machine
+// precision). 23.0: classical Gram-Schmidt twice ("twice is enough": Giraud, Langou and Rozložník,
+// Comput. Math. Appl. 50, 1069 (2005)) instead of modified Gram-Schmidt twice, so that each pass
+// is two parallel sweeps over the basis (all inner products, then all subtractions) instead of 2m
+// vector operations one after the other; the inner products are summed per chunk in chunk order
+// (the same bits for every number of threads).
+void orthogonalize(std::vector<double>& w, const std::vector<std::vector<double>>& basis) {
+    const std::size_t m = basis.size(), n = w.size();
+    if (m == 0) return;
+    const std::size_t chunks = (n + kChunk - 1) / kChunk;
+    std::vector<double> part(chunks * m), h(m);
+    for (int pass = 0; pass < 2; ++pass) {
+        for_chunks(n, [&](std::size_t lo, std::size_t hi, std::size_t c) {
+            for (std::size_t q = 0; q < m; ++q) {
+                const double* v = basis[q].data();
+                double s = 0.0;
+                for (std::size_t i = lo; i < hi; ++i) s += w[i] * v[i];
+                part[c * m + q] = s;
+            }
+        });
+        for (std::size_t q = 0; q < m; ++q) {
+            double s = 0.0;
+            for (std::size_t c = 0; c < chunks; ++c) s += part[c * m + q];
+            h[q] = s;
+        }
+        for_chunks(n, [&](std::size_t lo, std::size_t hi, std::size_t) {
+            for (std::size_t q = 0; q < m; ++q) {
+                const double* v = basis[q].data();
+                const double s = h[q];
+                for (std::size_t i = lo; i < hi; ++i) w[i] -= s * v[i];
+            }
+        });
+    }
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -115,11 +220,32 @@ struct Csr {
     std::vector<double> diag;
     int threads = 1;
 
+    // 23.0: the rows of the ILU sweeps by levels (see build_schedules); empty: serial sweeps
+    struct Schedule {
+        std::vector<int> rows;           // the rows, level after level (ascending within a level)
+        std::vector<std::size_t> start;  // level L: rows[start[L] … start[L + 1])
+        // thread k of `threads` takes rows[split[L·(threads + 1) + k] … split[L·(threads + 1) + k + 1])
+        // of level L: parts with equal numbers of non-zero elements of the triangle
+        std::vector<std::size_t> split;
+    };
+    Schedule lower, upper;
+
+    void build_schedules();
+
+    // y = H x on all threads; 23.0: the rows split into ranges of equal numbers of non-zero
+    // elements (the rows of the K > 0 blocks are longer) instead of equal numbers of rows.
     void multiply(const std::vector<double>& x, std::vector<double>& y) const {
-        y.assign(n, 0.0);
+        y.resize(n);
         const int t = (n > 20000 && threads > 1) ? threads : 1;
+        const std::size_t nnz = row[n];
         run_parallel(t, [&](int k) {
-            const std::size_t a = n * static_cast<std::size_t>(k) / t, b = n * static_cast<std::size_t>(k + 1) / t;
+            auto first_row = [&](int part) {
+                if (part <= 0) return std::size_t{0};
+                if (part >= t) return n;
+                const std::size_t target = nnz * static_cast<std::size_t>(part) / static_cast<std::size_t>(t);
+                return static_cast<std::size_t>(std::lower_bound(row.begin(), row.begin() + static_cast<long>(n), target) - row.begin());
+            };
+            const std::size_t a = first_row(k), b = first_row(k + 1);
             for (std::size_t i = a; i < b; ++i) {
                 double s = 0.0;
                 for (std::size_t p = row[i]; p < row[i + 1]; ++p) s += val[p] * x[static_cast<std::size_t>(col[p])];
@@ -128,6 +254,64 @@ struct Csr {
         });
     }
 };
+
+// 23.0: the level schedules of the two triangular sweeps of the ILU preconditioner. Row i of
+// the forward sweep (D' + L) w = r needs w at the columns of L in row i; its level is one more
+// than the largest level of those rows (0 without any). All rows of a level are independent and
+// are computed in parallel, the levels one after the other; each row is computed exactly as in the
+// serial sweep, so the result has the same bits. The backward sweep likewise with U, from the
+// last row. For the DVR Hamiltonian the level of the row (K block b, i, j, l) is i + j + b·np + l
+// (the kinetic energy couples i, j and l within a block, the Coriolis terms the blocks): about
+// 2·ns1 + nb·np levels of thousands of rows each. Not used (serial sweeps) for small matrices or
+// when the levels hold too few rows to share.
+void Csr::build_schedules() {
+    lower = Schedule{};
+    upper = Schedule{};
+    if (threads <= 1 || n < kParallelMin) return;
+    std::vector<int> level(n, 0);
+    // cost(i): the non-zero elements of row i in the triangle of the sweep (+ 1 for the division)
+    auto make = [&](Schedule& s, int levels, auto cost) {
+        if (static_cast<double>(n) / std::max(1, levels) < 64.0 * threads) return;  // too few rows per level
+        s.start.assign(static_cast<std::size_t>(levels) + 1, 0);
+        for (std::size_t i = 0; i < n; ++i) ++s.start[static_cast<std::size_t>(level[i]) + 1];
+        for (int l = 0; l < levels; ++l) s.start[static_cast<std::size_t>(l) + 1] += s.start[static_cast<std::size_t>(l)];
+        std::vector<std::size_t> next(s.start.begin(), s.start.end() - 1);
+        s.rows.resize(n);
+        for (std::size_t i = 0; i < n; ++i) s.rows[next[static_cast<std::size_t>(level[i])]++] = static_cast<int>(i);
+        const std::size_t t = static_cast<std::size_t>(threads);
+        s.split.resize(static_cast<std::size_t>(levels) * (t + 1));
+        std::vector<std::size_t> prefix;
+        for (std::size_t l = 0; l < static_cast<std::size_t>(levels); ++l) {
+            const std::size_t a0 = s.start[l], a1 = s.start[l + 1];
+            prefix.assign(a1 - a0 + 1, 0);
+            for (std::size_t p = a0; p < a1; ++p) prefix[p - a0 + 1] = prefix[p - a0] + cost(static_cast<std::size_t>(s.rows[p]));
+            std::size_t* sp = &s.split[l * (t + 1)];
+            for (std::size_t k = 0; k <= t; ++k) {
+                const std::size_t target = prefix.back() * k / t;
+                sp[k] = a0 + static_cast<std::size_t>(std::lower_bound(prefix.begin(), prefix.end(), target) - prefix.begin());
+                if (sp[k] > a1) sp[k] = a1;
+            }
+            sp[0] = a0;
+            sp[t] = a1;
+        }
+    };
+    int levels = 0;
+    for (std::size_t i = 0; i < n; ++i) {
+        int l = 0;
+        for (std::size_t q = row[i]; q < diag_pos[i]; ++q) l = std::max(l, level[static_cast<std::size_t>(col[q])] + 1);
+        level[i] = l;
+        levels = std::max(levels, l + 1);
+    }
+    make(lower, levels, [&](std::size_t i) { return diag_pos[i] - row[i] + 1; });
+    levels = 0;
+    for (std::size_t i = n; i-- > 0;) {
+        int l = 0;
+        for (std::size_t q = diag_pos[i] + 1; q < row[i + 1]; ++q) l = std::max(l, level[static_cast<std::size_t>(col[q])] + 1);
+        level[i] = l;
+        levels = std::max(levels, l + 1);
+    }
+    make(upper, levels, [&](std::size_t i) { return row[i + 1] - diag_pos[i]; });
+}
 
 // ---------------------------------------------------------------------------------------------
 // Preconditioners (original: CGM with precondtype 1, 2, 3; ILUprecond; 21.0 also
@@ -177,7 +361,9 @@ void Preconditioner::apply(const std::vector<double>& r, std::vector<double>& z)
     case Precond::Jacobi: {
         const std::size_t n = r.size();
         z.resize(n);
-        for (std::size_t i = 0; i < n; ++i) z[i] = r[i] / d[i];
+        for_chunks(n, [&](std::size_t lo, std::size_t hi, std::size_t) {
+            for (std::size_t i = lo; i < hi; ++i) z[i] = r[i] / d[i];
+        });
         return;
     }
     case Precond::Ilu: {
@@ -185,15 +371,39 @@ void Preconditioner::apply(const std::vector<double>& r, std::vector<double>& z)
         const std::size_t n = m.n;
         z.resize(n);
         std::vector<double> w(n);
-        for (std::size_t i = 0; i < n; ++i) {
+        auto forward = [&](std::size_t i) {
             double s = 0.0;
             for (std::size_t q = m.row[i]; q < m.diag_pos[i]; ++q) s += m.val[q] * w[static_cast<std::size_t>(m.col[q])];
             w[i] = (r[i] - s) / d[i];
-        }
-        for (std::size_t ii = n; ii-- > 0;) {
+        };
+        auto backward = [&](std::size_t ii) {
             double s = 0.0;
             for (std::size_t q = m.diag_pos[ii] + 1; q < m.row[ii + 1]; ++q) s += m.val[q] * z[static_cast<std::size_t>(m.col[q])];
             z[ii] = w[ii] - s / d[ii];
+        };
+        // 23.0: the levels of a sweep in parallel (Csr::build_schedules), a barrier after each
+        auto sweep = [&](const Csr::Schedule& sc, auto&& row_op) {
+            const int t = m.threads;
+            const std::size_t levels = sc.start.size() - 1;
+            SpinBarrier barrier(t);
+            run_parallel(t, [&](int k) {
+                const std::size_t stride = static_cast<std::size_t>(t) + 1;
+                for (std::size_t l = 0; l < levels; ++l) {
+                    const std::size_t* sp = &sc.split[l * stride + static_cast<std::size_t>(k)];
+                    for (std::size_t p = sp[0]; p < sp[1]; ++p) row_op(static_cast<std::size_t>(sc.rows[p]));
+                    barrier.wait();
+                }
+            });
+        };
+        if (!m.lower.rows.empty()) {
+            sweep(m.lower, forward);
+        } else {
+            for (std::size_t i = 0; i < n; ++i) forward(i);
+        }
+        if (!m.upper.rows.empty()) {
+            sweep(m.upper, backward);
+        } else {
+            for (std::size_t ii = n; ii-- > 0;) backward(ii);
         }
         return;
     }
@@ -272,7 +482,7 @@ LinearStats pcg(std::size_t n, const VecOp& op, const VecOp& prec, const std::ve
         }
         const double beta = rho_new / rho;
         rho = rho_new;
-        for (std::size_t i = 0; i < n; ++i) p[i] = z[i] + beta * p[i];
+        xpby(z, beta, p);
     }
     return st;
 }
@@ -324,9 +534,11 @@ LinearStats minres(std::size_t n, const VecOp& op, const VecOp& prec, const std:
         const double phi = cs * phibar;
         phibar = sn * phibar;
         const double denom = 1.0 / gamma;
-        w1 = w2;
-        w2 = w;
-        for (std::size_t i = 0; i < n; ++i) w[i] = (v[i] - oldeps * w1[i] - delta * w2[i]) * denom;
+        std::swap(w1, w2);  // w1 <- w2, w2 <- w (w is overwritten below)
+        std::swap(w2, w);
+        for_chunks(n, [&](std::size_t lo, std::size_t hi, std::size_t) {
+            for (std::size_t i = lo; i < hi; ++i) w[i] = (v[i] - oldeps * w1[i] - delta * w2[i]) * denom;
+        });
         axpy(phi, w, x);
         st.iterations = it;
         st.residual = phibar;
@@ -378,7 +590,9 @@ LinearStats chebyshev(std::size_t n, const VecOp& op, const VecOp& prec, const s
         }
         const double rho_new = 1.0 / (2.0 * sigma1 - rho);
         prec(r, z);
-        for (std::size_t i = 0; i < n; ++i) d[i] = rho_new * rho * d[i] + (2.0 * rho_new / delta) * z[i];
+        for_chunks(n, [&](std::size_t lo, std::size_t hi, std::size_t) {
+            for (std::size_t i = lo; i < hi; ++i) d[i] = rho_new * rho * d[i] + (2.0 * rho_new / delta) * z[i];
+        });
         rho = rho_new;
     }
     return st;
@@ -414,10 +628,8 @@ LinearStats bicg(std::size_t n, const VecOp& op, const VecOp& prec, const std::v
             pt = zt;
         } else {
             const double beta = rho / rho_old;
-            for (std::size_t i = 0; i < n; ++i) {
-                p[i] = z[i] + beta * p[i];
-                pt[i] = zt[i] + beta * pt[i];
-            }
+            xpby(z, beta, p);
+            xpby(zt, beta, pt);
         }
         op(p, q);
         op(pt, qt);  // A^T = A
@@ -670,10 +882,11 @@ void validate(const NuclearMotionInput& in) {
     parse_precond(in.preconditioner);
 }
 
+// Every hardware thread of the processor by default (as resolve_threads, at most 256).
 int thread_count(int requested) {
-    if (requested > 0) return requested;
+    if (requested > 0) return std::min(requested, 256);
     const unsigned h = std::thread::hardware_concurrency();
-    return h == 0 ? 1 : static_cast<int>(h);
+    return h == 0 ? 1 : static_cast<int>(std::min(h, 256u));
 }
 
 Problem build_problem(const NuclearMotionInput& in, const IsotopologueData& iso, NuclearMotionResult& res) {
@@ -798,27 +1011,36 @@ Csr build_hamiltonian(const Problem& p, const NuclearMotionInput& in, const Isot
     Csr a;
     a.n = p.n;
     a.threads = threads;
-    const std::size_t per_row = static_cast<std::size_t>(2 * ns + np - 2 + (nb > 1 ? 2 * np : 0));
-    a.row.reserve(p.n + 1);
-    a.col.reserve(p.n * per_row);
-    a.val.reserve(p.n * per_row);
+    // 23.0: the length of every row is known (the K - 1 block, R1, R2, theta, the K + 1 block), so
+    // the row offsets come first and the rows are filled in parallel (22.0: one after the other)
+    a.row.resize(p.n + 1);
     a.diag_pos.resize(p.n);
     a.diag.resize(p.n);
-    a.row.push_back(0);
-    const double JJ = in.J * (in.J + 1.0);
+    a.row[0] = 0;
     for (int b = 0; b < nb; ++b) {
-        check_cancelled();
-        const int K = p.K[static_cast<std::size_t>(b)];
-        const Matrix& l2 = p.leg[static_cast<std::size_t>(b)].l2;
-        for (int i = 0; i < ns; ++i)
+        const std::size_t len = static_cast<std::size_t>((b > 0 ? np : 0) + 2 * (ns - 1) + np + (b + 1 < nb ? np : 0));
+        const std::size_t first = p.index(b, 0, 0, 0);
+        for (std::size_t r = first; r < first + p.nx; ++r) a.row[r + 1] = a.row[r] + len;
+    }
+    a.col.resize(a.row[p.n]);
+    a.val.resize(a.row[p.n]);
+    const double JJ = in.J * (in.J + 1.0);
+    run_parallel(threads, [&](int t) {
+        for (long long bi = t; bi < blocks; bi += threads) {
+            check_cancelled();
+            const int b = static_cast<int>(bi / ns), i = static_cast<int>(bi % ns);
+            const int K = p.K[static_cast<std::size_t>(b)];
+            const Matrix& l2 = p.leg[static_cast<std::size_t>(b)].l2;
             for (int j = 0; j < ns; ++j)
                 for (int l = 0; l < np; ++l) {
                     const std::size_t rowi = p.index(b, i, j, l);
                     const double ri = p.r1[static_cast<std::size_t>(i)];
                     const double rsum = ri + p.r2[static_cast<std::size_t>(j)];
+                    std::size_t pos = a.row[rowi];
                     auto push = [&](std::size_t c, double v) {
-                        a.col.push_back(static_cast<int>(c));
-                        a.val.push_back(v);
+                        a.col[pos] = static_cast<int>(c);
+                        a.val[pos] = v;
+                        ++pos;
                     };
                     if (b > 0) {  // K - 1: the transpose of the block (K - 1, K)
                         const Matrix& c = p.coriolis[static_cast<std::size_t>(b - 1)];
@@ -835,7 +1057,7 @@ Csr build_hamiltonian(const Problem& p, const NuclearMotionInput& in, const Isot
                             v += p.t1(static_cast<std::size_t>(i), static_cast<std::size_t>(i)) +
                                  p.t2(static_cast<std::size_t>(j), static_cast<std::size_t>(j)) + V[rowi];
                             if (in.J > 0) v += (JJ - 2.0 * K * K) * ri;
-                            a.diag_pos[rowi] = a.col.size();
+                            a.diag_pos[rowi] = pos;
                             a.diag[rowi] = v;
                         }
                         push(p.index(b, i, j, lv), v);
@@ -849,11 +1071,16 @@ Csr build_hamiltonian(const Problem& p, const NuclearMotionInput& in, const Isot
                         for (int lv = 0; lv < np; ++lv)
                             push(p.index(b + 1, i, j, lv), c(static_cast<std::size_t>(l), static_cast<std::size_t>(lv)) * ri);
                     }
-                    a.row.push_back(a.col.size());
+                    if (pos != a.row[rowi + 1]) throw std::logic_error("Hamiltonian: a row of unexpected length");
                 }
-    }
+        }
+    });
     for (double d : a.diag)
         if (!(d > 0.0)) throw std::runtime_error("the Hamiltonian has a diagonal element that is not positive");
+    if (parse_precond(in.preconditioner) == Precond::Ilu) {
+        report_progress_text("Level schedule of the ILU preconditioner");
+        a.build_schedules();
+    }
     return a;
 }
 
@@ -866,12 +1093,6 @@ std::vector<double> start_vector(std::size_t n, unsigned seed) {
     for (double& x : v) x = u(rng);
     scale(v, 1.0 / norm(v));
     return v;
-}
-
-// Gram-Schmidt of w against the columns `basis` (twice, for orthogonality to machine precision).
-void orthogonalize(std::vector<double>& w, const std::vector<std::vector<double>>& basis) {
-    for (int pass = 0; pass < 2; ++pass)
-        for (const auto& v : basis) axpy(-dot(w, v), v, w);
 }
 
 struct Eigenpairs {
@@ -1147,14 +1368,15 @@ Eigenpairs lanczos(Solver& sv) {
                 std::vector<double> e2(beta);
                 tridiagonal_eigen(alpha, e2, th, &s);
                 out.values.clear();
-                out.vectors.clear();
-                for (int k = 0; k < std::min(want, m); ++k) {
-                    const std::size_t col = static_cast<std::size_t>(m - 1 - k);
-                    std::vector<double> y(n, 0.0);
-                    for (int q = 0; q < m; ++q) axpy(s(static_cast<std::size_t>(q), col), V[static_cast<std::size_t>(q)], y);
+                // 23.0: all Ritz vectors in one parallel pass over the Lanczos vectors
+                const int nk = std::min(want, m);
+                out.vectors = combine(V, m, nk, [&](int q, int k) {
+                    return s(static_cast<std::size_t>(q), static_cast<std::size_t>(m - 1 - k));
+                });
+                for (int k = 0; k < nk; ++k) {
+                    std::vector<double>& y = out.vectors[static_cast<std::size_t>(k)];
                     scale(y, 1.0 / norm(y));
-                    out.values.push_back(1.0 / th[col]);
-                    out.vectors.push_back(std::move(y));
+                    out.values.push_back(1.0 / th[static_cast<std::size_t>(m - 1 - k)]);
                 }
                 out.residuals = residuals_of(sv, out.values, out.vectors);
                 int conv = 0;
@@ -1331,7 +1553,9 @@ Eigenpairs davidson(Solver& sv, bool jacobi_davidson) {
             m.apply(r, rh);
             const double uy = dot(u, y);
             const double mu = std::fabs(uy) > 0.0 ? dot(u, rh) / uy : 0.0;
-            for (std::size_t i = 0; i < n; ++i) t[i] = -(rh[i] - mu * y[i]);
+            for_chunks(n, [&](std::size_t lo, std::size_t hi, std::size_t) {
+                for (std::size_t i = lo; i < hi; ++i) t[i] = -(rh[i] - mu * y[i]);
+            });
             if (in.jd_inner_iterations > 0) {
                 std::vector<const std::vector<double>*> Q;
                 for (const auto& q : locked) Q.push_back(&q);
@@ -1391,13 +1615,11 @@ Eigenpairs davidson(Solver& sv, bool jacobi_davidson) {
             for (int j = 0; j < k; ++j) G(static_cast<std::size_t>(i), static_cast<std::size_t>(j)) = dot(V[static_cast<std::size_t>(i)], AV[static_cast<std::size_t>(j)]);
         const EigenResult ev = symmetric_eigen(G);
         out.values.clear();
-        out.vectors.clear();
-        for (int idx = 0; idx < std::min(want, k); ++idx) {
-            std::vector<double> x(n, 0.0);
-            for (int q = 0; q < k; ++q) axpy(ev.vectors(static_cast<std::size_t>(q), static_cast<std::size_t>(idx)), V[static_cast<std::size_t>(q)], x);
-            out.values.push_back(ev.values[static_cast<std::size_t>(idx)]);
-            out.vectors.push_back(std::move(x));
-        }
+        const int nk = std::min(want, k);
+        out.vectors = combine(V, k, nk, [&](int q, int idx) {
+            return ev.vectors(static_cast<std::size_t>(q), static_cast<std::size_t>(idx));
+        });
+        for (int idx = 0; idx < nk; ++idx) out.values.push_back(ev.values[static_cast<std::size_t>(idx)]);
         out.residuals = residuals_of(sv, out.values, out.vectors);
     }
     return out;
@@ -1824,17 +2046,20 @@ WavefunctionPlot wavefunction_plot(const Problem& p, const std::vector<double>& 
     return w;
 }
 
+// 23.0: the levels in parallel (each level on one thread: the same numbers as one after the other).
 void expectation_values(const Problem& p, const Eigenpairs& e, NuclearMotionResult& res, bool moments) {
-    res.levels.clear();
     const bool vectors = !e.vectors.empty();
-    for (std::size_t k = 0; k < e.values.size(); ++k) {
-        NuclearLevel lv;
+    const std::size_t count = e.values.size();
+    res.levels.assign(count, NuclearLevel{});
+    const int threads = vectors ? static_cast<int>(std::min<std::size_t>(static_cast<std::size_t>(tl_threads), count)) : 1;
+    std::atomic<std::size_t> next{0};
+    run_parallel(std::max(1, threads), [&](int) {
+    for (std::size_t k = next++; k < count; k = next++) {
+        check_cancelled();
+        NuclearLevel& lv = res.levels[k];
         lv.energy = e.values[k];
         lv.residual = k < e.residuals.size() ? e.residuals[k] : std::numeric_limits<double>::quiet_NaN();
-        if (!vectors) {
-            res.levels.push_back(lv);
-            continue;
-        }
+        if (!vectors) continue;
         const std::vector<double>& x = e.vectors[k];
         double nrm = 0.0;
         for (double c : x) nrm += c * c;
@@ -1879,8 +2104,8 @@ void expectation_values(const Problem& p, const Eigenpairs& e, NuclearMotionResu
         const std::size_t per_level = 2 * static_cast<std::size_t>(p.ns) * static_cast<std::size_t>(p.ns) +
                                       4 * static_cast<std::size_t>(p.ns) * static_cast<std::size_t>(p.np);
         if (k < 60 || (k + 1) * per_level <= 8000000) lv.plot = wavefunction_plot(p, x);
-        res.levels.push_back(lv);
     }
+    });
 }
 
 std::string solver_description(const NuclearMotionInput& in) {
@@ -1924,16 +2149,25 @@ MatrixPicture matrix_picture(const Csr& a, std::size_t first, std::size_t span, 
     std::vector<unsigned> count(nb * nb, 0);
     std::vector<float> largest(nb * nb, 0.0f);
     auto bin = [&](std::size_t k) { return k * nb / span; };
-    for (std::size_t r = first; r < first + span; ++r) {
-        const std::size_t br = bin(r - first);
-        for (std::size_t p = a.row[r]; p < a.row[r + 1]; ++p) {
-            const std::size_t c = static_cast<std::size_t>(a.col[p]);
-            if (c < first || c >= first + span || a.val[p] == 0.0) continue;
-            const std::size_t q = br * nb + bin(c - first);
-            ++count[q];
-            largest[q] = std::max(largest[q], static_cast<float>(std::fabs(a.val[p])));
+    // 23.0: in parallel over the rows of bins (thread t: the rows of the bins [nb·t/T, nb·(t+1)/T),
+    // which no other thread writes); the first row of bin B is ceil(B·span/nb)
+    const int threads = static_cast<int>(std::min<std::size_t>(static_cast<std::size_t>(vector_threads(span)), nb));
+    auto first_row_of_bin = [&](std::size_t bb) { return (bb * span + nb - 1) / nb; };
+    run_parallel(std::max(1, threads), [&](int t) {
+        const std::size_t tt = static_cast<std::size_t>(std::max(1, threads));
+        const std::size_t r0 = first_row_of_bin(nb * static_cast<std::size_t>(t) / tt);
+        const std::size_t r1 = first_row_of_bin(nb * static_cast<std::size_t>(t + 1) / tt);
+        for (std::size_t r = first + r0; r < first + r1; ++r) {
+            const std::size_t br = bin(r - first);
+            for (std::size_t p = a.row[r]; p < a.row[r + 1]; ++p) {
+                const std::size_t c = static_cast<std::size_t>(a.col[p]);
+                if (c < first || c >= first + span || a.val[p] == 0.0) continue;
+                const std::size_t q = br * nb + bin(c - first);
+                ++count[q];
+                largest[q] = std::max(largest[q], static_cast<float>(std::fabs(a.val[p])));
+            }
         }
-    }
+    });
     // elements of each bin row/column: the k with bin(k) = b
     std::vector<std::size_t> width(nb, 0);
     for (std::size_t k = 0; k < span; ++k) ++width[bin(k)];
@@ -2108,6 +2342,7 @@ NuclearMotionResult run_nuclear_motion(const NuclearMotionInput& in, const Nucle
     res.minimum_angle = iso.amin * kPi / 180.0;
     res.solver_description = solver_description(in);
     const int threads = thread_count(in.threads);
+    const VectorThreads vector_threads_scope(threads);  // 23.0: the vector operations on all threads
     std::ostringstream os;
     const bool radau = in.coordinates == "radau";
 

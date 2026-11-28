@@ -690,6 +690,54 @@ int main() {
               "22.0: the error banner");
     }
 
+    // ---- 23.0: the parallel code (thread pool, vector operations summed per chunk, the ILU sweeps
+    //         by levels, classical Gram-Schmidt twice, the Ritz vectors in one pass, the matrix
+    //         pictures and the expectation values) gives the same bits on 1 and on 4 threads, for a
+    //         matrix large enough for every parallel path (70 304 rows, J = 4, K = 1 ... 4)
+    {
+        NuclearMotionInput in;
+        in.J = 4;
+        in.parity_block = 1;
+        in.radial_points = 26;
+        in.angular_points = 26;
+        in.coordinates = "radau";
+        in.levels = 2;
+        in.max_iterations = 10;  // not converged: only the bits are compared
+        in.gaussian_start = true;
+        auto run = [&](int threads, const std::string& solver, const std::string& linear, const std::string& precond) {
+            NuclearMotionInput q = in;
+            q.threads = threads;
+            q.eigensolver = solver;
+            q.linear_solver = linear;
+            q.preconditioner = precond;
+            if (solver != "lanczos") q.max_iterations = 4;
+            return run_nuclear_motion(q);
+        };
+        struct Case {
+            const char* solver;
+            const char* linear;
+            const char* precond;
+        };
+        for (const Case& c : {Case{"lanczos", "pcg", "ilu"}, Case{"jacobi-davidson", "minres", "ilu"}}) {
+            const NuclearMotionResult a = run(1, c.solver, c.linear, c.precond);
+            const NuclearMotionResult b = run(4, c.solver, c.linear, c.precond);
+            const std::string what = std::string("23.0: ") + c.solver + "/" + c.linear + "/" + c.precond + ", 1 and 4 threads: ";
+            check(a.dimension == 70304 && b.dimension == 70304, what + "70 304 basis functions");
+            check(a.linear_iterations == b.linear_iterations && a.linear_iterations > 0, what + "the same linear-solver iterations");
+            bool same = a.levels.size() == b.levels.size() && a.levels.size() == 2;
+            for (std::size_t k = 0; same && k < a.levels.size(); ++k) {
+                const NuclearLevel &x = a.levels[k], &y = b.levels[k];
+                same = x.energy == y.energy && x.residual == y.residual && x.r1.mean == y.r1.mean && x.r2.inverse3 == y.r2.inverse3 &&
+                       x.theta == y.theta && x.k_weights == y.k_weights && x.plot.psi_r1r2 == y.plot.psi_r1r2;
+            }
+            check(same, what + "the same bits (energies, residuals, expectation values, pictures)");
+            check(a.vectors.size() == b.vectors.size() && !a.vectors.empty() && a.vectors.front() == b.vectors.front(),
+                  what + "the same eigenvectors");
+            check(a.matrix_whole.density == b.matrix_whole.density && a.matrix_whole.magnitude == b.matrix_whole.magnitude,
+                  what + "the same matrix pictures");
+        }
+    }
+
     std::printf("%d checks, %d failures\n", g_checks, g_failures);
     return g_failures == 0 ? 0 : 1;
 }

@@ -1024,6 +1024,31 @@ sleep 10
 view_tab "d3-h2o-optimisation-labels-light" "Optimisation"
 print_shot "d3-h2o-optimisation-labels-light"
 
+# --- ΨLab 23.0: the nuclear-motion startup example (H2(16)O, J = 10, ns1 = np = 50, 100 levels) in
+# every tab, the one-line headers of the Geometry tab, the square R1-theta map, and a new tab with
+# its own calculation (File > New Tab) ---
+echo "== 23.0: launch without arguments, the nuclear-motion interface: the startup example"
+relaunch -appearanceChoice light
+sleep 10
+view_tab "h1-nuclear-example-levels" "Nuclear-Motion Calculation"
+print_shot "h1-nuclear-example-levels"
+grep -E "5931\.37|J = 10" "$OUT/h1-nuclear-example-levels.txt" | head -3 || true
+grep -E "5931\.37" "$OUT/h1-nuclear-example-levels.txt" > /dev/null && echo "nuclear example: E1 5931.37 cm-1 found" || echo "nuclear example: E1 5931.37 cm-1 NOT found"
+view_tab "h2-nuclear-example-geometry" "Averaged Geometry"
+print_shot "h2-nuclear-example-geometry"
+view_tab "h3-nuclear-example-matrix" "Matrix Structure"
+view_tab "h4-nuclear-example-eigenvectors" "Eigenvectors"
+print_shot "h4-nuclear-example-eigenvectors"
+dump_tab "h5-nuclear-example-r1-theta" "R₁ – θ"
+print_shot "h5-nuclear-example-r1-theta"
+view_tab "h6-nuclear-example-convergence" "Convergence"
+view_tab "h7-nuclear-example-output" "Nuclear-Motion Output"
+echo "== 23.0: File > New Tab: a second calculation (the electronic-structure example) in a tab"
+with_timeout 20 osascript "$OUT/file-menu.applescript" "New Tab" || echo "could not open a new tab"
+sleep 10
+dump_tab "h8-new-tab" ""
+print_shot "h8-new-tab"
+grep -E "Electronic structure" "$OUT/h8-new-tab.txt" > /dev/null && echo "new tab: electronic-structure interface" || echo "new tab: electronic-structure text NOT found"
 
 # 20.0/21.0: the screenshots of the 20.0 and 21.0 sections once more at the end of the log (the job
 # log read through the API is its last part only; the sections run first)

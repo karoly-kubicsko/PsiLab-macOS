@@ -87,7 +87,7 @@ final class AppModel {
     /// Electronic structure or nuclear motion: the switch at the top of the sidebar; the nuclear-
     /// motion calculation has its own sidebar, tabs and model (NuclearModel).
     var calculation: CalculationKind = .electronic
-    let nuclear = NuclearModel()
+    let nuclear: NuclearModel
 
     // MARK: Sidebar inputs
 
@@ -419,7 +419,56 @@ final class AppModel {
 
     // MARK: Start-up
 
-    init() {
+    /// 23.0: one model per window and per tab of a window (MacQCApp). The first model takes the
+    /// launch arguments of ΨLab (the UI test's -psilab…); every later window or tab opens with the
+    /// startup examples (H₂ in the electronic-structure interface, H₂¹⁶O with J = 10 in the
+    /// nuclear-motion interface), as the app does without launch arguments.
+    private static var launchArgumentsTaken = false
+
+    /// 23.0: the models of all open windows and tabs (weak), so that the kept molecules (one file,
+    /// Molecules.json) are the same in every molecule menu: a model that saves the list hands it to
+    /// the others, so that a later save in another window does not drop it.
+    private struct WeakModel {
+        weak var model: AppModel?
+    }
+    private static var liveModels: [WeakModel] = []
+
+    /// 23.0: the model of the menu commands while no ΨLab window is focused (they are disabled
+    /// then; it is never shown and reads no example).
+    static let placeholder = AppModel(placeholder: true)
+
+    convenience init() {
+        self.init(placeholder: false)
+    }
+
+    init(placeholder: Bool) {
+        let first = !placeholder && !AppModel.launchArgumentsTaken
+        if first { AppModel.launchArgumentsTaken = true }
+        nuclear = NuclearModel(launchArguments: first)
+        guard !placeholder else { return }
+        AppModel.liveModels.removeAll { $0.model == nil }
+        AppModel.liveModels.append(WeakModel(model: self))
+        if first { applyLaunchArguments() }
+        // 17.0: without launch arguments of ΨLab the app opens with the results of H₂,
+        // Full CI/aug-cc-pCV5Z//Full CI/aug-cc-pCVQZ (opt+freq+sp), read from the bundled output file.
+        if !first || !AppModel.hasPsiLabLaunchArguments {
+            showStartupExample()
+            // 23.0: the nuclear-motion interface with the results of its example (H₂¹⁶O, J = 10)
+            nuclear.showStartupExample()
+        }
+    }
+
+    /// 23.0: the kept molecules saved by `source`: the same list in the menus of the other windows.
+    static func moleculesSaved(_ list: [SavedMolecule], by source: AppModel) {
+        liveModels.removeAll { $0.model == nil }
+        for w in liveModels {
+            guard let m = w.model, m !== source else { continue }
+            m.savedMolecules = list
+        }
+    }
+
+    /// The launch arguments of ΨLab (the first window only, 23.0).
+    private func applyLaunchArguments() {
         // Launch arguments (also used by the UI test): -psilabMolecule H2O -psilabBasis aug-cc-pVTZ
         // -psilabMethod FCI (or HF, CCSD, CCSD(T), CCSDT, CCSDTQ)
         let defaults = UserDefaults.standard
@@ -550,11 +599,6 @@ final class AppModel {
         // 17.0: -psilabSzaboOstlund YES: HeH⁺ in STO-nG as the Szabo–Ostlund calculation (off by default)
         if defaults.object(forKey: "psilabSzaboOstlund") != nil {
             hehSzaboOstlund = defaults.bool(forKey: "psilabSzaboOstlund")
-        }
-        // 17.0: without launch arguments of ΨLab the app opens with the results of H₂,
-        // Full CI/aug-cc-pCV5Z//Full CI/aug-cc-pCVQZ (opt+freq+sp), read from the bundled output file.
-        if !AppModel.hasPsiLabLaunchArguments {
-            showStartupExample()
         }
     }
 

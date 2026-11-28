@@ -27,6 +27,21 @@ private enum WavePlane: String, CaseIterable, Identifiable {
     }
 }
 
+/// 23.0: the size of the heat maps of the R₁ – θ and R₂ – θ planes. `.square` (23.0, the default): as
+/// large as the R₁ – R₂ map (at least 560 pt high) with square cells, i.e. a horizontal step of the
+/// grid as long as a vertical one (the plot area's width : height = R points : θ points; a square
+/// for ns1 = np). `.v22`: the size of 22.0, kept for an undo: as wide as the panel, at least
+/// 380 pt high (the cells stretched sideways). Chosen with the context menu of the map (Plot Size)
+/// or `defaults write org.psilab.PsiLab eigenvectorPlotLayout v22`.
+enum EigenvectorPlotLayout: String, CaseIterable, Identifiable {
+    case square, v22
+    static let storageKey = "eigenvectorPlotLayout"
+    var id: String { rawValue }
+    var title: String { self == .square ? "Square Cells, as Large as R₁ – R₂ (23.0)" : "Panel Width, 380 pt High (22.0)" }
+    /// the minimum height of the map of a plane (R₁ – R₂: 560 pt in both layouts, as in 22.0)
+    func minHeight(equalUnits: Bool) -> CGFloat { equalUnits || self == .square ? 560 : 380 }
+}
+
 private enum WaveQuantity: String, CaseIterable, Identifiable {
     case psi, density
     var id: String { rawValue }
@@ -46,6 +61,8 @@ private struct WaveField {
     var marker: (x: Double, y: Double)?
     /// 22.0: both axes in the same unit (R₁ – R₂, Å): one Å as long on both (a square for equal ranges)
     var equalUnits = false
+    /// 23.0: square cells (R – θ planes in the layout `.square`): width : height = xs.count : ys.count
+    var squareCells = false
 
     func value(_ ix: Int, _ iy: Int) -> Double { values[ix * ys.count + iy] }
 
@@ -75,7 +92,10 @@ struct NuclearEigenvectorView: View {
     @State private var plane: WavePlane = .r1r2
     @State private var quantity: WaveQuantity = .psi
     @State private var hover = ""
+    @AppStorage(EigenvectorPlotLayout.storageKey) private var layoutRaw = EigenvectorPlotLayout.square.rawValue
     @Environment(\.colorScheme) private var colorScheme
+
+    private var layout: EigenvectorPlotLayout { EigenvectorPlotLayout(rawValue: layoutRaw) ?? .square }
 
     var body: some View {
         if let r = model.result, !r.levels.isEmpty {
@@ -108,8 +128,13 @@ struct NuclearEigenvectorView: View {
                     let field = makeField(r, w)
                     HStack(alignment: .top, spacing: 18) {
                         heatmap(field)
-                            .frame(minWidth: 360, minHeight: field.equalUnits ? 560 : 380)
+                            .frame(minWidth: 360, minHeight: layout.minHeight(equalUnits: field.equalUnits))
                             .dataPanel()
+                            .contextMenu {
+                                Picker("Plot Size of R₁ – θ and R₂ – θ", selection: $layoutRaw) {
+                                    ForEach(EigenvectorPlotLayout.allCases) { l in Text(l.title).tag(l.rawValue) }
+                                }
+                            }
                         info(r, k, w, field)
                             .frame(width: 250, alignment: .leading)
                             .dataPanel()
@@ -211,7 +236,8 @@ struct NuclearEigenvectorView: View {
             valueLabel = plane == .r1r2 ? "ρ (Å⁻²)" : "ρ (Å⁻¹ deg⁻¹)"
         }
         return WaveField(xs: xs, ys: ys, values: values, xLabel: xLabel, yLabel: yLabel, valueLabel: valueLabel,
-                         diverging: psi, scale: scale > 0 ? scale : 1, marker: marker, equalUnits: plane == .r1r2)
+                         diverging: psi, scale: scale > 0 ? scale : 1, marker: marker, equalUnits: plane == .r1r2,
+                         squareCells: plane != .r1r2 && layout == .square)
     }
 
     // MARK: Colours (diverging blue – gray – red for ψ; one blue ramp for ρ)
@@ -248,8 +274,17 @@ struct NuclearEigenvectorView: View {
         let yDomain = (ye.map(\.0).min() ?? 0)...(ye.map(\.1).max() ?? 1)
         // 22.0: R₁ – R₂: the plot area as wide as high per Å (21.0 stretched it to the panel's width,
         // so 0.2 Å was longer across than up)
+        // 23.0: R – θ: square cells (a horizontal step of the grid as long as a vertical one), the
+        // map as large as that of R₁ – R₂ for ns1 = np (EigenvectorPlotLayout; 22.0: the panel's width)
         let xSpan = xDomain.upperBound - xDomain.lowerBound, ySpan = yDomain.upperBound - yDomain.lowerBound
-        let aspect: CGFloat? = f.equalUnits && xSpan > 0 && ySpan > 0 ? CGFloat(xSpan / ySpan) : nil
+        let aspect: CGFloat?
+        if f.equalUnits && xSpan > 0 && ySpan > 0 {
+            aspect = CGFloat(xSpan / ySpan)
+        } else if f.squareCells && !f.xs.isEmpty && !f.ys.isEmpty {
+            aspect = CGFloat(f.xs.count) / CGFloat(f.ys.count)
+        } else {
+            aspect = nil
+        }
         return VStack(alignment: .leading, spacing: 8) {
             Chart {
                 // invisible corners: the axes; the cells are drawn below the plot

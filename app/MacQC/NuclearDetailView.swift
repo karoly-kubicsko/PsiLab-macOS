@@ -75,6 +75,10 @@ struct NuclearPlaceholder: View {
             if model.isRunning {
                 ProgressView(model.progressLine.isEmpty ? "Running…" : model.progressLine)
                     .frame(maxWidth: 560)
+            } else if model.loadingExample {
+                // 23.0: the startup example (H₂¹⁶O, J = 10) is read from the app's resources
+                ProgressView("Reading the example: H₂¹⁶O, J = 10, ns1 = np = 50, 100 levels…")
+                    .frame(maxWidth: 560)
             } else {
                 ContentUnavailableView(
                     "No energy levels yet",
@@ -248,6 +252,9 @@ struct NuclearExpectationView: View {
     /// 21.0: the table in a larger type (Task: the values were hard to read).
     private static let valueFont = Font.system(size: 15).monospacedDigit()
     private static let headerFont = Font.system(size: 13, weight: .semibold)
+    /// 23.0: the headers of the expectation values: the quantity and its unit on one line, with
+    /// real superscripts (LaTeX), in the size of the values (22.0: 13 pt on two lines)
+    private static let momentHeaderSize: CGFloat = 15
 
     /// 22.0: a table across the whole width of the window (its columns share the free width);
     /// in a window too narrow for it, at its own width with a horizontal scroll bar.
@@ -301,25 +308,34 @@ struct NuclearExpectationView: View {
             .frame(maxWidth: .infinity, alignment: .trailing)
     }
 
+    /// 23.0: a header of the moments table, e.g. "⟨r^{-2}⟩^{-1/2} (Å)", on one line.
+    private func header(_ latex: String) -> some View {
+        LaTeXText(latex, size: Self.momentHeaderSize, weight: .semibold)
+            .lineLimit(1)
+            .fixedSize()
+            .frame(maxWidth: .infinity, alignment: .trailing)
+    }
+
     private func momentsTable(_ r: NuclearResult) -> some View {
         let a = NuclearUnits.bohrToAngstrom
         func f(_ x: Double) -> String { String(format: "%.5f", x * a) }
-        // the quantity and its unit on two lines; 22.0: the seven value columns share the width of
-        // the window (21.0: a narrow table at the left), n and the bond as wide as their text
-        return Grid(alignment: .trailing, horizontalSpacing: 16, verticalSpacing: 9) {
+        // 23.0: the quantity and its unit on one line, 15 pt with superscripts (22.0: 13 pt, two
+        // lines); 22.0: the seven value columns share the width of the window, n and the bond as
+        // wide as their text; 12-pt column gaps (the 21.0 table fitted next to the sidebar with them)
+        return Grid(alignment: .trailing, horizontalSpacing: 12, verticalSpacing: 9) {
             GridRow {
                 Text("n")
+                    .font(.system(size: Self.momentHeaderSize, weight: .semibold))
                 Text("bond")
-                cell("⟨r⟩\n(Å)")
-                cell("⟨r²⟩^½\n(Å)")
-                cell("⟨r³⟩^⅓\n(Å)")
-                cell("⟨r⁻¹⟩⁻¹\n(Å)")
-                cell("⟨r⁻²⟩^−½\n(Å)")
-                cell("⟨r⁻³⟩^−⅓\n(Å)")
-                cell("⟨HOH⟩\n(°)")
+                    .font(.system(size: Self.momentHeaderSize, weight: .semibold))
+                header("⟨r⟩ (Å)")
+                header("⟨r^{2}⟩^{1/2} (Å)")
+                header("⟨r^{3}⟩^{1/3} (Å)")
+                header("⟨r^{−1}⟩^{−1} (Å)")
+                header("⟨r^{−2}⟩^{−1/2} (Å)")
+                header("⟨r^{−3}⟩^{−1/3} (Å)")
+                header("⟨HOH⟩ (°)")
             }
-            .font(Self.headerFont)
-            .multilineTextAlignment(.trailing)
             .foregroundStyle(.secondary)
             Divider()
             ForEach(Array(r.levels.enumerated()), id: \.offset) { k, l in

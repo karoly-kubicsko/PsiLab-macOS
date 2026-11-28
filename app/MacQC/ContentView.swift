@@ -35,7 +35,9 @@ struct ContentView: View {
                 NuclearDetailView(model: model.nuclear)
             }
         }
-        .navigationTitle("ΨLab")
+        // 23.0: the kind of calculation in the title, which is the label of the window's tab
+        // (View ▸ Show Tab Bar: one tab can show each kind)
+        .navigationTitle("ΨLab · " + model.calculation.title)
         .background(WindowFitter())
         .preferredColorScheme((AppearanceChoice(rawValue: appearanceRaw) ?? .system).colorScheme)
         .task {

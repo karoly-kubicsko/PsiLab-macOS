@@ -368,7 +368,7 @@ std::string validate_molecular(const MolecularInput& in) {
     }
     if (m == "NH3" && !(std::isfinite(in.angle) && in.angle >= 60.0 && in.angle <= 120.0))
         return "the H–N–H angle must be between 60 and 120 degrees (120: planar)";
-    if (in.threads < 0 || in.threads > 64) return "threads must be between 0 (automatic) and 64";
+    if (in.threads < 0 || in.threads > 256) return "threads must be between 0 (automatic) and 256";
     if (!std::isfinite(in.memory_mb) || in.memory_mb < 0.0) return "memoryMB must be >= 0";
     if (in.max_iter < 1 || in.max_iter > 1000) return "scfMaxIter must be between 1 and 1000";
     if (!(in.energy_tol > 0.0) || !(in.gradient_tol > 0.0)) return "SCF convergence thresholds must be positive";

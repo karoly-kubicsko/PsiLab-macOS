@@ -423,9 +423,13 @@ final class NuclearModel {
     var showExportSheet = false        // 21.0: File ▸ Export Eigenvalues and Eigenvectors…
     /// 22.0: the result shown is that of an output file (File ▸ Open Output File…), not of a run.
     var openedFile: OpenedOutputFile?
+    /// 23.0: the startup example is being read (NuclearPlaceholder says so).
+    var loadingExample = false
     @ObservationIgnored private var runningJob: MacQCJob?
 
-    init() {
+    /// `launchArguments`: take the UI test's launch arguments (23.0: the first window only).
+    init(launchArguments: Bool = true) {
+        guard launchArguments else { return }
         // launch arguments of the UI test: -psilabNuclearNs1 8 -psilabNuclearNp 10 -psilabNuclearJmax 0 …
         let d = UserDefaults.standard
         if d.object(forKey: "psilabNuclearNs1") != nil { input.radialPoints = max(2, d.integer(forKey: "psilabNuclearNs1")) }
@@ -526,6 +530,54 @@ final class NuclearModel {
         lastRunInput = r.input
         openedFile = file
         selectedTab = .levels
+    }
+
+    // MARK: 23.0: the startup example
+
+    /// The output file of the startup example in the app's resources (examples/outputs): H₂¹⁶O on
+    /// the CVRQD surface, J = 10 with the block K = 1 … 10, Radau coordinates, ns1 = np = 50
+    /// (1 250 000 basis functions), the 100 lowest levels with their eigenvectors and expectation
+    /// values by shift-invert Lánczos (conjugate gradients, ILU, the Gaussian start vector);
+    /// 10 h 01 min on 12 threads with ΨLab 22.0.
+    static let startupExampleName = "h216o-j10-radau-ns1-50-np-50"
+
+    /// The example read once per launch (8.6 MB of text, decoded off the main thread) and shared by
+    /// the models of all windows and tabs.
+    private static var exampleTask: Task<(result: NuclearResult, text: String, header: ArchiveHeader?)?, Never>?
+
+    /// The result, the text and the archive header of the startup example, nil if it cannot be read.
+    nonisolated static func readExample(_ url: URL) -> (result: NuclearResult, text: String, header: ArchiveHeader?)? {
+        guard let text = try? String(contentsOf: url, encoding: .utf8),
+              let json = OutputArchive.json(in: text),
+              let r = try? JSONDecoder().decode(NuclearResult.self, from: Data(json.utf8)) else { return nil }
+        let header = try? JSONDecoder().decode(ArchiveHeader.self, from: Data(json.utf8))
+        return (r, text, header)
+    }
+
+    /// 23.0: the nuclear-motion interface opens with the results of the startup example in every
+    /// tab (Levels, Geometry, Matrix, Eigenvectors, Convergence, Output) and its inputs in the
+    /// sidebar, so that Run repeats it (as the H₂ example of the electronic-structure interface,
+    /// 17.0). Nothing is replaced if a result is shown or a calculation runs in the meantime.
+    func showStartupExample() {
+        guard result == nil,
+              let url = Bundle.main.url(forResource: Self.startupExampleName, withExtension: "out") else { return }
+        if Self.exampleTask == nil {
+            Self.exampleTask = Task.detached(priority: .userInitiated) { NuclearModel.readExample(url) }
+        }
+        guard let task = Self.exampleTask else { return }
+        loadingExample = true
+        Task { [weak self] in
+            let loaded = await task.value
+            guard let self else { return }
+            self.loadingExample = false
+            guard let loaded, self.result == nil, !self.isRunning else { return }
+            if let i = loaded.result.input { self.input = i }
+            self.showOpenedResult(loaded.result, text: loaded.text,
+                                  file: OpenedOutputFile(name: url.lastPathComponent,
+                                                         program: loaded.header?.archive?.program ?? "",
+                                                         written: loaded.header?.archive?.written ?? "",
+                                                         example: true))
+        }
     }
 
     /// File ▸ Export Results as Text…: the output file of the last calculation.
