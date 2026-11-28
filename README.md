@@ -19,11 +19,11 @@ Coupled Cluster (CCSD … CCSDTQ):
   and cc-pCVXZ), the minimal STO-1G, STO-2G and STO-3G (15.0) and (14.0) the Pople sets
   6-31G … 6-31++G** (Cartesian d functions, 6D, as in Gaussian) and 6-311G … 6-311++G(3df,3pd) and
   the Karlsruhe sets def2-SVP … def2-QZVPPD for every element the Basis Set Exchange defines them
-  for, with the **effective core potentials** of the def2 sets beyond Kr, with the methods **HF, CCSD, CCSD(T), CCSDT, CCSDTQ and Full CI** (all electrons correlated):
-  RHF and CCSD(T) for all of them, CCSDT and CCSDTQ where they fit into memory, Full CI where it
+  for, with the **effective core potentials** of the def2 sets beyond Kr, with the methods **HF, CCSD, CCSD(T), CCSDT, CCSDTQ and Full-CI** (all electrons correlated):
+  RHF and CCSD(T) for all of them, CCSDT and CCSDTQ where they fit into memory, Full-CI where it
   is feasible (H₂, HeH⁺, LiH). Before a calculation ΨLab shows its size (basis functions,
   two-electron integrals, amplitudes, determinants), memory and estimated time; it warns about
-  long calculations and refuses impossible ones with an explanation (e.g. Full CI for H₂O:
+  long calculations and refuses impossible ones with an explanation (e.g. Full-CI for H₂O:
   5.6·10¹¹ determinants already in aug-cc-pVDZ).
 - **HeH⁺** also in a minimal STO-nG basis (n = 1, 2, 3), the Szabo–Ostlund calculation:
   Hartree–Fock identical to the book's program, Full CI with all states and their spin.
