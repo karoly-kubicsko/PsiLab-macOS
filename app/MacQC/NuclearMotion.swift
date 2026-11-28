@@ -423,9 +423,13 @@ final class NuclearModel {
     var showExportSheet = false        // 21.0: File ▸ Export Eigenvalues and Eigenvectors…
     /// 22.0: the result shown is that of an output file (File ▸ Open Output File…), not of a run.
     var openedFile: OpenedOutputFile?
+    /// 23.0: the startup example is being read (NuclearPlaceholder says so).
+    var loadingExample = false
     @ObservationIgnored private var runningJob: MacQCJob?
 
-    init() {
+    /// `launchArguments`: take the UI test's launch arguments (23.0: the first window only).
+    init(launchArguments: Bool = true) {
+        guard launchArguments else { return }
         // launch arguments of the UI test: -psilabNuclearNs1 8 -psilabNuclearNp 10 -psilabNuclearJmax 0 …
         let d = UserDefaults.standard
         if d.object(forKey: "psilabNuclearNs1") != nil { input.radialPoints = max(2, d.integer(forKey: "psilabNuclearNs1")) }
@@ -528,6 +532,54 @@ final class NuclearModel {
         selectedTab = .levels
     }
 
+    // MARK: 23.0: the startup example
+
+    /// The output file of the startup example in the app's resources (examples/outputs): H₂¹⁶O on
+    /// the CVRQD surface, J = 10 with the block K = 1 … 10, Radau coordinates, ns1 = np = 50
+    /// (1 250 000 basis functions), the 100 lowest levels with their eigenvectors and expectation
+    /// values by shift-invert Lánczos (conjugate gradients, ILU, the Gaussian start vector);
+    /// 10 h 01 min on 12 threads with ΨLab 22.0.
+    static let startupExampleName = "h216o-j10-radau-ns1-50-np-50"
+
+    /// The example read once per launch (8.6 MB of text, decoded off the main thread) and shared by
+    /// the models of all windows and tabs.
+    private static var exampleTask: Task<(result: NuclearResult, text: String, header: ArchiveHeader?)?, Never>?
+
+    /// The result, the text and the archive header of the startup example, nil if it cannot be read.
+    nonisolated static func readExample(_ url: URL) -> (result: NuclearResult, text: String, header: ArchiveHeader?)? {
+        guard let text = try? String(contentsOf: url, encoding: .utf8),
+              let json = OutputArchive.json(in: text),
+              let r = try? JSONDecoder().decode(NuclearResult.self, from: Data(json.utf8)) else { return nil }
+        let header = try? JSONDecoder().decode(ArchiveHeader.self, from: Data(json.utf8))
+        return (r, text, header)
+    }
+
+    /// 23.0: the nuclear-motion interface opens with the results of the startup example in every
+    /// tab (Levels, Geometry, Matrix, Eigenvectors, Convergence, Output) and its inputs in the
+    /// sidebar, so that Run repeats it (as the H₂ example of the electronic-structure interface,
+    /// 17.0). Nothing is replaced if a result is shown or a calculation runs in the meantime.
+    func showStartupExample() {
+        guard result == nil,
+              let url = Bundle.main.url(forResource: Self.startupExampleName, withExtension: "out") else { return }
+        if Self.exampleTask == nil {
+            Self.exampleTask = Task.detached(priority: .userInitiated) { NuclearModel.readExample(url) }
+        }
+        guard let task = Self.exampleTask else { return }
+        loadingExample = true
+        Task { [weak self] in
+            let loaded = await task.value
+            guard let self else { return }
+            self.loadingExample = false
+            guard let loaded, self.result == nil, !self.isRunning else { return }
+            if let i = loaded.result.input { self.input = i }
+            self.showOpenedResult(loaded.result, text: loaded.text,
+                                  file: OpenedOutputFile(name: url.lastPathComponent,
+                                                         program: loaded.header?.archive?.program ?? "",
+                                                         written: loaded.header?.archive?.written ?? "",
+                                                         example: true))
+        }
+    }
+
     /// File ▸ Export Results as Text…: the output file of the last calculation.
     func exportText() {
         guard let text = result?.output, !text.isEmpty else { return }
@@ -544,6 +596,54 @@ final class NuclearModel {
         } catch {
             errorMessage = "The file could not be saved: \(error.localizedDescription)"
         }
+    }
+
+    /// 23.0: File ▸ Export Results as JSON… in the nuclear-motion interface: the complete result as
+    /// JSON — the archive of its output file (format 1, `"archive": {"kind": "nuclear-motion"}`:
+    /// levels, expectation values, K weights, eigenvector and matrix pictures, the eigensolver's
+    /// history, the linear solves, the grids and the input), so that File ▸ Open Output File…
+    /// shows it again in every tab. Without an archive in the output text (not expected) the result
+    /// as the app holds it, with the same "archive" header.
+    func exportJSON() {
+        guard let r = result else { return }
+        guard let json = jsonExportText(r) else {
+            errorMessage = "The results could not be written as JSON."
+            return
+        }
+        let panel = NSSavePanel()
+        panel.title = "Export Results as JSON"
+        panel.allowedContentTypes = [UTType.json]
+        panel.canCreateDirectories = true
+        let i = r.input ?? input
+        let name = i.isotopologue.rawValue.replacingOccurrences(of: "(", with: "").replacingOccurrences(of: ")", with: "")
+        panel.nameFieldStringValue = "PsiLab-\(name)-J\(i.J)-\(i.coordinates.rawValue)-ns1-\(i.radialPoints)-np-\(i.angularPoints).json"
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        do {
+            try json.write(to: url, atomically: true, encoding: .utf8)
+        } catch {
+            errorMessage = "The file could not be saved: \(error.localizedDescription)"
+        }
+    }
+
+    /// The JSON of File ▸ Export Results as JSON… (see exportJSON).
+    func jsonExportText(_ r: NuclearResult) -> String? {
+        if let text = r.output, let archive = OutputArchive.json(in: text), archive.hasPrefix("{") {
+            return archive + "\n"
+        }
+        var copy = r
+        copy.output = nil
+        copy.exportId = nil
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
+        guard let data = try? encoder.encode(copy), let body = String(data: data, encoding: .utf8),
+              body.hasPrefix("{") else { return nil }
+        let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? ""
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.dateFormat = "yyyy-MM-dd HH:mm:ss"
+        let header = "\"archive\":{\"format\":1,\"kind\":\"nuclear-motion\",\"program\":\"ΨLab \(version) (app)\",\"written\":\"\(formatter.string(from: Date()))\"}"
+        let rest = String(body.dropFirst())
+        return "{" + header + (rest == "}" ? "" : ",") + rest + "\n"
     }
 
     /// 21.0: what the last result can export.

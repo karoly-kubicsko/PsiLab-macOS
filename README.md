@@ -1,10 +1,17 @@
-# ΨLab — a native macOS quantum-chemistry app
+# ΨLab — a native macOS quantum-chemistry app: electronic structure and nuclear motion
 
-**Current version: 22.0** — see [Versions](#versions).
+**Current version: 23.0** — see [Versions](#versions).
 
-ΨLab computes small molecules — closed and (15.0) open shells, with RHF, UHF and ROHF references —
-with Hartree–Fock, Møller–Plesset perturbation theory (MP2–MP5), configuration interaction (CISD …
-CISDTQ, spin-adapted Full CI), quadratic CI (QCISD … QCISDTQ) and coupled cluster (CCSD … CCSDTQ):
+ΨLab does two kinds of calculation, chosen at the top of the sidebar (23.0: one in each window or
+tab): the **electronic structure** of small molecules and (20.0) the **nuclear motion** of water —
+the vibrational and rovibrational energy levels of H₂¹⁶O, H₂¹⁷O, H₂¹⁸O and D₂¹⁶O on the CVRQD
+potential energy surfaces (discrete variable representation in Jacobi or Radau coordinates,
+shift-invert Lánczos, Davidson and other eigensolvers; see below).
+
+For the electronic structure, ΨLab computes small molecules — closed and (15.0) open shells, with
+RHF, UHF and ROHF references — with Hartree–Fock, Møller–Plesset perturbation theory (MP2–MP5),
+Configuration Interaction (CISD … CISDTQ, spin-adapted Full-CI), quadratic CI (QCISD … QCISDTQ) and
+Coupled Cluster (CCSD … CCSDTQ):
 
 - **H₂, LiH, H₂O, H₂O₂, NH₃ and HeH⁺** (and custom molecules of H–Rn and Th–Lr) in 44 Gaussian
   basis sets from basissetexchange.org: the correlation-consistent sets cc-pVXZ, aug-cc-pVXZ,
@@ -12,14 +19,14 @@ CISDTQ, spin-adapted Full CI), quadratic CI (QCISD … QCISDTQ) and coupled clus
   and cc-pCVXZ), the minimal STO-1G, STO-2G and STO-3G (15.0) and (14.0) the Pople sets
   6-31G … 6-31++G** (Cartesian d functions, 6D, as in Gaussian) and 6-311G … 6-311++G(3df,3pd) and
   the Karlsruhe sets def2-SVP … def2-QZVPPD for every element the Basis Set Exchange defines them
-  for, with the **effective core potentials** of the def2 sets beyond Kr, with the methods **HF, CCSD, CCSD(T), CCSDT, CCSDTQ and Full CI** (all electrons correlated):
-  RHF and CCSD(T) for all of them, CCSDT and CCSDTQ where they fit into memory, Full CI where it
+  for, with the **effective core potentials** of the def2 sets beyond Kr, with the methods **HF, CCSD, CCSD(T), CCSDT, CCSDTQ and Full-CI** (all electrons correlated):
+  RHF and CCSD(T) for all of them, CCSDT and CCSDTQ where they fit into memory, Full-CI where it
   is feasible (H₂, HeH⁺, LiH). Before a calculation ΨLab shows its size (basis functions,
   two-electron integrals, amplitudes, determinants), memory and estimated time; it warns about
-  long calculations and refuses impossible ones with an explanation (e.g. Full CI for H₂O:
+  long calculations and refuses impossible ones with an explanation (e.g. Full-CI for H₂O:
   5.6·10¹¹ determinants already in aug-cc-pVDZ).
 - **HeH⁺** also in a minimal STO-nG basis (n = 1, 2, 3), the Szabo–Ostlund calculation:
-  Hartree–Fock identical to the book's program, Full CI with all states and their spin.
+  Hartree–Fock identical to the book's program, Full-CI with all states and their spin.
 
 **Nuclear motion (20.0, 21.0, 22.0).** A second kind of calculation, chosen at the top of the sidebar, computes
 the **vibrational (J = 0) and rovibrational energy levels of H₂¹⁶O, H₂¹⁷O, H₂¹⁸O and D₂¹⁶O** on the
@@ -31,10 +38,12 @@ or dense diagonalisation, the linear systems of every iterative method by precon
 gradients, MINRES, Chebyshev iteration or BiCG, the Gaussian start vector of the thesis's
 Algorithm 5, the expectation values of the O–H bond lengths and of the H–O–H angle for every
 level and (21.0) pictures of the eigenvectors. (22.0) Nuclear-motion output files open again in the
-app with every tab, and the terminal version `psilab` runs nuclear-motion input files.
+app with every tab, and the terminal version `psilab` runs nuclear-motion input files. (23.0) The
+whole calculation runs on every processor core — the preconditioned linear solves too — and the
+interface opens with the results of H₂¹⁶O for J = 10 (1 250 000 basis functions, 100 levels).
 
 For these molecules it **optimises geometries** (redundant internal coordinates, analytic gradients
-for HF, MP2–MP5, CISD … CISDTQ, QCISD … QCISDTQ, CCSD, CCSD(T) and Full CI, and (15.0) on UHF and
+for HF, MP2–MP5, CISD … CISDTQ, QCISD … QCISDTQ, CCSD, CCSD(T) and Full-CI, and (15.0) on UHF and
 ROHF references also for CCSDT and CCSDTQ), finds **transition states** (Gaussian's Opt=TS:
 partitioned RFO with a computed Hessian, CalcFC or CalcAll), runs **relaxed potential-energy scans**
 of a bond, an angle or a dihedral angle (Gaussian's Opt=ModRedundant), computes **harmonic
@@ -46,7 +55,7 @@ output file that is written while the job runs.
 
 It shows energies, orbital energies, SCF, coupled-cluster and Davidson iterations, the largest
 cluster amplitudes, the leading CI determinants and natural-orbital occupations, the **molecular
-orbitals** (canonical RHF orbitals and Full CI natural orbitals as rotatable isosurfaces or as
+orbitals** (canonical RHF orbitals and Full-CI natural orbitals as rotatable isosurfaces or as
 contour plots), a **3D molecule viewer** in the manner of PyMOL (ball and stick, sticks, spheres
 or lines; rotate and zoom with the mouse, depth cueing, labels, bond lengths, click atoms to measure
 distances, angles and dihedral angles) for the molecule, every optimisation step (played step by
@@ -216,10 +225,127 @@ same calculations run in the terminal on Linux and macOS
   title section must not contain: @ # ! – _ \ and the hyphen); charge and multiplicity; Cartesian
   coordinates in Å. ΨLab reads both back as custom molecules (13.0: Gaussian's `!` comments are
   skipped).
+- **Windows and tabs** (23.0): *File ▸ New Window* (⌘N) and *File ▸ New Tab* (⌘T, or the + of
+  the tab bar shown by *View ▸ Show Tab Bar*) open another calculation with its own sidebar,
+  results and running job: one tab can show an electronic-structure calculation and another a
+  nuclear-motion calculation, or two nuclear-motion calculations side by side. The title of a
+  window (the label of its tab) names its kind of calculation; the menus act on the window or tab
+  in front. Every new window or tab opens with the two startup examples.
 - **Build from source**: see [`app/SETUP.md`](app/SETUP.md) (Xcode 26, or XcodeGen with
   `xcode/project.yml`).
 
 ## Versions
+
+### 23.0
+**Every processor core for the nuclear-motion calculation, a window or tab per calculation, the nuclear-motion interface opening with the results of H₂¹⁶O for J = 10, nuclear-motion results as JSON, square R – θ eigenvector maps, one-line headers on the Geometry tab.**
+
+- **Parallel nuclear-motion calculation.** In 22.0 only the products H x and the potential at the
+  grid points ran on several threads; the run of the startup example (below: 1 250 000 basis
+  functions, 297 500 000 non-zero elements, 100 levels) took 10 h 01 min on 12 threads, almost all
+  of it on one core. Now on all threads (`threads = 0`, the default: every hardware thread):
+  - the **ILU preconditioner** (the two triangular sweeps of the symmetric Gauss–Seidel factors,
+    about two thirds of the time of a conjugate-gradient iteration): **level scheduling** — a row
+    of the forward sweep needs the rows of its lower triangle, so its level is one more than
+    theirs; the rows of one level are independent and are shared by the threads (in parts of
+    equal numbers of non-zero elements), the levels one after the other with a spin barrier. For
+    the DVR Hamiltonian the level of the row (K block b, i, j, l) is i + j + b·np + l, so there are
+    about 2·ns1 + nb·np levels of thousands of rows (ns1 = np = 50, J = 10: 598 levels of 2 090 rows
+    on average). Each row is computed exactly as in the serial sweep: **the same bits**;
+  - the vector operations of every linear solver and eigensolver (inner products, norms, axpy, the
+    updates of CG, MINRES, Chebyshev and BiCG): a vector is cut into chunks of 8192 numbers, and an
+    inner product sums one partial sum per chunk in chunk order, so that the result has the same
+    bits for every number of threads;
+  - the **reorthogonalisation** of the Lánczos and Davidson vectors: classical Gram–Schmidt twice
+    (“twice is enough”) instead of modified Gram–Schmidt twice — two parallel sweeps over the
+    basis per pass instead of 2m vector operations one after the other (the same orthogonality);
+  - the **Ritz vectors** (in the startup example 100 vectors from 447 Lánczos vectors at every step
+    from step 403 on): one parallel pass over the Lánczos vectors for all of them, the sums in the
+    order of 22.0 (the same bits);
+  - the assembly of the Hamiltonian (the row lengths are known, the rows filled in parallel), the
+    products H x split by non-zero elements instead of rows (the rows of K > 0 blocks are longer),
+    the matrix pictures, the expectation values and eigenvector pictures (the levels in parallel).
+
+  The parallel regions run on a **persistent thread pool** (`run_parallel`, also used by the
+  electronic-structure code) instead of threads started for every call, which a solver calling
+  thousands of short regions per second could not afford. The results do not depend on the number
+  of threads (tested to the last bit: 70 304 basis functions, Lánczos/CG/ILU and
+  Jacobi–Davidson/MINRES/ILU on 1 and on 4 threads; the level tables of 22.0 are reproduced).
+  Measured on 4 cores (Xeon, 2.3 GHz; H₂¹⁶O, J = 4, K = 1 … 4, Radau, ns1 = np = 30, 108 000 basis
+  functions, 30 levels): **293 s with 22.0, 131 s with 23.0** (129 Lánczos steps, 5104 CG
+  iterations in both); an ILU sweep 2.7 times, H x 3.2 times faster than on one core. The sweeps
+  are limited by the memory bandwidth, so more cores give more, but not proportionally more.
+- **Electronic structure**: up to 256 threads (22.0: at most 64), every hardware thread by default;
+  its parallel regions now run on the thread pool.
+- **Windows and tabs.** 22.0 had one model for the whole app: a second window, or a new tab of
+  *View ▸ Show Tab Bar*, showed the same calculation as the first. Now every window and every tab
+  has its own: one tab can show an electronic-structure calculation while another shows a
+  nuclear-motion calculation, or a second nuclear-motion calculation, each with its own inputs,
+  results, progress and *Cancel*, and both can run at the same time (on the same cores). *File ▸
+  New Window* (⌘N), *File ▸ New Tab* (⌘T; the + of the tab bar does the same); the title (the label
+  of the tab) is “ΨLab · Electronic structure” or “ΨLab · Nuclear motion”; the menus act on the
+  window or tab in front (all but New Window and New Tab are disabled when none is). The molecules
+  kept in the molecule menu are one list in all windows (a molecule saved in one tab appears in
+  the others). The launch arguments of the UI test apply to the first window only. Only the last
+  nuclear-motion result of all windows keeps its eigenvectors for *Export Eigenvalues and
+  Eigenvectors…* (each can be 1 GB); an older one says that it has to be run again.
+- **Nuclear motion: the startup example.** The nuclear-motion interface opens with the results of
+  H₂¹⁶O, J = 10, K = 1 … 10 (npar = 1), Radau coordinates, ns1 = np = 50, Re = 2 bohr, Rmax =
+  0.8 bohr, the 100 lowest levels with eigenvectors and expectation values by Lánczos with
+  conjugate gradients, the ILU preconditioner and the Gaussian start vector (tolerances 10⁻¹⁰ E_h,
+  10⁻⁸ E_h, 10⁻¹²; 1000 iterations; 10 × 50² × 50 = 1 250 000 basis functions), in every tab —
+  Levels, Geometry, Matrix, Eigenvectors, Convergence, Output — read from its output file in the
+  app's resources (`examples/outputs/h216o-j10-radau-ns1-50-np-50.out`, written by ΨLab 22.0 in
+  10 h 01 min; read in the background, the tabs say so meanwhile), with its inputs in the sidebar,
+  so that *Run* repeats it. As the H₂ example of the electronic-structure interface (17.0) it is
+  not shown with launch arguments of ΨLab. *Export Eigenvalues and Eigenvectors…* needs a run (the
+  file has no eigenvectors).
+- **Nuclear motion: Export Results as JSON…** (⌥⇧⌘E, also *Export JSON…* on the Levels tab):
+  the complete result as JSON — the archive of its output file (format 1, `"archive": {"kind":
+  "nuclear-motion"}`: levels, expectation values, K weights, eigenvector and matrix pictures, the
+  eigensolver's history, the linear solves, the grids and the input; for the startup example
+  about 8 MB). *File ▸ Open Output File…* opens the JSON file again and shows it in every tab, as
+  an output file. 22.0 had disabled the item in the nuclear-motion interface.
+- **Eigenvectors tab: the R₁ – θ and R₂ – θ maps** as large as the R₁ – R₂ map (at least 560 pt
+  high, 22.0: 380 pt) and with square cells — a horizontal step of the grid as long as a vertical
+  one: width : height = R points : θ points, a square for ns1 = np (22.0 stretched them to the
+  width of the panel). The 22.0 size is kept: the context menu of a map, *Plot Size of R₁ – θ and
+  R₂ – θ*, switches back (*Panel Width, 380 pt High (22.0)*); it is remembered
+  (`defaults write org.psilab.PsiLab eigenvectorPlotLayout v22`, or `square`).
+- **Geometry tab**: each header on one line with its unit — ⟨r⟩ (Å), ⟨r²⟩^1/2 (Å), ⟨r³⟩^1/3 (Å),
+  ⟨r⁻¹⟩⁻¹ (Å), ⟨r⁻²⟩^−1/2 (Å), ⟨r⁻³⟩^−1/3 (Å), ⟨HOH⟩ (°) — with real superscripts, in 15 pt (the
+  size of the values; 22.0: 13 pt on two lines), 12-pt column gaps so that the table fits next to
+  the sidebar. The two tables (expectation values, K weights) are now **lazy rows**: only the
+  levels on screen are built. 22.0 built every cell (a Grid in a ViewThatFits, laid out more than
+  once); with the 100 levels of the startup example (1800 cells and 1000 K weights) the app did not
+  respond for about a minute when the tab opened (found by the UI smoke test). The value columns
+  share the width of the window; in a very narrow window the numbers shrink a little instead of
+  scrolling sideways.
+
+- **Fixed: the estimated number of non-zero elements** (sidebar, *Size of the calculation*, and
+  `psilab --estimate`) counted np elements for two neighbouring K blocks in every row, also in the
+  first and the last block, which have one neighbour only: 310 000 000 instead of the
+  297 500 000 of the Hamiltonian for J = 10, K = 1 … 10, ns1 = np = 50 (the number on the Matrix and
+  Convergence tabs was right). Now exactly N·(2·ns1 + np − 2) + 2·(nb − 1)·ns1²·np² (N the basis
+  functions, nb the K blocks), tested against the built matrix; the memory estimate follows
+  (12.8 GB for that calculation, with the 8 bytes per row of the ILU level schedule).
+- **README title and introduction**: they now name both kinds of calculation, the electronic
+  structure and the nuclear motion. The title and the introduction of 22.0, word for word:
+
+  <details>
+  <summary>Title and introduction of the README up to 22.0</summary>
+
+  Title: **ΨLab — a native macOS quantum-chemistry app**
+
+  ΨLab computes small molecules — closed and (15.0) open shells, with RHF, UHF and ROHF references —
+  with Hartree–Fock, Møller–Plesset perturbation theory (MP2–MP5), configuration interaction (CISD …
+  CISDTQ, spin-adapted Full CI), quadratic CI (QCISD … QCISDTQ) and coupled cluster (CCSD … CCSDTQ):
+
+  </details>
+
+Tests: 905 checks of the nuclear-motion module (16 new: the same bits on 1 and 4 threads; the estimated
+non-zero elements equal those of the Hamiltonian).
+
+**About ΨLab** shows Version 23.0 (23); psilab --version prints 23.0.
 
 ### 22.0
 **Nuclear motion: output files that open again in every tab, nuclear-motion input files for the terminal version, the expectation-value table aligned, the eigenvectors of every level, the layout of the Geometry and Eigenvectors tabs.**

@@ -75,6 +75,10 @@ struct NuclearPlaceholder: View {
             if model.isRunning {
                 ProgressView(model.progressLine.isEmpty ? "Running…" : model.progressLine)
                     .frame(maxWidth: 560)
+            } else if model.loadingExample {
+                // 23.0: the startup example (H₂¹⁶O, J = 10) is read from the app's resources
+                ProgressView("Reading the example: H₂¹⁶O, J = 10, ns1 = np = 50, 100 levels…")
+                    .frame(maxWidth: 560)
             } else {
                 ContentUnavailableView(
                     "No energy levels yet",
@@ -130,6 +134,13 @@ struct NuclearLevelsView: View {
                     HStack {
                         SectionTitle("Energy levels")
                         Spacer()
+                        // 23.0: the complete result as JSON (File ▸ Export Results as JSON…)
+                        Button {
+                            model.exportJSON()
+                        } label: {
+                            Label("Export JSON…", systemImage: "curlybraces")
+                        }
+                        .help("Export the complete results as JSON (File ▸ Open Output File… shows them again in every tab)")
                         // 21.0: the eigenvalues, eigenvectors and/or Gaussian start vector as text
                         Button {
                             model.showExportSheet = true
@@ -248,20 +259,35 @@ struct NuclearExpectationView: View {
     /// 21.0: the table in a larger type (Task: the values were hard to read).
     private static let valueFont = Font.system(size: 15).monospacedDigit()
     private static let headerFont = Font.system(size: 13, weight: .semibold)
+    /// 23.0: the headers of the expectation values: the quantity and its unit on one line, with
+    /// real superscripts (LaTeX), in the size of the values (22.0: 13 pt on two lines)
+    private static let momentHeaderSize: CGFloat = 15
 
-    /// 22.0: a table across the whole width of the window (its columns share the free width);
-    /// in a window too narrow for it, at its own width with a horizontal scroll bar.
-    private func fullWidth<T: View>(_ table: T) -> some View {
-        ViewThatFits(in: .horizontal) {
-            table
-                .frame(maxWidth: .infinity)
-                .dataPanel()
-            ScrollView(.horizontal) {
-                table
-                    .fixedSize()
-                    .dataPanel()
+    /// 23.0: the width of the n column (up to 4 digits) and of the bond column.
+    private static let nWidth: CGFloat = 44
+    private static let bondWidth: CGFloat = 40
+    private static let columnGap: CGFloat = 12
+
+    /// 23.0: the tables are lazy rows across the width of the window (22.0: a Grid of every cell
+    /// in a ViewThatFits, laid out more than once: with the 100 levels of the startup example,
+    /// 1800 cells and 1000 K weights, the app did not respond for a minute when the tab opened).
+    /// Only the rows on screen are built; the value columns share the width (22.0: across the
+    /// whole width as well), the numbers shrink a little in a very narrow window instead of
+    /// scrolling sideways.
+    private func table<Header: View, Row: View>(count: Int, @ViewBuilder header: () -> Header,
+                                                @ViewBuilder row: @escaping (Int) -> Row) -> some View {
+        VStack(alignment: .leading, spacing: 9) {
+            header()
+            Divider()
+            LazyVStack(alignment: .leading, spacing: 9) {
+                ForEach(0..<count, id: \.self) { k in
+                    row(k)
+                }
             }
         }
+        .frame(maxWidth: .infinity)
+        .dataPanel()
+        .textSelection(.enabled)
     }
 
     var body: some View {
@@ -277,14 +303,14 @@ struct NuclearExpectationView: View {
                                                description: Text("Switch on “Expectation values” under Levels in the sidebar and run again."))
                     } else {
                         SectionTitle("Vibrationally averaged geometry: expectation values of the bond lengths and the angle")
-                        fullWidth(momentsTable(r))
+                        momentsTable(r)
                         Text("r₁ = r(O–H₁), r₂ = r(O–H₂) in Å; ⟨rⁿ⟩^(1/n) for n = 1, 2, 3, −1, −2, −3 (as the original program's expectval); the angle H–O–H in degrees. The DVR quadrature: |cᵢ|² at the grid points.")
                             .font(.callout)
                             .foregroundStyle(.secondary)
                     }
                     if r.hasVectors != false, let kv = r.kValues, kv.count > 1 {
                         SectionTitle("Weights of the K blocks")
-                        fullWidth(kTable(r, kv))
+                        kTable(r, kv)
                     }
                 }
                 .padding(20)
@@ -294,38 +320,53 @@ struct NuclearExpectationView: View {
         }
     }
 
-    /// 22.0: a cell of a value column: as wide as the column, which takes its share of the free
-    /// width of a full-width table (fullWidth); the numbers right-aligned.
+    /// A cell of a value column: the columns share the free width; the numbers right-aligned.
     private func cell(_ text: String) -> some View {
         Text(text)
+            .lineLimit(1)
+            .minimumScaleFactor(0.75)
             .frame(maxWidth: .infinity, alignment: .trailing)
+    }
+
+    /// 23.0: a header of the moments table, e.g. "⟨r^{-2}⟩^{-1/2} (Å)", on one line.
+    private func header(_ latex: String) -> some View {
+        LaTeXText(latex, size: Self.momentHeaderSize, weight: .semibold)
+            .lineLimit(1)
+            .minimumScaleFactor(0.75)
+            .frame(maxWidth: .infinity, alignment: .trailing)
+    }
+
+    private func label(_ text: String, width: CGFloat) -> some View {
+        Text(text)
+            .lineLimit(1)
+            .frame(width: width, alignment: .trailing)
     }
 
     private func momentsTable(_ r: NuclearResult) -> some View {
         let a = NuclearUnits.bohrToAngstrom
         func f(_ x: Double) -> String { String(format: "%.5f", x * a) }
-        // the quantity and its unit on two lines; 22.0: the seven value columns share the width of
-        // the window (21.0: a narrow table at the left), n and the bond as wide as their text
-        return Grid(alignment: .trailing, horizontalSpacing: 16, verticalSpacing: 9) {
-            GridRow {
-                Text("n")
-                Text("bond")
-                cell("⟨r⟩\n(Å)")
-                cell("⟨r²⟩^½\n(Å)")
-                cell("⟨r³⟩^⅓\n(Å)")
-                cell("⟨r⁻¹⟩⁻¹\n(Å)")
-                cell("⟨r⁻²⟩^−½\n(Å)")
-                cell("⟨r⁻³⟩^−⅓\n(Å)")
-                cell("⟨HOH⟩\n(°)")
+        // 23.0: the quantity and its unit on one line, 15 pt with superscripts (22.0: 13 pt, two
+        // lines); the seven value columns share the width of the window; 12-pt column gaps
+        return table(count: r.levels.count) {
+            HStack(spacing: Self.columnGap) {
+                label("n", width: Self.nWidth)
+                label("bond", width: Self.bondWidth)
+                header("⟨r⟩ (Å)")
+                header("⟨r^{2}⟩^{1/2} (Å)")
+                header("⟨r^{3}⟩^{1/3} (Å)")
+                header("⟨r^{−1}⟩^{−1} (Å)")
+                header("⟨r^{−2}⟩^{−1/2} (Å)")
+                header("⟨r^{−3}⟩^{−1/3} (Å)")
+                header("⟨HOH⟩ (°)")
             }
-            .font(Self.headerFont)
-            .multilineTextAlignment(.trailing)
+            .font(.system(size: Self.momentHeaderSize, weight: .semibold))
             .foregroundStyle(.secondary)
-            Divider()
-            ForEach(Array(r.levels.enumerated()), id: \.offset) { k, l in
-                GridRow {
-                    Text("\(k + 1)")
-                    Text("r₁")
+        } row: { k in
+            let l = r.levels[k]
+            VStack(alignment: .leading, spacing: 9) {
+                HStack(spacing: Self.columnGap) {
+                    label("\(k + 1)", width: Self.nWidth)
+                    label("r₁", width: Self.bondWidth)
                     cell(f(l.r1.mean))
                     cell(f(l.r1.rms))
                     cell(f(l.r1.cubic))
@@ -334,45 +375,41 @@ struct NuclearExpectationView: View {
                     cell(f(l.r1.inverse3))
                     cell(String(format: "%.3f", l.theta))
                 }
-                .font(Self.valueFont)
-                GridRow {
-                    Text("")
-                    Text("r₂")
+                HStack(spacing: Self.columnGap) {
+                    label("", width: Self.nWidth)
+                    label("r₂", width: Self.bondWidth)
                     cell(f(l.r2.mean))
                     cell(f(l.r2.rms))
                     cell(f(l.r2.cubic))
                     cell(f(l.r2.inverse))
                     cell(f(l.r2.inverse2))
                     cell(f(l.r2.inverse3))
-                    Text("")
+                    cell("")
                 }
-                .font(Self.valueFont)
                 .foregroundStyle(.secondary)
             }
+            .font(Self.valueFont)
         }
-        .textSelection(.enabled)
     }
 
     private func kTable(_ r: NuclearResult, _ kv: [Int]) -> some View {
-        Grid(alignment: .trailing, horizontalSpacing: 16, verticalSpacing: 9) {
-            GridRow {
-                Text("n")
+        table(count: r.levels.count) {
+            HStack(spacing: 16) {
+                label("n", width: Self.nWidth)
                 ForEach(kv, id: \.self) { k in cell("K = \(k)") }
             }
             .font(Self.headerFont)
             .foregroundStyle(.secondary)
-            Divider()
-            ForEach(Array(r.levels.enumerated()), id: \.offset) { n, l in
-                GridRow {
-                    Text("\(n + 1)")
-                    ForEach(Array(l.kWeights.enumerated()), id: \.offset) { _, w in
-                        cell(String(format: "%.5f", w))
-                    }
+        } row: { n in
+            let w = r.levels[n].kWeights
+            HStack(spacing: 16) {
+                label("\(n + 1)", width: Self.nWidth)
+                ForEach(0..<kv.count, id: \.self) { b in
+                    cell(b < w.count ? String(format: "%.5f", w[b]) : "")
                 }
-                .font(Self.valueFont)
             }
+            .font(Self.valueFont)
         }
-        .textSelection(.enabled)
     }
 }
 

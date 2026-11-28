@@ -874,10 +874,11 @@ void compute_schwarz(const BasisSet& basis, ShellPairList& list) {
     }
 }
 
+// 23.0: up to 256 threads (22.0: 64), every hardware thread of the processor by default.
 int resolve_threads(int requested) {
-    if (requested > 0) return std::min(requested, 64);
+    if (requested > 0) return std::min(requested, 256);
     const unsigned hw = std::thread::hardware_concurrency();
-    return static_cast<int>(std::max(1u, std::min(hw, 64u)));
+    return static_cast<int>(std::max(1u, std::min(hw, 256u)));
 }
 
 }  // namespace macqc

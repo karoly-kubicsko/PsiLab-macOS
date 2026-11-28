@@ -179,6 +179,7 @@ extension AppModel {
         if let problem = MoleculeStore.save(savedMolecules) {
             errorMessage = "The molecule list could not be saved: \(problem)"
         }
+        AppModel.moleculesSaved(savedMolecules, by: self)   // 23.0: the other windows and tabs
     }
 
     /// Changes the selected custom molecule and saves the list.

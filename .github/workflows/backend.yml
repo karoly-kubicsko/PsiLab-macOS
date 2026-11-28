@@ -120,7 +120,7 @@ jobs:
           ./build/psilab xyzrun/co2.xyz molecule=CO2; test $? -eq 2 || exit 1
           ./build/psilab xyzrun/co2.xyz --foo; test $? -eq 2 || exit 1
           set -e
-          ./build/psilab --version | grep -q "22.0"
+          ./build/psilab --version | grep -q "23.0"
           # ORCA-style geometry blocks: the atoms in the input file, or '* xyzfile' (the same result)
           ./build/psilab examples/water-orca-style.inp inline.out
           grep -q "Normal termination" inline.out

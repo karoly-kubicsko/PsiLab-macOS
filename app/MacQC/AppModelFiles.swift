@@ -84,8 +84,9 @@ struct OpenedOutputFile: Equatable {
     var example = false
 }
 
-/// The "archive" object of an archive: the program and the time it was written.
-private nonisolated struct ArchiveHeader: Decodable {
+/// The "archive" object of an archive: the program and the time it was written (23.0: also read
+/// by the startup example of the nuclear-motion interface).
+nonisolated struct ArchiveHeader: Decodable {
     struct Info: Decodable {
         var format: Int?
         var program: String?
