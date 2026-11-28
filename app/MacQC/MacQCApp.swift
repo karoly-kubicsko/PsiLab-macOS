@@ -150,10 +150,14 @@ struct PsiLabCommands: Commands {
             .disabled(off || model.calculation != .nuclear || model.nuclear.result?.exportId == nil)
 
             Button("Export Results as JSON…") {
-                model.exportJSON()
+                if model.calculation == .nuclear {
+                    model.nuclear.exportJSON()   // 23.0: the nuclear-motion result (its archive)
+                } else {
+                    model.exportJSON()
+                }
             }
             .keyboardShortcut("e", modifiers: [.command, .shift, .option])
-            .disabled(off || !model.canExportOrCopy)
+            .disabled(off || (model.calculation == .nuclear ? model.nuclear.result == nil : !model.canExportOrCopy))
 
             Button("Export Potential Curve as Text…") {
                 model.exportCurve()

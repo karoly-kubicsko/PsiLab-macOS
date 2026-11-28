@@ -230,7 +230,7 @@ same calculations run in the terminal on Linux and macOS
 ## Versions
 
 ### 23.0
-**Every processor core for the nuclear-motion calculation, a window or tab per calculation, the nuclear-motion interface opening with the results of H₂¹⁶O for J = 10, square R – θ eigenvector maps, one-line headers on the Geometry tab.**
+**Every processor core for the nuclear-motion calculation, a window or tab per calculation, the nuclear-motion interface opening with the results of H₂¹⁶O for J = 10, nuclear-motion results as JSON, square R – θ eigenvector maps, one-line headers on the Geometry tab.**
 
 - **Parallel nuclear-motion calculation.** In 22.0 only the products H x and the potential at the
   grid points ran on several threads; the run of the startup example (below: 1 250 000 basis
@@ -292,6 +292,12 @@ same calculations run in the terminal on Linux and macOS
   so that *Run* repeats it. As the H₂ example of the electronic-structure interface (17.0) it is
   not shown with launch arguments of ΨLab. *Export Eigenvalues and Eigenvectors…* needs a run (the
   file has no eigenvectors).
+- **Nuclear motion: Export Results as JSON…** (⌥⇧⌘E, also *Export JSON…* on the Levels tab):
+  the complete result as JSON — the archive of its output file (format 1, `"archive": {"kind":
+  "nuclear-motion"}`: levels, expectation values, K weights, eigenvector and matrix pictures, the
+  eigensolver's history, the linear solves, the grids and the input; for the startup example
+  about 8 MB). *File ▸ Open Output File…* opens the JSON file again and shows it in every tab, as
+  an output file. 22.0 had disabled the item in the nuclear-motion interface.
 - **Eigenvectors tab: the R₁ – θ and R₂ – θ maps** as large as the R₁ – R₂ map (at least 560 pt
   high, 22.0: 380 pt) and with square cells — a horizontal step of the grid as long as a vertical
   one: width : height = R points : θ points, a square for ns1 = np (22.0 stretched them to the

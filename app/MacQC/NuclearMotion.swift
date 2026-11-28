@@ -598,6 +598,54 @@ final class NuclearModel {
         }
     }
 
+    /// 23.0: File ▸ Export Results as JSON… in the nuclear-motion interface: the complete result as
+    /// JSON — the archive of its output file (format 1, `"archive": {"kind": "nuclear-motion"}`:
+    /// levels, expectation values, K weights, eigenvector and matrix pictures, the eigensolver's
+    /// history, the linear solves, the grids and the input), so that File ▸ Open Output File…
+    /// shows it again in every tab. Without an archive in the output text (not expected) the result
+    /// as the app holds it, with the same "archive" header.
+    func exportJSON() {
+        guard let r = result else { return }
+        guard let json = jsonExportText(r) else {
+            errorMessage = "The results could not be written as JSON."
+            return
+        }
+        let panel = NSSavePanel()
+        panel.title = "Export Results as JSON"
+        panel.allowedContentTypes = [UTType.json]
+        panel.canCreateDirectories = true
+        let i = r.input ?? input
+        let name = i.isotopologue.rawValue.replacingOccurrences(of: "(", with: "").replacingOccurrences(of: ")", with: "")
+        panel.nameFieldStringValue = "PsiLab-\(name)-J\(i.J)-\(i.coordinates.rawValue)-ns1-\(i.radialPoints)-np-\(i.angularPoints).json"
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        do {
+            try json.write(to: url, atomically: true, encoding: .utf8)
+        } catch {
+            errorMessage = "The file could not be saved: \(error.localizedDescription)"
+        }
+    }
+
+    /// The JSON of File ▸ Export Results as JSON… (see exportJSON).
+    func jsonExportText(_ r: NuclearResult) -> String? {
+        if let text = r.output, let archive = OutputArchive.json(in: text), archive.hasPrefix("{") {
+            return archive + "\n"
+        }
+        var copy = r
+        copy.output = nil
+        copy.exportId = nil
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
+        guard let data = try? encoder.encode(copy), let body = String(data: data, encoding: .utf8),
+              body.hasPrefix("{") else { return nil }
+        let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? ""
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.dateFormat = "yyyy-MM-dd HH:mm:ss"
+        let header = "\"archive\":{\"format\":1,\"kind\":\"nuclear-motion\",\"program\":\"ΨLab \(version) (app)\",\"written\":\"\(formatter.string(from: Date()))\"}"
+        let rest = String(body.dropFirst())
+        return "{" + header + (rest == "}" ? "" : ",") + rest + "\n"
+    }
+
     /// 21.0: what the last result can export.
     var canExportVectors: Bool { result?.hasVectors == true }
     var canExportStartVector: Bool { result?.startVector != nil }

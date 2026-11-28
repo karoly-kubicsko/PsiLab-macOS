@@ -134,6 +134,13 @@ struct NuclearLevelsView: View {
                     HStack {
                         SectionTitle("Energy levels")
                         Spacer()
+                        // 23.0: the complete result as JSON (File ▸ Export Results as JSON…)
+                        Button {
+                            model.exportJSON()
+                        } label: {
+                            Label("Export JSON…", systemImage: "curlybraces")
+                        }
+                        .help("Export the complete results as JSON (File ▸ Open Output File… shows them again in every tab)")
                         // 21.0: the eigenvalues, eigenvectors and/or Gaussian start vector as text
                         Button {
                             model.showExportSheet = true
