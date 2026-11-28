@@ -1,4 +1,4 @@
-# ΨLab — a native macOS quantum-chemistry app
+# ΨLab — a native macOS quantum-chemistry app: electronic structure and nuclear motion
 
 **Current version: 23.0** — see [Versions](#versions).
 
@@ -323,11 +323,13 @@ same calculations run in the terminal on Linux and macOS
   Convergence tabs was right). Now exactly N·(2·ns1 + np − 2) + 2·(nb − 1)·ns1²·np² (N the basis
   functions, nb the K blocks), tested against the built matrix; the memory estimate follows
   (12.8 GB for that calculation, with the 8 bytes per row of the ILU level schedule).
-- **README introduction**: it now names both kinds of calculation, the electronic structure and the
-  nuclear motion. The introduction of 22.0, word for word:
+- **README title and introduction**: they now name both kinds of calculation, the electronic
+  structure and the nuclear motion. The title and the introduction of 22.0, word for word:
 
   <details>
-  <summary>Introduction of the README up to 22.0</summary>
+  <summary>Title and introduction of the README up to 22.0</summary>
+
+  Title: **ΨLab — a native macOS quantum-chemistry app**
 
   ΨLab computes small molecules — closed and (15.0) open shells, with RHF, UHF and ROHF references —
   with Hartree–Fock, Møller–Plesset perturbation theory (MP2–MP5), configuration interaction (CISD …
