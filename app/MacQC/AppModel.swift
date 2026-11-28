@@ -453,8 +453,11 @@ final class AppModel {
         // Full CI/aug-cc-pCV5Z//Full CI/aug-cc-pCVQZ (opt+freq+sp), read from the bundled output file.
         if !first || !AppModel.hasPsiLabLaunchArguments {
             showStartupExample()
-            // 23.0: the nuclear-motion interface with the results of its example (H₂¹⁶O, J = 10)
-            nuclear.showStartupExample()
+            // 23.0: the nuclear-motion interface with the results of its example (H₂¹⁶O, J = 10);
+            // -psilabNuclearExample NO (UI test): the default inputs instead, whose Run is short
+            let skip = first && UserDefaults.standard.object(forKey: "psilabNuclearExample") != nil
+                && !UserDefaults.standard.bool(forKey: "psilabNuclearExample")
+            if !skip { nuclear.showStartupExample() }
         }
     }
 
@@ -605,7 +608,8 @@ final class AppModel {
     /// 17.0: the app was launched with arguments of ΨLab (-psilabMolecule, -psilabOpenOutput, …;
     /// the UI test uses them); otherwise it opens with the startup example.
     static var hasPsiLabLaunchArguments: Bool {
-        ProcessInfo.processInfo.arguments.dropFirst().contains { $0.hasPrefix("-psilab") }
+        // 23.0: -psilabNuclearExample only chooses the inputs of the nuclear-motion interface
+        ProcessInfo.processInfo.arguments.dropFirst().contains { $0.hasPrefix("-psilab") && $0 != "-psilabNuclearExample" }
     }
 
     /// 17.0: the startup example: H₂ optimised and its frequencies computed with Full CI/aug-cc-pCVQZ,

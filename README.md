@@ -314,7 +314,12 @@ same calculations run in the terminal on Linux and macOS
 - **Geometry tab**: each header on one line with its unit — ⟨r⟩ (Å), ⟨r²⟩^1/2 (Å), ⟨r³⟩^1/3 (Å),
   ⟨r⁻¹⟩⁻¹ (Å), ⟨r⁻²⟩^−1/2 (Å), ⟨r⁻³⟩^−1/3 (Å), ⟨HOH⟩ (°) — with real superscripts, in 15 pt (the
   size of the values; 22.0: 13 pt on two lines), 12-pt column gaps so that the table fits next to
-  the sidebar.
+  the sidebar. The two tables (expectation values, K weights) are now **lazy rows**: only the
+  levels on screen are built. 22.0 built every cell (a Grid in a ViewThatFits, laid out more than
+  once); with the 100 levels of the startup example (1800 cells and 1000 K weights) the app did not
+  respond for about a minute when the tab opened (found by the UI smoke test). The value columns
+  share the width of the window; in a very narrow window the numbers shrink a little instead of
+  scrolling sideways.
 
 - **Fixed: the estimated number of non-zero elements** (sidebar, *Size of the calculation*, and
   `psilab --estimate`) counted np elements for two neighbouring K blocks in every row, also in the

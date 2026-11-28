@@ -320,7 +320,9 @@ APPLESCRIPT
 echo "== 20.0: start-up example, then H3+ (Full CI/aug-cc-pVDZ opt+freq+sp) chosen in the sidebar"
 pkill -x "ΨLab" || true
 sleep 3
-open -n "$APP" --args -appearanceChoice dark
+# 23.0: without the nuclear-motion startup example (its inputs, J = 10 with 1 250 000 basis
+# functions, would make the Run of the nuclear-motion part below a 10-hour calculation)
+open -n "$APP" --args -appearanceChoice dark -psilabNuclearExample NO
 sleep 20
 view_tab "e0-example-optimisation" "Optimisation"
 print_shot "e0-example-optimisation"
@@ -1048,7 +1050,8 @@ with_timeout 20 osascript "$OUT/file-menu.applescript" "New Tab" || echo "could 
 sleep 10
 dump_tab "h8-new-tab" ""
 print_shot "h8-new-tab"
-grep -E "Electronic structure" "$OUT/h8-new-tab.txt" > /dev/null && echo "new tab: electronic-structure interface" || echo "new tab: electronic-structure text NOT found"
+# the new tab shows the electronic-structure sidebar (the H2 example: Atom/Molecule, R = 0.7414 Å)
+grep -E "Atom/Molecule" "$OUT/h8-new-tab.txt" > /dev/null && echo "new tab: electronic-structure interface" || echo "new tab: electronic-structure sidebar NOT found"
 
 # 20.0/21.0: the screenshots of the 20.0 and 21.0 sections once more at the end of the log (the job
 # log read through the API is its last part only; the sections run first)
