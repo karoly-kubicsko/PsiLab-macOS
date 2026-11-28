@@ -2,9 +2,16 @@
 
 **Current version: 23.0** — see [Versions](#versions).
 
-ΨLab computes small molecules — closed and (15.0) open shells, with RHF, UHF and ROHF references —
-with Hartree–Fock, Møller–Plesset perturbation theory (MP2–MP5), configuration interaction (CISD …
-CISDTQ, spin-adapted Full CI), quadratic CI (QCISD … QCISDTQ) and coupled cluster (CCSD … CCSDTQ):
+ΨLab does two kinds of calculation, chosen at the top of the sidebar (23.0: one in each window or
+tab): the **electronic structure** of small molecules and (20.0) the **nuclear motion** of water —
+the vibrational and rovibrational energy levels of H₂¹⁶O, H₂¹⁷O, H₂¹⁸O and D₂¹⁶O on the CVRQD
+potential energy surfaces (discrete variable representation in Jacobi or Radau coordinates,
+shift-invert Lánczos, Davidson and other eigensolvers; see below).
+
+For the electronic structure, ΨLab computes small molecules — closed and (15.0) open shells, with
+RHF, UHF and ROHF references — with Hartree–Fock, Møller–Plesset perturbation theory (MP2–MP5),
+configuration interaction (CISD … CISDTQ, spin-adapted Full CI), quadratic CI (QCISD … QCISDTQ) and
+coupled cluster (CCSD … CCSDTQ):
 
 - **H₂, LiH, H₂O, H₂O₂, NH₃ and HeH⁺** (and custom molecules of H–Rn and Th–Lr) in 44 Gaussian
   basis sets from basissetexchange.org: the correlation-consistent sets cc-pVXZ, aug-cc-pVXZ,
