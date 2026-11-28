@@ -2310,7 +2310,10 @@ NuclearMotionEstimate estimate_nuclear_motion(const NuclearMotionInput& in) {
     const long long nb = static_cast<long long>(k_values(in.J, in.parity_block).size());
     const long long ns = in.radial_points, np = in.angular_points;
     e.dimension = nb * ns * ns * np;
-    e.nonzeros = e.dimension * (2 * ns + np - 2 + (nb > 1 ? 2 * np : 0));
+    // every row: R1 and R2 (ns - 1 each), theta (np), and np for each neighbouring K block; the first
+    // and the last block have one neighbour only (22.0 counted two for every row: 4 % too many for
+    // J = 10, K = 1 ... 10)
+    e.nonzeros = e.dimension * (2 * ns + np - 2) + 2 * (nb - 1) * ns * ns * np * np;
     double vectors = 0.0;
     if (in.eigensolver == "lanczos") vectors = std::min<double>(in.max_iterations, static_cast<double>(e.dimension)) + 8;
     else if (in.eigensolver == "dense") vectors = static_cast<double>(e.dimension);
@@ -2318,7 +2321,9 @@ NuclearMotionEstimate estimate_nuclear_motion(const NuclearMotionInput& in) {
         vectors = 3.0 * (in.levels == 1 ? 1 : in.levels + std::max(2, in.levels / 2)) + 12;
     else if (in.eigensolver == "rayleigh-quotient") vectors = in.levels + 14.0;
     else vectors = 2.0 * (in.subspace_size > 0 ? in.subspace_size : std::max(2 * in.levels + 20, 40)) + 10;
-    e.memory_mb = (static_cast<double>(e.nonzeros) * 12.0 + static_cast<double>(e.dimension) * (8.0 * vectors + 40.0)) / 1048576.0;
+    // per non-zero element: the value and the column (12 bytes); per row: the vectors, the row
+    // offsets, diagonals, preconditioner and potential (40 bytes) and (23.0) the ILU level schedule (8)
+    e.memory_mb = (static_cast<double>(e.nonzeros) * 12.0 + static_cast<double>(e.dimension) * (8.0 * vectors + 48.0)) / 1048576.0;
     if (in.eigensolver == "dense" && e.dimension > 4000)
         e.refusal = fmt("dense diagonalisation is limited to 4000 basis functions (here %lld); choose Lanczos or (Jacobi-)Davidson",
                         e.dimension);

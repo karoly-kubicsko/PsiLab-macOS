@@ -690,6 +690,34 @@ int main() {
               "22.0: the error banner");
     }
 
+    // ---- 23.0: the estimate counts the non-zero elements of the Hamiltonian exactly (22.0 counted
+    //         two neighbouring K blocks for every row, also in the first and the last block)
+    for (const int J : {0, 1, 3}) {
+        for (const int par : {0, 1}) {
+            if (J == 0 && par == 1) continue;
+            NuclearMotionInput in;
+            in.J = J;
+            in.parity_block = par;
+            in.radial_points = 5;
+            in.angular_points = 6;
+            in.levels = 1;
+            in.eigensolver = "dense";
+            const NuclearMotionEstimate est = estimate_nuclear_motion(in);
+            const NuclearMotionResult r = run_nuclear_motion(in);
+            check(est.nonzeros == r.nonzeros && est.dimension == r.dimension,
+                  "23.0: estimated non-zero elements = those of the Hamiltonian, J = " + std::to_string(J) + ", block " +
+                      std::to_string(par) + " (" + std::to_string(est.nonzeros) + " vs " + std::to_string(r.nonzeros) + ")");
+        }
+    }
+    {
+        NuclearMotionInput in;  // the startup example: J = 10, K = 1 ... 10, ns1 = np = 50
+        in.J = 10;
+        in.parity_block = 1;
+        in.radial_points = 50;
+        in.angular_points = 50;
+        check(estimate_nuclear_motion(in).nonzeros == 297500000LL, "23.0: the startup example has 297 500 000 non-zero elements");
+    }
+
     // ---- 23.0: the parallel code (thread pool, vector operations summed per chunk, the ILU sweeps
     //         by levels, classical Gram-Schmidt twice, the Ritz vectors in one pass, the matrix
     //         pictures and the expectation values) gives the same bits on 1 and on 4 threads, for a

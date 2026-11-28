@@ -316,6 +316,13 @@ same calculations run in the terminal on Linux and macOS
   size of the values; 22.0: 13 pt on two lines), 12-pt column gaps so that the table fits next to
   the sidebar.
 
+- **Fixed: the estimated number of non-zero elements** (sidebar, *Size of the calculation*, and
+  `psilab --estimate`) counted np elements for two neighbouring K blocks in every row, also in the
+  first and the last block, which have one neighbour only: 310 000 000 instead of the
+  297 500 000 of the Hamiltonian for J = 10, K = 1 … 10, ns1 = np = 50 (the number on the Matrix and
+  Convergence tabs was right). Now exactly N·(2·ns1 + np − 2) + 2·(nb − 1)·ns1²·np² (N the basis
+  functions, nb the K blocks), tested against the built matrix; the memory estimate follows
+  (12.8 GB for that calculation, with the 8 bytes per row of the ILU level schedule).
 - **README introduction**: it now names both kinds of calculation, the electronic structure and the
   nuclear motion. The introduction of 22.0, word for word:
 
@@ -328,7 +335,8 @@ same calculations run in the terminal on Linux and macOS
 
   </details>
 
-Tests: 899 checks of the nuclear-motion module (10 new: the same bits on 1 and 4 threads).
+Tests: 905 checks of the nuclear-motion module (16 new: the same bits on 1 and 4 threads; the estimated
+non-zero elements equal those of the Hamiltonian).
 
 **About ΨLab** shows Version 23.0 (23); psilab --version prints 23.0.
 
