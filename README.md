@@ -316,6 +316,18 @@ same calculations run in the terminal on Linux and macOS
   size of the values; 22.0: 13 pt on two lines), 12-pt column gaps so that the table fits next to
   the sidebar.
 
+- **README introduction**: it now names both kinds of calculation, the electronic structure and the
+  nuclear motion. The introduction of 22.0, word for word:
+
+  <details>
+  <summary>Introduction of the README up to 22.0</summary>
+
+  ΨLab computes small molecules — closed and (15.0) open shells, with RHF, UHF and ROHF references —
+  with Hartree–Fock, Møller–Plesset perturbation theory (MP2–MP5), configuration interaction (CISD …
+  CISDTQ, spin-adapted Full CI), quadratic CI (QCISD … QCISDTQ) and coupled cluster (CCSD … CCSDTQ):
+
+  </details>
+
 Tests: 899 checks of the nuclear-motion module (10 new: the same bits on 1 and 4 threads).
 
 **About ΨLab** shows Version 23.0 (23); psilab --version prints 23.0.
